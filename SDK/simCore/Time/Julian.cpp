@@ -20,6 +20,7 @@
  *
  */
 #include <cmath>
+#include <limits>
 #include "simCore/Common/Time.h"
 #include "simCore/Time/Constants.h"
 #include "simCore/Time/Exception.h"
@@ -39,6 +40,9 @@ int simCore::julianDay()
   time_t t(tp.tv_sec);
   pTime = gmtime(&t);
 
+  if (pTime == NULL)
+    return std::numeric_limits<int>::max();
+
   // tm struct year days range from 0 to 365, Julian days are 1 to 366
   // hence, need to add an extra day for Julian
   return static_cast<int>(pTime->tm_yday + 1);
@@ -55,7 +59,7 @@ int simCore::julianDay(double secsSinceRefYear, unsigned int refYear)
 double simCore::julianDayFrac()
 {
   return static_cast<double>(simCore::julianDay()) - 1.
-    + simCore::systemTimeToSecsBgnYr() / static_cast<double>(simCore::SECPERDAY);
+    + simCore::systemTimeToSecsBgnDay() / static_cast<double>(simCore::SECPERDAY);
 }
 
 double simCore::julianDate(int yr, double juldayfrac)
@@ -72,7 +76,8 @@ double simCore::julianDate(int yr, double juldayfrac)
 
 double simCore::julianDate()
 {
-  return simCore::julianDate(simCore::currentYear(), simCore::julianDayFrac());
+  // Add one because julianDayFrac() subtracts one to get the last full day
+  return simCore::julianDate(simCore::currentYear(), simCore::julianDayFrac() + 1);
 }
 
 int simCore::julianDate(int year, int month, int monthDay)

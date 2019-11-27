@@ -5,13 +5,13 @@ endif()
 project(EXAMPLE_PLATFORM_AZIM_ELEV_VIEW)
 
 set(PROJECT_FILES
-    src/PlatformAzimElevViewTest.cpp
+    PlatformAzimElevViewTest.cpp
 )
 
-add_executable(example_platform_azim_elev_view ${PROJECT_FILES})
-target_link_libraries(example_platform_azim_elev_view PRIVATE simVis simUtil)
-set_target_properties(example_platform_azim_elev_view PROPERTIES
+add_executable(example_platformazimelevviewtest ${PROJECT_FILES})
+target_link_libraries(example_platformazimelevviewtest PRIVATE simVis simUtil)
+set_target_properties(example_platformazimelevviewtest PROPERTIES
     FOLDER "Examples"
-    PROJECT_LABEL "Example - Platform AzimElev View"
+    PROJECT_LABEL "Example - Platform AzimElev View Test"
 )
-vsi_install_target(example_platform_azim_elev_view SDK_Examples)
+vsi_install_target(example_platformazimelevviewtest SDK_Examples)

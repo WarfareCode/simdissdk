@@ -30,42 +30,41 @@
 #include "simVis/GOG/Cylinder.h"
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
-#include "simVis/GOG/Utils.h"
+#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 
-using namespace osgEarth::Symbology;
 using namespace osgEarth::Features;
 using namespace osgEarth::Annotation;
 
 namespace simVis { namespace GOG {
 
-GogNodeInterface* Cylinder::deserialize(const osgEarth::Config&  conf,
+GogNodeInterface* Cylinder::deserialize(const ParsedShape& parsedShape,
                       simVis::GOG::ParserData& p,
                       const GOGNodeType&       nodeType,
                       const GOGContext&        context,
                       const GogMetaData&       metaData,
                       MapNode*                 mapNode)
 {
-  Distance radius(conf.value("radius", 1000.), p.units_.rangeUnits_);
-  Angle    rotation(conf.value<double>("rotation", 0.0), p.units_.angleUnits_);
-  Distance height(conf.value("height", 1000.), p.units_.altitudeUnits_);
-  Angle    start(conf.value<double>("anglestart", 0.0), p.units_.angleUnits_);
+  Distance radius(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_RADIUS, 1000.)), Units::METERS);
+  Angle    rotation(0., Units::DEGREES); // Rotation handled by parameters in GOG_ORIENT
+  Distance height(p.units_.altitudeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_HEIGHT, 1000.)), Units::METERS);
+  Angle    start(p.units_.angleUnits_.convertTo(simCore::Units::DEGREES, parsedShape.doubleValue(GOG_ANGLESTART, 0.)), Units::DEGREES);
   Angle    end = start;
-  if (conf.hasValue("angledeg"))
-    end = start + Angle(conf.value<double>("angledeg", 90.0), Units::DEGREES);
-  else if (conf.hasValue("angleend"))
-    end = Angle(conf.value<double>("angleend", 0.0), p.units_.angleUnits_);
+  if (parsedShape.hasValue(GOG_ANGLEDEG))
+    end = start + Angle(parsedShape.doubleValue(GOG_ANGLEDEG, 90.0), Units::DEGREES);
+  else if (parsedShape.hasValue(GOG_ANGLEEND))
+    end = Angle(p.units_.angleUnits_.convertTo(simCore::Units::DEGREES, parsedShape.doubleValue(GOG_ANGLEEND, 0.0)), Units::DEGREES);
 
-  GeometryFactory gf;
+  osgEarth::Symbology::GeometryFactory gf;
   osg::ref_ptr<Geometry> tgeom = start == end ? (Geometry*)new Ring() : (Geometry*)new LineString();
   osg::ref_ptr<Geometry> shape;
 
-  if (conf.hasValue("majoraxis"))
+  if (parsedShape.hasValue(GOG_MAJORAXIS))
   {
-    radius = Distance(0.5 * conf.value<double>("majoraxis", 2000.0), p.units_.rangeUnits_);
-    if (conf.hasValue("minoraxis"))
+    radius = Distance(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, 0.5 * parsedShape.doubleValue(GOG_MAJORAXIS, 2000.0)), Units::METERS);
+    if (parsedShape.hasValue(GOG_MINORAXIS))
     {
-      Distance minorRadius = Distance(0.5 * conf.value<double>("minoraxis", 2000.0), p.units_.rangeUnits_);
+      Distance minorRadius = Distance(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, 0.5 * parsedShape.doubleValue(GOG_MINORAXIS, 2000.0)), Units::METERS);
       shape = gf.createEllipticalArc(osg::Vec3d(0, 0, 0), radius, minorRadius, rotation, start, end, 0u, tgeom.get(), true);
     }
     else
@@ -87,19 +86,20 @@ GogNodeInterface* Cylinder::deserialize(const osgEarth::Config&  conf,
     style.remove<LineSymbol>();
 
     // Need to turn backface culling off for unfilled cylinders so the sides are visible
-    if (!conf.hasValue("filled"))
+    if (!parsedShape.hasValue(GOG_FILLED))
       style.getOrCreateSymbol<osgEarth::Symbology::RenderSymbol>()->backfaceCulling() = false;
 
     if (nodeType == GOGNODE_GEOGRAPHIC)
     {
-      sideNode = new LocalGeometryNode(mapNode, shape.get(), style);
-      sideNode->setPosition(p.getMapPosition());
+      sideNode = new LocalGeometryNode(shape.get(), style);
+      sideNode->setMapNode(mapNode);
     }
     else
     {
       sideNode = new HostedLocalGeometryNode(shape.get(), style);
     }
-    sideNode->setLocalOffset(p.getLTPOffset());
+    sideNode->setName("Cylinder Side");
+    Utils::applyLocalGeometryOffsets(*sideNode, p, nodeType);
     g->addChild(sideNode);
   }
 
@@ -110,22 +110,37 @@ GogNodeInterface* Cylinder::deserialize(const osgEarth::Config&  conf,
 
     // remove the extrusion symbol
     style.remove<ExtrusionSymbol>();
-    if (!conf.hasValue("filled"))
+    if (!parsedShape.hasValue(GOG_FILLED))
       style.remove<PolygonSymbol>();
 
     if (nodeType == GOGNODE_GEOGRAPHIC)
     {
-      topCapNode = new LocalGeometryNode(mapNode, shape.get(), style);
-      topCapNode->setPosition(p.getMapPosition());
+      topCapNode = new LocalGeometryNode(shape.get(), style);
+      topCapNode->setMapNode(mapNode);
     }
     else
     {
       topCapNode = new HostedLocalGeometryNode(shape.get(), style);
     }
+    topCapNode->setName("Cylinder Top");
+
     // apply a local offset to get the cap node to the correct height
     osg::Vec3d localOffset = p.getLTPOffset();
     localOffset[2] += heightValue;
-    topCapNode->setLocalOffset(localOffset);
+    Utils::applyLocalGeometryOffsets(*topCapNode, p, nodeType);
+    // offset the top cap node's altitude by the height
+    if (nodeType == GOGNODE_GEOGRAPHIC)
+    {
+      osgEarth::GeoPoint pos = topCapNode->getPosition();
+      pos.alt() += heightValue;
+      topCapNode->setPosition(pos);
+    }
+    else
+    {
+      osg::Vec3d pos = topCapNode->getPositionAttitudeTransform()->getPosition();
+      pos.z() += heightValue;
+      topCapNode->getPositionAttitudeTransform()->setPosition(pos);
+    }
 
     g->addChild(topCapNode);
   }
@@ -137,19 +152,20 @@ GogNodeInterface* Cylinder::deserialize(const osgEarth::Config&  conf,
 
     // remove the extrusion symbol
     style.remove<ExtrusionSymbol>();
-    if (!conf.hasValue("filled"))
+    if (!parsedShape.hasValue(GOG_FILLED))
       style.remove<PolygonSymbol>();
 
     if (nodeType == GOGNODE_GEOGRAPHIC)
     {
-      bottomCapNode = new LocalGeometryNode(mapNode, shape.get(), style);
-      bottomCapNode->setPosition(p.getMapPosition());
+      bottomCapNode = new LocalGeometryNode(shape.get(), style);
+      bottomCapNode->setMapNode(mapNode);
     }
     else
     {
       bottomCapNode = new HostedLocalGeometryNode(shape.get(), style);
     }
-    bottomCapNode->setLocalOffset(p.getLTPOffset());
+    bottomCapNode->setName("Cylinder Bottom");
+    Utils::applyLocalGeometryOffsets(*bottomCapNode, p, nodeType);
 
     // Set the frontface on bottom to clockwise, since we cannot easily rewind vertices
     bottomCapNode->getOrCreateStateSet()->setAttributeAndModes(new osg::FrontFace(osg::FrontFace::CLOCKWISE), osg::StateAttribute::ON);
@@ -160,7 +176,7 @@ GogNodeInterface* Cylinder::deserialize(const osgEarth::Config&  conf,
   if (sideNode && topCapNode && bottomCapNode)
   {
     rv = new CylinderNodeInterface(g.get(), sideNode, topCapNode, bottomCapNode, metaData);
-    rv->applyConfigToStyle(conf, p.units_);
+    rv->applyToStyle(parsedShape, p.units_);
   }
   return rv;
 }

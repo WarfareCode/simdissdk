@@ -88,19 +88,22 @@ public:
   virtual TableStatus interpolate(double& value, double time, const Interpolator* interpolator) const;
 
   /** Start iteration at the beginning of the container (smallest time). */
-  virtual Iterator begin();
+  virtual Iterator begin() const;
   /** Iterator representing the back of the container (largest time). */
-  virtual Iterator end();
+  virtual Iterator end() const;
+
   /**
    * Returns lower_bound() iterator into container; see DataSlice::lower_bound()
    * for detailed examples and description of lower_bound() functionality.
    */
-  virtual Iterator lower_bound(double timeValue);
+  virtual Iterator lower_bound(double timeValue) const;
+
   /**
    * Returns upper_bound() iterator into container; see DataSlice::upper_bound()
    * for detailed examples and description of upper_bound() functionality.
    */
-  virtual Iterator upper_bound(double timeValue);
+  virtual Iterator upper_bound(double timeValue) const;
+
   /**
    * Retrieves an iterator such that next() is the time at or immediately before
    * the current time.  If there is no value at or before the current time, then
@@ -119,6 +122,14 @@ public:
 
   /// Swaps the contents of the fresh and stale data, flushing out the stale
   void swapFreshStaleData();
+
+  /**
+   * Returns the begin and end time of the column
+   * @param begin Returns the begin time
+   * @param end Returns the end time
+   * @returns 0 if begin and end are set
+   */
+  virtual int getTimeRange(double& begin, double& end) const;
 
 private:
   /// Allocates a new data container based on the data storage type

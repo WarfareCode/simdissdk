@@ -20,6 +20,8 @@
  *
  */
 #include <cassert>
+#include <limits>
+#include "osg/LightModel"
 #include "osg/LOD"
 #include "osg/Node"
 #include "osg/NodeVisitor"
@@ -28,10 +30,13 @@
 #include "osg/ShadeModel"
 #include "osg/ShapeDrawable"
 #include "osg/TexEnv"
+#include "osg/TexEnvCombine"
 #include "osg/ValueObject"
 #include "osgSim/DOFTransform"
+#include "osgSim/LightPointNode"
 #include "osgSim/MultiSwitch"
 #include "osgUtil/Optimizer"
+#include "osgEarth/Containers"
 #include "osgEarth/NodeUtils"
 #include "osgEarth/Registry"
 #include "osgEarth/ShaderGenerator"
@@ -39,6 +44,7 @@
 #include "simNotify/Notify.h"
 #include "simCore/String/Utils.h"
 #include "simVis/ClockOptions.h"
+#include "simVis/DisableDepthOnAlpha.h"
 #include "simVis/Utils.h"
 #include "simVis/ModelCache.h"
 
@@ -80,14 +86,44 @@ public:
   SetRenderBinsToInherit()
     : NodeVisitor(TRAVERSE_ALL_CHILDREN)
   {
+      setNodeMaskOverride(~0);
   }
+
   virtual void apply(osg::Node& node)
   {
     osg::StateSet* ss = node.getStateSet();
     if (ss)
     {
+      // Fix regularly occuring alpha issues by negating explicit render bin assignments
+      // in the loaded model
       ss->setRenderBinToInherit();
+    }
+    traverse(node);
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////
+
+/** Visitor that adjusts the scene graph for GLCORE/non-FFP compatibility */
+class PrepareForProgrammablePipeline : public osg::NodeVisitor
+{
+public:
+  PrepareForProgrammablePipeline()
+    : NodeVisitor(TRAVERSE_ALL_CHILDREN)
+  {
+    setNodeMaskOverride(~0);
+  }
+
+  virtual void apply(osg::Node& node)
+  {
 #ifndef OSG_GL_FIXED_FUNCTION_AVAILABLE
+    // osgSim::LightPointNode is not supported in GLCORE, turn it off to prevent warning spam from OSG
+    if (dynamic_cast<osgSim::LightPointNode*>(&node) != NULL)
+      node.setNodeMask(0);
+
+    osg::StateSet* ss = node.getStateSet();
+    if (ss)
+    {
       // GLCORE does not support TexEnv.  Remove unnecessary ones
       osg::TexEnv* texEnv = dynamic_cast<osg::TexEnv*>(ss->getTextureAttribute(0, osg::StateAttribute::TEXENV));
       if (texEnv != NULL && texEnv->getMode() == osg::TexEnv::MODULATE)
@@ -97,20 +133,55 @@ public:
         SIM_WARN << "Unexpected TexEnv mode: 0x" << std::hex << texEnv->getMode() << "\n";
       }
 
-      // GLCORE does not support ShadeModel.  Remove unnecessary ones
+      // GLCORE does not support TexEnvCombine; drop it; see SIMDIS-3227
+      osg::TexEnvCombine* texEnvCombine = dynamic_cast<osg::TexEnvCombine*>(ss->getTextureAttribute(0, osg::StateAttribute::TEXENV));
+      if (texEnvCombine != NULL)
+        ss->removeTextureAttribute(0, texEnvCombine);
+
+      // GLCORE does not support ShadeModel.  Only smooth shading is supported.  Many SIMDIS
+      // models in sites/ use flat shading, but don't seem to need it.  Drop the attribute.
       osg::ShadeModel* shadeModel = dynamic_cast<osg::ShadeModel*>(ss->getAttribute(osg::StateAttribute::SHADEMODEL));
-      if (shadeModel != NULL && shadeModel->getMode() == osg::ShadeModel::SMOOTH)
+      if (shadeModel != NULL)
         ss->removeAttribute(shadeModel);
-      else if (shadeModel != NULL)
-      {
-        SIM_WARN << "Unexpected ShadeModel mode: 0x" << std::hex << shadeModel->getMode() << "\n";
-      }
 
       // GLCORE does not support mode GL_TEXTURE_2D.  But we still need the texture attribute, so just remove mode.
       ss->removeTextureMode(0, GL_TEXTURE_2D);
-#endif
+
+      // GLCORE does not support LightModel; drop it; see SIMDIS-3089
+      osg::LightModel* lightModel = dynamic_cast<osg::LightModel*>(ss->getAttribute(osg::StateAttribute::LIGHTMODEL));
+      if (lightModel != NULL)
+        ss->removeAttribute(lightModel);
+
+      // Fix textures that have GL_LUMINANCE or GL_LUMINANCE_ALPHA
+      osg::Texture* texture = dynamic_cast<osg::Texture*>(ss->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
+      if (texture)
+        simVis::fixTextureForGlCoreProfile(texture);
     }
+#endif
+
     traverse(node);
+  }
+
+  virtual void apply(osg::Drawable& drawable)
+  {
+    apply(static_cast<osg::Node&>(drawable));
+
+    osg::Geometry* geom = drawable.asGeometry();
+    if (geom)
+    {
+      // Ensure every geometry has a valid color array.
+      // Some older models that use an FFP Material default to using the diffuse
+      // material color as the active color, but this only works under FFP. Without
+      // a color array, state leakage can occur.
+      if (geom->getColorArray() == NULL)
+      {
+        osg::Vec4Array* colors = new osg::Vec4Array(osg::Array::BIND_OVERALL, 1);
+        (*colors)[0].set(1, 1, 1, 1);
+        geom->setColorArray(colors);
+      }
+    }
+
+    traverse(drawable);
   }
 };
 
@@ -126,11 +197,9 @@ public:
   ModelCacheLoaderOptions()
     : boxWhenNotFound(false),
       addLodNode(true),
-      runShaderGenerator(true),
       clock(NULL)
   {
     optimizeFlags = osgUtil::Optimizer::DEFAULT_OPTIMIZATIONS |
-      osgUtil::Optimizer::VERTEX_PRETRANSFORM |
       osgUtil::Optimizer::VERTEX_POSTTRANSFORM |
       osgUtil::Optimizer::INDEX_MESH;
   }
@@ -141,7 +210,6 @@ public:
       boxWhenNotFound(rhs.boxWhenNotFound),
       addLodNode(rhs.addLodNode),
       optimizeFlags(rhs.optimizeFlags),
-      runShaderGenerator(rhs.runShaderGenerator),
       clock(rhs.clock),
       sequenceTimeUpdater(rhs.sequenceTimeUpdater)
   {
@@ -161,8 +229,6 @@ public:
   bool addLodNode;
   /** Change the flags sent to optimizer.  Set to 0 to disable optimization. */
   unsigned int optimizeFlags;
-  /** Set true to run the osgEarth shader generator on the resulting node. */
-  bool runShaderGenerator;
   /** Clock object used for SIMDIS Media Player 2 playlist nodes. */
   simCore::Clock* clock;
   /** Pointer to the class that fixes osg::Sequence; see simVis::Registry::sequenceTimeUpdater_. */
@@ -249,7 +315,7 @@ private:
     return result.release();
   }
 
-  /** Helper method that applies the various post-read-node operations to a node. */
+  /** Helper method that applies the various post-read-node operations to a node.  This might be in a thread. */
   void applyPostLoadOptions_(osg::ref_ptr<osg::Node>& result, const ModelCacheLoaderOptions* options) const
   {
     if (!result || !options)
@@ -259,6 +325,7 @@ private:
     if (options->addLodNode)
     {
       osg::ref_ptr<osg::LOD> lod = new osg::LOD;
+      lod->setName("Auto LOD Node");
       // Use a pixel-size LOD.  Range LOD scales relative to eye distance, but models that get distorted
       // significantly in only 2 dimensions will have significant LOD issues with that approach.
       lod->setRangeMode(osg::LOD::PIXEL_SIZE_ON_SCREEN);
@@ -272,13 +339,18 @@ private:
       osgUtil::Optimizer o;
       o.optimize(result, options->optimizeFlags);
     }
+    // Disable depth on all incoming models
+    simVis::DisableDepthOnAlpha::setValues(result->getOrCreateStateSet(), osg::StateAttribute::ON);
 
-    // generate shaders.
-    if (options->runShaderGenerator)
-    {
-      osg::ref_ptr<osgEarth::StateSetCache> stateCache = new osgEarth::StateSetCache();
-      osgEarth::Registry::shaderGenerator().run(result.get(), stateCache.get());
-    }
+    // Fix the GL_QUADS, GL_QUAD_STRIPS, and GL_POLYGON geometries
+    simVis::FixDeprecatedDrawModes fixDrawModes;
+    result->accept(fixDrawModes);
+
+    // At one point, we would run the shader generator here in the threaded
+    // context.  However, in SIMDIS code in the Simple Server example, it looked
+    // like doing so would corrupt the vertex arrays on some text, sometimes,
+    // in unrelated objects.  As a result, the shader generator is now only
+    // run in the main thread.
   }
 
   /** Helper method to process the filename into an image.  Also handles SIMDIS MP2 files. */
@@ -290,8 +362,12 @@ private:
     // and auto-scale to the screen.
     using namespace osgEarth::Annotation;
 
-    osg::ref_ptr<osg::Image> image = osgDB::readRefImageFile(filename);
-    if (image)
+    osg::ref_ptr<osg::Image> image;
+    // Avoid readRefImageFile() because in 3.6 it spams console, for LST and TMD files
+    const std::string ext = osgDB::getLowerCaseFileExtension(filename);
+    if (ext != "tmd" && ext != "lst")
+      image = osgDB::readRefImageFile(filename);
+    if (image.valid())
     {
       // create the geometry representing the icon:
       osg::Geometry* geom = AnnotationUtils::createImageGeometry(
@@ -300,6 +376,14 @@ private:
         0,                // texture image unit
         0.0,              // heading
         1.0);             // scale
+
+      // Texture could feasibly be GL_LUMINANCE or GL_LUMINANCE_ALPHA; fix it if so
+      if (geom && geom->getStateSet())
+      {
+        osg::Texture* texture = dynamic_cast<osg::Texture*>(geom->getStateSet()->getTextureAttribute(0, osg::StateAttribute::TEXTURE));
+        if (texture)
+          simVis::fixTextureForGlCoreProfile(texture);
+      }
 
       osg::Geode* geode = new osg::Geode();
       geode->addDrawable(geom);
@@ -351,6 +435,10 @@ private:
       // the model into a traversal order bin.  This helps with model display of alpha textures.
       SetRenderBinsToInherit setRenderBinsToInherit;
       result->accept(setRenderBinsToInherit);
+
+      // Scrub the model so it renders properly under GLCORE et al.
+      PrepareForProgrammablePipeline prepareForProgrammablePipeline;
+      result->accept(prepareForProgrammablePipeline);
     }
     return result;
   }
@@ -425,6 +513,7 @@ public:
     // Set up an options struct for the pseudo loader
     osg::ref_ptr<ModelCacheLoaderOptions> opts = new ModelCacheLoaderOptions;
     opts->clock = cache_->clock_;
+    opts->addLodNode = cache_->addLodNode_;
     opts->sequenceTimeUpdater = cache_->sequenceTimeUpdater_.get();
     // Need to return something or proxy never succeeds and keeps issuing searches
     opts->boxWhenNotFound = true;
@@ -468,6 +557,11 @@ public:
           // Load was requested, but didn't have a URI.  Someone might be messing with our nodes.
           assert(0);
         }
+
+        // Run the shader generator on the newly loaded node (in main thread)
+        osg::ref_ptr<osgEarth::StateSetCache> stateCache = new osgEarth::StateSetCache();
+        osgEarth::Registry::shaderGenerator().run(loaded.get(), stateCache.get());
+
         // Alert callbacks
         fireLoadFinished_(uri, loaded.get());
 
@@ -477,6 +571,11 @@ public:
       ++childIndex;
     }
   }
+
+  /** Return the proper library name */
+  virtual const char* libraryName() const { return "simVis"; }
+  /** Return the class name */
+  virtual const char* className() const { return "ModelCache::LoaderNode"; }
 
 private:
   /** Loading on a URI completed.  Alert everyone who cares. */
@@ -530,13 +629,17 @@ private:
 
 ModelCache::ModelCache()
   : shareArticulatedModels_(false),
+    addLodNode_(true),
     clock_(NULL),
+    cache_(false, 30), // No need for thread safety, max of 30 elements
     asyncLoader_(new LoaderNode)
 {
   asyncLoader_->setCache(this);
+  asyncLoader_->setName("Asynchronous Load Helper");
 
   // Create a box model as a placeholder for invalid model
   osg::Geode* geode = new osg::Geode();
+  geode->setName("Box Geode");
   geode->addDrawable(new osg::ShapeDrawable(new osg::Box()));
   boxNode_ = geode;
 
@@ -558,10 +661,11 @@ ModelCache::~ModelCache()
 osg::Node* ModelCache::getOrCreateIconModel(const std::string& uri, bool* pIsImage)
 {
   // first check the cache.
-  auto i = cache_.find(uri);
-  if (i != cache_.end())
+  Cache::Record record;
+  if (cache_.get(uri, record))
   {
-    const Entry& entry = i->second;
+    assert(record.valid()); // Guaranteed by get()
+    const Entry& entry = record.value();
     if (pIsImage)
       *pIsImage = entry.isImage_;
 
@@ -578,11 +682,16 @@ osg::Node* ModelCache::getOrCreateIconModel(const std::string& uri, bool* pIsIma
   // Set up an options struct for the pseudo loader
   osg::ref_ptr<ModelCacheLoaderOptions> opts = new ModelCacheLoaderOptions;
   opts->clock = clock_;
+  opts->addLodNode = addLodNode_;
   opts->sequenceTimeUpdater = sequenceTimeUpdater_.get();
   // Farm off to the pseudo-loader
   osg::ref_ptr<osg::Node> result = osgDB::readRefNodeFile(uri + "." + MODEL_LOADER_EXT, opts.get());
   if (!result)
     return NULL;
+
+  // Synchronous load needs to run the shader generator here
+  osg::ref_ptr<osgEarth::StateSetCache> stateCache = new osgEarth::StateSetCache();
+  osgEarth::Registry::shaderGenerator().run(result.get(), stateCache.get());
 
   // Store the image hint
   bool isImage = false;
@@ -601,10 +710,11 @@ osg::Node* ModelCache::getOrCreateIconModel(const std::string& uri, bool* pIsIma
 
 void ModelCache::saveToCache_(const std::string& uri, osg::Node* node, bool isArticulated, bool isImage)
 {
-  Entry& entry = cache_[uri];
-  entry.node_ = node;
-  entry.isImage_ = isImage;
-  entry.isArticulated_ = isArticulated;
+  Entry newEntry;
+  newEntry.node_ = node;
+  newEntry.isImage_ = isImage;
+  newEntry.isArticulated_ = isArticulated;
+  cache_.insert(uri, newEntry);
 }
 
 void ModelCache::asyncLoad(const std::string& uri, ModelReadyCallback* callback)
@@ -622,21 +732,26 @@ void ModelCache::asyncLoad(const std::string& uri, ModelReadyCallback* callback)
     // Not configured: synchronous load
     bool isImage = false;
     osg::ref_ptr<osg::Node> node = getOrCreateIconModel(uri, &isImage);
+    // Run the shader generator on the newly loaded node (in main thread)
+    osg::ref_ptr<osgEarth::StateSetCache> stateCache = new osgEarth::StateSetCache();
+    osgEarth::Registry::shaderGenerator().run(node.get(), stateCache.get());
     if (refCallback.valid())
       refCallback->loadFinished(node, isImage, uri);
     return;
   }
 
   // first check the cache
-  const auto cacheIter = cache_.find(uri);
-  if (cacheIter != cache_.end())
+  Cache::Record record;
+  if (cache_.get(uri, record))
   {
+    assert(record.valid()); // Guaranteed by get()
+
     // If the callback is valid, then pass the model back immediately.  It's possible the
     // callback might not be valid in cases where someone is attempting to preload icons
     // for the sake of performance.  In that case we just return early because it's loaded.
     if (refCallback.valid())
     {
-      const Entry& entry = cacheIter->second;
+      const Entry& entry = record.value();
       osg::ref_ptr<osg::Node> node = entry.node_.get();
       // clone articulated nodes so we get independent articulations
       if (entry.isArticulated_ && !shareArticulatedModels_)
@@ -659,6 +774,16 @@ void ModelCache::setShareArticulatedIconModels(bool value)
 bool ModelCache::getShareArticulatedIconModels() const
 {
   return shareArticulatedModels_;
+}
+
+void ModelCache::setUseLodNode(bool useLodNode)
+{
+  addLodNode_ = useLodNode;
+}
+
+bool ModelCache::useLodNode() const
+{
+  return addLodNode_;
 }
 
 void ModelCache::setClock(simCore::Clock* clock)
@@ -701,6 +826,11 @@ osg::Node* ModelCache::asyncLoaderNode() const
 osg::Node* ModelCache::boxNode() const
 {
   return boxNode_.get();
+}
+
+void ModelCache::erase(const std::string& uri)
+{
+  cache_.erase(uri);
 }
 
 ////////////////////////////////////////////////////////////////////////////

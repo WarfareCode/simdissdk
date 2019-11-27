@@ -32,6 +32,7 @@ set(SIMQT_HEADERS_TO_MOC
     ${SIMQT_INC}SettingsModel.h
     ${SIMQT_INC}SettingsProxyModel.h
     ${SIMQT_INC}SliderTimeWidgetBinding.h
+    ${SIMQT_SRC}SortFilterProxyModel.h
     ${SIMQT_INC}SplashScreen.h
     ${SIMQT_INC}StartupLayoutTask.h
     ${SIMQT_INC}StdStreamConsoleChannel.h
@@ -41,8 +42,10 @@ set(SIMQT_HEADERS_TO_MOC
     ${SIMQT_INC}TimeWidget.h
     ${SIMQT_INC}Toast.h
     ${SIMQT_INC}UnitContext.h
+    ${SIMQT_INC}UnitsComboBox.h
 )
 set(SIMQT_HEADERS
+    ${SIMQT_INC}ColorGradient.h
     ${SIMQT_INC}ConsoleChannel.h
     ${SIMQT_INC}FileDialog.h
     ${SIMQT_INC}FileUtilities.h
@@ -53,7 +56,6 @@ set(SIMQT_HEADERS
     ${SIMQT_INC}Settings.h
     ${SIMQT_INC}SettingsGroup.h
     ${SIMQT_INC}StartupLayoutManager.h
-    ${SIMQT_INC}UnitsComboBox.h
     ${SIMQT_INC}WeightedMenuManager.h
     ${SIMQT_INC}WidgetSettings.h
 )
@@ -71,7 +73,6 @@ if(TARGET simData)
         ${SIMQT_INC}EntityCategoryFilter.h
         ${SIMQT_INC}EntityFilter.h
         ${SIMQT_INC}EntityFilterLineEdit.h
-        ${SIMQT_INC}EntityLineEdit.h
         ${SIMQT_INC}EntityNameFilter.h
         ${SIMQT_INC}EntityProxyModel.h
         ${SIMQT_INC}EntityStateFilter.h
@@ -92,15 +93,31 @@ endif()
 if(TARGET simVis)
     list(APPEND SIMQT_HEADERS_TO_MOC
         ${SIMQT_INC}CenterEntity.h
+        ${SIMQT_INC}EntityLineEdit.h
         ${SIMQT_INC}IncrementalCompileSettings.h
         ${SIMQT_INC}MapDataModel.h
         ${SIMQT_INC}TimestampedLayerManager.h
         ${SIMQT_INC}ViewManagerDataModel.h
-        ${SIMQT_INC}ViewWidget.h
     )
+    list(APPEND SIMQT_HEADERS
+        ${SIMQT_INC}FillItemModelWithNodeVisitor.h
+    )
+
+    # Parts of simQt depend on both simVis and osgQt
+    if (TARGET OSGQT)
+        list(APPEND SIMQT_HEADERS_TO_MOC
+            ${SIMQT_INC}ViewWidget.h
+        )
+        list(APPEND SIMQT_HEADERS
+            ${SIMQT_INC}Gl3FormatGuesser.h
+        )
+    endif()
 endif()
 
 if(OSG_FOUND)
+    list(APPEND SIMQT_HEADERS_TO_MOC
+        ${SIMQT_INC}ColorGradientWidget.h
+    )
     list(APPEND SIMQT_HEADERS
         ${SIMQT_INC}QtConversion.h
     )
@@ -123,6 +140,7 @@ set(SIMQT_SOURCES
     ${SIMQT_SRC}ActionItemModel.cpp
     ${SIMQT_SRC}BoundSettings.cpp
     ${SIMQT_SRC}ColorButton.cpp
+    ${SIMQT_SRC}ColorGradient.cpp
     ${SIMQT_SRC}ColorWidget.cpp
     ${SIMQT_SRC}ConsoleChannel.cpp
     ${SIMQT_SRC}ConsoleDataModel.cpp
@@ -148,6 +166,7 @@ set(SIMQT_SOURCES
     ${SIMQT_SRC}SettingsModel.cpp
     ${SIMQT_SRC}SettingsProxyModel.cpp
     ${SIMQT_SRC}SliderTimeWidgetBinding.cpp
+    ${SIMQT_SRC}SortFilterProxyModel.cpp
     ${SIMQT_SRC}SplashScreen.cpp
     ${SIMQT_SRC}StartupLayoutManager.cpp
     ${SIMQT_SRC}StartupLayoutTask.cpp
@@ -175,7 +194,6 @@ if(TARGET simData)
         ${SIMQT_SRC}DataTableModel.cpp
         ${SIMQT_SRC}EntityCategoryFilter.cpp
         ${SIMQT_SRC}EntityFilterLineEdit.cpp
-        ${SIMQT_SRC}EntityLineEdit.cpp
         ${SIMQT_SRC}EntityNameFilter.cpp
         ${SIMQT_SRC}EntityProxyModel.cpp
         ${SIMQT_SRC}EntityStateFilter.cpp
@@ -193,16 +211,33 @@ endif()
 if(TARGET simVis)
     list(APPEND SIMQT_SOURCES
         ${SIMQT_SRC}CenterEntity.cpp
+        ${SIMQT_SRC}EntityLineEdit.cpp
+        ${SIMQT_SRC}FillItemModelWithNodeVisitor.cpp
         ${SIMQT_SRC}IncrementalCompileSettings.cpp
         ${SIMQT_SRC}MapDataModel.cpp
         ${SIMQT_SRC}TimestampedLayerManager.cpp
         ${SIMQT_SRC}ViewManagerDataModel.cpp
-        ${SIMQT_SRC}ViewWidget.cpp
     )
+
+    # Parts of simQt depend on both simVis and osgQt
+    if (TARGET OSGQT)
+        list(APPEND SIMQT_SOURCES
+            ${SIMQT_SRC}Gl3FormatGuesser.cpp
+            ${SIMQT_SRC}ViewWidget.cpp
+        )
+    endif()
+
+    # Ignore deprecation warnings
+    if(MSVC)
+        set_source_files_properties(CenterEntity.cpp PROPERTIES COMPILE_FLAGS -wd4996)
+    else()
+        set_source_files_properties(CenterEntity.cpp PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
+    endif()
 endif()
 
 if(OSG_FOUND)
     list(APPEND SIMQT_SOURCES
+        ${SIMQT_SRC}ColorGradientWidget.cpp
         ${SIMQT_SRC}QtConversion.cpp
     )
 endif()
@@ -219,9 +254,15 @@ set(SIMQT_FORMS
     ${SIMQT_INC}EntityTypeFilter.ui
     ${SIMQT_INC}FileSelectorWidget.ui
     ${SIMQT_INC}FontWidget.ui
-    ${SIMQT_INC}SearchLineEdit.ui
+    ${SIMQT_INC}SearchLineEditQt4.ui
     ${SIMQT_INC}TimeButtons.ui
 )
+if(OSG_FOUND)
+    list(APPEND SIMQT_FORMS
+        ${SIMQT_INC}ColorGradientWidget.ui
+    )
+endif()
+
 set(SIMQT_RESOURCES
     ${SIMQT_INC}simQtResources.qrc
 )
@@ -269,6 +310,9 @@ if(TARGET simVis)
         $<BUILD_INTERFACE:${OSG_LIBRARY_INCLUDE_PATH}>
         $<BUILD_INTERFACE:${OSGEARTH_LIBRARY_INCLUDE_PATH}>
     )
+
+    # Gl3FormatGuesser depends on OpenGL libraries
+    target_link_libraries(simQt PRIVATE VSI::GL)
 endif()
 
 # Link against OpenGL if OSGQT is found to support simQt::ViewWidget
@@ -294,26 +338,11 @@ else()
 endif()
 if(TARGET simData)
     target_compile_definitions(simQt PRIVATE HAVE_SIMDATA)
+    target_link_libraries(simQt PUBLIC simData)
 endif()
 if(TARGET simVis)
     target_compile_definitions(simQt PRIVATE HAVE_SIMVIS)
-endif()
-
-# If simQt is a DLL, avoid linking in "heavy" dependencies if possible
-if(SIMQT_SHARED OR NOT SIMVIS_SHARED OR NOT SIMDATA_SHARED)
-    if(TARGET simData)
-        target_link_libraries(simQt PUBLIC simData)
-    endif()
-    if(TARGET simVis)
-        target_link_libraries(simQt PRIVATE simVis)
-    endif()
-else()
-    if(TARGET simData)
-        target_include_directories(simQt PUBLIC $<BUILD_INTERFACE:${SIMDIS_SDK_BINARY_DIR}/simData>)
-    endif()
-    if(TARGET simVis)
-        target_include_directories(simQt PRIVATE ${SIMDIS_SDK_BINARY_DIR}/simVis/include)
-    endif()
+    target_link_libraries(simQt PRIVATE simVis)
 endif()
 
 if(TARGET OSGQT)
@@ -323,12 +352,20 @@ else()
 endif()
 
 if(INSTALL_SIMDIS_SDK_LIBRARIES)
-    set_target_properties(simQt PROPERTIES TARGET_EXPORT_NAME "SIMDIS_SDK")
-    vsi_install_target(simQt SDK_Library)
+    # Configure the simQtConfig.cmake file; its dependencies are dynamic
+    set(SIMQT_DEPENDS)
+    foreach(TGT IN ITEMS simNotify simCore simData simVis)
+        if(TARGET ${TGT})
+            set(SIMQT_DEPENDS "${SIMQT_DEPENDS}\nfind_dependency(${TGT})")
+        endif()
+    endforeach()
+    configure_file(simQtConfig.cmake.in simQtConfig.cmake @ONLY)
+
+    vsi_install_export(simQt ${SIMDIS_SDK_VERSION_STRING} AnyNewerVersion)
 endif()
 
 if(AUTOINSTALL_LIBS AND SIMQT_SHARED)
-    PostBuildInstallSdkSharedObjects(simQt)
+    PostBuildInstallSharedObjects(simQt)
 endif()
 
 if(INSTALL_HEADERS)

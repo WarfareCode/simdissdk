@@ -20,7 +20,6 @@
  *
  */
 #include <algorithm>
-#include "osg/Depth"
 #include "osgEarth/GeoData"
 #include "osgEarth/Horizon"
 #include "osgEarth/NodeUtils"
@@ -34,9 +33,11 @@
 #include "simVis/AlphaTest.h"
 #include "simVis/Beam.h"
 #include "simVis/BeamPulse.h"
+#include "simVis/DisableDepthOnAlpha.h"
 #include "simVis/DynamicScaleTransform.h"
 #include "simVis/Entity.h"
 #include "simVis/Gate.h"
+#include "simVis/CustomRendering.h"
 #include "simVis/LabelContentManager.h"
 #include "simVis/Laser.h"
 #include "simVis/LobGroup.h"
@@ -156,7 +157,7 @@ bool ScenarioManager::EntityRecord::dataStoreMatches(const simData::DataStore* d
 
 bool ScenarioManager::EntityRecord::updateFromDataStore(bool force) const
 {
-  return (updateSlice_ && node_.valid() && node_->updateFromDataStore(updateSlice_, force));
+  return (node_.valid() && node_->updateFromDataStore(updateSlice_, force));
 }
 
 // -----------------------------------------------------------------------
@@ -308,6 +309,55 @@ private:
 };
 
 
+/// Prevents a platform from going below the surface (terrain). Expects coordinates to be in LLA
+class ScenarioManager::AboveSurfaceClamping : public PlatformTspiFilter
+{
+public:
+  /** Constructor */
+  AboveSurfaceClamping()
+    : PlatformTspiFilter()
+  {
+  }
+
+  virtual ~AboveSurfaceClamping()
+  {
+  }
+
+  /** Returns true if surface clamping should be applied */
+  virtual bool isApplicable(const simData::PlatformPrefs& prefs) const
+  {
+    return prefs.abovesurfaceclamping() && mapNode_.valid();
+  }
+
+  /** Applies coordinate surface clamping to the LLA coordinate */
+  virtual PlatformTspiFilterManager::FilterResponse filter(simCore::Coordinate& llaCoord, const simData::PlatformPrefs& prefs, const simData::PlatformProperties& props)
+  {
+    if (!prefs.abovesurfaceclamping() || !mapNode_.valid())
+      return PlatformTspiFilterManager::POINT_UNCHANGED;
+
+    double hamsl;  // Not used
+    double terrainHeightHae = 0.0; // height above ellipsoid, the rough elevation
+    mapNode_->getTerrain()->getHeight(mapNode_->getMapSRS(), llaCoord.lon()*simCore::RAD2DEG, llaCoord.lat()*simCore::RAD2DEG, &hamsl, &terrainHeightHae);
+    // If getHeight() fails, terrainHeightHae will have 0.0 (our intended fallback)
+    if (llaCoord.alt() < terrainHeightHae)
+    {
+      llaCoord.setPositionLLA(llaCoord.lat(), llaCoord.lon(), terrainHeightHae);
+      return PlatformTspiFilterManager::POINT_CHANGED;
+    }
+
+    return PlatformTspiFilterManager::POINT_UNCHANGED;
+  }
+
+  /** Sets the map pointer, required for proper clamping */
+  void setMapNode(const osgEarth::MapNode* map)
+  {
+    mapNode_ = map;
+  }
+
+private:
+  osg::observer_ptr<const osgEarth::MapNode> mapNode_;
+};
+
 // -----------------------------------------------------------------------
 
 class ScenarioManager::ScenarioLosCreator : public LosCreator
@@ -343,6 +393,7 @@ ScenarioManager::ScenarioManager(LocatorFactory* factory, ProjectorManager* proj
   : locatorFactory_(factory),
   platformTspiFilterManager_(new PlatformTspiFilterManager()),
   surfaceClamping_(NULL),
+  aboveSurfaceClamping_(NULL),
   lobSurfaceClamping_(NULL),
   root_(new osg::Group),
   entityGraph_(new SimpleEntityGraph),
@@ -365,6 +416,7 @@ ScenarioManager::ScenarioManager(LocatorFactory* factory, ProjectorManager* proj
 
   // Clamping requires a Group for MapNode changes
   surfaceClamping_ = new SurfaceClamping();
+  aboveSurfaceClamping_ = new AboveSurfaceClamping();
   lobSurfaceClamping_ = new CoordSurfaceClamping();
 
   // set normal rescaling so that dynamically-scaled platforms have
@@ -379,23 +431,15 @@ ScenarioManager::ScenarioManager(LocatorFactory* factory, ProjectorManager* proj
   // unless explicitly turned on further down the scene graph
   simVis::setLighting(stateSet, osg::StateAttribute::OFF);
 
-  // Protect the depth test and turn it on.  This prevents overhead mode from overriding
-  // depth test on items, even though overhead mode needs to turn off depth writes for terrain.
-  // Note that this is protected to stop the OVERRIDE (required) in simVis/View.cpp, but
-  // is not set to OVERRIDE, so child nodes can then change the state as needed.
-  stateSet->setAttributeAndModes(new osg::Depth(osg::Depth::LESS, 0.0, 1.0, true),
-    osg::StateAttribute::ON | osg::StateAttribute::PROTECTED);
-
-  // set a default render bin to propagate down to child nodes
-  stateSet->setRenderBinDetails(BIN_POST_TERRAIN, BIN_GLOBAL_SIMSDK);
-
   setName("simVis::ScenarioManager");
 
   platformTspiFilterManager_->addFilter(surfaceClamping_);
+  platformTspiFilterManager_->addFilter(aboveSurfaceClamping_);
 
   // Install shaders used by multiple entities at the scenario level
   AlphaTest::installShaderProgram(stateSet);
   BeamPulse::installShaderProgram(stateSet);
+  DisableDepthOnAlpha::installShaderProgram(stateSet);
   LobGroupNode::installShaderProgram(stateSet);
   OverrideColor::installShaderProgram(stateSet);
   PolygonStipple::installShaderProgram(stateSet);
@@ -405,7 +449,7 @@ ScenarioManager::ScenarioManager(LocatorFactory* factory, ProjectorManager* proj
 
 ScenarioManager::~ScenarioManager()
 {
-  // Do not delete surfaceClamping_
+  // Do not delete surfaceClamping_ or surfaceLimiting_
   delete platformTspiFilterManager_;
   platformTspiFilterManager_ = NULL;
   delete lobSurfaceClamping_;
@@ -507,6 +551,8 @@ void ScenarioManager::clearEntities(simData::DataStore* dataStore)
         }
       }
     }
+    // All entities have been removed, forget about any hosting relationships
+    hosterTable_.clear();
   }
 
   else
@@ -515,6 +561,7 @@ void ScenarioManager::clearEntities(simData::DataStore* dataStore)
     entityGraph_->clear();
     entities_.clear();
     projectorManager_->clear();
+    hosterTable_.clear();
   }
   SAFETRYEND("clearing scenario entities");
 }
@@ -536,6 +583,15 @@ void ScenarioManager::removeEntity(simData::ObjectId id)
       projectorManager_->unregisterProjector(projectorNode);
     }
     entityGraph_->removeEntity(record);
+
+    // remove from the hoster table
+    hosterTable_.erase(id);
+    for (auto it = hosterTable_.begin(); it != hosterTable_.end();)
+    {
+      auto erase = it++;
+      if (erase->second == id)
+        hosterTable_.erase(erase);
+    }
 
     // remove it from the entities list
     entities_.erase(i);
@@ -568,6 +624,7 @@ void ScenarioManager::setMapNode(osgEarth::MapNode* map)
 
   losCreator_->setMapNode(mapNode_.get());
   surfaceClamping_->setMapNode(mapNode_.get());
+  aboveSurfaceClamping_->setMapNode(mapNode_.get());
   lobSurfaceClamping_->setMapNode(mapNode_.get());
 
   if (map)
@@ -590,7 +647,7 @@ PlatformNode* ScenarioManager::addPlatform(const simData::PlatformProperties& pr
 {
   SAFETRYBEGIN;
   // create the OSG node representing this entity
-  PlatformNode* node = new PlatformNode(props, dataStore, *platformTspiFilterManager_, this, locatorFactory_->createCachingLocator(), dataStore.referenceYear());
+  PlatformNode* node = new PlatformNode(props, dataStore, *platformTspiFilterManager_, root_.get(), locatorFactory_->createCachingLocator(), dataStore.referenceYear());
   node->getModel()->addCallback(new BeamNoseFixer(this));
 
   // put it in the vis database.
@@ -738,6 +795,32 @@ LobGroupNode* ScenarioManager::addLobGroup(const simData::LobGroupProperties& pr
   return NULL;
 }
 
+CustomRenderingNode* ScenarioManager::addCustomRendering(const simData::CustomRenderingProperties& props, simData::DataStore& dataStore)
+{
+  SAFETRYBEGIN;
+  // attempt to anchor to the host
+  EntityNode* host = NULL;
+  if (props.has_hostid())
+    host = find(props.hostid());
+
+  // put the custom into our entity db:
+  auto node = new CustomRenderingNode(this, props, host, dataStore.referenceYear());
+  entities_[node->getId()] = new EntityRecord(
+    node,
+    NULL,
+    &dataStore);
+
+  hosterTable_.insert(std::make_pair((host ? host->getId() : 0), node->getId()));
+
+  notifyToolsOfAdd_(node);
+
+  node->setLabelContentCallback(labelContentManager_->createLabelContentCallback(node->getId()));
+
+  return node;
+  SAFETRYEND("adding custom");
+  return NULL;
+}
+
 ProjectorNode* ScenarioManager::addProjector(const simData::ProjectorProperties& props, simData::DataStore& dataStore)
 {
   SAFETRYBEGIN;
@@ -847,6 +930,19 @@ bool ScenarioManager::setLobGroupPrefs(simData::ObjectId id, const simData::LobG
   return false;
 }
 
+bool ScenarioManager::setCustomRenderingPrefs(simData::ObjectId id, const simData::CustomRenderingPrefs& prefs)
+{
+  SAFETRYBEGIN;
+  CustomRenderingNode* obj = find<CustomRenderingNode>(id);
+  if (obj)
+  {
+    obj->setPrefs(prefs);
+    return true;
+  }
+  SAFETRYEND(std::string(osgEarth::Stringify() << "setting custom prefs of ID " << id));
+  return false;
+}
+
 void ScenarioManager::notifyBeamsOfNewHostSize(const PlatformNode& platform) const
 {
   SAFETRYBEGIN;
@@ -893,7 +989,7 @@ const EntityNode* ScenarioManager::getHostPlatform(const EntityNode* entity) con
 
 namespace {
 
-#ifdef DEBUG
+#ifndef NDEBUG
 /** Visitor that, in debug mode, asserts that the overhead mode hint is set to a certain value */
 class AssertOverheadModeHint : public osg::NodeVisitor
 {
@@ -963,7 +1059,7 @@ EntityNode* ScenarioManager::find(osg::View* _view, float x, float y, int typeMa
   osg::Vec3d beg(a.x() / a.w(), a.y() / a.w(), a.z() / a.w());
   osg::Vec3d end(b.x() / b.w(), b.y() / b.w(), b.z() / b.w());
 
-#ifdef DEBUG
+#ifndef NDEBUG
   // In debug mode, make sure the overhead hint is false, else a release mode
   // optimization that presumes hint is false will fail.
   AssertOverheadModeHint assertHintIsFalse(false);
@@ -1081,7 +1177,7 @@ void ScenarioManager::update(simData::DataStore* ds, bool force)
   EntityVector updates;
 
   SAFETRYBEGIN;
-  for (EntityRepo::iterator i = entities_.begin(); i != entities_.end(); ++i)
+  for (EntityRepo::const_iterator i = entities_.begin(); i != entities_.end(); ++i)
   {
     EntityRecord* record = i->second.get();
 

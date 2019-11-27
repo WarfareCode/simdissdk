@@ -37,11 +37,10 @@
 #include "osgEarth/ObjectIndex"
 #include "osgEarth/ScreenSpaceLayout"
 #include "osgEarthDrivers/engine_rex/RexTerrainEngineOptions"
-#include "osgEarthDrivers/engine_mp/MPTerrainEngineOptions"
 #include "osgEarthUtil/LODBlending"
 
 #if OSGEARTH_MIN_VERSION_REQUIRED(2,10,0)
-#include "osgEarthUtil/HorizonClipPlane"
+#include "osgEarth/HorizonClipPlane"
 #else
 #include "osgEarth/CullingUtils" // for ClipToGeocentricHorizon
 #endif
@@ -60,10 +59,9 @@
 #include "simVis/Utils.h"
 #include "simVis/SceneManager.h"
 
+#include "osgEarth/CullingUtils"
 
 #define LC "[SceneManager] "
-
-using namespace simVis;
 
 //------------------------------------------------------------------------
 namespace
@@ -74,12 +72,34 @@ namespace
 
   /** setUserData() tag for the scenario's object ID */
   static const std::string SCENARIO_OBJECT_ID = "scenid";
+
+  /** Debugging callback that will dump the culling results each frame -- useful for debugging render order */
+  struct DebugCallback : public osg::NodeCallback
+  {
+    void operator()(osg::Node* node, osg::NodeVisitor* nv)
+    {
+      traverse(node, nv);
+      osgUtil::CullVisitor* cv = dynamic_cast<osgUtil::CullVisitor*>(nv);
+      if (cv)
+      {
+        osgEarth::Config c = osgEarth::CullDebugger().dumpRenderBin(cv->getRenderStage());
+        OE_INFO << "FRAME " << cv->getFrameStamp()->getFrameNumber() << "-----------------------------------" << std::endl
+          << c.toJSON(true) << std::endl;
+      }
+    }
+  };
 }
+
+namespace simVis {
 
 SceneManager::SceneManager()
   : hasEngineDriverProblem_(false)
 {
   init_();
+
+  // Uncomment this to activate the rendering debugger that will
+  // print the cull results each frame
+  //addCullCallback(new DebugCallback());
 }
 
 SceneManager::~SceneManager()
@@ -88,9 +108,9 @@ SceneManager::~SceneManager()
 
 void SceneManager::detectTerrainEngineDriverProblems_()
 {
-  // Try to detect the osgearth_engine_mp driver; if not present, we will likely fail to render anything useful
+  // Try to detect the osgearth_engine_rex driver; if not present, we will likely fail to render anything useful
   osgDB::Registry* registry = osgDB::Registry::instance();
-  const std::string engineDriverExtension = "osgearth_engine_mp";
+  const std::string engineDriverExtension = "osgearth_engine_rex";
   if (registry->getReaderWriterForExtension(engineDriverExtension) != NULL)
   {
     hasEngineDriverProblem_ = false;
@@ -100,7 +120,7 @@ void SceneManager::detectTerrainEngineDriverProblems_()
   // Construct a user message
   std::stringstream ss;
   const std::string libName = registry->createLibraryNameForExtension(engineDriverExtension);
-  ss << "osgEarth MP engine driver (" << libName << ") not found on file system.  Tried search paths:\n";
+  ss << "osgEarth REX engine driver (" << libName << ") not found on file system.  Tried search paths:\n";
   const osgDB::FilePathList& libList = registry->getLibraryFilePathList();
   for (osgDB::FilePathList::const_iterator i = libList.begin(); i != libList.end(); ++i)
     ss << "  " << simCore::toNativeSeparators(osgDB::getRealPath(*i)) << "\n";
@@ -124,8 +144,8 @@ void SceneManager::init_()
   // Create a default material for the scene (fixes NVidia bug where unset material defaults to white)
   osg::ref_ptr<osg::Material> material = new osg::Material;
   material->setAmbient(osg::Material::FRONT_AND_BACK, osg::Vec4(0.3f, 0.3f, 0.3f, 1.f));
-  material->setDiffuse(osg::Material::FRONT_AND_BACK, osg::Vec4(1.f, 1.f, 1.f, 1.f));
-  material->setSpecular(osg::Material::FRONT_AND_BACK, osg::Vec4(1.f, 1.f, 1.f, 1.f));
+  material->setDiffuse(osg::Material::FRONT_AND_BACK, simVis::Color::White);
+  material->setSpecular(osg::Material::FRONT_AND_BACK, simVis::Color::White);
   material->setShininess(osg::Material::FRONT_AND_BACK, 10.f);
   getOrCreateStateSet()->setAttributeAndModes(material, osg::StateAttribute::ON);
 
@@ -148,6 +168,7 @@ void SceneManager::init_()
 
   // a container group so we always have a manipulator attach point:
   mapContainer_ = new osg::Group();
+  mapContainer_->setName("Map Container");
   addChild(mapContainer_.get());
   globeColor_ = new osg::Uniform("oe_terrain_color", MAP_COLOR);
   mapContainer_->getOrCreateStateSet()->addUniform(globeColor_, osg::StateAttribute::OVERRIDE);
@@ -157,18 +178,22 @@ void SceneManager::init_()
 
   // handles centroids
   centroidManager_ = new CentroidManager();
+  centroidManager_->setName("Centroid Manager");
   addChild(centroidManager_.get());
 
   // handles projected textures/videos
   projectorManager_ = new ProjectorManager();
+  projectorManager_->setName("Projector Manager");
   addChild(projectorManager_.get());
 
   drapeableNode_ = new osgEarth::DrapeableNode();
+  drapeableNode_->setName("Drapeable Scene Objects");
   drapeableNode_->setDrapingEnabled(false);
   addChild(drapeableNode_.get());
 
   // updates scenario objects
   scenarioManager_ = new ScenarioManager(this, projectorManager_.get());
+  scenarioManager_->setName("Scenario");
   drapeableNode_->addChild(scenarioManager_.get());
 
   // Add the Model Cache's asynchronous loader node.  This is needed for asynchronous loading, which
@@ -178,42 +203,10 @@ void SceneManager::init_()
   if (!noAsyncLoad || strncmp(noAsyncLoad, "0", 1) == 0)
     addChild(simVis::Registry::instance()->modelCache()->asyncLoaderNode());
 
-  // SilverLining requires a write to the depth buffer to avoid having clouds overwrite objects
-  // in the scene.  Therefore everything needs to write to depth buffer.  However, some things
-  // cannot write to the depth buffer without causing graphics artifacts.  To resolve this, we
-  // create a second pass rendering that only writes to the depth buffer and not the color buffer.
-  // That is the point of this depth group.  It only is needed when SilverLining is in use.
-  depthRenderContainer_ = new osg::Group;
-  depthRenderContainer_->addChild(scenarioManager_);
-  // Turn it off by default for performance
-  depthRenderContainer_->setNodeMask(0);
-  drapeableNode_->addChild(depthRenderContainer_);
-
-  // Depth renderer draws scene elements before SilverLining
-  osg::StateSet* drcStateSet = depthRenderContainer_->getOrCreateStateSet();
-  drcStateSet->setRenderBinDetails(BIN_DEPTH_WRITER, BIN_GLOBAL_SIMSDK);
-  // Turn on depth writing and force it for children
-  drcStateSet->setAttributeAndModes(new osg::Depth(osg::Depth::ALWAYS, 0, 1, true), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
-  // Turn off all color masks so we don't write to the color buffer
-  drcStateSet->setAttributeAndModes(new osg::ColorMask(false, false, false, false), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
-  // Omit any pixels with a low alpha, so things like text glyphs don't cause bad behavior
-  static const float ALPHA_THRESHOLD = 0.05f;
-  AlphaTest::setValues(drcStateSet, ALPHA_THRESHOLD, osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
-
   // Configure the default terrain options
-  if (simVis::useRexEngine())
-  {
-    osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions options;
-    SceneManager::initializeTerrainOptions(options);
-    setMapNode(new osgEarth::MapNode(options));
-  }
-
-  else // MP engine
-  {
-    osgEarth::Drivers::MPTerrainEngine::MPTerrainEngineOptions options;
-    SceneManager::initializeTerrainOptions(options);
-    setMapNode(new osgEarth::MapNode(options));
-  }
+  osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions options;
+  SceneManager::initializeTerrainOptions(options);
+  setMapNode(new osgEarth::MapNode(options));
 
   // TODO: Re-evaluate
   // getOrCreateStateSet()->setDefine("OE_TERRAIN_RENDER_NORMAL_MAP", osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE);
@@ -236,10 +229,9 @@ void SceneManager::init_()
   // mode on its stateset; or you can use osgEarth symbology and use
   // RenderSymbol::clipPlane() = CLIPPLANE_VISIBLE_HORIZON in conjunction with
   // RenderSymbol::depthTest() = false.
-  osgEarth::Util::HorizonClipPlane* hcp = new osgEarth::Util::HorizonClipPlane();
+  osgEarth::HorizonClipPlane* hcp = new osgEarth::HorizonClipPlane();
   hcp->setClipPlaneNumber(CLIPPLANE_VISIBLE_HORIZON);
-  hcp->installShaders(this->getOrCreateStateSet());
-  this->addCullCallback(hcp);
+  addCullCallback(hcp);
 #else // osgEarth 2.9 or older, use ClipToGeocentricHorizon object
   // Install a clip node. This will activate and maintain our visible-horizon
   // clip plane for geometry (or whatever else we want clipped). Then, to activate
@@ -256,6 +248,11 @@ void SceneManager::init_()
   simVis::Shaders package;
   package.load(clipVp, package.setClipVertex());
 #endif
+
+  // Use the labeling render bin for our labels
+  osgEarth::ScreenSpaceLayoutOptions screenOptions;
+  screenOptions.renderOrder() = BIN_SCREEN_SPACE_LABEL;
+  osgEarth::ScreenSpaceLayout::setOptions(screenOptions);
 
   // Turn off declutter
   osgEarth::ScreenSpaceLayout::setDeclutteringEnabled(false);
@@ -307,9 +304,6 @@ void SceneManager::setSkyNode(osgEarth::Util::SkyNode* skyNode)
     skyNode_ = skyNode;
     osgEarth::insertGroup(skyNode, this);
   }
-
-  // Turn on or off the second depth rendering based on whether we're running SilverLining or have an ocean
-  setDepthWriterNodeMask((oceanNode_.get() != NULL) || isSilverLining_(skyNode_.get())  ? ~0 : 0);
 }
 
 bool SceneManager::isSilverLining_(const osgEarth::Util::SkyNode* skyNode) const
@@ -337,11 +331,6 @@ bool SceneManager::isSilverLining_(const osgEarth::Util::SkyNode* skyNode) const
   return false;
 }
 
-void SceneManager::setDepthWriterNodeMask(osg::Node::NodeMask nodeMask)
-{
-  depthRenderContainer_->setNodeMask(nodeMask);
-}
-
 void SceneManager::setOceanNode(osgEarth::Util::OceanNode* oceanNode)
 {
   removeOceanNode();
@@ -352,9 +341,6 @@ void SceneManager::setOceanNode(osgEarth::Util::OceanNode* oceanNode)
     osg::Group* oceanParent = skyNode_.valid() ? skyNode_->asGroup() : this->asGroup();
     oceanParent->addChild(oceanNode);
   }
-
-  // Fix the depth writer mask
-  setDepthWriterNodeMask((oceanNode_.get() != NULL) || isSilverLining_(skyNode_.get())  ? ~0 : 0);
 }
 
 void SceneManager::removeOceanNode()
@@ -364,9 +350,6 @@ void SceneManager::removeOceanNode()
     oceanNode_->getParent(0)->removeChild(oceanNode_.get());
     oceanNode_ = NULL;
   }
-
-  // Fix the depth writer mask
-  setDepthWriterNodeMask((oceanNode_.get() != NULL) || isSilverLining_(skyNode_.get())  ? ~0 : 0);
 }
 
 void SceneManager::setScenarioDraping(bool value)
@@ -429,18 +412,9 @@ void SceneManager::setMap(osgEarth::Map* map)
   }
   else
   {
-    if (simVis::useRexEngine())
-    {
-      osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions options;
-      SceneManager::initializeTerrainOptions(options);
-      setMapNode(new osgEarth::MapNode(map, options));
-    }
-    else // MP engine
-    {
-      osgEarth::Drivers::MPTerrainEngine::MPTerrainEngineOptions options;
-      SceneManager::initializeTerrainOptions(options);
-      setMapNode(new osgEarth::MapNode(map, options));
-    }
+    osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions options;
+    SceneManager::initializeTerrainOptions(options);
+    setMapNode(new osgEarth::MapNode(map, options));
   }
 }
 
@@ -668,28 +642,17 @@ void SceneManager::setGlobeColor(const simVis::Color& color)
   globeColor_->set(color);
 }
 
+#ifdef USE_DEPRECATED_SIMDISSDK_API
 void SceneManager::initializeTerrainOptions(osgEarth::Drivers::MPTerrainEngine::MPTerrainEngineOptions& options)
 {
-  // ensure sufficient tessellation for areas without hires data (e.g. ocean)
-  options.minLOD() = 20;
-  // Drop default tile size down to 7 by default to reduce tile subdivision (suggested by GW 5/13/15)
-  options.tileSize() = 7;
-  // Display should match the data more closely; don't smooth out elevation across large LOD
-  options.elevationSmoothing() = false;
-  // edges will be normalized, reducing seam stitch artifacts
-  options.normalizeEdges() = true;
-  // polar areas "take longer" to subdivide, reducing CPU thrash at poles
-  options.adaptivePolarRangeFactor() = true;
+  SIM_WARN << "The MP Terrain engine is no longer supported.\n";
 }
+#endif
 
 void SceneManager::initializeTerrainOptions(osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions& options)
 {
-  // Drop default tile size down to 7 by default to reduce tile subdivision (suggested by GW 5/13/15)
-  options.tileSize() = 7;
-#if SDK_OSGEARTH_MIN_VERSION_REQUIRED(1,6,0)
-  // edges will be normalized, reducing seam stitch artifacts
-  options.normalizeEdges() = true;
-#endif
-  // turn off normal maps
-  options.normalMaps() = false;
+  // Default options for the Rex engine can be initialized here.
+  // These options apply to the default map loaded on initialization.
+}
+
 }

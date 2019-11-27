@@ -22,6 +22,7 @@
 #include <QDialog>
 #include <QGroupBox>
 #include <QInputDialog>
+#include <QMenu>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QSignalMapper>
@@ -200,7 +201,9 @@ EntityTreeComposite::EntityTreeComposite(QWidget* parent)
   useCenterAction_(false),
   treeViewUsable_(true),
   useEntityIcons_(true),
-  useEntityIconsSet_(false)
+  useEntityIconsSet_(false),
+  showCenterInMenu_(true),
+  showTreeOptionsInMenu_(true)
 {
   ResourceInitializer::initialize();  // Needs to be here so that Qt Designer works.
 
@@ -218,6 +221,9 @@ EntityTreeComposite::EntityTreeComposite(QWidget* parent)
   nameFilter_->bindToWidget(composite_->lineEdit);
   addEntityFilter(nameFilter_);
 
+  composite_->treeView->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(composite_->treeView, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(makeAndDisplayMenu_(QPoint)));
+
   // handle right-context menu (any actions will appear there)
   // Create a new QAction for copying data from the clipboard
   copyAction_ = new QAction(tr("&Copy"), composite_->treeView);
@@ -226,7 +232,6 @@ EntityTreeComposite::EntityTreeComposite(QWidget* parent)
   copyAction_->setShortcutContext(Qt::WidgetShortcut);
   copyAction_->setEnabled(false); // Should only be enabled when selections made
   connect(copyAction_, SIGNAL(triggered()), this, SLOT(copySelection_()));
-  composite_->treeView->addAction(copyAction_);
 
   // Right click center action
   // NOTE: Use of this action must be enabled by the caller with setUseCenterAction()
@@ -234,12 +239,6 @@ EntityTreeComposite::EntityTreeComposite(QWidget* parent)
   centerAction_->setIcon(QIcon(":simQt/images/Find.png"));
   centerAction_->setEnabled(false); // Should only be enabled when selections made
   connect(centerAction_, SIGNAL(triggered()), this, SLOT(centerOnSelection_()));
-  composite_->treeView->addAction(centerAction_);
-
-  // Add separator
-  QAction* sep = new QAction(this);
-  sep->setSeparator(true);
-  composite_->treeView->addAction(sep);
 
   // Switch tree mode action
   toggleTreeViewAction_ = new QAction("Tree View", composite_->treeView);
@@ -249,15 +248,12 @@ EntityTreeComposite::EntityTreeComposite(QWidget* parent)
   toggleTreeViewAction_->setToolTip(simQt::formatTooltip(tr("Toggle Tree View"), tr("Toggles the display of entity types between a tree and a list view.")));
   toggleTreeViewAction_->setEnabled(false); // Disabled until entities are added
   connect(toggleTreeViewAction_, SIGNAL(triggered(bool)), this, SLOT(setTreeView_(bool)));
-  composite_->treeView->addAction(toggleTreeViewAction_);
 
   // Collapse All and Expand All actions
   collapseAllAction_ = composite_->actionCollapse_All;
   collapseAllAction_->setEnabled(false); // Disabled until entities are added
-  composite_->treeView->addAction(collapseAllAction_);
   expandAllAction_ = composite_->actionExpand_All;
   expandAllAction_->setEnabled(false); // Disabled until entities are added
-  composite_->treeView->addAction(expandAllAction_);
 
   connect(composite_->filterButton, SIGNAL(clicked()), this, SLOT(showFilters_()));
   connect(entityTreeWidget_, SIGNAL(numFilteredItemsChanged(int, int)), this, SLOT(setNumFilteredItemsLabel_(int, int)));
@@ -288,6 +284,57 @@ EntityTreeComposite::~EntityTreeComposite()
   delete entityTreeWidget_;
   // entityTreeWidget_ owns nameFilter_, so don't delete it
   // we don't own model_ so don't delete it
+}
+
+void EntityTreeComposite::setMargins(int left, int top, int right, int bottom)
+{
+  composite_->verticalLayout->layout()->setContentsMargins(left, top, right, bottom);
+}
+
+void EntityTreeComposite::addExternalAction(QAction* action)
+{
+  if ((action == NULL) || action->isSeparator())
+    return;
+
+  externalActions_.push_back(action);
+}
+
+void EntityTreeComposite::removeExternalActions()
+{
+  externalActions_.clear();
+}
+
+void EntityTreeComposite::makeAndDisplayMenu_(const QPoint& pos)
+{
+  // Give outside code a chance to update the menu before showing the menu
+  emit rightClickMenuRequested();
+
+  QMenu* menu = new QMenu(composite_->treeView);
+
+  menu->addAction(copyAction_);
+  if (showCenterInMenu_)
+    menu->addAction(centerAction_);
+
+  menu->addSeparator();
+
+  if (!externalActions_.empty())
+  {
+    for (auto it = externalActions_.begin(); it != externalActions_.end(); ++it)
+        menu->addAction(*it);
+
+    menu->addSeparator();
+  }
+
+  if (showTreeOptionsInMenu_)
+  {
+    menu->addAction(toggleTreeViewAction_);
+    menu->addAction(collapseAllAction_);
+    menu->addAction(expandAllAction_);
+  }
+
+  // Show the menu with exec(), making sure the position is correctly relative
+  menu->exec(composite_->treeView->viewport()->mapToGlobal(pos));
+  delete menu;
 }
 
 void EntityTreeComposite::addEntityFilter(EntityFilter* entityFilter)
@@ -322,6 +369,18 @@ void EntityTreeComposite::setModel(AbstractEntityTreeModel* model)
   connect(model_, SIGNAL(rowsInserted(QModelIndex, int, int)), this, SLOT(rowsInserted_(QModelIndex, int, int)));
 }
 
+
+int EntityTreeComposite::setSelected(uint64_t id)
+{
+  return entityTreeWidget_->setSelected(id);
+}
+
+int EntityTreeComposite::setSelected(const QList<uint64_t>& list)
+{
+  return entityTreeWidget_->setSelected(list);
+}
+
+#ifdef USE_DEPRECATED_SIMDISSDK_API
 /** Sets/clears the selected ID in the entity list */
 void EntityTreeComposite::setSelected(uint64_t id, bool selected)
 {
@@ -332,6 +391,7 @@ void EntityTreeComposite::setSelected(QList<uint64_t> list, bool selected)
 {
   entityTreeWidget_->setSelected(list, selected);
 }
+#endif
 
 void EntityTreeComposite::scrollTo(uint64_t id, QAbstractItemView::ScrollHint hint)
 {
@@ -374,6 +434,15 @@ void EntityTreeComposite::setFilterSettings(const QMap<QString, QVariant>& setti
   entityTreeWidget_->setFilterSettings(settings);
 }
 
+void EntityTreeComposite::setShowCenterInMenu(bool show)
+{
+  showCenterInMenu_ = show;
+}
+void EntityTreeComposite::setShowTreeOptionsInMenu(bool show)
+{
+  showTreeOptionsInMenu_ = show;
+}
+
 /** Clears all selections */
 void EntityTreeComposite::clearSelection()
 {
@@ -389,7 +458,7 @@ QList<uint64_t> EntityTreeComposite::selectedItems() const
 /** Allows the developer to customize the look by adding buttons after the filter text **/
 void EntityTreeComposite::addButton(QWidget* button)
 {
-  composite_->horizontalLayout->addWidget(button);
+  composite_->horizontalLayout_2->addWidget(button);
 }
 
 void EntityTreeComposite::setTreeViewActionEnabled(bool value)
@@ -607,13 +676,30 @@ bool EntityTreeComposite::expandsOnDoubleClick() const
   return composite_->treeView->expandsOnDoubleClick();
 }
 
-void EntityTreeComposite::setUseCenterAction(bool use)
+bool EntityTreeComposite::useCenterAction() const
 {
+  return useCenterAction_;
+}
+
+void EntityTreeComposite::setUseCenterAction(bool use, const QString& reason)
+{
+  if (use)
+    centerAction_->setText(tr("Center On Selection"));
+  else
+  {
+    if (!reason.isEmpty())
+      centerAction_->setText(tr("Center On Selection (%1)").arg(reason));
+    else
+      centerAction_->setText(tr("Center On Selection"));
+  }
+
   if (use == useCenterAction_)
     return;
   useCenterAction_ = use;
   if (!selectedItems().isEmpty())
     centerAction_->setEnabled(use); // Only enable if there's items in the tree
+  else
+    centerAction_->setEnabled(false);
 }
 
 void EntityTreeComposite::onItemsChanged_(const QList<uint64_t>& ids)

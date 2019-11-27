@@ -25,7 +25,6 @@
 #include "osgDB/FileNameUtils"
 #include "osgEarth/Map"
 #include "osgEarth/ImageLayer"
-#include "osgEarthDrivers/engine_mp/MPTerrainEngineOptions"
 #include "osgEarthDrivers/engine_rex/RexTerrainEngineOptions"
 
 #include "simNotify/Notify.h"
@@ -109,21 +108,10 @@ int DbConfigurationFile::load(osg::ref_ptr<osgEarth::MapNode>& mapNode, const st
     SAFETRYBEGIN;
     osg::ref_ptr<osgEarth::Map> map = simUtil::DbConfigurationFile::loadLegacyConfigFile(adjustedConfigFile, quiet);
 
-    if (simVis::useRexEngine())
-    {
-      // Set up a map node with the supplied options
-      osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions options;
-      simVis::SceneManager::initializeTerrainOptions(options);
-      mapNode = new osgEarth::MapNode(map.get(), options);
-    }
-
-    else
-    {
-      // Set up a map node with the supplied options
-      osgEarth::Drivers::MPTerrainEngine::MPTerrainEngineOptions options;
-      simVis::SceneManager::initializeTerrainOptions(options);
-      mapNode = new osgEarth::MapNode(map.get(), options);
-    }
+    // Set up a map node with the supplied options
+    osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions options;
+    simVis::SceneManager::initializeTerrainOptions(options);
+    mapNode = new osgEarth::MapNode(map.get(), options);
 
     SAFETRYEND((std::string("legacy SIMDIS 9 .txt processing of file ") + configFile));
   }
@@ -151,11 +139,6 @@ int DbConfigurationFile::load(osg::ref_ptr<osgEarth::MapNode>& mapNode, const st
 osgEarth::Map* DbConfigurationFile::loadLegacyConfigFile(const std::string& filename, bool quiet)
 {
   std::string configFilename = simCore::backslashToFrontslash(filename);
-  std::string sdTerrainDirStr;
-
-  // Since full path is passed in for file, get directory from there
-  if (filename.find("/") != std::string::npos)
-    sdTerrainDirStr = filename.substr(0, filename.rfind("/") + 1);
 
   // NOTE: std::ifstream here will cause linker errors on VC10 due to osgDB's inheritance
   // issues with osgDB::fstream.
@@ -173,6 +156,11 @@ osgEarth::Map* DbConfigurationFile::loadLegacyConfigFile(const std::string& file
     }
     return NULL;
   }
+
+  std::string sdTerrainDirStr;
+  // Since full path is passed in for file, get directory from there
+  if (configFilename.find("/") != std::string::npos)
+    sdTerrainDirStr = configFilename.substr(0, configFilename.rfind("/") + 1);
 
   // Configure a NULL map at first
   osgEarth::Map* map = NULL;
@@ -564,33 +552,36 @@ osgEarth::Map* DbConfigurationFile::createDefaultMap_()
   return map;
 }
 
-osg::Node* DbConfigurationFile::readEarthFile(const std::string& filename)
+osg::Node* DbConfigurationFile::readEarthFile(std::istream& istream, const std::string& relativeTo)
 {
+  osg::ref_ptr<osgDB::ReaderWriter> readWrite = osgDB::Registry::instance()->getReaderWriterForExtension("earth");
+  if (!readWrite.valid())
+    return NULL;
+
   osgEarth::MapNodeOptions defaults;
+  // Fill out a RexTerrainEngineOptions with default options
+  osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions options;
+  simVis::SceneManager::initializeTerrainOptions(options);
+  // Put it into a MapNodeOptions, which will help encode to JSON
+  defaults.setTerrainOptions(options);
 
-  if (simVis::useRexEngine())
-  {
-    // Fill out a MPTerrainEngineOptions with default options
-    osgEarth::Drivers::RexTerrainEngine::RexTerrainEngineOptions options;
-    simVis::SceneManager::initializeTerrainOptions(options);
-    // Put it into a MapNodeOptions, which will help encode to JSON
-    defaults.setTerrainOptions(options);
-  }
-  else
-  {
-    // Fill out a MPTerrainEngineOptions with default options
-    osgEarth::Drivers::MPTerrainEngine::MPTerrainEngineOptions options;
-    simVis::SceneManager::initializeTerrainOptions(options);
-    // Put it into a MapNodeOptions, which will help encode to JSON
-    defaults.setTerrainOptions(options);
-  }
-
-  // Create an osgDB::Options structure to hold our defaults
+  // Create an osgDB::Options structure to hold our defaults and the referrer
   osg::ref_ptr<osgDB::Options> dbOptions = new osgDB::Options();
+  dbOptions->setDatabasePath(relativeTo);
+  dbOptions->setPluginStringData("osgEarth::URIContext::referrer", relativeTo);
   dbOptions->setPluginStringData("osgEarth.defaultOptions", defaults.getConfig().toJSON());
 
   // Pass those defaults into osgDB::readNodeFile()
-  return osgDB::readNodeFile(filename, dbOptions.get());
+  osgDB::ReaderWriter::ReadResult result = readWrite->readNode(istream, dbOptions.get());
+  return result.takeNode();
+}
+
+osg::Node* DbConfigurationFile::readEarthFile(const std::string& filename)
+{
+  std::fstream istream(filename.c_str(), std::ios::in);
+  if (!istream)
+    return NULL;
+  return DbConfigurationFile::readEarthFile(istream, filename);
 }
 
 }

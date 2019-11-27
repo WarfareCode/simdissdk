@@ -98,14 +98,22 @@ public:
   /** Returns the number of digits after the decimal point */
   unsigned int precision() const;
 
+  /** Returns the time zone */
+  simCore::TimeZone timeZone() const;
+
   /** Returns true if the time widget is enabled */
   bool timeEnabled() const;
+
+  /** Disable the tool tips over the time control, since the can interfere with the user editing time */
+  void disableControlToolTips();
 
 public slots:
   /** Set the time format */
   void setTimeFormat(simCore::TimeFormat newFormat);
   /** Set the number of digits after the decimal point */
   void setPrecision(unsigned int digits);
+  /** Set the time zone */
+  void setTimeZone(simCore::TimeZone newZone);
   /** An alternative enable that replaces the time with ----- when disabled */
   void setTimeEnabled(bool value);
 
@@ -158,6 +166,8 @@ private:
   QLineEdit* disabledLineEdit_;
   /// True if the widget is enabled
   bool timeEnabled_;
+  /// If the label tool tip has been set, don't override
+  bool labelToolTipSet_;
 };
 
 } // namespace

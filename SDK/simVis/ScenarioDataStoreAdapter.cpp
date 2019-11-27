@@ -25,8 +25,6 @@
 #include "simVis/LobGroup.h"
 #include "simVis/Scenario.h"
 
-using namespace simVis;
-
 #define LC "[SimDataStoreAdapter] "
 
 // -----------------------------------------------------------------------
@@ -38,7 +36,7 @@ namespace
 class MyListener : public simData::DataStore::Listener
 {
 public:
-  explicit MyListener(ScenarioManager *parent)
+  explicit MyListener(simVis::ScenarioManager *parent)
     : scenarioManager_(parent)
   {
   }
@@ -54,7 +52,7 @@ public:
     case simData::PROJECTOR: addProjector_(*source, newId); break;
     case simData::LASER: addLaser_(*source, newId); break;
     case simData::LOB_GROUP: addLobGroup_(*source, newId); break;
-
+    case simData::CUSTOM_RENDERING: addCustomRendering_(*source, newId); break;
     case simData::ALL: // shouldn't see these
     case simData::NONE:
       assert(false);
@@ -78,7 +76,7 @@ public:
     case simData::PROJECTOR: changeProjectorPrefs_(*source, id); break;
     case simData::LASER: changeLaserPrefs_(*source, id); break;
     case simData::LOB_GROUP: changeLobGroupPrefs_(*source, id); break;
-
+    case simData::CUSTOM_RENDERING: changeCustomRenderingPrefs_(*source, id); break;
     case simData::ALL: // shouldn't see these
     case simData::NONE:
       assert(false);
@@ -189,6 +187,18 @@ private: // methods
     scenarioManager_->addLobGroup(props, ds);
   }
 
+  void addCustomRendering_(simData::DataStore &ds, simData::ObjectId newId) const
+  {
+    simData::CustomRenderingProperties props;
+    simData::DataStore::Transaction xaction;
+    const simData::CustomRenderingProperties *liveProps = ds.customRenderingProperties(newId, &xaction);
+    if (liveProps)
+      props = *liveProps;
+    xaction.release(&liveProps);
+
+    scenarioManager_->addCustomRendering(props, ds);
+  }
+
   void changePlatformPrefs_(simData::DataStore &ds, simData::ObjectId id)
   {
     simData::PlatformPrefs          prefs;
@@ -255,15 +265,26 @@ private: // methods
     scenarioManager_->setLobGroupPrefs(id, prefs);
   }
 
+  void changeCustomRenderingPrefs_(simData::DataStore &ds, simData::ObjectId id)
+  {
+    simData::CustomRenderingPrefs            prefs;
+    simData::DataStore::Transaction xaction;
+    const simData::CustomRenderingPrefs* livePrefs = ds.customRenderingPrefs(id, &xaction);
+    prefs = *livePrefs;
+    xaction.complete(&livePrefs);
+
+    scenarioManager_->setCustomRenderingPrefs(id, prefs);
+  }
+
 private: // data
-  ScenarioManager *scenarioManager_;
+  simVis::ScenarioManager *scenarioManager_;
 };
 
 // Observer for time clock mode changes
 class MyClockModeChangeObserver : public simCore::Clock::ModeChangeObserver
 {
 public:
-  MyClockModeChangeObserver(ScenarioManager* scenarioManager, simCore::Clock* clock)
+  MyClockModeChangeObserver(simVis::ScenarioManager* scenarioManager, simCore::Clock* clock)
     : scenarioManager_(scenarioManager), clock_(clock)
   {
     //nop
@@ -302,10 +323,12 @@ public: // ModeChangeObserver interface
   }
 
 private: // data
-  ScenarioManager *scenarioManager_;
+  simVis::ScenarioManager *scenarioManager_;
   simCore::Clock  *clock_;
 };
 }
+
+namespace simVis {
 
 // -----------------------------------------------------------------------
 ScenarioDataStoreAdapter::ScenarioDataStoreAdapter(simData::DataStore* dataStore, ScenarioManager* scenario)
@@ -381,4 +404,6 @@ void ScenarioDataStoreAdapter::getBindings(std::set<simData::DataStore*>& output
   {
     output.insert(i->first);
   }
+}
+
 }

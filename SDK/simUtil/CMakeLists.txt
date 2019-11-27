@@ -6,6 +6,7 @@ endif()
 # ----- simUtil --------------------------------------------------------
 
 set(SHADER_FILES
+    MapScale.glsl
     TerrainToggleEffect.vert.glsl
     TerrainToggleEffect.frag.glsl
 )
@@ -22,7 +23,10 @@ set(UTIL_HEADERS
     ${UTIL_INC}ExampleControls.h
     ${UTIL_INC}ExampleResources.h
     ${UTIL_INC}GogManager.h
+    ${UTIL_INC}GridTransform.h
     ${UTIL_INC}HudManager.h
+    ${UTIL_INC}HudPositionEditor.h
+    ${UTIL_INC}HudPositionManager.h
     ${UTIL_INC}IdMapper.h
     ${UTIL_INC}LayerFactory.h
     ${UTIL_INC}LineGraphic.h
@@ -41,6 +45,7 @@ set(UTIL_HEADERS
     ${UTIL_INC}StatsSizeFixer.h
     ${UTIL_INC}StatusText.h
     ${UTIL_INC}TerrainToggleEffect.h
+    ${UTIL_INC}UnitTypeConverter.h
     ${UTIL_INC}ViewpointMonitor.h
     ${UTIL_INC}ViewpointPositions.h
 )
@@ -54,7 +59,10 @@ set(UTIL_SOURCES
     ${UTIL_SRC}ExampleControls.cpp
     ${UTIL_SRC}ExampleResources.cpp
     ${UTIL_SRC}GogManager.cpp
+    ${UTIL_SRC}GridTransform.cpp
     ${UTIL_SRC}HudManager.cpp
+    ${UTIL_SRC}HudPositionEditor.cpp
+    ${UTIL_SRC}HudPositionManager.cpp
     ${UTIL_SRC}IdMapper.cpp
     ${UTIL_SRC}LayerFactory.cpp
     ${UTIL_SRC}LineGraphic.cpp
@@ -71,6 +79,7 @@ set(UTIL_SOURCES
     ${UTIL_SRC}StatsHandler.cpp
     ${UTIL_SRC}StatusText.cpp
     ${UTIL_SRC}TerrainToggleEffect.cpp
+    ${UTIL_SRC}UnitTypeConverter.cpp
     ${UTIL_SRC}ViewpointMonitor.cpp
     ${UTIL_SRC}ViewpointPositions.cpp
 )
@@ -131,6 +140,7 @@ target_include_directories(simUtil PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(simUtil PUBLIC simVis simData simCore)
+target_link_libraries(simUtil PRIVATE VSI::GL)
 if(SIMUTIL_SHARED)
     target_compile_definitions(simUtil PRIVATE simUtil_LIB_EXPORT_SHARED)
 else()
@@ -139,8 +149,7 @@ endif()
 
 
 if(INSTALL_SIMDIS_SDK_LIBRARIES)
-    set_target_properties(simUtil PROPERTIES TARGET_EXPORT_NAME "SIMDIS_SDK")
-    vsi_install_target(simUtil SDK_Library)
+    vsi_install_export(simUtil ${SIMDIS_SDK_VERSION_STRING} AnyNewerVersion)
 endif()
 
 if(OSGEARTH_TRITON_SUPPORT STREQUAL "NODEKIT" AND TARGET OSGEARTH_TRITON)
@@ -161,7 +170,7 @@ if(INSTALL_SIMDIS_SDK_SHADERS)
 endif()
 
 if(AUTOINSTALL_LIBS AND SIMUTIL_SHARED)
-    PostBuildInstallSdkSharedObjects(simUtil)
+    PostBuildInstallSharedObjects(simUtil)
 endif()
 
 if(INSTALL_HEADERS)

@@ -24,8 +24,8 @@
 
 #include "simCore/Common/Common.h"
 #include "simCore/Calc/Coordinate.h"
+#include "simCore/Calc/Units.h"
 #include "simVis/GOG/GOGNode.h"
-#include "osgEarth/Config"
 #include "osgEarth/GeoData"
 #include "osgEarth/Units"
 #include "osgEarthSymbology/Geometry"
@@ -39,7 +39,9 @@ namespace osgEarth { namespace Annotation { class LocalGeometryNode; } }
  */
 namespace simVis { namespace GOG
 {
+  class ParsedShape;
   class ParserData;
+  struct PositionStrings;
 
   /** Utility class for the shapes */
   class SDKVIS_EXPORT Utils
@@ -55,10 +57,12 @@ namespace simVis { namespace GOG
 
       /**
       * Apply local geometry offsets to the node as defined in the ParserData, including any position and orientation offsets
-      * @param node  shape node the receive offsets
+      * @param node  shape node updating offsets
       * @param data  parsed offset data to apply to the shape node
+      * @param nodeType indicates if GOG is hosted of geographic centered
+      * @param ignoreOffset if true, get map position without any offset applied
       */
-      static void applyLocalGeometryOffsets(osgEarth::Annotation::LocalGeometryNode& node, ParserData& data);
+      static void applyLocalGeometryOffsets(osgEarth::Annotation::LocalGeometryNode& node, ParserData& data, GOGNodeType nodeType, bool ignoreOffset = false);
 
       /**
       * Determines if the specified shape's geometry can be serialized directly into Overlay format. This is dependent on how the shapes
@@ -146,10 +150,10 @@ namespace simVis { namespace GOG
    */
   struct SDKVIS_EXPORT UnitsState
   {
-    osgEarth::Units altitudeUnits_; ///< Altitude units
-    osgEarth::Units rangeUnits_; ///< Range units
-    osgEarth::Units timeUnits_; ///< Time units
-    osgEarth::Units angleUnits_; ///< Angle units
+    simCore::Units altitudeUnits_; ///< Altitude units
+    simCore::Units rangeUnits_; ///< Range units
+    simCore::Units timeUnits_; ///< Time units
+    simCore::Units angleUnits_; ///< Angle units
 
     /**
      * Construct the units state
@@ -158,17 +162,17 @@ namespace simVis { namespace GOG
 
     /**
      * Initializes the units state from a structured representation.
-     * @param[in ] conf Structured data input
+     * @param[in ] parsedShape Structured data input
      */
-    void parse(const osgEarth::Config& conf);
+    void parse(const ParsedShape& parsedShape, const simCore::UnitsRegistry& unitsRegistry);
 
     /**
      * Initialized the units state from a GOG string.
      * @param[in ] s     Input string to parse
-     * @param[in ] type  Units type (angular, linear, etc)
+     * @param[in ] unitsRegistry Supplies to-string conversion for units
      * @param[out] units Parsed units
      */
-    void parse(const std::string& s, osgEarth::Units::Type type, osgEarth::Units& units);
+    void parse(const std::string& s, const simCore::UnitsRegistry& unitsRegistry, simCore::Units& units);
   };
 
 
@@ -193,12 +197,14 @@ namespace simVis { namespace GOG
     osgEarth::optional<std::string> angleUnits_; ///< Angle units
     osgEarth::optional<std::string> verticalDatum_; ///< Vertical datum
     osgEarth::optional<std::string> priority_; ///< Label Priority
+    osgEarth::optional<std::string> textOutlineColor_; ///< Text outline color
+    osgEarth::optional<std::string> textOutlineThickness_; ///< Text outline thickness
 
     /**
      * Stores the modifier state in a structured object.
      * @param[in ] conf Object in which to store the state
      */
-    void apply(osgEarth::Config& conf);
+    void apply(ParsedShape& shape);
   };
 
 
@@ -210,25 +216,25 @@ namespace simVis { namespace GOG
   public:
     /**
      * Initialize the parsing data from a structured object
-     * @param[in ] conf    Input data (GOG stored in a Config)
+     * @param[in ] parsedShape Input data (GOG stored in a ParsedShape structure)
      * @param[in ] context Shared parser information
      * @param[in ] shape   Type of shape being parsed
      */
-    ParserData(const osgEarth::Config& conf, const GOGContext& context, GogShape shape);
+    ParserData(const ParsedShape& parsedShape, const GOGContext& context, GogShape shape);
 
     /** initialize the parser data */
     void init();
 
     /**
-     * Reads geometry (coordinate sets) from a Config object. Use the
+     * Reads geometry (coordinate sets) from a ParsedShape object. Use the
      * template parameter to pass in the type you want returned.
-     * @param[in ] conf Config from which to read geometry
+     * @param[in ] parsedShape Parsed Shape from which to read geometry
      */
     template<typename T>
-    void parseGeometry(const osgEarth::Config& conf)
+    void parseGeometry(const ParsedShape& parsedShape)
     {
       geom_ = new T();
-      parsePoints(conf, units_, geom_.get(), geomIsLLA_);
+      parsePoints(parsedShape, units_, geom_.get(), geomIsLLA_);
     }
 
     /**
@@ -238,7 +244,7 @@ namespace simVis { namespace GOG
      * @param[out] geom   Where to store the parsed points
      * @param[out] isLLA  Whether the output is lat/long/alt data
      */
-    void parsePoints(const osgEarth::Config& parent, const UnitsState& us, osgEarth::Geometry* geom, bool& isLLA);
+    void parsePoints(const ParsedShape& parent, const UnitsState& us, osgEarth::Symbology::Geometry* geom, bool& isLLA);
 
     /**
     * Accounts for the unique requirements of a line segment points
@@ -247,7 +253,7 @@ namespace simVis { namespace GOG
     * @param[out] geom   Where to store the parsed points
     * @param[out] isLLA  Whether the output is lat/long/alt data
     */
-    void parseLineSegmentPoints(const osgEarth::Config& parent, const UnitsState& us, osgEarth::Geometry* geom, bool& isLLA);
+    void parseLineSegmentPoints(const ParsedShape& parent, const UnitsState& us, osgEarth::Symbology::Geometry* geom, bool& isLLA);
 
     /**
      * Parses a string containing a angular coordinate value. Supports
@@ -257,9 +263,9 @@ namespace simVis { namespace GOG
 
     /**
      * Reads optional offset and host-tracking properties.
-     * @param[in ] parent Node from which to read data
+     * @param[in ] parent Structure from which to read data
      */
-    void parseOffsetsAndTracking(const osgEarth::Config& parent);
+    void parseOffsetsAndTracking(const ParsedShape& parent);
 
     /**
      * Whether the current GOG has an absolute Map position.
@@ -269,9 +275,10 @@ namespace simVis { namespace GOG
 
     /**
      * Gets the absolute map position parsed for the current GOG
+     * @param ignoreOffset if true will ignore any LTPOffset if returning defined reference point
      * @return A map point (valid only is hasMapPosition()==true)
      */
-    osgEarth::GeoPoint getMapPosition() const;
+    osgEarth::GeoPoint getMapPosition(bool ignoreOffset = false) const;
 
     /**
      * Gets the offset of the GOG from a local tangent plane (in meters)
@@ -283,7 +290,7 @@ namespace simVis { namespace GOG
      * Reads the parsed position into (absolute or relative) into the
      * output coordinate.
      */
-    simCore::Coordinate getCoordinate(osgEarth::MapNode* mapNode, osgEarth::Style& style) const;
+    simCore::Coordinate getCoordinate(osgEarth::MapNode* mapNode, osgEarth::Symbology::Style& style) const;
 
     /**
      * Whether the current object has absolute (map coordinate) geometry
@@ -314,12 +321,17 @@ namespace simVis { namespace GOG
      */
     void applyToAnnotationNode(osg::Node* node);
 
+    /** Converts the string values in the position strings to a osg::Vec3d using LLA units. */
+    osg::Vec3d llaPositionToVec(const UnitsState& us, const PositionStrings& posStrings) const;
+    /** Converts the string values in the position strings to a osg::Vec3d using XYZ units. */
+    osg::Vec3d xyzPositionToVec(const UnitsState& us, const PositionStrings& posStrings) const;
+
     GOGContext                           context_; ///< Context
-    osgEarth::Style                      style_; ///< Style
+    osgEarth::Symbology::Style           style_; ///< Style
     osgEarth::optional<osg::Vec3d>       refPointLLA_; ///< Reference point in LLA
     osgEarth::optional<osg::Vec3d>       centerXYZ_; ///< Center point in XXZ
     osgEarth::optional<osg::Vec3d>       centerLLA_; ///< Center point in LLA
-    osg::ref_ptr<osgEarth::Geometry>     geom_; ///< Geometry
+    osg::ref_ptr<osgEarth::Symbology::Geometry> geom_; ///< Geometry
     bool                                 geomIsLLA_; ///< If true than in LLA; if false in XYZ
     bool                                 geomIsRelative_; ///< If true than GOG is relative; if false GOG is absolute
     UnitsState                           units_; ///< Units for the GOG
@@ -329,7 +341,6 @@ namespace simVis { namespace GOG
     unsigned int                         locatorComps_;  ///< Combination of heading, pitch and roll
 
     osgEarth::optional<osg::Vec3f>       scale_; ///< Scale of the GOG
-    osgEarth::optional<osgEarth::Distance> localAltOffset_;  ///< Altitude offset of the GOG
     osgEarth::optional<osgEarth::Angle>  localHeadingOffset_; ///< Heading offset of the GOG
     osgEarth::optional<osgEarth::Angle>  localPitchOffset_; ///< Pitch offset of the GOG
     osgEarth::optional<osgEarth::Angle>  localRollOffset_; ///< Roll offset of the GOG

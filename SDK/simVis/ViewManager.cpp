@@ -19,14 +19,15 @@
  * disclose, or release this software.
  *
  */
+#include <algorithm>
+#include <cstring>
+#include <iterator>
 #include "simNotify/Notify.h"
+#include "simVis/Gl3Utils.h"
+#include "simVis/osgEarthVersion.h"
 #include "simVis/Registry.h"
 #include "simVis/ViewManager.h"
 #include "simVis/View.h"
-#include <iterator>
-#include <algorithm>
-
-#define LC "[ViewManager] "
 
 namespace
 {
@@ -40,10 +41,17 @@ namespace
     explicit OnRealize(simVis::ViewManager* viewman) : viewman_(viewman) { }
     void operator()(osg::Object* gc_obj)
     {
-      osg::GraphicsContext* gc = static_cast<osg::GraphicsContext*>(gc_obj);
+      osg::GraphicsContext* gc = dynamic_cast<osg::GraphicsContext*>(gc_obj);
+      simVis::applyCoreProfileValidity(gc);
+      simVis::applyMesaGeometryShaderFix(gc);
+      const int width = gc->getTraits()->width;
+      const int height = gc->getTraits()->height;
+
       for (unsigned int i = 0; i < viewman_->getNumViews(); ++i)
       {
-        viewman_->getView(i)->processResize(gc->getTraits()->width, gc->getTraits()->height);
+        // View Manager does matching based on width/height against the view's
+        // viewport, so we can't modify width/height here even if they are invalid (0)
+        viewman_->getView(i)->processResize(width, height);
       }
     }
   };

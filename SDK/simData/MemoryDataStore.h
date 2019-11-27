@@ -22,11 +22,8 @@
 #ifndef SIMDATA_MEMORYDATASTORE_H
 #define SIMDATA_MEMORYDATASTORE_H
 
-#include <algorithm>
-#include <limits>
 #include <map>
 #include <string>
-#include <vector>
 #include "simData/MemoryDataEntry.h"
 #include "simData/DataStore.h"
 
@@ -34,9 +31,10 @@ namespace simCore { class Clock; }
 
 namespace simData {
 
-class MemoryCategoryDataSlice;
-class GenericDataSlice;
 class EntityNameCache;
+class GenericDataSlice;
+class MemoryCategoryDataSlice;
+class NewRowDataToNewUpdatesAdapter;
 namespace MemoryTable { class DataLimitsProvider; }
 
 /** @brief Implementation of DataStore using plain memory
@@ -48,7 +46,7 @@ class SDKDATA_EXPORT MemoryDataStore : public DataStore
 {
 public:
   MemoryDataStore();
-  MemoryDataStore(const ScenarioProperties &properties);
+  explicit MemoryDataStore(const ScenarioProperties &properties);
 
   virtual ~MemoryDataStore();
 
@@ -144,6 +142,9 @@ public:
   /// Retrieve a list of IDs for all lobGroups associated with a platform
   virtual void lobGroupIdListForHost(ObjectId hostid, IdList *ids) const;
 
+  /// Retrieve a list of IDs for all customs associated with a platform
+  virtual void customRenderingIdListForHost(ObjectId hostid, IdList *ids) const;
+
   ///Retrieves the ObjectType for a particular ID
   virtual simData::ObjectType objectType(ObjectId id) const;
 
@@ -167,6 +168,7 @@ public:
   virtual const LaserProperties *laserProperties(ObjectId id, Transaction *transaction) const;
   virtual const ProjectorProperties *projectorProperties(ObjectId id, Transaction *transaction) const;
   virtual const LobGroupProperties *lobGroupProperties(ObjectId id, Transaction *transaction) const;
+  virtual const CustomRenderingProperties* customRenderingProperties(ObjectId id, Transaction *transaction) const;
 
   virtual ScenarioProperties *mutable_scenarioProperties(Transaction *transaction);
   virtual PlatformProperties *mutable_platformProperties(ObjectId id, Transaction *transaction);
@@ -175,6 +177,7 @@ public:
   virtual LaserProperties *mutable_laserProperties(ObjectId id, Transaction *transaction);
   virtual ProjectorProperties *mutable_projectorProperties(ObjectId id, Transaction *transaction);
   virtual LobGroupProperties *mutable_lobGroupProperties(ObjectId id, Transaction *transaction);
+  virtual CustomRenderingProperties* mutable_customRenderingProperties(ObjectId id, Transaction *transaction);
   ///@}
 
   /**@name Object Preferences
@@ -188,6 +191,7 @@ public:
   virtual const ProjectorPrefs *projectorPrefs(ObjectId id, Transaction *transaction) const;
   virtual const LobGroupPrefs *lobGroupPrefs(ObjectId id, Transaction *transaction) const;
   virtual const CommonPrefs *commonPrefs(ObjectId id, Transaction* transaction) const;
+  virtual const CustomRenderingPrefs *customRenderingPrefs(ObjectId id, Transaction *transaction) const;
 
   virtual PlatformPrefs *mutable_platformPrefs(ObjectId id, Transaction *transaction);
   virtual BeamPrefs *mutable_beamPrefs(ObjectId id, Transaction *transaction);
@@ -195,6 +199,7 @@ public:
   virtual LaserPrefs *mutable_laserPrefs(ObjectId id, Transaction *transaction);
   virtual ProjectorPrefs *mutable_projectorPrefs(ObjectId id, Transaction *transaction);
   virtual LobGroupPrefs *mutable_lobGroupPrefs(ObjectId id, Transaction *transaction);
+  virtual CustomRenderingPrefs *mutable_customRenderingPrefs(ObjectId id, Transaction *transaction);
   virtual CommonPrefs *mutable_commonPrefs(ObjectId id, Transaction* transaction);
   ///@}
 
@@ -210,6 +215,7 @@ public:
   virtual LaserProperties *addLaser(Transaction *transaction);
   virtual ProjectorProperties *addProjector(Transaction *transaction);
   virtual LobGroupProperties *addLobGroup(Transaction *transaction);
+  virtual CustomRenderingProperties *addCustomRendering(Transaction *transaction);
   ///@}
 
   virtual void removeEntity(ObjectId id);
@@ -248,6 +254,7 @@ public:
   virtual ProjectorCommand *addProjectorCommand(ObjectId id, Transaction *transaction);
   virtual LobGroupUpdate *addLobGroupUpdate(ObjectId id, Transaction *transaction);
   virtual LobGroupCommand *addLobGroupCommand(ObjectId id, Transaction *transaction);
+  virtual CustomRenderingCommand *addCustomRenderingCommand(ObjectId id, Transaction *transaction);
   virtual GenericData *addGenericData(ObjectId id, Transaction *transaction);
   virtual CategoryData *addCategoryData(ObjectId id, Transaction *transaction);
 
@@ -276,6 +283,8 @@ public:
   virtual const LobGroupUpdateSlice *lobGroupUpdateSlice(ObjectId id) const;
   virtual const LobGroupCommandSlice *lobGroupCommandSlice(ObjectId id) const;
 
+  virtual const CustomRenderingCommandSlice *customRenderingCommandSlice(ObjectId id) const;
+
   virtual const GenericDataSlice *genericDataSlice(ObjectId id) const;
 
   virtual const CategoryDataSlice *categoryDataSlice(ObjectId id) const;
@@ -283,6 +292,9 @@ public:
 
   /// @copydoc simData::DataStore::modifyPlatformCommandSlice
   virtual int modifyPlatformCommandSlice(ObjectId id, VisitableDataSlice<PlatformCommand>::Modifier* modifier);
+
+  /// @copydoc simData::DataStore::modifyCustomRenderingCommandSlice
+  virtual int modifyCustomRenderingCommandSlice(ObjectId id, VisitableDataSlice<CustomRenderingCommand>::Modifier* modifier);
 
   /**@name Listeners
    * @{
@@ -298,6 +310,15 @@ public:
   /// Add or remove a listener for scenario event messages
   virtual void addScenarioListener(ScenarioListenerPtr callback);
   virtual void removeScenarioListener(ScenarioListenerPtr callback);
+  ///@}
+
+  /**@name NewUpdatesListener
+  * @{
+  */
+  /// Sets a listener for when entity updates are added; use NULL to remove.
+  virtual void setNewUpdatesListener(NewUpdatesListenerPtr callback);
+  /// Retrieves the listener for new updates (internal)
+  NewUpdatesListener& newUpdatesListener() const;
   ///@}
 
   /**@name Get a handle to the CategoryNameManager
@@ -351,6 +372,8 @@ public:
   typedef MemoryDataEntry<ProjectorProperties, ProjectorPrefs, MemoryDataSlice<ProjectorUpdate>, MemoryCommandSlice<ProjectorCommand, ProjectorPrefs> > ProjectorEntry;
   /// LobGroupEntry
   typedef MemoryDataEntry<LobGroupProperties,  LobGroupPrefs,  LobGroupMemoryDataSlice,          MemoryCommandSlice<LobGroupCommand, LobGroupPrefs> >   LobGroupEntry;
+  /// CustomRenderingEntry
+  typedef MemoryDataEntry<CustomRenderingProperties,       CustomRenderingPrefs,       MemoryDataSlice<CustomRenderingUpdate>,       MemoryCommandSlice<CustomRenderingCommand, CustomRenderingPrefs> >     CustomRenderingEntry;
 
   /// Map of entity IDs to platform entries
   typedef std::map<ObjectId, PlatformEntry*>           Platforms;
@@ -364,6 +387,8 @@ public:
   typedef std::map<ObjectId, ProjectorEntry*>          Projectors;
   /// Map of entity IDs to LOB Group entries
   typedef std::map<ObjectId, LobGroupEntry*>           LobGroups;
+  /// Map of entity IDs to custom entries
+  typedef std::map<ObjectId, CustomRenderingEntry*>    CustomRenderings;
   /// Map of entity IDs to generic data entries
   typedef std::map<ObjectId, MemoryGenericDataSlice*>  GenericDataMap;
   /// Map of entity IDs to category data entries
@@ -494,13 +519,13 @@ private:
   class NewUpdateTransactionImpl : public TransactionImpl
   {
   public:
-    NewUpdateTransactionImpl(T *update, SliceType *slice, MemoryDataStore* dataStore, ObjectId id, bool applyTimeBound = true)
+    NewUpdateTransactionImpl(T *update, SliceType *slice, MemoryDataStore* dataStore, ObjectId id, bool isEntityUpdate)
       : committed_(false),
         update_(update),
         slice_(slice),
         dataStore_(dataStore),
         id_(id),
-        applyTimeBound_(applyTimeBound)
+        isEntityUpdate_(isEntityUpdate)
     { }
 
     /// Transfers ownership of the update object to the MemoryDataStore
@@ -523,7 +548,7 @@ private:
     SliceType *slice_;     // Type such as PlatformEntry, BeamEntry, GateEntry, LaserEntry, ProjectorEntry, or LobGroupEntry
     MemoryDataStore* dataStore_; // Pointer back to the data store
     ObjectId id_; // entity id for applying data limiting
-    bool applyTimeBound_; // flag to indicate if update time should apply to time bounds
+    bool isEntityUpdate_; // flag to indicate if transaction is entity update; if so, update time should apply to time bounds, and applies to new-updates listener
   };
 
   /** Perform transactions on new scenario generic updates
@@ -589,6 +614,8 @@ private:
   void updateProjectors_(double time);
   /// Updates all the LobGroups
   void updateLobGroups_(double time);
+  ///Updates all the CustomRenderings
+  void updateCustomRenderings_(double time);
   /// Flushes an entity's updates, commands, category and generic data
   void flushEntity_(ObjectId id, simData::ObjectType type, FlushType flushType);
   /// Flushes an entity's data tables
@@ -622,6 +649,7 @@ private:
   Lasers             lasers_;
   Projectors         projectors_;
   LobGroups          lobGroups_;
+  CustomRenderings   customRenderings_;
   GenericDataMap     genericData_;  // Map to hold references for GenericData update slice contained by the DataEntry object with the associated id
   CategoryDataMap    categoryData_; // Map to hold references for CategoryData update slice contained by the DataEntry object with the associated id
   std::pair<double, double> timeBounds_;  // First and last time recorded in scenario; might change when adding points or data limiting
@@ -633,6 +661,7 @@ private:
   LaserPrefs     defaultLaserPrefs_;
   LobGroupPrefs  defaultLobGroupPrefs_;
   ProjectorPrefs defaultProjectorPrefs_;
+  CustomRenderingPrefs defaultCustomRenderingPrefs_;
 
   // Updates the contents of timeBounds_
   void newTimeBound_(double timeVal);
@@ -641,6 +670,8 @@ private:
   ListenerList listeners_;
   /// Observers to receive notifications when things change
   ScenarioListenerList scenarioListeners_;
+  /// Observer for new updates
+  NewUpdatesListenerPtr newUpdatesListener_;
   /// Flag indicating if data limiting is set
   bool dataLimiting_;
   /// The CategoryNameManager coordinates string/int values
@@ -652,7 +683,11 @@ private:
   /// Clock pointer is bound to application's Clock, allows datastore to determine current application's data mode
   simCore::Clock* boundClock_;
 
+  /// Improves performance of by-name searches in the data store
   EntityNameCache* entityNameCache_;
+
+  /// Links together the TableManager::NewRowDataListener to our newUpdatesListener_
+  std::shared_ptr<NewRowDataToNewUpdatesAdapter> newRowDataListener_;
 
 }; // End of class MemoryDataStore
 

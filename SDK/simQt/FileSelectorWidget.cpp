@@ -50,7 +50,7 @@ FileSelectorWidget::FileSelectorWidget(QWidget* parent)
   ui_->fileButton->setToolTip(tr("Display File Browser to select file to load."));
   connect(ui_->fileText, SIGNAL(textEdited(const QString&)), this, SLOT(textEdited_()));
   connect(ui_->fileText, SIGNAL(editingFinished()), this, SLOT(editingFinished_()));
-#if DEBUG
+#ifndef NDEBUG
   ui_->fileText->setReadOnly(false);  // Only allows developers to type in a file name; users must use the file browser
 #endif
   ui_->fileText->installEventFilter(this);
@@ -293,6 +293,8 @@ QString FileSelectorWidget::filterOptions2QString_(FileSelectorWidget::FilterOpt
     return QString::fromStdString(simCore::SIMDIS_RASTER_DB_FILE_PATTERNS);
   case FileSelectorWidget::SIMDIS_MODEL_FILE_PATTERNS:
     return QString::fromStdString(simCore::SIMDIS_MODEL_FILE_PATTERNS);
+  case FileSelectorWidget::SIMDIS_IMAGE_FILE_PATTERNS:
+    return QString::fromStdString(simCore::SIMDIS_IMAGE_FILE_PATTERNS);
   case FileSelectorWidget::MEDIA_FILE_PATTERNS:
     return QString::fromStdString(simCore::MEDIA_FILE_PATTERNS);
   case FileSelectorWidget::SIMDIS_MEDIA_FILE_PATTERNS:

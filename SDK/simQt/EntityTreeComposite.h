@@ -49,7 +49,7 @@ class SDKQT_EXPORT FilterDialog : public QDialog
   Q_OBJECT;
 public:
   /** Constructor */
-  FilterDialog(QWidget* parent = NULL);
+  explicit FilterDialog(QWidget* parent = NULL);
   virtual ~FilterDialog(){};
 
   /** Override the QDialog close event to emit the closedGui signal */
@@ -69,21 +69,36 @@ class SDKQT_EXPORT EntityTreeComposite : public QWidget
 {
   Q_OBJECT;
   Q_PROPERTY(bool useEntityIcons READ useEntityIcons WRITE setUseEntityIcons);
+  Q_ENUMS(QAbstractItemView::SelectionMode); // Needed even though this is a Qt enum
+  Q_PROPERTY(QAbstractItemView::SelectionMode selectionMode READ selectionMode WRITE setSelectionMode);
+  Q_PROPERTY(bool useCenterAction READ useCenterAction WRITE setUseCenterAction);
+  Q_PROPERTY(bool expandsOnDoubleClick READ expandsOnDoubleClick WRITE setExpandsOnDoubleClick);
 
 public:
   /** Constructor needs the parent widget */
-  EntityTreeComposite(QWidget* parent);
+  explicit EntityTreeComposite(QWidget* parent);
   virtual ~EntityTreeComposite();
 
+  /** Set the margins */
+  void setMargins(int left, int top, int right, int bottom);
   /** Adds an entity filter to the entity tree widget's proxy model.  NOTE: the proxy model takes ownership of the memory */
   void addEntityFilter(EntityFilter* entityFilter);
   /** The model that holds all the entity information */
   void setModel(AbstractEntityTreeModel* model);
 
-  /** Sets/clears the selected ID in the entity list */
-  void setSelected(uint64_t id, bool selected);
-  /** Sets/clears selection of the IDs in 'list' */
-  void setSelected(QList<uint64_t> list, bool selected);
+  /**
+   * Sets the selected ID in the entity list; all other selections are cleared
+   * @param id The id to set the selection to
+   * @return 0 if the selection changed, non-zero if the selection did not change
+   */
+  int setSelected(uint64_t id);
+  /**
+   * Sets selection for the IDs in 'list'; all other selections are cleared
+   * @param list The list of ids to set the selection to
+   * @return 0 if the selection changed, non-zero if the selection did not change
+   */
+  int setSelected(const QList<uint64_t>& list);
+
   /** Clears all selections */
   void clearSelection();
   /** Gets a list of all the selected IDs in the entity list */
@@ -120,8 +135,14 @@ public:
   bool useEntityIcons() const;
   /** Shows icons instead of text for the entity tree list Entity Type column */
   void setUseEntityIcons(bool showIcons);
-  /** Sets the ability to use the context menu center action, which is disabled by default */
-  void setUseCenterAction(bool use);
+  /** Returns true if the context menu center action is enabled */
+  bool useCenterAction() const;
+  /**
+   * Sets the ability to use the context menu center action, which is disabled by default
+   * @param use If true, then enable the center action
+   * @param reason If use is false the reason is appended to the end center action text
+   */
+  void setUseCenterAction(bool use, const QString& reason = "");
 
   /** Class to store information about an Entity Tab Filter Configuration */
   class FilterConfiguration
@@ -144,6 +165,16 @@ public:
     QMap<QString, QVariant> configuration_; ///< Map of all filter configuration settings
   };
 
+  /** Add an action to the right mouse click menu, separators are ignored */
+  void addExternalAction(QAction* action);
+  /** Remove all actions added by the addExternalAction() call */
+  void removeExternalActions();
+#ifdef USE_DEPRECATED_SIMDISSDK_API
+  /** DEPRECATED: Sets/clears the selected ID in the entity list */
+  SDK_DEPRECATE(void setSelected(uint64_t id, bool selected), "Method will be removed in a future SDK release");
+  /** DEPRECATED: Sets/clears selection for the IDs in 'list' */
+  SDK_DEPRECATE(void setSelected(QList<uint64_t> list, bool selected), "Method will be removed in a future SDK release");
+#endif
 public slots:
   /** If true expand the tree on double click */
   void setExpandsOnDoubleClick(bool value);
@@ -159,6 +190,11 @@ public slots:
    */
   void setFilterSettings(const QMap<QString, QVariant>& settings);
 
+  /** If true show the centering option in the right click menu */
+  void setShowCenterInMenu(bool show);
+  /** If true show the tree options in the right click menu */
+  void setShowTreeOptionsInMenu(bool show);
+
 signals:
   /** Gives an unsorted list of currently selected entities */
   void itemsSelected(QList<uint64_t> ids);
@@ -173,6 +209,8 @@ signals:
    * @param settings Filters get data from the setting using a global unique key
    */
   void filterSettingsChanged(const QMap<QString, QVariant>& settings);
+  /** Fired before showing the right mouse click menu to allow external code to call addAction() and removeActions() */
+  void rightClickMenuRequested();
 
 protected slots:
   /** Receive notice of an inserted row */
@@ -200,6 +238,8 @@ private slots:
   void saveFilterConfig_(int index);
   /** Clears the filter configuration indicated by the index provided */
   void clearFilterConfig_(int index);
+  /** Make and display the right mouse click menu */
+  void makeAndDisplayMenu_(const QPoint& pos);
 
 private:
   /** Watch for settings changes related to the buttons */
@@ -222,6 +262,7 @@ private:
   QAction* toggleTreeViewAction_;
   QAction* collapseAllAction_;
   QAction* expandAllAction_;
+  std::vector<QAction*> externalActions_;
   bool useCenterAction_;
   bool treeViewUsable_;
 
@@ -235,6 +276,10 @@ private:
   bool useEntityIcons_;
   /// If true, a call to setUseEntityIcons() was explicitly made by caller
   bool useEntityIconsSet_;
+  /// If true, show the Center option on the right mouse click menu
+  bool showCenterInMenu_;
+  /// If true, show the Tree options on the right mouse click menu
+  bool showTreeOptionsInMenu_;
 };
 
 }

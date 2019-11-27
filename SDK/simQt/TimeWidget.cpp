@@ -40,7 +40,8 @@ TimeWidget::TimeWidget(QWidget* parent)
   : QWidget(parent),
     scenarioReferenceYear_(1970),
     disabledLineEdit_(NULL),
-    timeEnabled_(true)
+    timeEnabled_(true),
+    labelToolTipSet_(false)
 {
   // Setup the format widgets to switch between
   addContainer_(new SecondsContainer(this), SLOT(setSeconds_()));
@@ -119,6 +120,7 @@ QString TimeWidget::labelToolTip() const
 void TimeWidget::setLabelToolTip(QString value)
 {
   title_->setToolTip(value);
+  labelToolTipSet_ = !value.isEmpty();
 }
 
 bool TimeWidget::colorCodeText() const
@@ -203,6 +205,17 @@ unsigned int TimeWidget::precision() const
   return currentContainer_->precision();
 }
 
+simCore::TimeZone TimeWidget::timeZone() const
+{
+  return currentContainer_->timeZone();
+}
+
+void TimeWidget::disableControlToolTips()
+{
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->disableToolTip();
+}
+
 /// Switch the display format to newFormat
 void TimeWidget::setTimeFormat(simCore::TimeFormat newFormat)
 {
@@ -224,6 +237,8 @@ void TimeWidget::setTimeFormat(simCore::TimeFormat newFormat)
         currentContainer_->widget()->setHidden(false);
         layout()->addWidget(currentContainer_->widget());
       }
+      if (!labelToolTipSet_)
+        title_->setToolTip(currentContainer_->toolTipText());
       break;
     }
   }
@@ -236,6 +251,18 @@ void TimeWidget::setPrecision(unsigned int digits)
   Q_FOREACH(TimeFormatContainer* w, containers_)
   {
     w->setPrecision(digits);
+  }
+  currentContainer_->setTimeStamp(currentTime);
+}
+
+void TimeWidget::setTimeZone(simCore::TimeZone zone)
+{
+  // Some formats use time zone when calculating time stamp.
+  // Save off and reset to ensure time stays accurate and to force a redraw of the text
+  simCore::TimeStamp currentTime = currentContainer_->timeStamp();
+  Q_FOREACH(TimeFormatContainer* w, containers_)
+  {
+    w->setTimeZone(zone);
   }
   currentContainer_->setTimeStamp(currentTime);
 }
@@ -287,7 +314,7 @@ simCore::TimeStamp TimeWidget::timeRangeEnd() const
 
 bool TimeWidget::timeEnabled() const
 {
-  return !timeEnabled_;
+  return timeEnabled_;
 }
 
 void TimeWidget::setTimeEnabled(bool value)
@@ -316,6 +343,11 @@ void TimeWidget::setTimeEnabled(bool value)
       disabledLineEdit_ = new QLineEdit(tr("--------------------------------------"), this);
       disabledLineEdit_->setEnabled(false);
       disabledLineEdit_->setMinimumWidth(175);
+      // Set horizontal size policy to match the time line edit. This avoids
+      // potential resize problems when swapping between the two line edits.
+      QSizePolicy policy = disabledLineEdit_->sizePolicy();
+      policy.setHorizontalPolicy(QSizePolicy::Preferred);
+      disabledLineEdit_->setSizePolicy(policy);
     }
     disabledLineEdit_->setVisible(true);
     layout()->addWidget(disabledLineEdit_);

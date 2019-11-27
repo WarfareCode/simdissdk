@@ -19,12 +19,12 @@
  * disclose, or release this software.
  *
  */
-#include <sstream>
-#include <iomanip>
-#include <climits>
 #include <cassert>
-#include <cstring>
 #include <cmath>
+#include <cstring>
+#include <iomanip>
+#include <limits>
+#include <sstream>
 
 #include "simCore/Common/Time.h"
 #include "simCore/Time/Constants.h"
@@ -45,6 +45,9 @@ int simCore::currentYear()
   // put system time into a tm struct
   time_t t(tp.tv_sec);
   pTime = gmtime(&t);
+
+  if (pTime == NULL)
+    return std::numeric_limits<int>::max();
 
   // years are stored as values since 1900
   return static_cast<int>(pTime->tm_year + 1900);
@@ -77,6 +80,9 @@ double simCore::systemTimeToSecsBgnYr()
   time_t t(tp.tv_sec);
   struct tm* pTime = gmtime(&t);
 
+  if (pTime == NULL)
+    return std::numeric_limits<double>::max();
+
   // assemble a UTC "system time"
   unsigned int pSecs = static_cast<unsigned int>(pTime->tm_sec)  +
     ((static_cast<unsigned int>(pTime->tm_min)) * simCore::SECPERMIN) +
@@ -100,13 +106,21 @@ void simCore::systemTimeToSecsBgnYr(unsigned int &pSecs, unsigned short &pMillis
   time_t t(tp.tv_sec);
   struct tm* pTime = gmtime(&t);
 
-  // assemble a UTC "system time"
-  pSecs = static_cast<unsigned int>(pTime->tm_sec) +
-    ((static_cast<unsigned int>(pTime->tm_min)) * simCore::SECPERMIN) +
-    ((static_cast<unsigned int>(pTime->tm_hour)) * simCore::SECPERHOUR) +
-    ((static_cast<unsigned int>(pTime->tm_yday)) * simCore::SECPERDAY);
+  if (pTime == NULL)
+  {
+    pSecs = std::numeric_limits<unsigned int>::max();
+    pMillisec = std::numeric_limits<unsigned short>::max();
+  }
+  else
+  {
+    // assemble a UTC "system time"
+    pSecs = static_cast<unsigned int>(pTime->tm_sec) +
+      ((static_cast<unsigned int>(pTime->tm_min)) * simCore::SECPERMIN) +
+      ((static_cast<unsigned int>(pTime->tm_hour)) * simCore::SECPERHOUR) +
+      ((static_cast<unsigned int>(pTime->tm_yday)) * simCore::SECPERDAY);
 
-  pMillisec = static_cast<unsigned short>(tp.tv_usec * 1e-03);
+    pMillisec = static_cast<unsigned short>(tp.tv_usec * 1e-03);
+  }
 }
 
 //------------------------------------------------------------------------
@@ -122,6 +136,9 @@ double simCore::systemTimeToSecsBgnDay()
   // put system time into a tm struct
   time_t t(tp.tv_sec);
   struct tm* pTime = gmtime(&t);
+
+  if (pTime == NULL)
+    return std::numeric_limits<double>::max();
 
   // assemble a UTC "system time"
   unsigned int pSecs = (static_cast<unsigned int>(pTime->tm_sec) +
@@ -141,6 +158,15 @@ void simCore::timeSinceJan1970ToSecsBgnYr(double timeSinceJan1970, unsigned int 
   // put system time into a tm struct
   time_t t(seconds);
   pTime = gmtime(&t);
+
+  if (pTime == NULL)
+  {
+    // timeSinceJan1970 is invalid
+    pSecs = 0;
+    pMillisec = 0;
+    pRefyear = 1970;
+    return;
+  }
 
   // assemble a UTC "system time"
   pSecs = static_cast<unsigned int>(pTime->tm_sec) +
@@ -477,13 +503,13 @@ void simCore::normalizeTime(int &refYear, double &secondsSinceRefYear)
 
 double simCore::getNextTimeStep(bool faster, double lastStep)
 {
-  if (lastStep < 0)
+  if (lastStep < 0.0)
     lastStep = -lastStep;
-  else if (lastStep == 0)
+  else if (lastStep == 0.0)
     return 0;
 
   int factor = 0;
-  if (faster == true)
+  if (faster)
   {
     if (lastStep >= 0.1 && lastStep < 1.0)
     {
@@ -505,12 +531,13 @@ double simCore::getNextTimeStep(bool faster, double lastStep)
       lastStep = (lastStep >= 5.0) ? 10.0 : 5.0;
       lastStep /= pow(10.0, factor);
     }
-    else if (lastStep > 1.0)
+    else if (lastStep >= 1.0)
       lastStep = floor(lastStep + 1.0);
-    else if (lastStep == 1.0)
-      lastStep = 2.0;
     else
-      lastStep = .25;
+    {
+      // Dev error, all number ranges should be covered by the logic above
+      assert(0);
+    }
   }
   else  // Handle backward time
   {
@@ -536,12 +563,17 @@ double simCore::getNextTimeStep(bool faster, double lastStep)
       lastStep = (lastStep >= 5.0) ? 10.0 : 5.0;
       lastStep /= pow(10.0, factor);
     }
-    else if (lastStep > 1.0)
+    else if (lastStep >= 2.0)
       lastStep = floor(lastStep - 1.0);
     else if (lastStep == 1.0)
       lastStep = 0.5;
+    else if (lastStep > 1.0 && lastStep < 2.0)
+      lastStep = 1.0;
     else
-      lastStep = 0.05;
+    {
+      // Dev error, all number ranges should be covered by the logic above
+      assert(0);
+    }
   }
   return lastStep;
 }

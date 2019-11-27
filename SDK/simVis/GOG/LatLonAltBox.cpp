@@ -24,25 +24,68 @@
 #include "osgEarthAnnotation/FeatureNode"
 #include "simVis/GOG/LatLonAltBox.h"
 #include "simVis/GOG/GogNodeInterface.h"
+#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 
-using namespace simVis::GOG;
-using namespace osgEarth::Symbology;
 using namespace osgEarth::Features;
 
-GogNodeInterface* LatLonAltBox::deserialize(const osgEarth::Config&  conf,
+namespace simVis { namespace GOG {
+
+/** Ring that provides a noop for the rewind() method; used to fix box winding */
+class NoRewindRing : public osgEarth::Symbology::Ring
+{
+public:
+  NoRewindRing()
+   : Ring()
+  {
+  }
+  explicit NoRewindRing(const NoRewindRing& rhs)
+   : Ring(rhs)
+  {
+  }
+  explicit NoRewindRing(const Vec3dVector* toCopy)
+   : Ring(toCopy)
+  {
+  }
+
+  virtual void rewind(Orientation ori)
+  {
+    // Noop: Do not automatically rewind
+  }
+
+  virtual Geometry* cloneAs(const Geometry::Type& newType) const
+  {
+    if (newType == TYPE_LINESTRING)
+      return Ring::cloneAs(newType);
+    // Always return a NoRewindRing instead of a Ring
+    return new NoRewindRing(&asVector());
+  }
+};
+
+///////////////////////////////////////////////////////////////////////
+
+GogNodeInterface* LatLonAltBox::deserialize(const ParsedShape& parsedShape,
                           simVis::GOG::ParserData& p,
                           const GOGNodeType&       nodeType,
                           const GOGContext&        context,
                           const GogMetaData&       metaData,
-                          MapNode*                 mapNode)
+                          osgEarth::MapNode*       mapNode)
 {
-  Angle    minLat(p.parseAngle(conf.value("s"), 0.0), p.units_.angleUnits_);
-  Angle    maxLat(p.parseAngle(conf.value("n"), 1.0), p.units_.angleUnits_);
-  Angle    minLon(p.parseAngle(conf.value("w"), 0.0), p.units_.angleUnits_);
-  Angle    maxLon(p.parseAngle(conf.value("e"), 1.0), p.units_.angleUnits_);
-  Distance minAlt(conf.value("minalt", 0.0), p.units_.altitudeUnits_);
-  Distance maxAlt(conf.value("maxalt", 1000.0), p.units_.altitudeUnits_);
+  osgEarth::Angle    minLat(p.units_.angleUnits_.convertTo(simCore::Units::DEGREES, p.parseAngle(parsedShape.stringValue(GOG_LLABOX_S), 0.0)), Units::DEGREES);
+  osgEarth::Angle    maxLat(p.units_.angleUnits_.convertTo(simCore::Units::DEGREES, p.parseAngle(parsedShape.stringValue(GOG_LLABOX_N), 1.0)), Units::DEGREES);
+  osgEarth::Angle    minLon(p.units_.angleUnits_.convertTo(simCore::Units::DEGREES, p.parseAngle(parsedShape.stringValue(GOG_LLABOX_W), 0.0)), Units::DEGREES);
+  osgEarth::Angle    maxLon(p.units_.angleUnits_.convertTo(simCore::Units::DEGREES, p.parseAngle(parsedShape.stringValue(GOG_LLABOX_E), 1.0)), Units::DEGREES);
+  osgEarth::Distance minAlt(p.units_.altitudeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_LLABOX_MINALT, 0.0)), Units::METERS);
+  osgEarth::Distance maxAlt(p.units_.altitudeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_LLABOX_MAXALT, 1000.0)), Units::METERS);
+
+
+  // Make sure min <= max
+  if (minLat > maxLat)
+    std::swap(minLat, maxLat);
+  if (minLon > maxLon)
+    std::swap(minLon, maxLon);
+  if (minAlt > maxAlt)
+    std::swap(minAlt, maxAlt);
 
   if (nodeType == GOGNODE_GEOGRAPHIC)
   {
@@ -85,56 +128,61 @@ GogNodeInterface* LatLonAltBox::deserialize(const osgEarth::Config&  conf,
 
     // result geometry:
     MultiGeometry* lines = new MultiGeometry();
-
-    Geometry* bottom = lines->add(new Ring());
+    Geometry* bottom = lines->add(new NoRewindRing());
     bottom->push_back(minPoint.vec3d());
-    bottom->push_back(maxPoint.x(), minPoint.y(), minPoint.z());
-    bottom->push_back(maxPoint.x(), maxPoint.y(), minPoint.z());
     bottom->push_back(minPoint.x(), maxPoint.y(), minPoint.z());
+    bottom->push_back(maxPoint.x(), maxPoint.y(), minPoint.z());
+    bottom->push_back(maxPoint.x(), minPoint.y(), minPoint.z());
 
+    Geometry* top = lines->add(new NoRewindRing());
+    top->push_back(minPoint.x(), minPoint.y(), maxPoint.z());
+    top->push_back(maxPoint.x(), minPoint.y(), maxPoint.z());
+    top->push_back(maxPoint.x(), maxPoint.y(), maxPoint.z());
+    top->push_back(minPoint.x(), maxPoint.y(), maxPoint.z());
+
+    // Top and bottom are required for proper display above and below.  Sides are not required for 0-height.
     if (maxPoint.z() > minPoint.z())
     {
-      Geometry* left = lines->add(new Ring());
+      Geometry* left = lines->add(new NoRewindRing());
       left->push_back(minPoint.x(), minPoint.y(), minPoint.z());
       left->push_back(minPoint.x(), minPoint.y(), maxPoint.z());
       left->push_back(minPoint.x(), maxPoint.y(), maxPoint.z());
       left->push_back(minPoint.x(), maxPoint.y(), minPoint.z());
 
-      Geometry* right = lines->add(new Ring());
+      Geometry* right = lines->add(new NoRewindRing());
       right->push_back(maxPoint.x(), minPoint.y(), minPoint.z());
       right->push_back(maxPoint.x(), maxPoint.y(), minPoint.z());
       right->push_back(maxPoint.x(), maxPoint.y(), maxPoint.z());
       right->push_back(maxPoint.x(), minPoint.y(), maxPoint.z());
 
-      Geometry* back = lines->add(new Ring());
-      back->push_back(minPoint.x(), minPoint.y(), minPoint.z());
-      back->push_back(maxPoint.x(), minPoint.y(), minPoint.z());
-      back->push_back(maxPoint.x(), minPoint.y(), maxPoint.z());
-      back->push_back(minPoint.x(), minPoint.y(), maxPoint.z());
+      Geometry* back = lines->add(new NoRewindRing());
+      back->push_back(minPoint.x(), maxPoint.y(), minPoint.z());
+      back->push_back(minPoint.x(), maxPoint.y(), maxPoint.z());
+      back->push_back(maxPoint.x(), maxPoint.y(), maxPoint.z());
+      back->push_back(maxPoint.x(), maxPoint.y(), minPoint.z());
 
-      Geometry* front = lines->add(new Ring());
-      front->push_back(minPoint.x(), maxPoint.y(), minPoint.z());
-      front->push_back(minPoint.x(), maxPoint.y(), maxPoint.z());
-      front->push_back(maxPoint.x(), maxPoint.y(), maxPoint.z());
-      front->push_back(maxPoint.x(), maxPoint.y(), minPoint.z());
-
-      Geometry* top = lines->add(new Ring());
-      top->push_back(minPoint.x(), minPoint.y(), maxPoint.z());
-      top->push_back(maxPoint.x(), minPoint.y(), maxPoint.z());
-      top->push_back(maxPoint.x(), maxPoint.y(), maxPoint.z());
-      top->push_back(minPoint.x(), maxPoint.y(), maxPoint.z());
+      Geometry* front = lines->add(new NoRewindRing());
+      front->push_back(minPoint.x(), minPoint.y(), minPoint.z());
+      front->push_back(maxPoint.x(), minPoint.y(), minPoint.z());
+      front->push_back(maxPoint.x(), minPoint.y(), maxPoint.z());
+      front->push_back(minPoint.x(), minPoint.y(), maxPoint.z());
     }
 
     // An unfilled LLB should be drawn as lines, so remove any conflicting symbology
-    if (!conf.hasValue("filled"))
+    if (!parsedShape.hasValue(GOG_FILLED))
       style.remove<PolygonSymbol>();
 
     Feature* feature = new Feature(lines, mapNode->getMapSRS(), style);
-    osgEarth::Annotation::FeatureNode* node = new osgEarth::Annotation::FeatureNode(mapNode, feature);
+    feature->setName("GOG LatLonAltBox Feature");
+    osgEarth::Annotation::FeatureNode* node = new osgEarth::Annotation::FeatureNode(feature);
+    node->setName("GOG LatLonAltBox");
+    node->setMapNode(mapNode);
     GogNodeInterface* rv = new FeatureNodeInterface(node, metaData);
-    rv->applyConfigToStyle(conf, p.units_);
+    rv->applyToStyle(parsedShape, p.units_);
     return rv;
   }
   // no "hosted" version of this GOG.
   return NULL;
 }
+
+} }

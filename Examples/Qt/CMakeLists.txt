@@ -1,15 +1,15 @@
-if(NOT TARGET simUtil OR NOT TARGET simQt)
+if(NOT TARGET simUtil OR NOT TARGET simQt OR NOT TARGET OSGQT)
     return()
 endif()
 
 project(EXAMPLE_QT)
 
 set(PROJECT_FILES
-    src/ExampleQt.cpp
+    ExampleQt.cpp
 )
 
 VSI_QT_WRAP_CPP(MY_WIDGETS_MOC
-    src/MyMainWindow.h
+    MyMainWindow.h
 )
 
 # Initialize Qt variables

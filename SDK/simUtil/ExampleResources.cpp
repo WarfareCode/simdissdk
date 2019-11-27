@@ -36,6 +36,7 @@
 #include "simData/DataStore.h"
 #include "simVis/osgEarthVersion.h"
 #include "simVis/DBOptions.h"
+#include "simVis/Gl3Utils.h"
 #include "simVis/Registry.h"
 #include "simVis/SceneManager.h"
 #include "simVis/Viewer.h"
@@ -101,6 +102,8 @@ bool simExamples::readArg(const std::string& pattern, int argc, char** argv, std
   return false;
 }
 
+// Uncomment to use remote map data
+//#define USE_REMOTE_MAP_DATA
 
 Map* simExamples::createDefaultExampleMap()
 {
@@ -306,8 +309,20 @@ void simExamples::configureSearchPaths()
     ""  // Placeholder last item
   };
 
-  std::string basePath = getSampleDataPath();
-  std::string modelPath = basePath + PATH_SEP + "models";
+  const std::string& basePath = getSampleDataPath();
+  const std::string modelPath = basePath + PATH_SEP + "models";
+
+#ifndef WIN32
+  {
+    // On Linux, add a search path for libraries relative to executable path (installDir/bin)
+    osgDB::FilePathList libPaths = osgDB::getLibraryFilePathList();
+    // ../lib/amd64-linux is used by SIMDIS applications distributed by NRL
+    libPaths.push_back("../lib/amd64-linux");
+    // SDK examples from an SDK build need ../lib in the libpath
+    libPaths.push_back("../lib");
+    osgDB::setLibraryFilePathList(libPaths);
+  }
+#endif
 
   simVis::Registry* simVisRegistry = simVis::Registry::instance();
   simVis::FilePathList pathList;
@@ -387,16 +402,8 @@ void simExamples::configureSearchPaths()
   simVisRegistry->setModelSearchPaths(modelPathList);
   osgDB::setDataFilePathList(pathList);
 
-  osgEarth::Registry::instance()->setDefaultFont(simVisRegistry->getOrCreateFont("arial.ttf"));
-
-#ifndef WIN32
-  // On Linux, add a search path for libraries relative to executable path
-  osgDB::FilePathList libPaths = osgDB::getLibraryFilePathList();
-  // lib/amd64-linux is used by SIMDIS applications distributed by NRL; lib is used by SDK build defaults
-  libPaths.push_back("../lib/amd64-linux");
-  libPaths.push_back("../lib");
-  osgDB::setLibraryFilePathList(libPaths);
-#endif
+  // Fix the GL3 version
+  simVis::applyMesaGlVersionOverride();
 }
 
 std::string simExamples::getSampleDataPath()

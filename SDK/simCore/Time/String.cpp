@@ -137,12 +137,15 @@ int MinutesTimeFormatter::fromString(const std::string& timeString, simCore::Tim
 
 void MinutesTimeFormatter::toStream(std::ostream& os, simCore::Seconds seconds, unsigned short precision)
 {
-  seconds = seconds.rounded(precision);
+  const bool isNegative = (seconds < 0);
+  seconds = fabs(seconds.rounded(precision));
   // Rely on static_cast<> to floor the value
   int minutes = static_cast<int>(seconds.Double() / 60.0);
   seconds -= minutes * 60.0;
   // Account for the decimal spot when setting the width
   int numSpaces = precision + (precision == 0 ? 0 : 1);
+  if (isNegative)
+    os << "-";
   os << minutes << ':' << std::setw(2 + numSpaces) << std::setfill('0');
   // Add the seconds value
   SecondsTimeFormatter::toStream(os, seconds, precision);
@@ -157,6 +160,21 @@ bool MinutesTimeFormatter::isStrictMinutesString(const std::string& timeString)
     isValidNumber(mmss[0], minutes, false) &&
     minutes >= 0 && minutes < 60 &&
     SecondsTimeFormatter::isStrictSecondsString(mmss[1]);
+}
+
+///////////////////////////////////////////////////////////////////////
+
+std::string MinutesWrappedTimeFormatter::toString(const simCore::TimeStamp& timeStamp, int referenceYear, unsigned short precision) const
+{
+  std::stringstream ss;
+  MinutesWrappedTimeFormatter::toStream(ss, timeStamp.secondsSinceRefYear(referenceYear), precision);
+  return ss.str();
+}
+
+void MinutesWrappedTimeFormatter::toStream(std::ostream& os, simCore::Seconds seconds, unsigned short precision)
+{
+  const Seconds wrapped(seconds.getSeconds() % 3600, seconds.getFraction());
+  MinutesTimeFormatter::toStream(os, wrapped, precision);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -217,10 +235,13 @@ int HoursTimeFormatter::fromString(const std::string& timeString, simCore::Secon
 
 void HoursTimeFormatter::toStream(std::ostream& os, simCore::Seconds seconds, unsigned short precision)
 {
-  seconds = seconds.rounded(precision);
+  const bool isNegative = (seconds < 0);
+  seconds = fabs(seconds.rounded(precision));
   // Rely on static_cast<> to floor the value
   int hours = static_cast<int>(seconds.Double() / 3600.0);
   seconds -= hours * 3600.0;
+  if (isNegative)
+    os << "-";
   os << hours << ':' << std::setfill('0') << std::setw(2);
   // Add the minutes value and seconds value
   MinutesTimeFormatter::toStream(os, seconds, precision);
@@ -238,6 +259,21 @@ bool HoursTimeFormatter::isStrictHoursString(const std::string& timeString)
     isValidNumber(hhmmss[1], minutes, false) &&
     minutes >= 0 && minutes < 60 &&
     SecondsTimeFormatter::isStrictSecondsString(hhmmss[2]);
+}
+
+///////////////////////////////////////////////////////////////////////
+
+std::string HoursWrappedTimeFormatter::toString(const simCore::TimeStamp& timeStamp, int referenceYear, unsigned short precision) const
+{
+  std::stringstream ss;
+  HoursWrappedTimeFormatter::toStream(ss, timeStamp.secondsSinceRefYear(referenceYear), precision);
+  return ss.str();
+}
+
+void HoursWrappedTimeFormatter::toStream(std::ostream& os, simCore::Seconds seconds, unsigned short precision)
+{
+  const Seconds wrapped(seconds.getSeconds() % 86400, seconds.getFraction());
+  HoursTimeFormatter::toStream(os, wrapped, precision);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -609,13 +645,21 @@ int DtgTimeFormatter::fromString(const std::string& timeString, simCore::TimeSta
 
 ///////////////////////////////////////////////////////////////////////
 
-TimeFormatterRegistry::TimeFormatterRegistry()
+TimeFormatterRegistry::TimeFormatterRegistry(bool wrappedFormatters)
   : nullFormatter_(new NullTimeFormatter),
     lastUsedFormatter_(nullFormatter_)
 {
   knownFormatters_[TIMEFORMAT_SECONDS] = TimeFormatterPtr(new SecondsTimeFormatter);
-  knownFormatters_[TIMEFORMAT_MINUTES] = TimeFormatterPtr(new MinutesTimeFormatter);
-  knownFormatters_[TIMEFORMAT_HOURS] = TimeFormatterPtr(new HoursTimeFormatter);
+  if (wrappedFormatters)
+  {
+    knownFormatters_[TIMEFORMAT_MINUTES] = TimeFormatterPtr(new MinutesWrappedTimeFormatter);
+    knownFormatters_[TIMEFORMAT_HOURS] = TimeFormatterPtr(new HoursWrappedTimeFormatter);
+  }
+  else
+  {
+    knownFormatters_[TIMEFORMAT_MINUTES] = TimeFormatterPtr(new MinutesTimeFormatter);
+    knownFormatters_[TIMEFORMAT_HOURS] = TimeFormatterPtr(new HoursTimeFormatter);
+  }
   knownFormatters_[TIMEFORMAT_ORDINAL] = TimeFormatterPtr(new OrdinalTimeFormatter);
   knownFormatters_[TIMEFORMAT_MONTHDAY] = TimeFormatterPtr(new MonthDayTimeFormatter);
   knownFormatters_[TIMEFORMAT_DTG] = TimeFormatterPtr(new DtgTimeFormatter);

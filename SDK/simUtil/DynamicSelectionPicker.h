@@ -25,8 +25,15 @@
 #include "simCore/Common/Export.h"
 #include "simVis/Picker.h"
 
+namespace simVis {
+  class LobGroupNode;
+  class CustomRenderingNode;
+}
+
 namespace simUtil
 {
+
+class ScreenCoordinateCalculator;
 
 /**
  * Implementation of the advanced selection algorithm, sometimes referred to as the advanced
@@ -54,6 +61,8 @@ public:
 
   /** Changes the pick mask.  Use this to pick only on certain entity types. */
   void setPickMask(osg::Node::NodeMask pickMask);
+  /** Retrieves the current pick mask. */
+  osg::Node::NodeMask pickMask() const;
 
 protected:
   /** Derived from osg::Referenced, protect destructor */
@@ -64,6 +73,14 @@ private:
   void pickThisFrame_();
   /** Returns true if the entity type is pickable. */
   bool isPickable_(const simVis::EntityNode* entityNode) const;
+  /** Calculates the squared range from the mouse for the given entity, returning 0 on success */
+  int calculateSquaredRange_(simUtil::ScreenCoordinateCalculator& calc, const simVis::EntityNode& entityNode, double& rangeSquared) const;
+  /** Special case calculation for LOBs, called by calculateSquaredRange_() automatically, returning 0 on success */
+  int calculateLobSquaredRange_(simUtil::ScreenCoordinateCalculator& calc, const simVis::LobGroupNode& lobNode, double& rangeSquared) const;
+  /** Special case calculation for CustomRenderings, called by calculateSquaredRange_() automatically, returning 0 on success */
+  int calculateCustomRenderRange_(simUtil::ScreenCoordinateCalculator& calc, const simVis::CustomRenderingNode& customNode, double& rangeSquared) const;
+  /** Convenience method to find the squared range from the cursor to the closest point within ecefVec, returning 0 on success */
+  int calculateScreenRange_(simUtil::ScreenCoordinateCalculator& calc, const std::vector<osg::Vec3d>& ecefVec, double& rangeSquared) const;
 
   class RepickEventHandler;
 
@@ -82,8 +99,8 @@ private:
   /** Pointer to the scenario manager */
   osg::observer_ptr<simVis::ScenarioManager> scenario_;
 
-  /** Minimum valid range */
-  double minimumValidRange_;
+  /** Maximum valid range */
+  double maximumValidRange_;
   /** Picking mask */
   osg::Node::NodeMask pickMask_;
 };

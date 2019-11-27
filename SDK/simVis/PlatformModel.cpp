@@ -52,10 +52,10 @@
 
 #define LC "[PlatformModel] "
 
-using namespace simVis;
 using namespace osgEarth::Symbology;
 using namespace osgEarth::Annotation;
 
+namespace simVis {
 
 /** OSG Mask for traversal (like the select type in SIMDIS 9) */
 const int PlatformModelNode::TRAVERSAL_MASK = simVis::DISPLAY_MASK_PLATFORM_MODEL;
@@ -69,23 +69,30 @@ static const osg::Vec4f DEFAULT_AMBIENT(
   1.f
   );
 
-/** Callback to ModelCache that calls setModel_() when the model is ready. */
+/** Callback to ModelCache that calls setModel() when the model is ready. */
 class PlatformModelNode::SetModelCallback : public simVis::ModelCache::ModelReadyCallback
 {
 public:
   explicit SetModelCallback(PlatformModelNode* platform)
-    : platform_(platform)
+    : platform_(platform),
+      ignoreResult_(false)
   {
   }
   virtual void loadFinished(const osg::ref_ptr<osg::Node>& model, bool isImage, const std::string& uri)
   {
     osg::ref_ptr<PlatformModelNode> refPlatform;
-    if (platform_.lock(refPlatform))
-      refPlatform->setModel_(model.get(), isImage);
+    if (platform_.lock(refPlatform) && !ignoreResult_)
+      refPlatform->setModel(model.get(), isImage);
+  }
+
+  void ignoreResult()
+  {
+    ignoreResult_ = true;
   }
 
 private:
   osg::observer_ptr<PlatformModelNode> platform_;
+  bool ignoreResult_;
 };
 
 /* OSG Scene Graph Layout of This Class
@@ -196,10 +203,11 @@ PlatformModelNode::PlatformModelNode(Locator* locator)
   offsetXform_->addChild(alphaVolumeGroup_);
   alphaVolumeGroup_->setNodeMask(0); // off by default
   // Draw the backface
-  alphaVolumeGroup_->getOrCreateStateSet()->setAttributeAndModes(new osg::CullFace(osg::CullFace::FRONT), osg::StateAttribute::ON|osg::StateAttribute::OVERRIDE);
+  osg::ref_ptr<osg::CullFace> face = new osg::CullFace(osg::CullFace::FRONT);
+  alphaVolumeGroup_->getOrCreateStateSet()->setAttributeAndModes(face.get(), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
 
   // Set an initial model.  Without this, visitors expecting a node may fail early.
-  setModel_(simVis::Registry::instance()->modelCache()->boxNode(), false);
+  setModel(simVis::Registry::instance()->modelCache()->boxNode(), false);
 }
 
 PlatformModelNode::~PlatformModelNode()
@@ -261,7 +269,7 @@ bool PlatformModelNode::updateModel_(const simData::PlatformPrefs& prefs)
 
   const simVis::Registry* registry = simVis::Registry::instance();
   if (prefs.icon().empty())
-    setModel_(NULL, false);
+    setModel(NULL, false);
   else if (!registry->isMemoryCheck())
   {
     // Find the fully qualified URI
@@ -270,20 +278,31 @@ bool PlatformModelNode::updateModel_(const simData::PlatformPrefs& prefs)
     if (uri.empty())
     {
       SIM_WARN << "Failed to find icon model: " << prefs.icon() << "\n";
-      setModel_(simVis::Registry::instance()->modelCache()->boxNode(), false);
+      setModel(simVis::Registry::instance()->modelCache()->boxNode(), false);
     }
     else
     {
-      registry->modelCache()->asyncLoad(uri, new SetModelCallback(this));
+      // Kill off any pending async model loads
+      if (lastSetModelCallback_.valid())
+        lastSetModelCallback_->ignoreResult();
+      lastSetModelCallback_ = new SetModelCallback(this);
+      registry->modelCache()->asyncLoad(uri, lastSetModelCallback_.get());
     }
   }
   return true;
 }
 
-void PlatformModelNode::setModel_(osg::Node* newModel, bool isImage)
+void PlatformModelNode::setModel(osg::Node* newModel, bool isImage)
 {
   if (model_ == newModel && isImageModel_ == isImage)
     return;
+
+  // Kill off any pending async model loads
+  if (lastSetModelCallback_.valid())
+  {
+    lastSetModelCallback_->ignoreResult();
+    lastSetModelCallback_ = NULL;
+  }
 
   isImageModel_ = isImage;
 
@@ -300,10 +319,11 @@ void PlatformModelNode::setModel_(osg::Node* newModel, bool isImage)
   model_ = newModel;
   if (newModel != NULL)
   {
-    // set render order
+    // Set render order by setting render bin.  We set the OVERRIDE flag in case the model has renderbins set inside of it.
+    // Note that osg::Depth settings are not changed here, but are instead dealt with inside updateImageDepth_() call below.
     osg::StateSet* modelStateSet = model_->getOrCreateStateSet();
     if (isImageModel_)
-      modelStateSet->setRenderBinDetails(simVis::BIN_PLATFORM_IMAGE, simVis::BIN_GLOBAL_SIMSDK);
+      modelStateSet->setRenderBinDetails(simVis::BIN_PLATFORM_IMAGE, simVis::BIN_TWO_PASS_ALPHA, osg::StateSet::OVERRIDE_RENDERBIN_DETAILS);
     else
       modelStateSet->setRenderBinDetails(simVis::BIN_PLATFORM_MODEL, simVis::BIN_TRAVERSAL_ORDER_SIMSDK);
 
@@ -333,6 +353,7 @@ void PlatformModelNode::setModel_(osg::Node* newModel, bool isImage)
   updateOffsets_(lastPrefs_);
   updateImageAlignment_(lastPrefs_, true);
   updateBounds_();
+  updateDofTransform_(lastPrefs_, true);
 }
 
 void PlatformModelNode::setRotateToScreen(bool value)
@@ -476,7 +497,11 @@ void PlatformModelNode::updateBounds_()
 
   // add rcs back to the image transform
   if (rcs_.valid())
+  {
     imageIconXform_->addChild(rcs_.get());
+    // Adjust the RCS scale at this point too
+    rcs_->setScale(model_->getBound().radius() * 2.0);
+  }
 
   // add children back to model container in original order
   offsetXform_->removeChild(model_);
@@ -548,8 +573,16 @@ void PlatformModelNode::updateImageDepth_(const simData::PlatformPrefs& prefs, b
     if (!isImageModel_)
       return;
     // image models need to always pass depth test if nodepthicons is set to true
-    osg::Depth::Function depthFunc = (prefs.nodepthicons() && isImageModel_) ? osg::Depth::ALWAYS : osg::Depth::LESS;
-    state->setAttributeAndModes(new osg::Depth(depthFunc, 0, 1, true), osg::StateAttribute::ON);
+    if (prefs.nodepthicons() && isImageModel_)
+    {
+      osg::ref_ptr<osg::Depth> depth = new osg::Depth(osg::Depth::ALWAYS, 0, 1, true);
+      state->setAttributeAndModes(depth.get(), osg::StateAttribute::ON | osg::StateAttribute::PROTECTED);
+    }
+    else
+    {
+      osg::ref_ptr<osg::Depth> depth = new osg::Depth(osg::Depth::LESS, 0, 1, true);
+      state->setAttributeAndModes(depth.get(), osg::StateAttribute::ON);
+    }
   }
 }
 
@@ -664,19 +697,28 @@ void PlatformModelNode::updateCulling_(const simData::PlatformPrefs& prefs)
   {
     switch (prefs.cullface())
     {
-      case simData::FRONT:
-        stateSet->setAttributeAndModes(new osg::CullFace(osg::CullFace::FRONT), osg::StateAttribute::ON);
-        break;
-      case simData::BACK:
-        stateSet->setAttributeAndModes(new osg::CullFace(osg::CullFace::BACK), osg::StateAttribute::ON);
-        break;
-      case simData::FRONT_AND_BACK:
-        stateSet->setAttributeAndModes(new osg::CullFace(osg::CullFace::FRONT_AND_BACK), osg::StateAttribute::ON);
-        break;
-      default:
-        // assert fail means an invalid face was specified
-        assert(0);
-        return;
+    case simData::FRONT:
+    {
+      osg::ref_ptr<osg::CullFace> face = new osg::CullFace(osg::CullFace::FRONT);
+      stateSet->setAttributeAndModes(face.get(), osg::StateAttribute::ON);
+      break;
+    }
+    case simData::BACK:
+    {
+      osg::ref_ptr<osg::CullFace> face = new osg::CullFace(osg::CullFace::BACK);
+      stateSet->setAttributeAndModes(face.get(), osg::StateAttribute::ON);
+      break;
+    }
+    case simData::FRONT_AND_BACK:
+    {
+      osg::ref_ptr<osg::CullFace> face = new osg::CullFace(osg::CullFace::FRONT_AND_BACK);
+      stateSet->setAttributeAndModes(face.get(), osg::StateAttribute::ON);
+      break;
+    }
+    default:
+      // assert fail means an invalid face was specified
+      assert(0);
+      return;
     }
   }
 }
@@ -739,7 +781,8 @@ void PlatformModelNode::updatePolygonMode_(const simData::PlatformPrefs& prefs)
   assert(face == osg::PolygonMode::FRONT || face == osg::PolygonMode::BACK || face == osg::PolygonMode::FRONT_AND_BACK);
   // assert fail means an invalid mode was specified;
   assert(mode == osg::PolygonMode::POINT || mode == osg::PolygonMode::LINE || mode == osg::PolygonMode::FILL);
-  stateSet->setAttributeAndModes(new osg::PolygonMode(face, mode), osg::StateAttribute::ON);
+  osg::ref_ptr<osg::PolygonMode> polygonMode = new osg::PolygonMode(face, mode);
+  stateSet->setAttributeAndModes(polygonMode.get(), osg::StateAttribute::ON);
 }
 
 void PlatformModelNode::updateLighting_(const simData::PlatformPrefs& prefs, bool force)
@@ -785,7 +828,8 @@ void PlatformModelNode::updateAlphaVolume_(const simData::PlatformPrefs& prefs)
   if (prefs.alphavolume())
   {
     // Turn off depth writes
-    offsetXform_->getOrCreateStateSet()->setAttributeAndModes(new osg::Depth(osg::Depth::LESS, 0, 1, false));
+    osg::ref_ptr<osg::Depth> depth = new osg::Depth(osg::Depth::LESS, 0, 1, false);
+    offsetXform_->getOrCreateStateSet()->setAttributeAndModes(depth.get());
     alphaVolumeGroup_->setNodeMask(getMask());
   }
   else
@@ -793,6 +837,18 @@ void PlatformModelNode::updateAlphaVolume_(const simData::PlatformPrefs& prefs)
     offsetXform_->getOrCreateStateSet()->removeAttribute(osg::StateAttribute::DEPTH);
     alphaVolumeGroup_->setNodeMask(0);
   }
+}
+
+void PlatformModelNode::updateDofTransform_(const simData::PlatformPrefs& prefs, bool force) const
+{
+  // Don't need to apply to image models
+  if (!model_.valid() || isImageModel_)
+    return;
+  // Don't execute if field did not change, unless we're being forced due to model loading
+  if (!force && lastPrefsValid_ && !PB_FIELD_CHANGED(&lastPrefs_, &prefs, animatedofnodes))
+    return;
+  simVis::EnableDOFTransform enableDof(prefs.animatedofnodes());
+  model_->accept(enableDof);
 }
 
 void PlatformModelNode::setProperties(const simData::PlatformProperties& props)
@@ -826,10 +882,14 @@ void PlatformModelNode::setPrefs(const simData::PlatformPrefs& prefs)
   updateLighting_(prefs, false);
   updateOverrideColor_(prefs);
   updateAlphaVolume_(prefs);
+  updateDofTransform_(prefs, false);
 
-  // Note that the brightness calculation is low cost and we do not check PB_FIELD_CHANGED on it
-  const float brightnessMagnitude = prefs.brightness() * BRIGHTNESS_TO_AMBIENT;
-  brightnessUniform_->set(osg::Vec4f(brightnessMagnitude, brightnessMagnitude, brightnessMagnitude, 1.f));
+  // Note that the brightness calculation is low cost, but setting brightness uniform is not necessarily low-cost, so we do check PB_FIELD_CHANGED
+  if (PB_FIELD_CHANGED(&prefs, &lastPrefs_, brightness))
+  {
+    const float brightnessMagnitude = prefs.brightness() * BRIGHTNESS_TO_AMBIENT;
+    brightnessUniform_->set(osg::Vec4f(brightnessMagnitude, brightnessMagnitude, brightnessMagnitude, 1.f));
+  }
 
   if (needsBoundsUpdate)
     updateBounds_();
@@ -884,3 +944,4 @@ void PlatformModelNode::fireCallbacks_(Callback::EventType eventType)
     i->get()->operator()(this, eventType);
 }
 
+}

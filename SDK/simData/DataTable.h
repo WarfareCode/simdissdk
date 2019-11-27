@@ -386,6 +386,13 @@ public:
   virtual TableStatus addColumn(const std::string& columnName, VariableType storageType, UnitType unitType, TableColumn** column) = 0;
 
   /**
+   * Removes a column with the given name from the data table.
+   * @param columnName Name of the column to remove from this data table.
+   * @return Status describing success or failure of this function call.
+   */
+  virtual TableStatus removeColumn(const std::string& columnName) = 0;
+
+  /**
    * Performs visitation of each row in this list after beginTime (inclusive) until endTime
    * (exclusive), calling the RowVisitor provided.  The rows are visited in time order from
    * earliest to latest time value.
@@ -611,19 +618,19 @@ public:
    * @{
    */
   /** Start iteration at the beginning of the container (smallest time). */
-  virtual Iterator begin() = 0;
+  virtual Iterator begin() const = 0;
   /** Iterator representing the back of the container (largest time). */
-  virtual Iterator end() = 0;
+  virtual Iterator end() const = 0;
   /**
    * Returns lower_bound() iterator into container; see DataSlice::lower_bound()
    * for detailed examples and description of lower_bound() functionality.
    */
-  virtual Iterator lower_bound(double timeValue) = 0;
+  virtual Iterator lower_bound(double timeValue) const = 0;
   /**
    * Returns upper_bound() iterator into container; see DataSlice::upper_bound()
    * for detailed examples and description of upper_bound() functionality.
    */
-  virtual Iterator upper_bound(double timeValue) = 0;
+  virtual Iterator upper_bound(double timeValue) const = 0;
   /**
    * Retrieves an iterator such that next() is the time at or immediately before
    * the current time.  If there is no value at or before the current time, then
@@ -633,6 +640,14 @@ public:
    *   there is no such iterator.
    */
   virtual Iterator findAtOrBeforeTime(double timeValue) const = 0;
+
+  /**
+   * Returns the begin and end time of the column
+   * @param begin Returns the begin time
+   * @param end Returns the end time
+   * @returns 0 if begin and end are set
+   */
+  virtual int getTimeRange(double& begin, double& end) const = 0;
   /// @}
 };
 
@@ -700,7 +715,7 @@ public:
   void setTime(double t);
 
   /**
-  * Optionally reserve the space for the expected number of values; minor performance improvement 
+  * Optionally reserve the space for the expected number of values; minor performance improvement
   * @param number Expected number of values
   */
   void reserve(size_t number);

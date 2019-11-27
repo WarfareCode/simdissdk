@@ -1,9 +1,10 @@
-#version 330
+#version $GLSL_VERSION_STR
 
 #pragma vp_entryPoint sim_proj_frag
 #pragma vp_location fragment_coloring
 
-#pragma import_defines(SIMVIS_USE_REX, SIMVIS_PROJECT_ON_PLATFORM)
+#pragma import_defines(SIMVIS_USE_REX)
+#pragma import_defines(SIMVIS_PROJECT_ON_PLATFORM)
 
 uniform bool projectorActive;
 uniform float projectorAlpha;
@@ -20,8 +21,14 @@ void sim_proj_frag(inout vec4 color)
 {
   if (projectorActive && simProjTexCoord.q > 0)
   {
-    vec4 textureColor = textureProj(simProjSampler, simProjTexCoord);
-    color.rgb = mix(color.rgb, textureColor.rgb, textureColor.a * projectorAlpha);
+    // clip to projected texture domain; otherwise the texture will project
+    // even when the target is outside the projection frustum
+    vec2 local = simProjTexCoord.st / simProjTexCoord.q;
+    if (clamp(local, 0.0, 1.0) == local) 
+    {
+      vec4 textureColor = textureProj(simProjSampler, simProjTexCoord);
+      color.rgb = mix(color.rgb, textureColor.rgb, textureColor.a * projectorAlpha);
+    }
   }
 }
 
@@ -38,16 +45,19 @@ void sim_proj_frag(inout vec4 color)
 
   if (projectorActive)
   {
-    vec2 local = simProjTexCoord.st / simProjTexCoord.q;               // same as textureProj, but do it manually so we can check extents
-
-    if (clamp(local, 0.0, 1.0) == local)                             // clip to projected texture domain
+    // clip to projected texture domain; otherwise the texture will project
+    // even when the target is outside the projection frustum
+    vec2 local = simProjTexCoord.st / simProjTexCoord.q;
+    if (clamp(local, 0.0, 1.0) == local)
     {
       if (dot(simProjLookVector_VIEW, simProjToVert_VIEW) >= 0.0)  // only draw in front of projector (not behind)
       {
         float vis = -dot(normalize(simProjToVert_VIEW), normalize(vp_Normal));  // >=0 is visible; <0 is over the horizon.
-        float fade = clamp(vis >= 0.0 ? 1.0 : (1.0+20.0*vis), 0.0, 1.0);        // gradual fade at horizon instead of abrupt stop
+        if (vis <= 0)
+            discard;
+
         vec4 textureColor = texture(simProjSampler, local);
-        outColor = vec4(textureColor.r, textureColor.g, textureColor.b, textureColor.a * projectorAlpha * fade);
+        outColor = vec4(textureColor.r, textureColor.g, textureColor.b, textureColor.a * projectorAlpha);
       }
     }
   }

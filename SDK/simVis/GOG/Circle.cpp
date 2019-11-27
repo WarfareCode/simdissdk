@@ -26,23 +26,24 @@
 #include "simVis/GOG/Circle.h"
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
+#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 #include "simNotify/Notify.h"
 
-using namespace simVis::GOG;
-using namespace osgEarth::Symbology;
 using namespace osgEarth::Features;
 
-GogNodeInterface* Circle::deserialize(const osgEarth::Config&  conf,
+namespace simVis { namespace GOG {
+
+GogNodeInterface* Circle::deserialize(const ParsedShape& parsedShape,
                     simVis::GOG::ParserData& p,
                     const GOGNodeType&       nodeType,
                     const GOGContext&        context,
                     const GogMetaData&       metaData,
                     MapNode*                 mapNode)
 {
-  Distance radius(conf.value("radius", 1000.), p.units_.rangeUnits_);
+  Distance radius(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_RADIUS, 1000.)), Units::METERS);
 
-  GeometryFactory gf;
+  osgEarth::Symbology::GeometryFactory gf;
   Geometry* shape = gf.createCircle(osg::Vec3d(0, 0, 0), radius);
 
   osgEarth::Annotation::LocalGeometryNode* node = NULL;
@@ -53,20 +54,21 @@ GogNodeInterface* Circle::deserialize(const osgEarth::Config&  conf,
     if (p.geometryRequiresClipping())
       Utils::configureStyleForClipping(p.style_);
 
-    node = new osgEarth::Annotation::LocalGeometryNode(mapNode, shape, p.style_);
-    Utils::applyLocalGeometryOffsets(*node, p);
+    node = new osgEarth::Annotation::LocalGeometryNode(shape, p.style_);
+    node->setMapNode(mapNode);
   }
   else
-  {
     node = new HostedLocalGeometryNode(shape, p.style_);
-    node->setLocalOffset(p.getLTPOffset());
-  }
+  node->setName("GOG Circle Position");
 
   GogNodeInterface* rv = NULL;
   if (node)
   {
+    Utils::applyLocalGeometryOffsets(*node, p, nodeType);
     rv = new LocalGeometryNodeInterface(node, metaData);
-    rv->applyConfigToStyle(conf, p.units_);
+    rv->applyToStyle(parsedShape, p.units_);
   }
   return rv;
 }
+
+} }

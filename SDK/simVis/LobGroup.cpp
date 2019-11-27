@@ -19,13 +19,15 @@
  * disclose, or release this software.
  *
  */
-#include "osg/LineWidth"
 #include "osgEarth/GeoData"
 #include "osgEarth/Horizon"
+#include "osgEarth/ObjectIndex"
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/CoordinateConverter.h"
 #include "simCore/Calc/Math.h"
+#include "simCore/Calc/MultiFrameCoordinate.h"
+#include "simData/DataTable.h"
 #include "simData/LinearInterpolator.h"
 #include "simVis/AnimatedLine.h"
 #include "simVis/EntityLabel.h"
@@ -68,29 +70,6 @@ bool prefsRequiresRebuild(const simData::LobGroupPrefs* a, const simData::LobGro
 
 namespace simVis
 {
-
-// Observer for the DataTableManager for new and removed data tables
-class LobGroupNode::InternalTableObserver : public simData::DataTableManager::ManagerObserver
-{
-public:
-  explicit InternalTableObserver(LobGroupNode& parent)
-    : parent_(parent)
-  {}
-  void onAddTable(simData::DataTable* table)
-  {
-    if ((table != NULL) && (table->ownerId() == parent_.getId()) && (table->tableName() == simData::INTERNAL_LOB_DRAWSTYLE_TABLE))
-      parent_.initializeTableId_();
-  }
-  void onPreRemoveTable(simData::DataTable* table)
-  {
-    if (table != NULL && table->tableId() == parent_.drawStyleTableId_)
-      parent_.drawStyleTableId_ = 0;
-  }
-private:
-  LobGroupNode& parent_;
-};
-
-
 
 /// maps time to one or more animated lines
 class LobGroupNode::Cache
@@ -171,6 +150,24 @@ public:
     entries_.insert(std::make_pair(t, osg::ref_ptr<AnimatedLineNode>(a)));
   }
 
+  /// Gets the endpoints of all lines in the cache
+  void getVisibleEndpoints(std::vector<osg::Vec3d>& ecefVec) const
+  {
+    simCore::MultiFrameCoordinate first;
+    simCore::MultiFrameCoordinate second;
+    for (LineCache::const_iterator iter = entries_.begin(); iter != entries_.end(); ++iter)
+    {
+      // Only save points of lines that are visible
+      if (iter->second->getNodeMask() != 0 && iter->second->getEndPoints(first, second) == 0)
+      {
+        const simCore::Vec3 firstPos = first.ecefCoordinate().position();
+        const simCore::Vec3 secondPos = second.ecefCoordinate().position();
+        ecefVec.push_back(osg::Vec3d(firstPos.x(), firstPos.y(), firstPos.z()));
+        ecefVec.push_back(osg::Vec3d(secondPos.x(), secondPos.y(), secondPos.z()));
+      }
+    }
+  }
+
 protected:
   typedef std::multimap<double, osg::ref_ptr<AnimatedLineNode> > LineCache;
   /** Multimap of scenario time to the animated lines at that time */
@@ -186,11 +183,10 @@ LobGroupNode::LobGroupNode(const simData::LobGroupProperties &props, EntityNode*
   coordConverter_(new simCore::CoordinateConverter()),
   ds_(ds),
   hostId_(host->getId()),
-  drawStyleTableId_(0),
   lineCache_(new Cache),
   label_(NULL),
-  contentCallback_(new NullEntityCallback()),
-  lastFlashingState_(false)
+  lastFlashingState_(false),
+  objectIndexTag_(0)
 {
   setName("LobGroup");
   localGrid_ = new LocalGridNode(getLocator(), host, ds.referenceYear());
@@ -211,14 +207,14 @@ LobGroupNode::LobGroupNode(const simData::LobGroupProperties &props, EntityNode*
   // flatten in overhead mode.
   simVis::OverheadMode::enableGeometryFlattening(true, this);
 
-  initializeTableId_();
-  internalTableObserver_.reset(new InternalTableObserver(*this));
-  ds.dataTableManager().addObserver(internalTableObserver_);
+  // Add a tag for picking
+  objectIndexTag_ = osgEarth::Registry::objectIndex()->tagNode(this, this);
 }
 
 LobGroupNode::~LobGroupNode()
 {
-  ds_.dataTableManager().removeObserver(internalTableObserver_);
+  osgEarth::Registry::objectIndex()->remove(objectIndexTag_);
+
   delete coordConverter_;
   coordConverter_ = NULL;
   lineCache_->clearCache(this);
@@ -238,13 +234,13 @@ void LobGroupNode::updateLabel_(const simData::LobGroupPrefs& prefs)
 {
   if (hasLastUpdate_)
   {
-    std::string label = getEntityName(EntityNode::DISPLAY_NAME);
+    std::string label = getEntityName_(prefs.commonprefs(), EntityNode::DISPLAY_NAME, false);
     if (prefs.commonprefs().labelprefs().namelength() > 0)
       label = label.substr(0, prefs.commonprefs().labelprefs().namelength());
 
     std::string text;
     if (prefs.commonprefs().labelprefs().draw())
-      text = contentCallback_->createString(prefs, lastUpdate_, prefs.commonprefs().labelprefs().displayfields());
+      text = labelContentCallback().createString(prefs, lastUpdate_, prefs.commonprefs().labelprefs().displayfields());
 
     if (!text.empty())
     {
@@ -257,32 +253,37 @@ void LobGroupNode::updateLabel_(const simData::LobGroupPrefs& prefs)
   }
 }
 
-void LobGroupNode::setLabelContentCallback(LabelContentCallback* cb)
+std::string LobGroupNode::popupText() const
 {
-  if (cb == NULL)
-    contentCallback_ = new NullEntityCallback();
-  else
-    contentCallback_ = cb;
-}
+  if (hasLastUpdate_ && lastPrefsValid_)
+  {
+    std::string prefix;
+    // if alias is defined show both in the popup to match SIMDIS 9's behavior.  SIMDIS-2241
+    if (!lastPrefs_.commonprefs().alias().empty())
+    {
+      if (lastPrefs_.commonprefs().usealias())
+        prefix = getEntityName(EntityNode::REAL_NAME);
+      else
+        prefix = getEntityName(EntityNode::ALIAS_NAME);
+      prefix += "\n";
+    }
+    return prefix + labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().hoverdisplayfields());
+  }
 
-LabelContentCallback* LobGroupNode::labelContentCallback() const
-{
-  return contentCallback_.get();
+  return "";
 }
 
 std::string LobGroupNode::hookText() const
 {
   if (hasLastUpdate_ && lastPrefsValid_)
-    return contentCallback_->createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().hookdisplayfields());
-
+    return labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().hookdisplayfields());
   return "";
 }
 
 std::string LobGroupNode::legendText() const
 {
   if (hasLastUpdate_ && lastPrefsValid_)
-    return contentCallback_->createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().legenddisplayfields());
-
+    return labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().legenddisplayfields());
   return "";
 }
 
@@ -327,29 +328,9 @@ void LobGroupNode::setPrefs(const simData::LobGroupPrefs &prefs)
   updateLabel_(prefs);
 }
 
-int LobGroupNode::initializeTableId_()
-{
-  // try to initialize the table id for quick access to the internal table, if it exists
-  if (drawStyleTableId_ != 0)
-    return 0;
-  simData::DataTable* table = ds_.dataTableManager().findTable(getId(), simData::INTERNAL_LOB_DRAWSTYLE_TABLE);
-  if (table == NULL)
-    return 1;
-  drawStyleTableId_ = table->tableId();
-  assert(drawStyleTableId_ > 0); // a table was created with an invalid table id, check that DataTableManager has not changed how it creates table ids
-  return 0;
-}
-
 void LobGroupNode::setLineDrawStyle_(double time, simVis::AnimatedLineNode& line, const simData::LobGroupPrefs& defaultValues)
 {
-  if (drawStyleTableId_ == 0)
-  {
-    setLineValueFromPrefs_(line, defaultValues);
-    return;
-  }
-  // use the drawStyleTableId_ if we have it
-  simData::DataTable* table = ds_.dataTableManager().getTable(drawStyleTableId_);
-  // no draw style history table, simply use the default values from prefs
+  simData::DataTable* table = ds_.dataTableManager().findTable(getId(), simData::INTERNAL_LOB_DRAWSTYLE_TABLE);
   if (table == NULL)
   {
     setLineValueFromPrefs_(line, defaultValues);
@@ -554,21 +535,8 @@ const std::string LobGroupNode::getEntityName(EntityNode::NameType nameType, boo
     assert(0);
     return "";
   }
-  switch (nameType)
-  {
-  case EntityNode::REAL_NAME:
-    return lastPrefs_.commonprefs().name();
-  case EntityNode::ALIAS_NAME:
-    return lastPrefs_.commonprefs().alias();
-  case EntityNode::DISPLAY_NAME:
-    if (lastPrefs_.commonprefs().usealias())
-    {
-      if (!lastPrefs_.commonprefs().alias().empty() || allowBlankAlias)
-        return lastPrefs_.commonprefs().alias();
-    }
-    return lastPrefs_.commonprefs().name();
-  }
-  return "";
+
+  return getEntityName_(lastPrefs_.commonprefs(), nameType, allowBlankAlias);
 }
 
 simData::ObjectId LobGroupNode::getId() const
@@ -590,7 +558,7 @@ bool LobGroupNode::updateFromDataStore(const simData::DataSliceBase *updateSlice
   const bool lobChangedToActive = (current != NULL && !hasLastUpdate_);
 
   // Do any necessary flashing
-  simData::DataTable* table = ds_.dataTableManager().getTable(drawStyleTableId_);
+  simData::DataTable* table = ds_.dataTableManager().findTable(getId(), simData::INTERNAL_LOB_DRAWSTYLE_TABLE);
   if (table != NULL)
   {
     bool flashing = false;
@@ -686,10 +654,17 @@ void LobGroupNode::applyEndpointCoordClamping_(simCore::Coordinate& endpointCoor
   coordConverter_->convert(endLla, endpointCoord, simCore::COORD_SYS_XEAST);
 }
 
+void LobGroupNode::getVisibleEndPoints(std::vector<osg::Vec3d>& ecefVec) const
+{
+  ecefVec.clear();
+  // Line cache only stores lines at current time
+  if (isActive())
+    lineCache_->getVisibleEndpoints(ecefVec);
+}
+
 unsigned int LobGroupNode::objectIndexTag() const
 {
-  // Not supported for LOB groups
-  return 0;
+  return objectIndexTag_;
 }
 
 } // namespace simVis

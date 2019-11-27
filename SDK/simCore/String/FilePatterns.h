@@ -102,7 +102,8 @@ static const std::string SIMDIS10_VIEW_FILE_PATTERNS =
 
 /** Dialog-oriented user-friendly list of supported SIMDIS Bookmark format patterns to open*/
 static const std::string SIMDIS_BOOKMARK_FILE_PATTERNS =
-  "All Supported Bookmark Formats (*.toc, *.log, *.htm, *.html, *.csv)\n"
+  "All Supported Bookmark Formats (*.bml, *.toc, *.log, *.htm, *.html, *.csv)\n"
+  "Bookmark XML (*.bml)\n"
   "Media Player Bookmarks (*.toc)\n"
   "SCORE Event Log (*.log)\n"
   "NetMeeting Chat Log (*.htm,*.html)\n"
@@ -111,6 +112,7 @@ static const std::string SIMDIS_BOOKMARK_FILE_PATTERNS =
 
 /** Dialog-oriented user-friendly list of supported SIMDIS Bookmark format patterns to save/export */
 static const std::string SIMDIS_BOOKMARK_SAVE_FILE_PATTERNS =
+  "Bookmark XML (*.bml)\n"
   "Media Player Bookmarks (*.toc)\n"
   "All Files (*)";
 
@@ -137,15 +139,19 @@ static const std::string SIMDIS10_IMAGERY_CONFIG_SAVE_PATTERNS =
     "All Files (*)";
 
 /** SIMDIS supported model format file patterns, separated by commas. */
-static const std::string ALL_SIMDIS_MODEL_FILE_PATTERNS = "*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst";
+static const std::string ALL_SIMDIS_MODEL_FILE_PATTERNS = "*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.ac,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst";
 /** SIMDIS supported texture file format file patterns, separated by commas */
 static const std::string ALL_SIMDIS_TEXTURE_FILE_PATTERNS = "*.png,*.gif,*.jpg,*.jpeg,*.rgba,*.rgb,*.tiff,*.tif,*.bmp,*.bw,*.inta,*.int,*.raw,*.pgm";
 /** Dialog-oriented user-friendly list of SIMDIS supported model format patterns. */
 static const std::string SIMDIS_MODEL_FILE_PATTERNS =
-  "All Supported Formats (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst)\n"
-  "SIMDIS Model Files (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf)\n"
+  "All Supported Formats (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.ac,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst)\n"
+  "SIMDIS Model Files (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.ac)\n"
   "Image Files (*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp)\n"
   "Media Player Video Icons (*.tmd,*.lst)\n"
+  "All Files (*)";
+/** Dialog-oriented user-friendly list of SIMDIS supported image format patterns. */
+static const std::string SIMDIS_IMAGE_FILE_PATTERNS =
+  "Image Files (*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp)\n"
   "All Files (*)";
 
 /** Media Player file format patterns, separated by commas */
@@ -185,14 +191,14 @@ static const std::string ANTENNA_FILE_PATTERNS =
   "All Files (*)\n";
 
 /** SIMDIS GOG Overlay Format patterns, separated by commas */
-static const std::string ALL_GOG_FILE_PATTERNS = "*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.shp,*.kml,*.kmz,*.lgf,*.asc";
+static const std::string ALL_GOG_FILE_PATTERNS = "*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct";
 /** Dialog-oriented user-friendly list of SIMDIS GOG Overlay Format files */
 static const std::string GOG_FILE_PATTERNS =
-  "All Supported GOG Formats (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.shp,*.kml,*.kmz,*.lgf,*.asc)\n"
+  "All Supported GOG Formats (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct)\n"
   "GOG Files (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz)\n"
   "Misc GOG (*.gog)\nxygeo (*.ll,*.lla)\nxygeo and crossplot (*.xy,*.xyz)\n"
   "Relative xygeo and crossplot (*.rxy,*.rxyz)\n"
-  "ESRI Shape Files (*.shp)\n"
+  "CDS Flight Profile and Range Contour (*.fpn,*.rct)\n"
   "KML Files (*.kml,*.kmz)\n"
   "LATR GEO Files (*.lgf)\n"
   "GCCS OVLY Files (*.ovl)\n"
@@ -289,6 +295,11 @@ static const std::string UDP_CAPTURE_FILE_PATTERNS =
 /** Dialog-oriented user-friendly list of SIMDIS 10 Settings files */
 static const std::string SIMDIS10_SETTINGS_FILE_PATTERNS =
   "SIMDIS 10 Configuration Files (*.ini)\n"
+  "All Files (*)";
+
+/** Dialog-oriented user-friendly list of Plot-XY Settings files */
+static const std::string PLOT_SETTINGS_FILE_PATTERNS =
+  "Plot-XY Configuration Files (*.ini)\n"
   "All Files (*)";
 
 /** Combination of all data file patterns */

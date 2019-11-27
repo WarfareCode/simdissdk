@@ -35,14 +35,16 @@ namespace simVis
 class /* HEADER-ONLY */ HostedLocalGeometryNode : public osgEarth::Annotation::LocalGeometryNode
 {
 public:
-  HostedLocalGeometryNode(osgEarth::Symbology::Geometry* geometry, const osgEarth::Style& style)
-    : LocalGeometryNode(NULL, geometry, style)
+  HostedLocalGeometryNode(osgEarth::Symbology::Geometry* geometry, const osgEarth::Symbology::Style& style)
+    : LocalGeometryNode(geometry, style)
   {
   }
 
-  HostedLocalGeometryNode(osg::Node* node, const osgEarth::Style& style)
-    : LocalGeometryNode(NULL, node, style)
+  HostedLocalGeometryNode(osg::Node* node, const osgEarth::Symbology::Style& style)
+    : LocalGeometryNode()
   {
+      getPositionAttitudeTransform()->addChild(node);
+      setStyle(style);
   }
 
   /// Override setMapNode to ignore values

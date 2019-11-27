@@ -26,6 +26,7 @@
 #include "simCore/Common/SDKAssert.h"
 #include "simCore/Common/Version.h"
 #include "simVis/GOG/GogNodeInterface.h"
+#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Parser.h"
 
 namespace
@@ -35,8 +36,8 @@ static const std::string FILE_VERSION = "version 2\n";
 
 bool parseGog(std::stringstream& gog, simVis::GOG::Parser& parser, std::vector<simVis::GOG::GogMetaData>& metaData, int& rv)
 {
-  osgEarth::Config config;
-  if (!parser.parse(gog, config, metaData))
+  std::vector<simVis::GOG::ParsedShape> configs;
+  if (!parser.parse(gog, configs, metaData))
   {
     rv += SDK_ASSERT(0); // failed to parse
     SIM_ERROR << "Parser failed to parse GOG stream " << gog.str() << "\n";
@@ -45,6 +46,127 @@ bool parseGog(std::stringstream& gog, simVis::GOG::Parser& parser, std::vector<s
   return true;
 }
 
+void clearItems(simVis::GOG::Parser::OverlayNodeVector& gogs, std::vector<simVis::GOG::GogFollowData>& followData, std::stringstream& input)
+{
+  for (auto iter = gogs.begin(); iter != gogs.end(); ++iter)
+  {
+    delete *iter;
+  }
+  gogs.clear();
+  followData.clear();
+  input.clear();
+  input.str("");
+}
+
+// Test loading absolute and relative GOGs as attached and un-attached
+int testLoadRelativeAndAbsolute()
+{
+  int rv = 0;
+
+  std::string absoluteGog = FILE_VERSION +
+    "start\n line\n lla 26.13568698 55.28931414 5000.\n lla \"26.0 N\" \"55.0 E\" 5000.\n end\n"
+    "start\n poly\n lla 25.2 53.2 10.\n lla 22.3 54.1 10.\n lla 24.1 53.8 10.\n end\n";
+
+  simVis::GOG::Parser parser;
+  // loaded GOG shape nodes
+  simVis::GOG::Parser::OverlayNodeVector gogs;
+  // follow data for attached GOGs
+  std::vector<simVis::GOG::GogFollowData> followData;
+
+  std::stringstream input;
+
+  // Test loading absolute GOGs as un-attached
+  input << absoluteGog;
+  bool parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_GEOGRAPHIC, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 2); // verify absolute shapes were loaded as un-attached
+  clearItems(gogs, followData, input);
+
+  // Test loading absolute GOGs as attached
+  input << absoluteGog;
+  parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_HOSTED, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 0); // verify no absolute shapes were loaded as attached
+  clearItems(gogs, followData, input);
+
+  std::string relativeGog = FILE_VERSION +
+    "start\n line\n xyz 100 10 50\n xyz -100 44 50\n end\n"
+    "start\n poly\n xyz 0 -60 100\n xyz 100 34 100\n xyz -100 -20 100\n end\n";
+
+  // Test loading relative GOGs as attached
+  input << relativeGog;
+  parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_HOSTED, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 2); // verify relative shapes were loaded as attached
+  clearItems(gogs, followData, input);
+
+  // Test loading relative GOGs as un-attached
+  input << relativeGog;
+  parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_GEOGRAPHIC, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 2); // verify relative shapes were loaded as un-attached
+  clearItems(gogs, followData, input);
+
+  std::string relativeAndAbsoluteGog = FILE_VERSION +
+    "start\n poly\n lla 25.2 53.2 10.\n lla 22.3 54.1 10.\n lla 24.1 53.8 10.\n end\n"
+    "start\n poly\n 3d name RELATIVE_GOG\n xyz 0 -60 100\n xyz 100 34 100\n xyz -100 -20 100\n end\n";
+
+  // Test loading GOG with relative and absolute shapes as attached
+  input << relativeAndAbsoluteGog;
+  parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_HOSTED, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 1); // verify only 1 shape was loaded as attached
+  std::ostringstream os;
+  gogs.front()->serializeToStream(os);
+  rv += SDK_ASSERT(os.str().find("RELATIVE_GOG") != std::string::npos); // verify the loaded shape was the relative one
+  clearItems(gogs, followData, input);
+
+  // Test loading GOG with relative and absolute shapes as un-attached
+  input << relativeAndAbsoluteGog;
+  parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_GEOGRAPHIC, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 2); // verify relative and absolute shapes were loaded as un-attached
+  clearItems(gogs, followData, input);
+
+  // create a relative shape with relative points first, then some absolute points
+  std::string relativeShapeWithAbsolutePoints = FILE_VERSION +
+    "start\n poly\nxyz 1 1 1\nxyz 1 -1 1\nxyz -1 1 -1\n lla 25.2 53.2 10.\n lla 22.3 54.1 10.\n lla 24.1 53.8 10.\n end\n";
+
+  // Test loading GOG shape with relative and absolute points, relative first, as attached. Should work, since relative points are first, so shape should be read as relative
+  input << relativeShapeWithAbsolutePoints;
+  parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_HOSTED, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 1); // verify only 1 shape was loaded as attached
+  std::ostringstream os2;
+  gogs.front()->serializeToStream(os2);
+  rv += SDK_ASSERT(os2.str().find("lla") == std::string::npos); // verify the shape was loaded as relative, since those were the first points found
+  clearItems(gogs, followData, input);
+
+  // create an absolute shape with absolute points first, then some relative points
+  std::string absoluteShapeWithRelativePoints = FILE_VERSION +
+    "start\n poly\n lla 25.2 53.2 10.\n lla 22.3 54.1 10.\n lla 24.1 53.8 10.\nxyz 1 1 1\nxyz 1 -1 1\nxyz -1 1 -1\nend\n";
+
+  // Test loading GOG shape with relative and absolute points, absolute first, as absolute. Should succeed, since absolute points are first, so shape should be read as absolute
+  input << absoluteShapeWithRelativePoints;
+  parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_GEOGRAPHIC, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 1); // verify the shape loaded
+  std::ostringstream os3;
+  gogs.front()->serializeToStream(os3);
+  rv += SDK_ASSERT(os3.str().find("xyz") == std::string::npos); // verify the shape was not loaded as relative
+  clearItems(gogs, followData, input);
+
+  // Test loading GOG shape with relative and absolute points, absolute first, as relative. Should fail, since absolute points are first, so shape should be read as absolute
+  input << absoluteShapeWithRelativePoints;
+  parsedGog = parser.loadGOGs(input, simVis::GOG::GOGNODE_HOSTED, gogs, followData);
+  rv += SDK_ASSERT(parsedGog); // verify parsing worked
+  rv += SDK_ASSERT(gogs.size() == 0); // verify the shape failed to load
+  clearItems(gogs, followData, input);
+
+  return rv;
+}
+
+// Test that metadata is defined correctly when parsing GOGs
 int testParseMetaData()
 {
   int rv = 0;
@@ -303,6 +425,7 @@ int GogTest(int argc, char* argv[])
   simCore::checkVersionThrow();
 
   // Run tests
+  rv += testLoadRelativeAndAbsolute();
   rv += testParseMetaData();
 
   // Shut down protobuf lib for valgrind testing
@@ -310,5 +433,3 @@ int GogTest(int argc, char* argv[])
 
   return rv;
 }
-
-

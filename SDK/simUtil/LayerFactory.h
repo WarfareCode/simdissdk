@@ -22,16 +22,26 @@
 #ifndef SIMUTIL_LAYERFACTORY_H
 #define SIMUTIL_LAYERFACTORY_H
 
+#include <memory>
 #include <string>
+#include "osg/Vec4f"
 #include "simCore/Common/Common.h"
 
 namespace osgEarth
 {
-  class TileSourceOptions;
-  class ImageLayer;
-  class ElevationLayer;
   class CachePolicy;
+  class ElevationLayer;
+  class ElevationLayerOptions;
+  class ImageLayer;
   class Profile;
+  class TileSourceOptions;
+
+  namespace Features
+  {
+    class FeatureModelLayer;
+    class FeatureModelLayerOptions;
+  }
+  namespace Symbology { class Style; }
 }
 
 namespace simUtil {
@@ -81,6 +91,37 @@ public:
     const osgEarth::TileSourceOptions& options,
     const osgEarth::CachePolicy* cachePolicy=NULL,
     const osgEarth::ElevationLayerOptions* extraOptions=NULL);
+
+  /**
+   * Factory method for creating a new feature model layer.
+   * @param options Configuration options for the layer.
+   * @return Feature model layer on success; NULL on failure.  Caller responsible for memory.
+   *   (put in ref_ptr)
+   */
+  static osgEarth::Features::FeatureModelLayer* newFeatureLayer(const osgEarth::Features::FeatureModelLayerOptions& options);
+};
+
+/** Simplified factory interface to load line-based shape files. */
+class SDKUTIL_EXPORT ShapeFileLayerFactory
+{
+public:
+  ShapeFileLayerFactory();
+  virtual ~ShapeFileLayerFactory();
+
+  /** Creates a new layer given the URL provided. */
+  osgEarth::Features::FeatureModelLayer* load(const std::string& url) const;
+  /** Helper method that fills out the model layer options based on URL and current configuration. */
+  void configureOptions(const std::string& url, osgEarth::Features::FeatureModelLayerOptions& driver) const;
+
+  /** Changes the line color for the next loaded layer. */
+  void setLineColor(const osg::Vec4f& color);
+  /** Changes the line width for the next loaded layer. */
+  void setLineWidth(float width);
+  /** Changes the stipple pattern and factor for the next loaded layer. */
+  void setStipple(unsigned short pattern, unsigned int factor);
+
+private:
+  std::unique_ptr<osgEarth::Symbology::Style> style_;
 };
 
 }

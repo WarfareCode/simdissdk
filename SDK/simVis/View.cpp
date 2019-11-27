@@ -22,11 +22,14 @@
 #include <algorithm>
 #include <cassert>
 #include "osg/Depth"
+#include "osg/PointSprite"
 #include "osgGA/StateSetManipulator"
 #include "osgViewer/ViewerEventHandlers"
+#include "osgEarth/GLUtils"
 #include "osgEarth/MapNode"
 #include "osgEarth/TerrainEngineNode"
 #include "osgEarth/Version"
+#include "osgEarth/CullingUtils"
 #include "osgEarthUtil/Sky"
 
 #include "simCore/Calc/Angle.h"
@@ -39,6 +42,7 @@
 #include "simVis/Gate.h"
 #include "simVis/NavigationModes.h"
 #include "simVis/OverheadMode.h"
+#include "simVis/CustomRendering.h"
 #include "simVis/PlatformModel.h"
 #include "simVis/Popup.h"
 #include "simVis/Registry.h"
@@ -61,16 +65,17 @@ class BorderNode : public osg::Geode
 public:
   BorderNode() : osg::Geode(), props_(simVis::Color::White, 2)
   {
+    setName("Border Node");
     osg::ref_ptr<osg::Geometry> geom = new osg::Geometry();
+    geom->setName("simVis::BorderNode Goemetry");
     geom->setUseVertexBufferObjects(true);
     geom->setDataVariance(osg::Object::DYNAMIC);
 
     osg::ref_ptr<osg::Vec3Array> verts = new osg::Vec3Array(10);
     geom->setVertexArray(verts.get());
 
-    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array(1);
+    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array(osg::Array::BIND_OVERALL, 1);
     geom->setColorArray(colors.get());
-    geom->setColorBinding(osg::Geometry::BIND_OVERALL);
 
     geom->addPrimitiveSet(new osg::DrawArrays(GL_TRIANGLE_STRIP, 0, 10));
     this->addDrawable(geom.get());
@@ -133,7 +138,9 @@ struct SetNearFarCallback : public osg::NodeCallback
 
   SetNearFarCallback()
   {
-    // create a state set to turn off depth buffer when in overhead mode
+    // create a state set to turn off depth buffer when in overhead mode.
+    // note: this will override the depth settings in the TwoPassAlphaRenderBin, and
+    // that's OK because we don't care about TPA when the depth buffer is off.
     depthState_ = new osg::StateSet();
     depthState_->setAttributeAndModes(new osg::Depth(osg::Depth::LESS, 0.0, 1.0, false),
       osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
@@ -151,7 +158,7 @@ struct SetNearFarCallback : public osg::NodeCallback
     if (cv)
     {
       cv->popStateSet();
-      osg::Vec3d eye = osg::Vec3d(0, 0, 0)* cv->getCurrentCamera()->getInverseViewMatrix(); //cv->getCurrentCamera()->getViewMatrix().getTrans(); //osg::Vec3d(0,0,0)*(*cv->getModelViewMatrix());
+      osg::Vec3d eye = osg::Vec3d(0, 0, 0)* cv->getCurrentCamera()->getInverseViewMatrix();
       double eyeR = eye.length();
       const double earthR = simCore::EARTH_RADIUS;
       double eyeAlt = std::max(0.0, eyeR - earthR);
@@ -540,7 +547,9 @@ View::View()
    borderProps_(simVis::Color::White,  2),
    extents_(0, 0, 200, 100, false),
    lighting_(true),
-   fovyDeg_(DEFAULT_VFOV),
+   fovXEnabled_(false),
+   fovXDeg_(60.0),
+   fovYDeg_(DEFAULT_VFOV),
    viewType_(VIEW_TOPLEVEL),
    useOverheadClamping_(true),
    overheadNearFarCallback_(new SetNearFarCallback),
@@ -558,6 +567,7 @@ View::View()
 
   // attach an earth manipulator to it, and install the startup nav mode.
   simVis::EarthManipulator* manip = new simVis::EarthManipulator();
+  manip->setName("Earth Manipulator");
   // Initialize good default settings
   manip->getSettings()->setTerrainAvoidanceEnabled(false);
   manip->getSettings()->setArcViewpointTransitions(false);
@@ -572,7 +582,16 @@ View::View()
 
   // install a root group.
   osg::Group* root = new osg::Group();
+  root->setName("Scene Manager Root");
   osgViewer::View::setSceneData(root);
+
+#ifdef OSG_GL3_AVAILABLE
+  // For GL3, Point Sprite is always on.  But the mode validity flags need to be configured
+  // properly, and there is a bug in OSG 3.6.2 where mode validity flags are only initialized
+  // correctly if the StateAttribute is in the state tree of the SceneData on the first
+  // rendering pass for that view.  So we enable Point Sprite explicitly here at the top level.
+  root->getOrCreateStateSet()->setTextureAttributeAndModes(0, new osg::PointSprite);
+#endif
 
   // Ready the overhead mode. This just installs the uniforms; it does not
   // activate the actual overhead mode on the view.
@@ -580,25 +599,36 @@ View::View()
 
   // install a control canvas for UI elements
   controlCanvas_ = new osgEarth::Util::Controls::ControlCanvas();
+  controlCanvas_->setName("Control Canvas");
   root->addChild(controlCanvas_.get());
 
   // install a group for 'scene controls' like a platform pop up
   sceneControls_ = new osg::Group();
+  sceneControls_->setName("Scene Controls");
   root->addChild(sceneControls_.get());
 
   // initial camera configuration
   // disable 'small feature culling'
   osg::Camera* thisCamera = this->getCamera();
+  thisCamera->setName("Camera");
   thisCamera->setCullingMode(thisCamera->getCullingMode() & ~osg::CullSettings::SMALL_FEATURE_CULLING);
 
   // default our background to black
-  thisCamera->setClearColor(osg::Vec4(0,0,0,1));
+  thisCamera->setClearColor(simVis::Color::Black);
 
   // focus manager for insets, if present.
   focusMan_ = new FocusManager(this);
 
   // Apply the new viewport and new perspective matrix
-  getCamera()->setProjectionMatrixAsPerspective(fovY(), extents_.width_ / extents_.height_, 1.f, 10000.f);
+  thisCamera->setProjectionMatrixAsPerspective(fovY(), extents_.width_ / extents_.height_, 1.f, 10000.f);
+
+  // Install a viewport uniform on each camera, giving all shaders access
+  // to the window size. The osgEarth::LineDrawable construct uses this.
+  thisCamera->addCullCallback(new osgEarth::InstallViewportSizeUniform());
+
+  // set global defaults for various scene elements
+  osgEarth::GLUtils::setGlobalDefaults(thisCamera->getOrCreateStateSet());
+  osgEarth::GLUtils::setPointSmooth(thisCamera->getOrCreateStateSet(), osg::StateAttribute::ON);
 }
 
 View::~View()
@@ -653,6 +683,7 @@ bool View::setUpViewAsHUD(simVis::View* host)
 
     // if the user hasn't created a camera for this view, do so now.
     osg::Camera* camera = this->getCamera();
+    camera->setName("SuperHUD Camera");
 
     // render this view just before the canvas; that way it will
     // always render atop everything else.
@@ -701,11 +732,13 @@ bool View::setUpViewAsInset_(simVis::View* host)
     }
 
     // if the user hasn't created a camera for this view, do so now.
-    fovyDeg_ = host->fovY();
+    fovYDeg_ = host->fovY();
+    fovXDeg_ = host->fovX();
     osg::Camera* camera = this->getCamera();
     if (!camera)
     {
       camera = new osg::Camera();
+      camera->setName("Inset Camera");
       this->setCamera(camera);
     }
 
@@ -966,20 +999,21 @@ void View::refreshExtents()
 void View::processResize(int width, int height)
 {
   // each main view is responsible for resizing its insets in setExtents(), by iterating over and calling refreshExtents()
-  if (viewType_ != VIEW_INSET)
+  if (viewType_ == VIEW_INSET || !getCamera())
+    return;
+
+  // limit the resize processing to the main view that has same height/width as the event report
+  const osg::Viewport* vp = getCamera()->getViewport();
+  if (vp && width == vp->width() && height == vp->height())
   {
-    // limit the resize processing to the main view that has same height/width as the event report
-    if (this->getCamera())
-    {
-      const osg::Viewport* vp = this->getCamera()->getViewport();
-      if (vp && width == vp->width() && height == vp->height())
-      {
-        // this is the main view that the resize event was for
-        setExtents(Extents(this->extents_.x_, this->extents_.y_, width, height));
-      }
-    }
+    // this is the main view that the resize event was for.  Make sure the width and height are
+    // positive values, else the projection and view matrix gets broken.  This can happen in rare
+    // cases on Linux, NVIDIA driver, Qt 5.9 with osgQt, with external display on laptop where
+    // the external display is marked primary display.  Since this is such a specific use case,
+    // it's hard to know if there are other cases where the problem shows up, so we just always
+    // force the width and height to be valid.
+    setExtents(Extents(this->extents_.x_, this->extents_.y_, simCore::sdkMax(1, width), simCore::sdkMax(1, height)));
   }
-  //else TODO: resizing insets (via lasso-like mouse control on the inset) is not yet implemented
 }
 
 void View::setViewManager(simVis::ViewManager* viewman)
@@ -1077,6 +1111,7 @@ void View::setSceneManager(simVis::SceneManager* node)
     oldVP.getNode(oldTetherNode);
     oldManip->setTetherCallback(0L);
     simVis::EarthManipulator* newManip = new simVis::EarthManipulator();
+    newManip->setName("Earth Manipulator");
 
     // The following lines will change the manipulator, which resets the viewpoint.  In
     // some cases we want to save the old viewpoint, and restore it afterwards.
@@ -1115,25 +1150,47 @@ void View::setLighting(bool value)
   lighting_ = value;
 }
 
-double View::fovY() const
+bool View::getLighting() const
 {
-  return fovyDeg_;
+  return lighting_;
 }
 
-void View::setFovY(double fovyDeg)
+double View::fovX() const
+{
+  return fovXDeg_;
+}
+
+void View::setFovX(double fovXDeg)
 {
   // do a simple check on invalid values, since EarthManipulator doesn't protect against invalid values
-  if (fovyDeg <= 0.0 || fovyDeg >= 360.0)
+  if (fovXDeg <= 0.0 || fovXDeg >= 360.0)
+    return;
+
+  if (fovXDeg == fovXDeg_)
+    return;
+  fovXDeg_ = fovXDeg;
+  refreshExtents();
+}
+
+double View::fovY() const
+{
+  return fovYDeg_;
+}
+
+void View::setFovY(double fovYDeg)
+{
+  // do a simple check on invalid values, since EarthManipulator doesn't protect against invalid values
+  if (fovYDeg <= 0.0 || fovYDeg >= 360.0)
     return;
 
   // always update the earth manipulator first
   simVis::EarthManipulator* manip = dynamic_cast<simVis::EarthManipulator*>(getCameraManipulator());
   if (manip)
-    manip->setFovY(fovyDeg);
+    manip->setFovY(fovYDeg);
 
-  if (fovyDeg == fovyDeg_)
+  if (fovYDeg == fovYDeg_)
     return;
-  fovyDeg_ = fovyDeg;
+  fovYDeg_ = fovYDeg;
   refreshExtents();
 }
 
@@ -1214,13 +1271,13 @@ void View::setFocalOffsets(double heading_deg, double pitch_deg, double range, d
   if (manip)
   {
     Viewpoint vp;
-    vp.heading()->set(heading_deg, Units::DEGREES);
+    vp.heading()->set(heading_deg, osgEarth::Units::DEGREES);
     if (pitch_deg > MAX_ELEVATION_DEGREES)
       pitch_deg = MAX_ELEVATION_DEGREES;
     else if (pitch_deg < -MAX_ELEVATION_DEGREES)
       pitch_deg = -MAX_ELEVATION_DEGREES;
-    vp.pitch()->set(pitch_deg, Units::DEGREES);
-    vp.range()->set(range, Units::METERS);
+    vp.pitch()->set(pitch_deg, osgEarth::Units::DEGREES);
+    vp.range()->set(range, osgEarth::Units::METERS);
     manip->setViewpoint(vp, transition_s);
   }
 }
@@ -1230,13 +1287,13 @@ void View::lookAt(double lat_deg, double lon_deg, double alt_m, double heading_d
   simVis::Viewpoint vp;
   vp.name() = "lookat";
   vp.focalPoint() = osgEarth::GeoPoint(osgEarth::SpatialReference::create("wgs84"), lon_deg, lat_deg, alt_m);
-  vp.heading()->set(heading_deg, Units::DEGREES);
+  vp.heading()->set(heading_deg, osgEarth::Units::DEGREES);
   if (pitch_deg > MAX_ELEVATION_DEGREES)
     pitch_deg = MAX_ELEVATION_DEGREES;
   else if (pitch_deg < -MAX_ELEVATION_DEGREES)
     pitch_deg = -MAX_ELEVATION_DEGREES;
-  vp.pitch()->set(pitch_deg, Units::DEGREES);
-  vp.range()->set(range, Units::METERS);
+  vp.pitch()->set(pitch_deg, osgEarth::Units::DEGREES);
+  vp.range()->set(range, osgEarth::Units::METERS);
   // Clear the viewpoint's position offsets for look-at's
   vp.positionOffset() = osg::Vec3();
   setViewpoint(vp, transition_s);
@@ -1260,6 +1317,7 @@ bool View::addSceneControl(osgEarth::Util::Controls::Control* control, const osg
     return false;
 
   osg::ref_ptr<osg::MatrixTransform> xform = new osg::MatrixTransform();
+  xform->setName("Scene Control Position");
   xform->addChild(new osgEarth::Util::Controls::ControlNode(control, priority));
 
   osg::Matrixd placer;
@@ -1405,7 +1463,7 @@ void View::enableOverheadMode(bool enableOverhead)
   // which may not be initialized properly if overhead mode is set too soon
   simVis::EarthManipulator* manip = dynamic_cast<simVis::EarthManipulator*>(getCameraManipulator());
   if (manip)
-    manip->setFovY(fovyDeg_);
+    manip->setFovY(fovYDeg_);
 
   // if this is the first time enabling overhead mode, install the node camera-update
   // node visitor in the earth manipulator to facilitate tethering. This NodeVisitor
@@ -1429,8 +1487,8 @@ void View::enableOverheadMode(bool enableOverhead)
     }
     // always have north up in overhead mode
     simVis::Viewpoint vp = getViewpoint();
-    vp.heading()->set(0.0, Units::DEGREES);
-    vp.pitch()->set(-90.0, Units::DEGREES);
+    vp.heading()->set(0.0, osgEarth::Units::DEGREES);
+    vp.pitch()->set(-90.0, osgEarth::Units::DEGREES);
     this->setViewpoint(vp);
 
     // Set an orthographic camera. We don't call enableOrthographic() here
@@ -1442,7 +1500,8 @@ void View::enableOverheadMode(bool enableOverhead)
       // Only go into orthographic past 1.6 -- before then, the LDB would cause significant issues with platform and GOG display
       getCamera()->setProjectionMatrixAsOrtho(-1.0, 1.0, -1.0, 1.0, -5e6, 5e6);
       getCamera()->setComputeNearFarMode(osg::CullSettings::DO_NOT_COMPUTE_NEAR_FAR);
-      getCamera()->setCullCallback(overheadNearFarCallback_);
+      if (overheadNearFarCallback_->referenceCount() == 1)
+        getCamera()->addCullCallback(overheadNearFarCallback_);
 #endif
     }
 
@@ -1457,7 +1516,21 @@ void View::enableOverheadMode(bool enableOverhead)
     {
       const osg::Viewport* vp = getCamera()->getViewport();
       const double aspectRatio = vp ? vp->aspectRatio() : 1.5;
-      getCamera()->setProjectionMatrixAsPerspective(fovY(), aspectRatio, 1.0, 100.0);
+
+      if (!fovXEnabled_)
+      {
+        getCamera()->setProjectionMatrixAsPerspective(fovY(), aspectRatio, 1.0, 100.0);
+      }
+      else
+      {
+        double left = 0.0;
+        double right = 0.0;
+        double bottom = 0.0;
+        double top = 0.0;
+        getFrustumBounds_(left, right, bottom, top, 1.0);
+        getCamera()->setProjectionMatrix(osg::Matrixd::frustum(left, right, bottom, top, 1.0, 100.0));
+      }
+
       getCamera()->setComputeNearFarMode(osg::CullSettings::COMPUTE_NEAR_FAR_USING_BOUNDING_VOLUMES);
       getCamera()->removeCullCallback(overheadNearFarCallback_);
     }
@@ -1812,6 +1885,7 @@ osg::Camera* View::createHUD_() const
 {
   const osg::Viewport* vp = this->getCamera()->getViewport();
   osg::Camera* hud = new osg::Camera();
+  hud->setName("HUD Camera");
   // Be sure to render after the controls widgets.
   // "10" is arbitrary, so there's room between the two (default Control Canvas value is 25000)
   hud->setRenderOrder(osg::Camera::POST_RENDER, controlCanvas_->getRenderOrderNum() + 10);
@@ -1822,9 +1896,13 @@ osg::Camera* View::createHUD_() const
   hud->setClearMask(GL_DEPTH_BUFFER_BIT);
   hud->setAllowEventFocus(true);
   hud->getOrCreateStateSet()->setRenderBinDetails(0, BIN_TRAVERSAL_ORDER_SIMSDK);
-  // Set up a program so that text is not blocky
+#if OSG_VERSION_LESS_OR_EQUAL(3,4,1)
+  // Set up a program so that text is not blocky for older OSG that didn't bake in programs
   hud->getOrCreateStateSet()->setAttributeAndModes(new osg::Program(), 0);
+#endif
   hud->getOrCreateStateSet()->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
+  hud->getOrCreateStateSet()->setMode(GL_BLEND, osg::StateAttribute::ON);
+  hud->getOrCreateStateSet()->setAttributeAndModes(new osg::Depth(osg::Depth::ALWAYS, 0, 1, false));
   return hud;
 }
 
@@ -1863,8 +1941,14 @@ void simVis::View::fixProjectionForNewViewport_(double nx, double ny, double nw,
 {
   // Avoid divide-by-0
   osg::Camera* camera = getCamera();
-  if (nh == 0.0 || nw == 0.0 || camera == NULL)
+  if (camera == NULL)
     return;
+  // nw and nh should not be 0.  If they are, someone upstream is giving incorrect values.
+  // Fix those cases regardless here.
+  if (nh == 0.0)
+    nh = 1.0;
+  if (nw == 0.0)
+    nw = 1.0;
 
   // Apply the new viewport:
   osg::ref_ptr<osg::Viewport> newViewport = new osg::Viewport(nx, ny, nw, nh);
@@ -1875,19 +1959,31 @@ void simVis::View::fixProjectionForNewViewport_(double nx, double ny, double nw,
 
   if (osg::equivalent(proj(3,3), 0.0)) // perspective
   {
-    double oldFovy = DEFAULT_VFOV;
+    double oldFovY = DEFAULT_VFOV;
     double oldAspectRatio = 1;
     double oldNear = DEFAULT_NEAR;
     double oldFar = DEFAULT_FAR;
 
     // Pull out the old values from the projection matrix
-    proj.getPerspective(oldFovy, oldAspectRatio, oldNear, oldFar);
-    camera->setProjectionMatrixAsPerspective(fovY(), newViewport->aspectRatio(), oldNear, oldFar);
+    proj.getPerspective(oldFovY, oldAspectRatio, oldNear, oldFar);
+    if (!fovXEnabled_)
+    {
+      camera->setProjectionMatrixAsPerspective(fovY(), newViewport->aspectRatio(), oldNear, oldFar);
+    }
+    else
+    {
+      double left = 0.0;
+      double right = 0.0;
+      double bottom = 0.0;
+      double top = 0.0;
+      getFrustumBounds_(left, right, bottom, top, oldNear);
+      camera->setProjectionMatrix(osg::Matrixd::frustum(left, right, bottom, top, oldNear, oldFar));
+    }
   }
   else
   {
-      // In orthographic, do nothing since the EarthManipulator will automatically
-      // be tracking the last perspective FovY.
+    // In orthographic, do nothing since the EarthManipulator will automatically
+    // be tracking the last perspective FovY.
   }
 }
 
@@ -1913,6 +2009,12 @@ osg::Node* View::getModelNodeForTether(osg::Node* node) const
     if (!proxyNode)
       proxyNode = entityNode->findAttachment<GateCentroid>();
 
+    if ((!proxyNode) && (entityNode->type() == simData::CUSTOM_RENDERING))
+    {
+      auto customNode = static_cast<CustomRenderingNode*>(entityNode);
+      proxyNode = customNode->locatorNode();
+    }
+
     if (proxyNode)
       node = proxyNode;
   }
@@ -1929,7 +2031,6 @@ simVis::EntityNode* View::getEntityNode(osg::Node* node) const
   // Maybe it's really a Platform Model or Centroid node, which is the child of an EntityNode
   if (node)
   {
-    //TESTING: When watching from a centroid, the parent is a simVis::CentroidManager, not an EntityNode
     simVis::EntityNode* entityNode = dynamic_cast<simVis::EntityNode*>(node->getParent(0));
     // If assert triggers, there's some weird unexpected hierarchy; investigate and resolve weirdness
     assert(entityNode != NULL);
@@ -1967,6 +2068,35 @@ void View::setUseOverheadClamping(bool clamp)
     return;
   useOverheadClamping_ = clamp;
   OverheadMode::setEnabled(isOverheadEnabled() && useOverheadClamping(), this);
+}
+
+void View::setFovXEnabled(bool fovXEnabled)
+{
+  if (fovXEnabled_ == fovXEnabled)
+    return;
+  fovXEnabled_ = fovXEnabled;
+  refreshExtents();
+}
+
+bool View::isFovXEnabled() const
+{
+  return fovXEnabled_;
+}
+
+void View::getFrustumBounds_(double& left, double& right, double& bottom, double& top, double zNear) const
+{
+  double tanFovX = tan(simCore::DEG2RAD * fovX() * 0.5);
+  double tanFovY = tan(simCore::DEG2RAD * fovY() * 0.5);
+
+  right = tanFovX * zNear;
+  left = -right;
+  top = tanFovY * zNear;
+  bottom = -top;
+}
+
+osgEarth::Util::Controls::ControlCanvas* View::controlCanvas() const
+{
+  return controlCanvas_.get();
 }
 
 }

@@ -31,7 +31,10 @@
 #include "simUtil/ExampleControls.h"
 #include "simUtil/ExampleResources.h"
 #include "simUtil/GogManager.h"
+#include "simUtil/GridTransform.h"
 #include "simUtil/HudManager.h"
+#include "simUtil/HudPositionEditor.h"
+#include "simUtil/HudPositionManager.h"
 #include "simUtil/IdMapper.h"
 #include "simUtil/LayerFactory.h"
 #include "simUtil/LineGraphic.h"
@@ -53,6 +56,7 @@
 #include "simUtil/StatusText.h"
 #include "simUtil/TerrainToggleEffect.h"
 #include "simUtil/TritonSettings.h"
+#include "simUtil/UnitTypeConverter.h"
 #include "simUtil/ViewpointMonitor.h"
 #include "simUtil/ViewpointPositions.h"
 

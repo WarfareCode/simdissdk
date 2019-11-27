@@ -19,23 +19,29 @@
  * disclose, or release this software.
  *
  */
-#include "osg/Math"
-#include "osg/CullFace"
-#include "osg/BlendFunc"
-#include "osg/NodeVisitor"
-#include "osg/MatrixTransform"
-#include "osg/PositionAttitudeTransform"
 #include "osg/Billboard"
+#include "osg/BlendFunc"
+#include "osg/Depth"
 #include "osg/Geode"
 #include "osg/Geometry"
-#include "osgDB/FileUtils"
+#include "osg/Math"
+#include "osg/MatrixTransform"
+#include "osg/NodeVisitor"
+#include "osg/PositionAttitudeTransform"
+#include "osg/Version"
 #include "osgDB/FileNameUtils"
 #include "osgDB/Registry"
+#include "osgSim/DOFTransform"
+#include "osgUtil/RenderBin"
+#include "osgUtil/TriStripVisitor"
 #include "osgViewer/ViewerEventHandlers"
 
 #include "osgEarth/Capabilities"
+#include "osgEarth/CullingUtils"
 #include "osgEarth/MapNode"
 #include "osgEarth/Terrain"
+#include "osgEarth/Utils"
+#include "osgEarth/VirtualProgram"
 #include "simVis/osgEarthVersion.h"
 
 #if SDK_OSGEARTH_MIN_VERSION_REQUIRED(1,6,0)
@@ -48,12 +54,16 @@
 #include "simCore/Calc/Math.h"
 #endif
 
-#include "simCore/String/Format.h"
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/CoordinateConverter.h"
+#include "simCore/String/Format.h"
 #include "simNotify/Notify.h"
-#include "simVis/Registry.h"
+#include "simVis/AlphaTest.h"
+#include "simVis/Constants.h"
+#include "simVis/DisableDepthOnAlpha.h"
+#include "simVis/LineDrawable.h"
 #include "simVis/PlatformModel.h"
+#include "simVis/Registry.h"
 #include "simVis/Utils.h"
 
 namespace
@@ -135,6 +145,143 @@ namespace
 
   // Unscaled line length in meters for Platform line Vectors
   const int BASE_LINE_LENGTH = 50;
+
+  /**
+   * Custom render bin that implements a two-pass technique for rendering multiple
+   * semi-transparent objects. It draws the entire bin twice: the first time with
+   * depth-buffer writes turned off to enable full translucent blending; the second
+   * time to populate the depth buffer.
+   *
+   * Since the bin needs to manage its own state, we have to manually draw the
+   * render leaves and skip OSG's default state-tracking RenderBin code.
+   *
+   * Testing in OSG reveals that the StateSet associated with the render bin is inserted
+   * into the render graph very "early," before even the camera's state set.  That means
+   * any PROTECTED value later in the scene will override the behavior of the TPA.  This
+   * matters for a TPA item because although a leaf node may have TPA set as the render
+   * bin, a PROTECTED depth setting between the camera and the leaf node could override
+   * the TPA behavior, disrupting the graphics.
+   *
+   * If you are reading this comment because you're debugging TPA not working, set a
+   * breakpoint in the first call to State::apply() after the call here to
+   * osgUtil::RenderBin::drawImplementation(), and inspect the _stateStateStack carefully.
+   * You should see TPA setting Depth early in the stack; ensure nothing else overrides
+   * that depth later with a PROTECTED attribute.
+   */
+  class TwoPassAlphaRenderBin : public osgUtil::RenderBin
+  {
+  public:
+    TwoPassAlphaRenderBin()
+      : osgUtil::RenderBin(SORT_BACK_TO_FRONT),
+        haveInit_(false)
+    {
+      setName(simVis::BIN_TWO_PASS_ALPHA);
+      setStateSet(NULL);
+
+      // Note! We do not protect the depth settings here, because this then allows us to
+      // disable the depth buffer at a higher level (e.g. when enabling Overhead mode).
+      const osg::StateAttribute::GLModeValue overrideOn = osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE;
+      const osg::StateAttribute::GLModeValue overrideProtectedOn = overrideOn | osg::StateAttribute::PROTECTED;
+
+      pass1_ = new osg::StateSet();
+      pass1_->setAttributeAndModes(new osg::Depth(osg::Depth::LEQUAL, 0, 1, false), overrideOn);
+      pass1_->setAttributeAndModes(new osg::BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA), overrideProtectedOn);
+
+      pass2_ = new osg::StateSet();
+      pass2_->setAttributeAndModes(new osg::Depth(osg::Depth::LEQUAL, 0, 1, true), overrideOn);
+      pass2_->setAttributeAndModes(new osg::ColorMask(false, false, false, false), overrideProtectedOn);
+    }
+
+    TwoPassAlphaRenderBin(const TwoPassAlphaRenderBin& rhs, const osg::CopyOp& copy)
+      : osgUtil::RenderBin(rhs, copy),
+        pass1_(rhs.pass1_),
+        pass2_(rhs.pass2_),
+        haveInit_(rhs.haveInit_)
+    {
+      //nop
+    }
+
+    virtual osg::Object* clone(const osg::CopyOp& copyop) const
+    {
+      return new TwoPassAlphaRenderBin(*this, copyop);
+    }
+
+    // Draw the same geometry twice, once for each pass.
+    // We ignore the incoming "previous" leaf since we are handling state changes
+    // manually in this bin.
+    void drawImplementation(osg::RenderInfo& ri, osgUtil::RenderLeaf*& previous)
+    {
+      // Initialize the alpha test, which cannot be done in the constructor due to static
+      // initialization conflicts with its use of osgEarth::Registry::capabilities()
+      if (!haveInit_)
+      {
+        haveInit_ = true;
+        simVis::AlphaTest::setValues(pass2_.get(), 0.05f, osg::StateAttribute::ON |
+          osg::StateAttribute::PROTECTED | osg::StateAttribute::OVERRIDE);
+      }
+
+      // Create a copy of the state set stack so we can fix the internal stack after first drawImplementation()
+      osgUtil::RenderLeaf* oldPrevious = previous;
+
+      // Render once with the first state set.  Note that the state set is inserted into the
+      // state set stack relatively early -- probably earlier than you expect -- and therefore
+      // later PROTECTED elements can override the TPA state.
+      const osg::State::StateSetStack previousStateStack = ri.getState()->getStateSetStack();
+      setStateSet(pass1_.get());
+      osgUtil::RenderBin::drawImplementation(ri, previous);
+
+      // Get back to where we were at the start of this method, backing out state changes
+      migrateState_(*ri.getState(), previousStateStack);
+      previous = oldPrevious;
+
+      // Now do the second pass with the original values but with second set of state values
+      setStateSet(pass2_.get());
+      osgUtil::RenderBin::drawImplementation(ri, previous);
+    }
+
+  private:
+    /**
+     * Given a current state, migrates its state stack backwards and forwards to get to the state
+     * provided.  This algorithm does the following:
+     *   - Pop the current state until it's the same size or smaller
+     *   - Find the first item in state that doesn't match the to-state-stack
+     *   - Pop off items from current state until it's down to the common ancestor
+     *   - Push on all remaining items from the to-state-stack
+     */
+    void migrateState_(osg::State& state, const osg::State::StateSetStack& toStateStack) const
+    {
+      // Pop off states from the current, until it matches incoming size
+      state.popStateSetStackToSize(toStateStack.size());
+      // State's size is now less or equal to the size requested.  If less or equal, we're OK
+      assert(state.getStateSetStackSize() <= toStateStack.size());
+
+      // Figure out the first mismatching state
+      unsigned int mismatchIndex = 0;
+      for (mismatchIndex = 0; mismatchIndex < state.getStateSetStackSize(); ++mismatchIndex)
+      {
+        if (state.getStateSetStack()[mismatchIndex] != toStateStack[mismatchIndex])
+          break;
+      }
+      // Pop off anything at or past the mismatch
+      state.popStateSetStackToSize(mismatchIndex);
+      // Assert failure means that the popStateSetStackToSize() isn't doing what is advertised
+      assert(state.getStateSetStackSize() == mismatchIndex);
+
+      // Push on the states from the original until we're matching again
+      for (; mismatchIndex < toStateStack.size(); ++mismatchIndex)
+        state.pushStateSet(toStateStack[mismatchIndex]);
+      // Assert failure means that the pushStateSet() isn't doing what is advertised
+      assert(state.getStateSetStackSize() == toStateStack.size());
+    }
+
+    osg::ref_ptr<osg::StateSet> pass1_;
+    osg::ref_ptr<osg::StateSet> pass2_;
+    bool haveInit_;
+  };
+
+  /** the actual registration. */
+  extern "C" void osgEarth_BIN_TWO_PASS_ALPHA(void) {}
+  static osgEarth::osgEarthRegisterRenderBinProxy<TwoPassAlphaRenderBin> s_regbin(simVis::BIN_TWO_PASS_ALPHA);
 }
 
 namespace simVis
@@ -142,27 +289,8 @@ namespace simVis
 
 bool useRexEngine()
 {
-  osgEarth::Registry* reg = osgEarth::Registry::instance();
-
-  // first use the default name
-  std::string engineName = reg->getDefaultTerrainEngineDriverName();
-#if SDK_OSGEARTH_MIN_VERSION_REQUIRED(1,6,0)
-  // See if the override is set, which takes precedence. This will be the same as default name
-  // if terrain engine was set by environment variable OSGEARTH_TERRAIN_ENGINE
-  if (reg->overrideTerrainEngineDriverName().isSet())
-    engineName = reg->overrideTerrainEngineDriverName().value();
-#endif
-
-  // If we cannot support REX due to GLSL version, then fall back to MP automatically
-  if (reg->capabilities().getGLSLVersionInt() < 330)
-  {
-#if SDK_OSGEARTH_MIN_VERSION_REQUIRED(1,6,0)
-    reg->overrideTerrainEngineDriverName() = "mp";
-#endif
-    return false;
-  }
-
-  return simCore::caseCompare(engineName, "rex") == 0;
+  // The MP engine is no longer supported.  Always use rex.
+  return true;
 }
 
 bool getLighting(osg::StateSet* stateset, osg::StateAttribute::OverrideValue& out_value)
@@ -217,6 +345,35 @@ void setLightingToInherit(osg::StateSet* stateset)
     stateset->removeUniform(temp->getName());
 #endif
   }
+}
+
+void fixTextureForGlCoreProfile(osg::Texture* texture)
+{
+  if (!texture)
+    return;
+
+  // No change is required if we're not supporting core profile
+#ifndef OSG_GL_FIXED_FUNCTION_AVAILABLE
+  for (unsigned int k = 0; k < texture->getNumImages(); ++k)
+  {
+    // Get a pointer to the image, continuing if none
+    osg::Image* image = texture->getImage(k);
+    if (!image)
+      continue;
+
+    // Detect the image's pixel format, changing it out for a GL3-compatible one, fixing swizzle
+    if (image->getPixelFormat() == GL_LUMINANCE || image->getPixelFormat() == GL_RED)
+    {
+      image->setPixelFormat(GL_RED);
+      texture->setSwizzle(osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_ONE));
+    }
+    else if (image->getPixelFormat() == GL_LUMINANCE_ALPHA || image->getPixelFormat() == GL_RG)
+    {
+      image->setPixelFormat(GL_RG);
+      texture->setSwizzle(osg::Vec4i(GL_RED, GL_RED, GL_RED, GL_GREEN));
+    }
+  }
+#endif
 }
 
 void convertNWUtoENU(osg::Node* node)
@@ -313,37 +470,17 @@ float outlineThickness(simData::TextOutline outline)
 
 float osgFontSize(float simFontSize)
 {
-  // At lower font sizes (11 or less), we want to make the font a bit
-  // crisper and more readable, so we force the return value to be the
-  // closest rounded number and add an offset to convert the value from
-  // simFontSize to osgFontSize.
-  if (simFontSize <= 6.0)
-  {
-    return simCore::rint(simFontSize) + 1.0;
-  }
-  else if (simFontSize <= 11.0)
-  {
-    return simCore::rint(simFontSize) + 2.0;
-  }
-
-  // Value of 1.33 was confirmed using fonts of varying sizes in example
-  // data files.
-  return simFontSize * 1.33;
+  // When comparing SIMDIS 9 text, considered the standard for text size for SIMDIS applications,
+  // the OSG font size was typically about 3/4 the size of a SIMDIS string for the same font and
+  // same size.  To to convert the SIMDIS font size to OSG, we multiply by the inversion, 1.333f.
+  return simFontSize * 1.333f;
 }
 
 float simdisFontSize(float osgFontSize)
 {
-  float roundedSize = simCore::rint(osgFontSize);
-  if (roundedSize <= 7.0)
-  {
-    return roundedSize - 1.0;
-  }
-  else if (roundedSize <= 13.0)
-  {
-    return roundedSize - 2.0;
-  }
-
-  return osgFontSize / 1.33;
+  // See the discussion above, explaining that OSG fonts are about 3/4 the size of a historic
+  // SIMDIS font size.
+  return osgFontSize * 0.75f;
 }
 
 osgText::Text::BackdropType backdropType(simData::BackdropType type)
@@ -744,88 +881,40 @@ float VectorScaling::lineLength(const PlatformModelNode* node, float axisScale)
   return adjustedLength * axisScale;
 }
 
-void VectorScaling::generatePoints(osg::Vec3Array& vertices, const osg::Vec3& start, const osg::Vec3& end, int numPointsPerLine)
+void VectorScaling::generatePoints(osg::Vec3Array& vertices, const osg::Vec3& start, const osg::Vec3& end)
 {
+  const unsigned int numPointsPerLine = vertices.getNumElements();
   // Avoid divide-by-zero problems
   if (numPointsPerLine < 2)
     return;
 
   const osg::Vec3 delta = (end - start);
-  for (int k = 0; k < numPointsPerLine; ++k)
+  for (unsigned int k = 0; k < numPointsPerLine - 1; ++k)
   {
-    // Translate [0,numPointsPerLine) into [0,1]
+    // Translate [0,numPointsPerLine-1) into [0,1)
     const float pct = static_cast<float>(k) / (numPointsPerLine - 1);
-    vertices.push_back(start + delta * pct);
+    vertices[k] = (start + delta * pct);
   }
+  vertices[numPointsPerLine - 1] = end;
 }
 
-
-#if 0
-osg::Geometry* createEllipsoid(double major, double minor, int segments, const osg::Vec4& color)
+void VectorScaling::generatePoints(osgEarth::LineDrawable& line, const osg::Vec3& start, const osg::Vec3& end)
 {
-  osg::EllipsoidModel em(major, minor);
+  const unsigned int numPointsPerLine = line.getNumVerts();
+  // Avoid divide-by-zero problems
+  if (numPointsPerLine < 2)
+    return;
 
-  osg::Geometry* geom = new osg::Geometry();
-  geom->setUseVertexBufferObjects(true);
-
-  int latSegments = osg::clampBetween(segments, 10, 100);
-  int lonSegments = 2 * latSegments;
-
-  double segmentSize = 180.0/(double)latSegments; // degrees
-
-  osg::Vec3Array* verts = new osg::Vec3Array();
-  verts->reserve(latSegments * lonSegments);
-
-  osg::Vec3Array* normals = 0;
-  normals = new osg::Vec3Array();
-  normals->reserve(latSegments * lonSegments);
-  geom->setNormalArray(normals);
-  geom->setNormalBinding(osg::Geometry::BIND_PER_VERTEX);
-
-  osg::Vec4Array* colors = new osg::Vec4Array();
-  colors->push_back(color);
-  geom->setColorArray(colors);
-  geom->setColorBinding(osg::Geometry::BIND_OVERALL);
-
-  osg::DrawElementsUShort* el = new osg::DrawElementsUShort(GL_TRIANGLES);
-  el->reserve(latSegments * lonSegments * 6);
-
-  for (int y = 0; y <= latSegments; ++y)
+  const osg::Vec3 delta = (end - start);
+  for (unsigned int k = 0; k < numPointsPerLine - 1; ++k)
   {
-    double lat = -90.0 + segmentSize * (double)y;
-    for (int x = 0; x < lonSegments; ++x)
-    {
-      double lon = -180.0 + segmentSize * (double)x;
-      double gx, gy, gz;
-      em.convertLatLongHeightToXYZ(osg::DegreesToRadians(lat), osg::DegreesToRadians(lon), 0.0, gx, gy, gz);
-      verts->push_back(osg::Vec3(gx, gy, gz));
-
-      osg::Vec3 normal(gx, gy, gz);
-      normal.normalize();
-      normals->push_back(normal);
-
-      if (y < latSegments)
-      {
-        int x_plus_1 = x < lonSegments-1 ? x+1 : 0;
-        int y_plus_1 = y+1;
-        el->push_back(y*lonSegments + x);
-        el->push_back(y*lonSegments + x_plus_1);
-        el->push_back(y_plus_1*lonSegments + x);
-        el->push_back(y*lonSegments + x_plus_1);
-        el->push_back(y_plus_1*lonSegments + x_plus_1);
-        el->push_back(y_plus_1*lonSegments + x);
-      }
-    }
+    // Translate [0,numPointsPerLine-1) into [0,1)
+    const float pct = static_cast<float>(k) / (numPointsPerLine - 1);
+    line.setVertex(k, start + delta * pct);
   }
-
-  geom->setVertexArray(verts);
-  geom->addPrimitiveSet(el);
-
-  //        OSG_ALWAYS << "s_makeEllipsoidGeometry Bounds: " << geom->computeBound().radius() << " outerRadius: " << outerRadius << std::endl;
-
-  return geom;
+  line.setVertex(numPointsPerLine - 1, end);
 }
-#endif
+
 
 //--------------------------------------------------------------------------
 
@@ -1060,6 +1149,166 @@ ScopedStatsTimer::ScopedStatsTimer(osgViewer::View* mainView, const std::string&
   : statsTimer_(mainView, key, StatsTimer::RECORD_PER_STOP)
 {
   statsTimer_.start();
+}
+
+//--------------------------------------------------------------------------
+
+RemoveModeVisitor::RemoveModeVisitor(GLenum mode)
+  : NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN),
+    mode_(mode)
+{
+}
+
+void RemoveModeVisitor::apply(osg::Node& node)
+{
+  osg::StateSet* stateSet = node.getStateSet();
+  if (stateSet)
+    stateSet->removeMode(mode_);
+  osg::NodeVisitor::apply(node);
+}
+
+//--------------------------------------------------------------------------
+
+FixDeprecatedDrawModes::FixDeprecatedDrawModes()
+  : NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN)
+{
+}
+
+void FixDeprecatedDrawModes::apply(osg::Geometry& geom)
+{
+  // Loop through all of the primitive sets on the geometry
+  const unsigned int numPrimSets = geom.getNumPrimitiveSets();
+  for (unsigned int k = 0; k < numPrimSets; ++k)
+  {
+    // Only care about non-NULL primitive sets
+    const osg::PrimitiveSet* primSet = geom.getPrimitiveSet(k);
+    if (primSet == NULL)
+      continue;
+
+    // Search for modes that are deprecated in GL3
+    if (primSet->getMode() == GL_POLYGON || primSet->getMode() == GL_QUADS || primSet->getMode() == GL_QUAD_STRIP)
+    {
+      // Turn deprecated geometry into tri-strips; affects whole geometry
+      osgUtil::TriStripVisitor triStrip;
+      triStrip.stripify(geom);
+      break;
+    }
+  }
+
+  // Call into base class method
+  osg::NodeVisitor::apply(geom);
+}
+
+//--------------------------------------------------------------------------
+
+// Flags pulled from DOFTransform.cpp and map to osgSim::DOFTransform::getLimitationFlags()
+static const unsigned int ROTATION_PITCH_LIMIT_BIT = 0x80000000u >> 3;
+static const unsigned int ROTATION_ROLL_LIMIT_BIT = 0x80000000u >> 4;
+static const unsigned int ROTATION_YAW_LIMIT_BIT = 0x80000000u >> 5;
+static const unsigned int ROTATION_LIMIT_MASK = ROTATION_PITCH_LIMIT_BIT | ROTATION_ROLL_LIMIT_BIT | ROTATION_YAW_LIMIT_BIT;
+
+/**
+ * osgSim::DOFTransform blindly adds values to deal with DOF Transform animation, scaled on
+ * the delta time.  That's fine for most cases, but when limits are disabled and we're still
+ * incrementing, you can get large values in the current HPR.  That means "infinite" rotation
+ * breaks.  This callback ensures that all rotations are within [0, 2PI] in those cases.
+ *
+ * This scaling only applies to angle values for HPR, and does not cover infinitely scaling
+ * translate or scale values.
+ */
+class ConstrainHprValues : public osg::Callback
+{
+public:
+  virtual bool run(osg::Object* object, osg::Object* data)
+  {
+    // Only work on animated DOFs
+    osgSim::DOFTransform* dofXform = dynamic_cast<osgSim::DOFTransform*>(object);
+    if (dofXform && dofXform->getAnimationOn())
+    {
+      const osg::Vec3& increment = dofXform->getIncrementHPR();
+      const unsigned long flags = dofXform->getLimitationFlags();
+      if ((flags & ROTATION_LIMIT_MASK) != ROTATION_LIMIT_MASK)
+      {
+        // Constrain from [0,2PI] only in cases where limiting is disabled and we're incrementing the value.
+        osg::Vec3f hpr = dofXform->getCurrentHPR();
+        if ((flags & ROTATION_YAW_LIMIT_BIT) == 0 && increment.x() != 0)
+          hpr.x() = simCore::angFix(hpr.x(), simCore::ANGLEEXTENTS_TWOPI);
+        if ((flags & ROTATION_PITCH_LIMIT_BIT) == 0 && increment.y() != 0)
+          hpr.y() = simCore::angFix(hpr.y(), simCore::ANGLEEXTENTS_TWOPI);
+        if ((flags & ROTATION_ROLL_LIMIT_BIT) == 0 && increment.z() != 0)
+          hpr.z() = simCore::angFix(hpr.z(), simCore::ANGLEEXTENTS_TWOPI);
+        dofXform->setCurrentHPR(hpr);
+      }
+    }
+
+    // Continue on
+    return traverse(object, data);
+  }
+};
+
+EnableDOFTransform::EnableDOFTransform(bool enabled)
+  : osg::NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN),
+    enabled_(enabled)
+{
+}
+
+void EnableDOFTransform::apply(osg::Node& node)
+{
+  osgSim::DOFTransform* dofXform = dynamic_cast<osgSim::DOFTransform*>(&node);
+  if (dofXform)
+  {
+    dofXform->setAnimationOn(enabled_);
+
+    // We want to add a callback to fix a bug in osgSim::DOFTransform, where infinitely
+    // increasing HPR values cause precision problems with high scenario delta time values.
+    // Without this, infinite rotations will skip and stutter, and not work in real-time playback.
+    const osg::Vec3& incr = dofXform->getIncrementHPR();
+    // Add a new callback to constrain HPR values using fmod, if needed
+    if (enabled_ && (incr.x() != 0.f || incr.y() != 0.f || incr.z() != 0.f))
+    {
+      if (!findUpdateCallbackOfType<ConstrainHprValues>(dofXform))
+        dofXform->addUpdateCallback(new ConstrainHprValues);
+    }
+  }
+  traverse(node);
+}
+
+//--------------------------------------------------------------------------
+
+PixelScaleHudTransform::PixelScaleHudTransform()
+{
+}
+
+PixelScaleHudTransform::PixelScaleHudTransform(const PixelScaleHudTransform& rhs, const osg::CopyOp& copyop)
+  : Transform(rhs, copyop),
+    invertedMvpw_(rhs.invertedMvpw_)
+{
+}
+
+bool PixelScaleHudTransform::computeLocalToWorldMatrix(osg::Matrix& matrix, osg::NodeVisitor* nv) const
+{
+  if (_referenceFrame == RELATIVE_RF)
+    matrix.preMult(computeMatrix_(nv));
+  else // absolute
+    matrix = computeMatrix_(nv);
+  return true;
+}
+
+bool PixelScaleHudTransform::computeWorldToLocalMatrix(osg::Matrix& matrix, osg::NodeVisitor* nv) const
+{
+  if (_referenceFrame == RELATIVE_RF)
+    matrix.postMult(osg::Matrix::inverse(computeMatrix_(nv)));
+  else // absolute
+    matrix = osg::Matrix::inverse(computeMatrix_(nv));
+  return true;
+}
+
+osg::Matrixd PixelScaleHudTransform::computeMatrix_(osg::NodeVisitor* nv) const
+{
+  osg::CullStack* cs = nv ? nv->asCullStack() : NULL;
+  if (cs)
+    invertedMvpw_ = osg::Matrix::inverse(*cs->getMVPW());
+  return invertedMvpw_;
 }
 
 }

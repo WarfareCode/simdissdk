@@ -19,6 +19,7 @@
  * disclose, or release this software.
  *
  */
+#include <limits>
 #include "simVis/RadialLOS.h"
 #include "simVis/Utils.h"
 #include "simCore/Calc/Calculations.h"
@@ -31,8 +32,7 @@
 
 #define LC "[LOS] "
 
-using namespace simVis;
-
+namespace simVis {
 //----------------------------------------------------------------------------
 
 RadialLOS::Sample::Sample(double range_m, const osgEarth::GeoPoint& point)
@@ -68,14 +68,16 @@ RadialLOS::Sample::Sample(const Sample& rhs)
 }
 
 //----------------------------------------------------------------------------
+//#define LOS_TIME_PROFILING
 
 RadialLOS::RadialLOS()
   : dirty_(true),
-    range_max_(Distance(10.0, Units::KILOMETERS)),
-    range_resolution_(Distance(1.0, Units::KILOMETERS)),
-    azim_center_(Angle(0.0, Units::DEGREES)),
-    fov_(Angle(360.0, Units::DEGREES)),
-    azim_resolution_(Angle(15.0, Units::DEGREES))
+    range_max_(osgEarth::Distance(10.0, osgEarth::Units::KILOMETERS)),
+    range_resolution_(osgEarth::Distance(1.0, osgEarth::Units::KILOMETERS)),
+    azim_center_(osgEarth::Angle(0.0, osgEarth::Units::DEGREES)),
+    fov_(osgEarth::Angle(360.0, osgEarth::Units::DEGREES)),
+    azim_resolution_(osgEarth::Angle(15.0, osgEarth::Units::DEGREES)),
+    use_scene_graph_(false)
 {
   //nop
 }
@@ -88,12 +90,13 @@ RadialLOS::RadialLOS(const RadialLOS& rhs)
     range_resolution_(rhs.range_resolution_),
     azim_center_(rhs.azim_center_),
     fov_(rhs.fov_),
-    azim_resolution_(rhs.azim_resolution_)
+    azim_resolution_(rhs.azim_resolution_),
+    use_scene_graph_(rhs.use_scene_graph_)
 {
   //nop
 }
 
-void RadialLOS::setMaxRange(const Distance& value)
+void RadialLOS::setMaxRange(const osgEarth::Distance& value)
 {
   if (range_max_ != value)
   {
@@ -102,7 +105,7 @@ void RadialLOS::setMaxRange(const Distance& value)
   }
 }
 
-void RadialLOS::setCentralAzimuth(const Angle& value)
+void RadialLOS::setCentralAzimuth(const osgEarth::Angle& value)
 {
   if (azim_center_ != value)
   {
@@ -111,7 +114,7 @@ void RadialLOS::setCentralAzimuth(const Angle& value)
   }
 }
 
-void RadialLOS::setFieldOfView(const Angle& value)
+void RadialLOS::setFieldOfView(const osgEarth::Angle& value)
 {
   if (fov_ != value)
   {
@@ -120,7 +123,7 @@ void RadialLOS::setFieldOfView(const Angle& value)
   }
 }
 
-void RadialLOS::setRangeResolution(const Distance& value)
+void RadialLOS::setRangeResolution(const osgEarth::Distance& value)
 {
   if (range_resolution_ != value)
   {
@@ -129,7 +132,7 @@ void RadialLOS::setRangeResolution(const Distance& value)
   }
 }
 
-void RadialLOS::setAzimuthalResolution(const Angle& value)
+void RadialLOS::setAzimuthalResolution(const osgEarth::Angle& value)
 {
   if (azim_resolution_ != value)
   {
@@ -142,6 +145,10 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
 {
   assert(mapNode != NULL);
 
+#ifdef LOS_TIME_PROFILING
+  osg::Timer_t startTime = osg::Timer::instance()->tick();
+#endif
+
   // clear out existing data
   radials_.clear();
 
@@ -149,20 +156,25 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
   if (!convertCoordToGeoPoint(originCoord, originMap_, mapNode->getMapSRS()))
     return false;
 
-  osg::Matrix local2world, world2local;
-  originMap_.createLocalToWorld(local2world);
-  osg::Vec3d originWorld = osg::Vec3d(0, 0, 0) * local2world;
+  if (!use_scene_graph_)
+  {
+    // create an elevation sampler on demand:
+    if (envelope_.valid() == false)
+    {
+      envelope_ = mapNode->getMap()->getElevationPool()->createEnvelope(
+          mapNode->getMapSRS(), 23);
+    }
+  }
 
-  // store to world up vector for LOS testing later:
-  osg::Vec3d originUpWorld = osg::Vec3d(0, 0, 1) * local2world;
-  originUpWorld.normalize();
+  osg::Matrix local2world;
+  originMap_.createLocalToWorld(local2world);
 
   // convert everything to the proper units:
-  double azim_center  = azim_center_.as(Units::RADIANS);
-  double fov          = fov_.as(Units::RADIANS);
-  double azim_res_rad = azim_resolution_.as(Units::RADIANS);
-  double range_max_m  = range_max_.as(Units::METERS);
-  double range_res_m  = range_resolution_.as(Units::METERS);
+  double azim_center  = azim_center_.as(osgEarth::Units::RADIANS);
+  double fov          = fov_.as(osgEarth::Units::RADIANS);
+  double azim_res_rad = azim_resolution_.as(osgEarth::Units::RADIANS);
+  double range_max_m  = range_max_.as(osgEarth::Units::METERS);
+  double range_res_m  = range_resolution_.as(osgEarth::Units::METERS);
 
   // collect the azimuth list:
   std::vector<double> azimuths;
@@ -173,6 +185,10 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
   double   halfRemainder  = fmod(halfSpan, azim_res_rad);
   unsigned int halfCountInt = static_cast<unsigned int>(floor(halfCount));
   double remainder = halfRemainder;
+
+  // Precision issues can sometimes cause a remainder to exist when azim_res_rad divides halfSpan evenly
+  if (osg::equivalent(fov, azim_res_rad * 2 * halfCountInt))
+    remainder = 0.0;
 
   double azim_iter = azim_min_rad;
   if (!osg::equivalent(remainder, 0.0))
@@ -190,6 +206,12 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
     azimuths.push_back(azim_max_rad);
   }
 
+  simCore::CoordinateConverter cc;
+  simCore::Coordinate originLlaCoord;
+  cc.convert(originCoord, originLlaCoord, simCore::COORD_SYS_LLA);
+  cc.setReferenceOrigin(originLlaCoord.position());
+
+  bool validLos = false;
   // step through the azimuthal range:
   for (std::vector<double>::iterator i = azimuths.begin(); i != azimuths.end(); ++i)
   {
@@ -204,6 +226,7 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
     double maxElev = -2 * M_PI;
     // step through the distance range:
     bool rangeDone = false;
+    bool lastSampleValid = false;
     for (double range_m = range_res_m; !rangeDone; range_m += range_res_m)
     {
       if (range_m >= range_max_m)
@@ -222,21 +245,25 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
       // sample the terrain at that point
       double hamsl = 0.0, hae = 0.0;
 
-      bool ok = mapNode->getTerrain()->getHeight(mapPoint.getSRS(), mapPoint.x(), mapPoint.y(), &hamsl, &hae);
+      bool ok;
+      if (use_scene_graph_)
+      {
+        ok = mapNode->getTerrain()->getHeight(mapPoint.getSRS(), mapPoint.x(), mapPoint.y(), &hamsl, &hae);
+      }
+      else
+      {
+        hae = envelope_->getElevation(mapPoint.x(), mapPoint.y());
+        hamsl = hae;
+        ok = (hae != NO_DATA_VALUE);
+      }
 
       if (ok)
       {
         // see if the point is unobstructed.
         mapPoint.z() = hae;
-        mapPoint.toWorld(sampleWorld);
 
         simCore::Coordinate destCoord;
         convertGeoPointToCoord(mapPoint, destCoord, mapNode);
-
-        simCore::CoordinateConverter cc;
-        simCore::Coordinate originLlaCoord;
-        cc.convert(originCoord, originLlaCoord, simCore::COORD_SYS_LLA);
-        cc.setReferenceOrigin(originLlaCoord.lat(), originLlaCoord.lon(), originLlaCoord.alt());
 
         double elev;
         simCore::calculateAbsAzEl(originLlaCoord.position(), destCoord.position(), NULL, &elev, NULL, simCore::FLAT_EARTH, &cc);
@@ -249,11 +276,19 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
         }
 
         radial.samples_.push_back(Sample(range_m, mapPoint, hamsl, hae, elev, visible));
+        if (!validLos)
+        {
+          // To be valid there needs to be at least two consecutive points on the same azimuth
+          if (lastSampleValid)
+            validLos = true;
+          lastSampleValid = true;
+        }
       }
       else
       {
         // record an "invalid" sample
         radial.samples_.push_back(Sample(range_m, mapPoint));
+        lastSampleValid = false;
       }
     }
   }
@@ -261,9 +296,16 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
   srs_ = mapNode->getMapSRS();
 
   dirty_ = false;
-  return true;
+
+#ifdef LOS_TIME_PROFILING
+  osg::Timer_t endTime = osg::Timer::instance()->tick();
+  SIM_NOTICE << "RLOS::compute time=" << osg::Timer::instance()->delta_m(startTime, endTime) << " ms" << std::endl;
+#endif
+
+  return validLos;
 }
 
+// Note: this method only used when use_scene_graph_ == true
 bool RadialLOS::update(osgEarth::MapNode* mapNode, const osgEarth::GeoExtent& extent, osg::Node* patch)
 {
   osg::Vec3d originWorld;
@@ -340,10 +382,11 @@ bool RadialLOS::update(osgEarth::MapNode* mapNode, const osgEarth::GeoExtent& ex
       }
     }
   }
+
   return true;
 }
 
-bool RadialLOS::getMinMaxHeight(const Angle& azimuth, Distance& out_minHeight, Distance& out_maxHeight) const
+bool RadialLOS::getMinMaxHeight(const osgEarth::Angle& azimuth, osgEarth::Distance& out_minHeight, osgEarth::Distance& out_maxHeight) const
 {
   // ensure the test is within the computed range
   //if ( azimuth < azim_min_ || azimuth > azim_max_ )
@@ -353,7 +396,7 @@ bool RadialLOS::getMinMaxHeight(const Angle& azimuth, Distance& out_minHeight, D
     return false;
 
   // find the radials bounding the specified azimuth:
-  Radial interp(azimuth.as(Units::RADIANS));
+  Radial interp(azimuth.as(osgEarth::Units::RADIANS));
   if (!makeRadial_(interp))
     return false;
 
@@ -369,8 +412,8 @@ bool RadialLOS::getMinMaxHeight(const Angle& azimuth, Distance& out_minHeight, D
   }
 
   // dump to output.
-  out_minHeight = Distance(h_min, Units::METERS);
-  out_maxHeight = Distance(h_max, Units::METERS);
+  out_minHeight = osgEarth::Distance(h_min, osgEarth::Units::METERS);
+  out_maxHeight = osgEarth::Distance(h_max, osgEarth::Units::METERS);
 
   return true;
 }
@@ -446,18 +489,18 @@ bool RadialLOS::getBoundingRadials_(double azim_rad, const Radial*& out_r0, cons
   // make sure data is legit
   if (
     dirty_ ||
-    azim_rad          <  (azim_center_-(fov_*0.5)).as(Units::RADIANS) || //azim_min_.as(Units::RADIANS) ||
-    azim_rad          >  (azim_center_+(fov_*0.5)).as(Units::RADIANS) || //azim_max_.as(Units::RADIANS) ||
-    azim_resolution_  <= Angle(0.0, Units::RADIANS) ||
-    range_max_        <= Distance(0.0, Units::METERS) ||
-    range_resolution_ <= Distance(0.0, Units::METERS))
+    azim_rad          <  (azim_center_-(fov_*0.5)).as(osgEarth::Units::RADIANS) || //azim_min_.as(Units::RADIANS) ||
+    azim_rad          >  (azim_center_+(fov_*0.5)).as(osgEarth::Units::RADIANS) || //azim_max_.as(Units::RADIANS) ||
+    azim_resolution_  <= osgEarth::Angle(0.0, osgEarth::Units::RADIANS) ||
+    range_max_        <= osgEarth::Distance(0.0, osgEarth::Units::METERS) ||
+    range_resolution_ <= osgEarth::Distance(0.0, osgEarth::Units::METERS))
   {
     return false;
   }
 
   // find the index of the lower-bounding radial:
-  double azim_min_rad = (azim_center_-(fov_*0.5)).as(Units::RADIANS);
-  unsigned int index = static_cast<unsigned int>(floor((azim_rad - azim_min_rad) / azim_resolution_.as(Units::RADIANS)));
+  double azim_min_rad = (azim_center_-(fov_*0.5)).as(osgEarth::Units::RADIANS);
+  unsigned int index = static_cast<unsigned int>(floor((azim_rad - azim_min_rad) / azim_resolution_.as(osgEarth::Units::RADIANS)));
 
   out_r0 = &radials_[index];
 
@@ -519,4 +562,6 @@ bool RadialLOS::makeRadial_(Radial& out_radial) const
   }
 
   return true;
+}
+
 }

@@ -22,10 +22,12 @@
 #include "osgEarth/Terrain"
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/CoordinateConverter.h"
+#include "simVis/LabelContentManager.h"
 #include "simVis/Locator.h"
 #include "simVis/LocatorNode.h"
 #include "simVis/Utils.h"
 #include "simVis/Entity.h"
+#include "simVis/Projector.h"
 
 #define LC "[EntityNode] "
 
@@ -90,7 +92,8 @@ void CoordSurfaceClamping::setMapNode(const osgEarth::MapNode* map)
 /////////////////////////////////////////////////////////////////////////////////
 
 EntityNode::EntityNode(simData::ObjectType type, Locator* locator)
-  : type_(type)
+  : type_(type),
+    contentCallback_(new NullEntityCallback())
 {
   setNodeMask(0);  // Draw is off until a valid update is received
   setLocator(locator);
@@ -160,5 +163,46 @@ void EntityNode::attach(osg::Node* node)
 
   attach(node, comp);
 }
+
+std::string EntityNode::getEntityName_(const simData::CommonPrefs& common, EntityNode::NameType nameType, bool allowBlankAlias) const
+{
+  switch (nameType)
+  {
+  case EntityNode::REAL_NAME:
+    return common.name();
+  case EntityNode::ALIAS_NAME:
+    return common.alias();
+  case EntityNode::DISPLAY_NAME:
+    if (common.usealias())
+    {
+      if (!common.alias().empty() || allowBlankAlias)
+        return common.alias();
+    }
+    return common.name();
+  }
+  return "";
 }
 
+void EntityNode::setLabelContentCallback(LabelContentCallback* cb)
+{
+  if (cb == NULL)
+    contentCallback_ = new NullEntityCallback();
+  else
+    contentCallback_ = cb;
+}
+
+LabelContentCallback& EntityNode::labelContentCallback() const
+{
+  return *contentCallback_;
+}
+
+void EntityNode::acceptProjector(ProjectorNode* proj)
+{
+  proj->addProjectionToNode(this);
+}
+
+void EntityNode::removeProjector(ProjectorNode* proj)
+{
+  proj->removeProjectionFromNode(this);
+}
+}

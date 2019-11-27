@@ -52,8 +52,14 @@ public:
   /** Name of vertex shader for bathymetry generator */
   std::string bathymetryGeneratorVertex() const;
 
+  /** Name of fragment shader for disabling depth writes based on alpha values */
+  std::string disableDepthOnAlphaFragment() const;
+
   /** Name of fragment shader for glowing highlight */
   std::string glowHighlightFragment() const;
+
+  /** osgEarth LineDrawable placeholder shader */
+  std::string lineDrawable() const;
 
   /** Name of vertex shader for overhead mode */
   std::string overheadModeVertex() const;
@@ -91,6 +97,9 @@ public:
   std::string rfPropLossToColorDefault() const;
   /** Name of RF Propagation threshold loss-to-color shader (used in vertex and fragment) */
   std::string rfPropLossToColorThreshold() const;
+
+  /** Name of shader for rocket burn expansion */
+  std::string rocketBurn() const;
 
   /** Name of vertex shader that sets the gl_ClipVertex appropriately */
   std::string setClipVertex() const;

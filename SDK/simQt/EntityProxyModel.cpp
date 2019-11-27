@@ -44,8 +44,6 @@ namespace simQt {
 
   void EntityProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
   {
-    QSortFilterProxyModel::setSourceModel(sourceModel);
-
     if (model_ != NULL)
     {
       disconnect(model_, SIGNAL(rowsAboutToBeRemoved(const QModelIndex&, int, int)), this, SLOT(entitiesRemoved_(const QModelIndex&, int, int)));
@@ -53,8 +51,9 @@ namespace simQt {
       disconnect(model_, SIGNAL(modelReset()), this, SLOT(entitiesUpdated_()));
     }
     alwaysShow_ = 0;
-
+    // QSortFilterProxyModel::setSourceModel may make calls to EntityProxyModel::data, need to guarantee validity of model_
     model_ = dynamic_cast<AbstractEntityTreeModel*>(sourceModel);
+    QSortFilterProxyModel::setSourceModel(sourceModel);
 
     if (model_ != NULL)
     {
@@ -64,13 +63,17 @@ namespace simQt {
     }
   }
 
-  QVariant EntityProxyModel::data(const QModelIndex & index, int role) const
+  QVariant EntityProxyModel::data(const QModelIndex& index, int role) const
   {
     // Let the model handle the data call as normal
-    QVariant rv = QSortFilterProxyModel::data(index, role);
+    const QVariant rv = QSortFilterProxyModel::data(index, role);
 
-    QModelIndex sourceIndex = mapToSource(index);
-    QModelIndex showIndex = model_->index(alwaysShow_);
+    // if alwaysShow_ not set return early
+    if (alwaysShow_ == 0)
+      return rv;
+
+    const QModelIndex sourceIndex = mapToSource(index);
+    const QModelIndex showIndex = model_->index(alwaysShow_);
 
     // If the index in question is the always shown index,
     // handle the special cases for Qt::FontRole and Qt::ToolTipRole
@@ -84,7 +87,7 @@ namespace simQt {
       return font;
     }
 
-    else if (role == Qt::ToolTipRole)
+    if (role == Qt::ToolTipRole)
       return rv.toString().append(tr("\n\nThis entity was manually selected but does not pass current filter settings."));
 
     return rv;
@@ -124,9 +127,9 @@ namespace simQt {
 
     // If item passes the filters, no need to set it to always show
     if (checkFilters_(id))
-      return;
-
-    alwaysShow_ = id;
+      alwaysShow_ = 0; // unset previous id
+    else
+      alwaysShow_ = id;
     invalidate();
   }
 
@@ -148,7 +151,18 @@ namespace simQt {
       return true;
 
     // check against all filters
-    return checkFilters_(id);
+    if (checkFilters_(id))
+      return true;
+
+    // didn't pass, check children
+    int numChildren = sourceModel()->rowCount(index0);
+    for (int i = 0; i < numChildren; ++i)
+    {
+      if (filterAcceptsRow(i, index0))
+        return true;
+    }
+
+    return false;
   }
 
   bool EntityProxyModel::lessThan(const QModelIndex &left, const QModelIndex &right) const

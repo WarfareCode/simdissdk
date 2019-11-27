@@ -16,8 +16,10 @@ set(SHADER_FILES
     BathymetryGenerator.vert.glsl
     BeamPulse.vert.glsl
     BeamPulse.frag.glsl
+    DisableDepthOnAlpha.frag.glsl
     Flashing.frag.glsl
     GlowHighlight.frag.glsl
+    LineDrawable.glsl
     OverrideColor.frag.glsl
     OverheadMode.vert.glsl
     Picker.vert.glsl
@@ -33,6 +35,7 @@ set(SHADER_FILES
     RF.Texture.frag.glsl
     RF.Vertex.vert.glsl
     RF.Vertex.frag.glsl
+    RocketBurn.glsl
     SetClipVertex.vert.glsl
     TrackHistory.vert.glsl
     TrackHistory.frag.glsl
@@ -57,9 +60,11 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}ClockOptions.h
     ${VIS_INC}Compass.h
     ${VIS_INC}Constants.h
+    ${VIS_INC}CustomRendering.h
     ${VIS_INC}CylinderGeode.h
     ${VIS_INC}CylinderStorage.h
     ${VIS_INC}DBOptions.h
+    ${VIS_INC}DisableDepthOnAlpha.h
     ${VIS_INC}DynamicScaleTransform.h
     ${VIS_INC}EarthManipulator.h
     ${VIS_INC}ElevationQueryProxy.h
@@ -71,14 +76,18 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}Gate.h
     ${VIS_INC}GeoFence.h
     ${VIS_INC}GlowHighlight.h
+    ${VIS_INC}Gl3Utils.h
     ${VIS_INC}InsetViewEventHandler.h
     ${VIS_INC}LabelContentManager.h
     ${VIS_INC}Laser.h
+    ${VIS_INC}LineDrawable.h
     ${VIS_INC}LobGroup.h
     ${VIS_INC}LocalGrid.h
     ${VIS_INC}Locator.h
     ${VIS_INC}LocatorNode.h
+    ${VIS_INC}Measurement.h
     ${VIS_INC}ModelCache.h
+    ${VIS_INC}ModKeyHandler.h
     ${VIS_INC}NavigationModes.h
     ${VIS_INC}ObjectSelectionHandler.h
     ${VIS_INC}OverheadMode.h
@@ -98,6 +107,7 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}RadialLOS.h
     ${VIS_INC}RadialLOSNode.h
     ${VIS_INC}RangeTool.h
+    ${VIS_INC}RangeToolState.h
     ${VIS_INC}RCS.h
     ${VIS_INC}Registry.h
     ${VIS_INC}RocketBurn.h
@@ -105,6 +115,8 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}Scenario.h
     ${VIS_INC}ScenarioDataStoreAdapter.h
     ${VIS_INC}SceneManager.h
+    ${VIS_INC}SimdisMeasurement.h
+    ${VIS_INC}SimdisRangeToolState.h
     ${VIS_INC}SphericalVolume.h
     ${VIS_INC}TargetDelegation.h
     ${VIS_INC}Text.h
@@ -163,6 +175,7 @@ set(VIS_HEADERS_GOG
     ${VIS_INC}GOG/LatLonAltBox.h
     ${VIS_INC}GOG/Line.h
     ${VIS_INC}GOG/LineSegs.h
+    ${VIS_INC}GOG/ParsedShape.h
     ${VIS_INC}GOG/Parser.h
     ${VIS_INC}GOG/Points.h
     ${VIS_INC}GOG/Polygon.h
@@ -187,8 +200,10 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}ClassificationBanner.cpp
     ${VIS_SRC}ClockOptions.cpp
     ${VIS_SRC}Compass.cpp
+    ${VIS_SRC}CustomRendering.cpp
     ${VIS_SRC}CylinderGeode.cpp
     ${VIS_SRC}CylinderStorage.cpp
+    ${VIS_INC}DisableDepthOnAlpha.cpp
     ${VIS_SRC}DynamicScaleTransform.cpp
     ${VIS_SRC}EarthManipulator.cpp
     ${VIS_SRC}ElevationQueryProxy.cpp
@@ -200,11 +215,14 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}GeoFence.cpp
     ${VIS_SRC}GlowHighlight.cpp
     ${VIS_SRC}Laser.cpp
+    ${VIS_SRC}LineDrawable.cpp
     ${VIS_SRC}LobGroup.cpp
     ${VIS_SRC}LocalGrid.cpp
     ${VIS_SRC}Locator.cpp
     ${VIS_SRC}LocatorNode.cpp
+    ${VIS_SRC}Measurement.cpp
     ${VIS_SRC}ModelCache.cpp
+    ${VIS_SRC}ModKeyHandler.cpp
     ${VIS_SRC}OverheadMode.cpp
     ${VIS_SRC}OverrideColor.cpp
     ${VIS_SRC}Picker.cpp
@@ -222,6 +240,7 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}RadialLOS.cpp
     ${VIS_SRC}RadialLOSNode.cpp
     ${VIS_SRC}RangeTool.cpp
+    ${VIS_SRC}RangeToolState.cpp
     ${VIS_SRC}RCS.cpp
     ${VIS_SRC}Registry.cpp
     ${VIS_SRC}RocketBurn.cpp
@@ -229,6 +248,8 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}Scenario.cpp
     ${VIS_SRC}ScenarioDataStoreAdapter.cpp
     ${VIS_SRC}SceneManager.cpp
+    ${VIS_SRC}SimdisMeasurement.cpp
+    ${VIS_SRC}SimdisRangeToolState.cpp
     ${VIS_SRC}SphericalVolume.cpp
     ${VIS_SRC}TargetDelegation.cpp
     ${VIS_SRC}Text.cpp
@@ -282,6 +303,7 @@ set(VIS_SOURCES_GOG
     ${VIS_SRC}GOG/LatLonAltBox.cpp
     ${VIS_SRC}GOG/Line.cpp
     ${VIS_SRC}GOG/LineSegs.cpp
+    ${VIS_SRC}GOG/ParsedShape.cpp
     ${VIS_SRC}GOG/Parser.cpp
     ${VIS_SRC}GOG/Points.cpp
     ${VIS_SRC}GOG/Polygon.cpp
@@ -302,33 +324,52 @@ if(OSGEARTH_SILVERLINING_SUPPORT STREQUAL NODEKIT)
     set(HAVE_SILVERLINING_NODEKIT 1)
 endif()
 include(CheckOSGEarthMethodExists)
-# Newer than 1.7.0 release adds clear() to Profiler
-check_osgearth_method_exists(HAVE_OSGEARTH_PROFILER_CLEAR "osgEarth/Profiler" "clear")
-if(HAVE_OSGEARTH_PROFILER_CLEAR)
+
+# Newer than 1.9.0 release adds PointDrawable::checkSharedStateSet() to osgEarth
+check_osgearth_method_exists(HAVE_OSGEARTH_POINTDRAWABLE_CHECKSHAREDSTATESET "osgEarth/PointDrawable" "checkSharedStateSet")
+if(HAVE_OSGEARTH_POINTDRAWABLE_CHECKSHAREDSTATESET)
     set(SDK_OSGEARTH_DEVEL 1)
-    # Next anticipated version is 1.8.0
+    # Next anticipated version is 1.10.0
     set(SDK_OSGEARTH_VERSION_MAJOR 1)
-    set(SDK_OSGEARTH_VERSION_MINOR 8)
+    set(SDK_OSGEARTH_VERSION_MINOR 10)
     set(SDK_OSGEARTH_VERSION_PATCH 0)
 else()
-    # Newer than 1.6.0 release removes tileSize() from TileSource
-    check_osgearth_method_exists(HAVE_OSGEARTH_TILESOURCE_TILESIZE "osgEarth/TileSource" "tileSize")
-    if(NOT HAVE_OSGEARTH_TILESOURCE_TILESIZE)
+    # Newer than 1.8.0 release adds GeodeticLabelingEngine file and getResolution()
+    check_osgearth_method_exists(HAVE_OSGEARTH_GEOLABELENGINE "osgEarthUtil/GeodeticLabelingEngine" "getResolution")
+    if(HAVE_OSGEARTH_GEOLABELENGINE)
+        # Next anticipated version is 1.9.0
         set(SDK_OSGEARTH_VERSION_MAJOR 1)
-        set(SDK_OSGEARTH_VERSION_MINOR 7)
+        set(SDK_OSGEARTH_VERSION_MINOR 9)
         set(SDK_OSGEARTH_VERSION_PATCH 0)
     else()
-        # Version 1.6.0 changed Map's setName to setMapName
-        check_osgearth_method_exists(HAVE_OSGEARTH_MAP_SETMAPNAME "osgEarth/Map" "setMapName")
-        if(HAVE_OSGEARTH_MAP_SETMAPNAME)
+        # Newer than 1.7.0 release adds clear() to Profiler
+        check_osgearth_method_exists(HAVE_OSGEARTH_PROFILER_CLEAR "osgEarth/Profiler" "clear")
+        if(HAVE_OSGEARTH_PROFILER_CLEAR)
+            # Next anticipated version is 1.8.0
             set(SDK_OSGEARTH_VERSION_MAJOR 1)
-            set(SDK_OSGEARTH_VERSION_MINOR 6)
+            set(SDK_OSGEARTH_VERSION_MINOR 8)
             set(SDK_OSGEARTH_VERSION_PATCH 0)
         else()
-            # Only support back to osgearth-simdis-sdk-1.5.0 (osgEarth 2.8)
-            set(SDK_OSGEARTH_VERSION_MAJOR 1)
-            set(SDK_OSGEARTH_VERSION_MINOR 5)
-            set(SDK_OSGEARTH_VERSION_PATCH 0)
+            # Newer than 1.6.0 release removes tileSize() from TileSource
+            check_osgearth_method_exists(HAVE_OSGEARTH_TILESOURCE_TILESIZE "osgEarth/TileSource" "tileSize")
+            if(NOT HAVE_OSGEARTH_TILESOURCE_TILESIZE)
+                set(SDK_OSGEARTH_VERSION_MAJOR 1)
+                set(SDK_OSGEARTH_VERSION_MINOR 7)
+                set(SDK_OSGEARTH_VERSION_PATCH 0)
+            else()
+                # Version 1.6.0 changed Map's setName to setMapName
+                check_osgearth_method_exists(HAVE_OSGEARTH_MAP_SETMAPNAME "osgEarth/Map" "setMapName")
+                if(HAVE_OSGEARTH_MAP_SETMAPNAME)
+                    set(SDK_OSGEARTH_VERSION_MAJOR 1)
+                    set(SDK_OSGEARTH_VERSION_MINOR 6)
+                    set(SDK_OSGEARTH_VERSION_PATCH 0)
+                else()
+                    # Only support back to osgearth-simdis-sdk-1.5.0 (osgEarth 2.8)
+                    set(SDK_OSGEARTH_VERSION_MAJOR 1)
+                    set(SDK_OSGEARTH_VERSION_MINOR 5)
+                    set(SDK_OSGEARTH_VERSION_PATCH 0)
+                endif()
+            endif()
         endif()
     endif()
 endif()
@@ -393,6 +434,8 @@ target_include_directories(simVis PUBLIC
 )
 target_link_libraries(simVis PUBLIC simData simCore simNotify
     ${OSG_ALL_LIBDEPENDENCIES} ${OSGEARTH_ALL_LIBDEPENDENCIES})
+target_link_libraries(simVis PRIVATE VSI::GL)
+
 if(SIMVIS_SHARED)
     target_compile_definitions(simVis PRIVATE simVis_LIB_EXPORT_SHARED)
 else()
@@ -400,8 +443,7 @@ else()
 endif()
 
 if(INSTALL_SIMDIS_SDK_LIBRARIES)
-    set_target_properties(simVis PROPERTIES TARGET_EXPORT_NAME "SIMDIS_SDK")
-    vsi_install_target(simVis SDK_Library)
+    vsi_install_export(simVis ${SIMDIS_SDK_VERSION_STRING} AnyNewerVersion)
 endif()
 
 if(INSTALL_SIMDIS_SDK_SHADERS)
@@ -415,7 +457,7 @@ if(INSTALL_SIMDIS_SDK_SHADERS)
 endif()
 
 if(AUTOINSTALL_LIBS AND SIMVIS_SHARED)
-    PostBuildInstallSdkSharedObjects(simVis)
+    PostBuildInstallSharedObjects(simVis)
 endif()
 
 # Setup header file installation

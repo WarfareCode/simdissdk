@@ -19,6 +19,7 @@
  * disclose, or release this software.
  *
  */
+#include <limits>
 #include "osg/Geode"
 #include "osg/Geometry"
 #include "osgEarthSymbology/MeshConsolidator"
@@ -237,8 +238,16 @@ void AntennaNode::updateLighting_(bool shaded)
 void AntennaNode::updateBlending_(bool blending)
 {
   osg::StateSet* stateSet = getOrCreateStateSet();
-  stateSet->setMode(GL_BLEND, 
-    (blending ? osg::StateAttribute::ON : osg::StateAttribute::OFF));
+  if (blending)
+  {
+    stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
+    stateSet->setRenderBinDetails(BIN_BEAM, BIN_TWO_PASS_ALPHA);
+  }
+  else
+  {
+    stateSet->setMode(GL_BLEND, osg::StateAttribute::OFF);
+    stateSet->setRenderBinDetails(BIN_OPAQUE_BEAM, BIN_GLOBAL_SIMSDK);
+  }
 }
 
 float AntennaNode::PatternGain(float azim, float elev, simCore::PolarityType polarity) const
@@ -321,19 +330,18 @@ void AntennaNode::render_()
   removeChildren(0, getNumChildren());
 
   osg::ref_ptr<osg::Geometry> antGeom = new osg::Geometry();
+  antGeom->setName("simVis::AntennaNode");
   antGeom->setDataVariance(osg::Object::DYNAMIC);
   antGeom->setUseVertexBufferObjects(true);
 
   osg::Vec3Array* verts = new osg::Vec3Array();
   antGeom->setVertexArray(verts);
 
-  osg::Vec3Array* norms = new osg::Vec3Array();
+  osg::Vec3Array* norms = new osg::Vec3Array(osg::Array::BIND_PER_VERTEX);
   antGeom->setNormalArray(norms);
-  antGeom->setNormalBinding(osg::Geometry::BIND_PER_VERTEX);
 
-  osg::Vec4Array* colors = new osg::Vec4Array;
+  osg::Vec4Array* colors = new osg::Vec4Array(osg::Array::BIND_PER_VERTEX);
   antGeom->setColorArray(colors);
-  antGeom->setColorBinding(osg::Geometry::BIND_PER_VERTEX);
 
   // expected range for vRange is (0, M_PI]
   const double vRange = osg::clampBetween(lastPrefs_->fieldofview(), std::numeric_limits<double>::min(), M_PI);
@@ -420,10 +428,9 @@ void AntennaNode::render_()
       // compute first point in t-strip
       osg::Vec3f pt;
       float gain = ComputeRadius_(azim, elev, polarity_, pt);
-      osg::Vec3f ptNorm(pt);
-      ptNorm.normalize();
       verts->push_back(pt);
-      norms->push_back(ptNorm);
+      pt.normalize();
+      norms->push_back(pt);
       if (colorScale)
         colors->push_back(colorUtils_->GainThresholdColor(static_cast<int>(gain)));
       else
@@ -433,10 +440,9 @@ void AntennaNode::render_()
       // TODO: this calculated result could potentially be reused in the next azim iteration; consider using an index array.
       osg::Vec3f ptne;
       gain = ComputeRadius_(azim2, elev, polarity_, ptne);
-      osg::Vec3f ptneNorm(ptne);
-      ptneNorm.normalize();
       verts->push_back(ptne);
-      norms->push_back(ptneNorm);
+      ptne.normalize();
+      norms->push_back(ptne);
       if (colorScale)
         colors->push_back(colorUtils_->GainThresholdColor(static_cast<int>(gain)));
       else

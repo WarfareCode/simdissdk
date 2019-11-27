@@ -26,24 +26,25 @@
 #include "simVis/GOG/LineSegs.h"
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
+#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 
 #define LC "[GOG::LineSegs] "
 
-using namespace simVis::GOG;
-using namespace osgEarth::Symbology;
 using namespace osgEarth::Features;
 using namespace osgEarth::Annotation;
 
-GogNodeInterface* LineSegs::deserialize(const osgEarth::Config&  conf,
+namespace simVis { namespace GOG {
+
+GogNodeInterface* LineSegs::deserialize(const ParsedShape& parsedShape,
                       simVis::GOG::ParserData& p,
                       const GOGNodeType&       nodeType,
                       const GOGContext&        context,
                       const GogMetaData&       metaData,
-                      MapNode*                 mapNode)
+                      osgEarth::MapNode*       mapNode)
 {
   osg::ref_ptr<Geometry> temp = new Geometry();
-  p.parseLineSegmentPoints(conf, p.units_, temp.get(), p.geomIsLLA_);
+  p.parseLineSegmentPoints(parsedShape, p.units_, temp.get(), p.geomIsLLA_);
 
   MultiGeometry* m = new MultiGeometry();
 
@@ -67,22 +68,31 @@ GogNodeInterface* LineSegs::deserialize(const osgEarth::Config&  conf,
     if (p.hasAbsoluteGeometry())
     {
       Feature* feature = new Feature(p.geom_.get(), p.srs_.get(), p.style_);
-      rv = new FeatureNodeInterface(new FeatureNode(mapNode, feature), metaData);
+      feature->setName("GOG LineSegs Feature");
+      FeatureNode* featureNode = new FeatureNode(feature);
+      featureNode->setMapNode(mapNode);
+      rv = new FeatureNodeInterface(featureNode, metaData);
+      featureNode->setName("GOG LineSegs");
     }
     else
     {
-      LocalGeometryNode* node = new LocalGeometryNode(mapNode, p.geom_.get(), p.style_);
-      Utils::applyLocalGeometryOffsets(*node, p);
+      LocalGeometryNode* node = new LocalGeometryNode(p.geom_.get(), p.style_);
+      node->setMapNode(mapNode);
+      Utils::applyLocalGeometryOffsets(*node, p, nodeType);
       rv = new LocalGeometryNodeInterface(node, metaData);
+      node->setName("GOG LineSegs");
     }
   }
   else
   {
     LocalGeometryNode* node = new HostedLocalGeometryNode(p.geom_.get(), p.style_);
-    node->setLocalOffset(p.getLTPOffset());
+    Utils::applyLocalGeometryOffsets(*node, p, nodeType);
     rv = new LocalGeometryNodeInterface(node, metaData);
+    node->setName("GOG LineSegs");
   }
   if (rv)
-    rv->applyConfigToStyle(conf, p.units_);
+    rv->applyToStyle(parsedShape, p.units_);
   return rv;
 }
+
+} }

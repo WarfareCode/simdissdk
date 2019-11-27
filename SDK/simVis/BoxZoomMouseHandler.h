@@ -37,19 +37,21 @@ namespace osgEarth {
 namespace simVis
 {
 
+class ModKeyHandler;
 class View;
 
 /**
- * Uses mouse events to draw a simple box graphic for selecting a zoom area, and zooms in on the selected extents
- * within a view.  Allows for specifying keys for canceling the drag, and specifying the mouse button mask and
- * modifier key mask for starting the zoom mode.
+ * Base class that uses mouse events to draw a simple box graphic for selecting an area in screen
+ * pixels. Allows for specifying keys for canceling the drag, and specifying the mouse button mask
+ * and modifier key mask for starting the box drawing. Implement a derived class and override the
+ * processGeometry_() method to handle the selected area on mouse button release.
  */
-class SDKVIS_EXPORT BoxZoomMouseHandler : public osgGA::GUIEventHandler
+class SDKVIS_EXPORT BoxMouseHandler : public osgGA::GUIEventHandler
 {
 public:
-  explicit BoxZoomMouseHandler(const osgEarth::Util::EarthManipulator::ActionOptions& opts);
+  BoxMouseHandler();
 
-  /** Handle mouse events to apply selecting zoom area on click and drag, then applying zoom area to view on mouse release */
+  /** Handle mouse events to apply selecting area on click and drag, then applying area to view on mouse release */
   virtual bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
 
   /** Button Mask to test against.  Default is osgGA::GUIEVentAdapter::LEFT_MOUSE_BUTTON. */
@@ -61,38 +63,58 @@ public:
 
 protected:
   /// osg::Referenced-derived
+  virtual ~BoxMouseHandler();
+  /** Stops the drag without processing the geometry */
+  void stopDrag_();
+
+  /** Return true if the given view is suitable for this mouse handler's use. */
+  virtual bool validateView_(const simVis::View& view) const = 0;
+  /** Called on a mouse release event. Process the box's geometry. */
+  virtual void processGeometry_(double originX, double originY, double widthPixels, double heightPixels) = 0;
+
+  /// View used by the mouse handler
+  osg::observer_ptr<simVis::View> view_;
+  /// Starting X screen coordinate of the box
+  double originX_;
+  /// Starting Y screen coordinate of the box
+  double originY_;
+  /// Box graphic
+  osg::ref_ptr<BoxGraphic> box_;
+
+  /// Button mask for activation
+  int buttonMask_;
+  /// Handles mod key mask
+  ModKeyHandler* modKeys_;
+  /// Keyboard key for canceling the drag
+  int cancelDragKey_;
+};
+
+/////////////////////////////////////////////////////////////////
+
+/** BoxMouseHandler implementation that selects a zoom area and zooms in on the selected extents within a view. */
+class SDKVIS_EXPORT BoxZoomMouseHandler : public BoxMouseHandler
+{
+public:
+  explicit BoxZoomMouseHandler(const osgEarth::Util::EarthManipulator::ActionOptions& opts);
+
+protected:
+  /// osg::Referenced-derived
   virtual ~BoxZoomMouseHandler();
+
+  /** Overrides from BoxMouseHandler */
+  virtual bool validateView_(const simVis::View& view) const;
+  virtual void processGeometry_(double originX, double originY, double widthPixels, double heightPixels);
 
 private:
   /** Calculates an LLA GeoPoint based on the screen x and y coordinates provided. If the resulting GeoPoint is valid, it gets added to the provided points vector */
   void calculateGeoPointFromScreenXY_(double x, double y, simVis::View& view, osgEarth::SpatialReference* srs, std::vector<osgEarth::GeoPoint>& points) const;
-  /** Set the zoom area to the current zoom view, based on the provided extents */
-  void setZoom_(double originX, double originY, double widthPixels, double heightPixels) const;
-  /** Stops the drag without zooming */
-  void stopDrag_();
   /** Retrieves the map node given a view */
   osgEarth::MapNode* mapNodeForView_(const simVis::View& view) const;
-
-  /// view where zooming occurs
-  osg::observer_ptr<simVis::View> zoomView_;
-  /// starting screen coordinate x of the zoom area
-  double originX_;
-  /// starting screen coordinate y of the zoom area
-  double originY_;
-  /// box graphics for highlighting zoom area selection
-  osg::ref_ptr<BoxGraphic> box_;
 
   /// OPTION_GOTO_RANGE_FACTOR value from the options
   double goToRangeFactor_;
   /// OPTION_DURATION from the options
   double durationSec_;
-
-  /// Button mask for activation
-  int buttonMask_;
-  /// Modkey mask for activation
-  int modKeyMask_;
-  /// Keyboard key for canceling the drag
-  int cancelDragKey_;
 };
 
 }

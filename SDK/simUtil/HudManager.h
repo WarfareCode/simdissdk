@@ -86,8 +86,8 @@ public:
   virtual void update(const std::string& text, double x=0.0, double y=0.0,
         bool percentageX=true, bool percentageY=true,
         Alignment hAlign=ALIGN_LEFT, Alignment vAlign=ALIGN_BOTTOM,
-        const osg::Vec4& color=osg::Vec4(1.0, 1.0, 1.0, 1.0),
-        const std::string& font="arial.ttf", double fontSize=10) = 0;
+        const osg::Vec4& color=simVis::Color::White,
+        const std::string& font="arial.ttf", double fontSize=10.) = 0;
 
   // Functions to set/get smaller parts
 
@@ -125,6 +125,11 @@ public:
   virtual osg::Vec4 color() const = 0;
   /// Sets the color of the text
   virtual void setColor(const osg::Vec4& color) = 0;
+
+  /// Background color of the text; cannot be used with backdrops
+  virtual osg::Vec4 backgroundColor() const = 0;
+  /// Set background color of text; if text alpha is non-0, then backdrop is disabled.
+  virtual void setBackgroundColor(const osg::Vec4& color) = 0;
 
   /// Sets the backdrop type, including offset; see documentation of osgText::Text::setBackdropType() and setBackdropOffset()
   virtual void setBackdrop(osgText::Text::BackdropType backdrop, float backdropOffset) = 0;
@@ -186,8 +191,8 @@ public:
   virtual void update(const std::string& text, double x=0.0, double y=0.0,
         bool percentageX=true, bool percentageY=true,
         Alignment hAlign=ALIGN_LEFT, Alignment vAlign=ALIGN_BOTTOM,
-        const osg::Vec4& color=osg::Vec4(1.0, 1.0, 1.0, 1.0),
-        const std::string& font="arial.ttf", double fontSize=10);
+        const osg::Vec4& color=simVis::Color::White,
+        const std::string& font="arial.ttf", double fontSize=10.);
 
   // Functions to set/get smaller parts
 
@@ -225,6 +230,11 @@ public:
   virtual osg::Vec4 color() const;
   /// Sets the color of the text
   virtual void setColor(const osg::Vec4& color);
+
+  /// Background color of the text; cannot be used with backdrops
+  virtual osg::Vec4 backgroundColor() const;
+  /// Set background color of text; if text alpha is non-0, then backdrop is disabled.
+  virtual void setBackgroundColor(const osg::Vec4& color);
 
   /// Sets the backdrop type, including offset; see documentation of osgText::Text::setBackdropType() and setBackdropOffset()
   virtual void setBackdrop(osgText::Text::BackdropType backdrop, float backdropOffset);
@@ -279,6 +289,7 @@ protected:
   Alignment hAlign_;  ///< Horizontal alignment
   Alignment vAlign_;  ///< Vertical alignment
   osg::Vec4 color_;  ///< Color of the text
+  osg::Vec4 backgroundColor_;  ///< Background color; using this disables outline/shadow
   std::string requestedFont_;  ///< The requested font family of the text
   double requestedFontSize_;  ///< The requested font size in points
   std::string currentFont_;  ///< Used to optimize font calls which are expensive
@@ -492,8 +503,8 @@ public:
   HudText* createText(const std::string& text, double x=0.0, double y=0.0,
     bool percentageX=true, bool percentageY=true,
     Alignment hAlign=ALIGN_LEFT, Alignment vAlign=ALIGN_BOTTOM,
-    const osg::Vec4& color=osg::Vec4(1.0, 1.0, 1.0, 1.0),
-    const std::string& font="arial.ttf", double fontSize=10);
+    const osg::Vec4& color=simVis::Color::White,
+    const std::string& font="arial.ttf", double fontSize=10.);
 
   /**
    * Creates and returns a HudColumnText for displaying overlay text in columns.  Percentages are from 0 to 100.
@@ -510,8 +521,8 @@ public:
    */
   HudColumnText* createColumnText(const std::string& text, double x=0.0, double y=0.0,
                                   bool percentage=true, Alignment vAlign=ALIGN_BOTTOM,
-                                  const osg::Vec4& color=osg::Vec4(1.0, 1.0, 1.0, 1.0),
-                                  const std::string& font="arial.ttf", double fontSize=20);
+                                  const osg::Vec4& color=simVis::Color::White,
+                                  const std::string& font="arial.ttf", double fontSize=20.);
 
   /**
    * Creates and returns a HudImage for displaying images on the HUD.  Percentages are from 0 to 100.

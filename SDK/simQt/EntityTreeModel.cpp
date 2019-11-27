@@ -32,7 +32,7 @@
 namespace simQt {
 
 /// notify the tree model about data store changes
-class EntityTreeModel::TreeListener : public simData::DataStore::DefaultListener
+class EntityTreeModel::TreeListener : public simData::DataStore::Listener
 {
 public:
   /// constructor
@@ -71,7 +71,12 @@ public:
     parent_->removeAllEntities_();
   }
 
-protected:
+  // Fulfill the interface
+  virtual void onPrefsChange(simData::DataStore *source, simData::ObjectId id) {}
+  virtual void onTimeChange(simData::DataStore *source) {}
+  virtual void onFlush(simData::DataStore* source, simData::ObjectId id) {}
+
+private:
   EntityTreeModel *parent_; ///< model which receives notices
 };
 
@@ -144,11 +149,13 @@ EntityTreeModel::EntityTreeModel(QObject *parent, simData::DataStore* dataStore)
     dataStore_(NULL),
     platformIcon_(":/simQt/images/platform.png"),
     beamIcon_(":/simQt/images/beam.png"),
+    customRenderingIcon_(":/simQt/images/CustomRender.png"),
     gateIcon_(":/simQt/images/gate.png"),
     laserIcon_(":/simQt/images/laser.png"),
     lobIcon_(":/simQt/images/lob.png"),
     projectorIcon_(":/simQt/images/projector.png"),
-    useEntityIcons_(true)
+    useEntityIcons_(true),
+    customAsTopLevel_(true)
 {
   // create observers/listeners
   listener_ = simData::DataStore::ListenerPtr(new TreeListener(this));
@@ -164,6 +171,14 @@ EntityTreeModel::~EntityTreeModel()
 {
   setDataStore(NULL);
   delete rootItem_;
+}
+
+void EntityTreeModel::setCustomRenderingAsTopLevelItem(bool customAsTopLevel)
+{
+  if (customAsTopLevel_ == customAsTopLevel)
+    return;
+  customAsTopLevel_ = customAsTopLevel;
+  forceRefresh();
 }
 
 void EntityTreeModel::setDataStore(simData::DataStore* dataStore)
@@ -204,21 +219,27 @@ void EntityTreeModel::commitDelayedEntities_()
   for (std::vector<simData::ObjectId>::const_iterator it = delayedAdds_.begin(); it != delayedAdds_.end(); ++it)
   {
     simData::ObjectType entityType = dataStore_->objectType(*it);
-    if (simData::NONE)
+    if (entityType == simData::NONE)
     {
       // the entity should have been removed from the vector
       assert(false);
       continue;
     }
 
-    // Pick out the host's id (0 for platforms)
+    // Pick out the host's id (0 for platforms (and some custom renderings if they are being treated as top-level))
     uint64_t hostId = 0;
-    if (entityType != simData::PLATFORM)
+    bool getHostId = (entityType != simData::PLATFORM);
+    // Even if allowing custom rendering to be top level, only those with host ID = 0 are.  Still need to check host ID
+    if (getHostId)
       hostId = dataStore_->entityHostId(*it);
 
-    // Only add the item if it's a platform, or if it has a valid host
-    assert(!((hostId == 0) && (entityType != simData::PLATFORM)));
-    if ((hostId > 0 || entityType == simData::PLATFORM))
+    bool entityTypeNeedsHost = (entityType != simData::PLATFORM);
+    if (customAsTopLevel_)
+      entityTypeNeedsHost = ((entityType != simData::PLATFORM) && (entityType != simData::CUSTOM_RENDERING));
+
+    // Only add the item if it's a valid top level entity, or if it has a valid host
+    assert(!((hostId == 0) && entityTypeNeedsHost));
+    if ((hostId > 0 || !entityTypeNeedsHost))
     {
       addTreeItem_(*it, entityType, hostId);
     }
@@ -283,6 +304,21 @@ void EntityTreeModel::forceRefresh()
     simData::DataStore::IdList platformList;
     dataStore_->idList(&platformList, simData::PLATFORM);
     buildTree_(simData::PLATFORM, dataStore_, platformList, NULL);
+    if (customAsTopLevel_)
+    {
+      // Get custom rendering objects from DataStore
+      simData::DataStore::IdList crList;
+      dataStore_->idList(&crList, simData::CUSTOM_RENDERING);
+      // Only use top-level custom renderings
+      simData::DataStore::IdList topLevelCrList;
+      for (auto it = crList.begin(); it != crList.end(); ++it)
+      {
+        auto hostId = dataStore_->entityHostId(*it);
+        if (hostId == 0)
+          topLevelCrList.push_back(*it);
+      }
+      buildTree_(simData::CUSTOM_RENDERING, dataStore_, topLevelCrList, NULL);
+    }
     endResetModel();
   }
 }
@@ -294,6 +330,18 @@ EntityTreeItem* EntityTreeModel::findItem_(uint64_t entityId) const
     return it->second;
 
   return NULL;
+}
+
+void EntityTreeModel::setIncludeScenario(bool showScenario)
+{
+  bool currentShow = (findItem_(0) != NULL);
+  if (currentShow == showScenario)
+    return;  // nothing changed
+
+  if (showScenario)
+    addTreeItem_(0, simData::NONE, 0);
+  else
+    removeEntity_(0);
 }
 
 void EntityTreeModel::addTreeItem_(uint64_t id, simData::ObjectType type, uint64_t parentId)
@@ -315,16 +363,11 @@ void EntityTreeModel::addTreeItem_(uint64_t id, simData::ObjectType type, uint64
 
   if ((parentItem != rootItem_) && treeView_)
   {
+    beginInsertRows(createIndex(parentItem->row(), 0, parentItem), parentItem->childCount(), parentItem->childCount());
     EntityTreeItem* newItem = new EntityTreeItem(id, parentItem);
     itemsById_[id] = newItem;
     parentItem->appendChild(newItem);
-    if (newItem->row() == 0)
-      emit(layoutAboutToBeChanged());
-    beginInsertRows(createIndex(parentItem->row(), 0, parentItem), newItem->row(), newItem->row());
-    insertRow(newItem->row(), createIndex(newItem->row(), 0, newItem));
     endInsertRows();
-    if (newItem->row() == 0)  // if first one, needed to get the |> to show up on the tree
-      emit(layoutChanged());
   }
   else
   {
@@ -332,7 +375,6 @@ void EntityTreeModel::addTreeItem_(uint64_t id, simData::ObjectType type, uint64
     EntityTreeItem* newItem = new EntityTreeItem(id, rootItem_);
     itemsById_[id] = newItem;
     rootItem_->appendChild(newItem);
-    insertRow(newItem->row());
     endInsertRows();
   }
 }
@@ -354,14 +396,13 @@ void EntityTreeModel::removeEntity_(uint64_t id)
   // Qt requires we notify it of all the rows to be removed
   if (found->parent() != rootItem_)
   {
-    beginRemoveRows(createIndex(found->row(), 0, found->parent()), found->row(), found->row() + found->childCount());
+    const QModelIndex parentIndex = createIndex(found->parent()->row(), 0, found->parent());
+    beginRemoveRows(parentIndex, found->row(), found->row());
   }
   else
   {
-    beginRemoveRows(QModelIndex(), found->row(), found->row() + found->childCount());
+    beginRemoveRows(QModelIndex(), found->row(), found->row());
   }
-
-  removeRows(found->row(), found->childCount());
 
   // Get any children before deleting
   std::vector<uint64_t> ids;
@@ -412,15 +453,23 @@ QVariant EntityTreeModel::data(const QModelIndex &index, int role) const
   {
   case Qt::DisplayRole:
     if (index.column() == 0)
+    {
+      if (item->id() == 0)
+        return "Scenario Data";
       return QString::fromStdString(simData::DataStoreHelpers::nameOrAliasFromId(item->id(), dataStore_));
+    }
     if (index.column() == 1)
     {
-      if (useEntityIcons_)
+      if ((useEntityIcons_) || (item->id() == 0))
         return QVariant();
       return QString::fromStdString(simData::DataStoreHelpers::typeFromId(item->id(), dataStore_));
     }
     if (index.column() == 2)
+    {
+      if (item->id() == 0)
+        return QVariant();
       return QString("%1").arg(simData::DataStoreHelpers::originalIdFromId(item->id(), dataStore_));
+    }
 
     // Invalid index encountered
     assert(0);
@@ -436,6 +485,8 @@ QVariant EntityTreeModel::data(const QModelIndex &index, int role) const
         return platformIcon_;
       case simData::BEAM:
         return beamIcon_;
+      case simData::CUSTOM_RENDERING:
+        return customRenderingIcon_;
       case simData::GATE:
         return gateIcon_;
       case simData::LASER:
@@ -465,6 +516,9 @@ QVariant EntityTreeModel::data(const QModelIndex &index, int role) const
   case Qt::ToolTipRole:
     if (index.column() == 0)
     {
+      if (item->id() == 0)
+        return tr("Scenario Data");
+
       QString toolTip = tr("Name: %1\nAlias: %2\nType: %3\nOriginal ID: %4")
         .arg(QString::fromStdString(simData::DataStoreHelpers::nameFromId(item->id(), dataStore_)))
         .arg(QString::fromStdString(simData::DataStoreHelpers::aliasFromId(item->id(), dataStore_)))
@@ -493,8 +547,10 @@ QVariant EntityTreeModel::data(const QModelIndex &index, int role) const
       return QString::fromStdString(simData::DataStoreHelpers::fullTypeFromId(item->id(), dataStore_));
 
     if (index.column() == 2)
-      return tr("Original ID");
-
+    {
+      if (item->id() != 0)
+        return tr("Original ID");
+    }
     break;
 
   case SORT_BY_ENTITY_ROLE:
@@ -630,6 +686,9 @@ void EntityTreeModel::buildTree_(simData::ObjectType type, const simData::DataSt
       dataStore->beamIdListForHost(*iter, &idList);
       buildTree_(simData::BEAM, dataStore, idList, newItem);
       idList.clear();
+      dataStore->customRenderingIdListForHost(*iter, &idList);
+      buildTree_(simData::CUSTOM_RENDERING, dataStore, idList, newItem);
+      idList.clear();
       dataStore->laserIdListForHost(*iter, &idList);
       buildTree_(simData::LASER, dataStore, idList, newItem);
       idList.clear();
@@ -650,6 +709,8 @@ void EntityTreeModel::buildTree_(simData::ObjectType type, const simData::DataSt
       dataStore->projectorIdListForHost(*iter, &idList);
       buildTree_(simData::PROJECTOR, dataStore, idList, newItem);
     }
+
+    // other object types are not expected to have any children objects
 
     // now add to tree appropriately
     if (parent && treeView_)

@@ -19,11 +19,14 @@
 * disclose, or release this software.
 *
 */
+#include <limits>
 #include "osg/Depth"
-#include "osgEarthAnnotation/LabelNode"
+#include "osgEarth/LabelNode"
 #include "simCore/Calc/Math.h"
 #include "simVis/AlphaTest.h"
 #include "simVis/Constants.h"
+#include "simVis/Locator.h"
+#include "simVis/LocatorNode.h"
 #include "simVis/Registry.h"
 #include "simVis/Utils.h"
 #include "simVis/OverheadMode.h"
@@ -35,17 +38,18 @@ namespace simVis
 static const float ALPHA_THRESHOLD = 0.05f;
 
 EntityLabelNode::EntityLabelNode()
-  : LocatorNode(),
-  hasLastPrefs_(false)
+  : hasLastPrefs_(false)
 {
   // entity labels are off until prefs turn them on
   setNodeMask(DISPLAY_MASK_NONE);
 }
 
 EntityLabelNode::EntityLabelNode(simVis::Locator* locator)
-  : LocatorNode(locator),
-  hasLastPrefs_(false)
+  : hasLastPrefs_(false)
 {
+  locatorNode_ = new LocatorNode(locator);
+  locatorNode_->setNodeMask(DISPLAY_MASK_NONE);
+  addChild(locatorNode_.get());
   // entity labels are off until prefs turn them on
   setNodeMask(DISPLAY_MASK_NONE);
 }
@@ -74,16 +78,17 @@ void EntityLabelNode::update(const simData::CommonPrefs& commonPrefs, const std:
   if (!label_.valid())
   {
     // create a label node for the first time
-    osgEarth::Symbology::Style style;
-    style.getOrCreate<osgEarth::Symbology::TextSymbol>()->alignment() = static_cast<osgEarth::Symbology::TextSymbol::Alignment>(labelPrefs.alignment());
-    style.getOrCreate<osgEarth::Symbology::TextSymbol>()->pixelOffset() = osg::Vec2s(labelPrefs.offsetx(), labelPrefs.offsety());
+    osgEarth::Style style;
+    style.getOrCreate<osgEarth::TextSymbol>()->alignment() = static_cast<osgEarth::TextSymbol::Alignment>(labelPrefs.alignment());
+    style.getOrCreate<osgEarth::TextSymbol>()->pixelOffset() = osg::Vec2s(labelPrefs.offsetx(), labelPrefs.offsety());
+    style.getOrCreate<osgEarth::TextSymbol>()->encoding() = osgEarth::TextSymbol::ENCODING_UTF8;
 
-    label_ = new osgEarth::Annotation::LabelNode("", style);
+    label_ = new osgEarth::LabelNode("", style);
     label_->setDynamic(true);
     label_->setNodeMask(simVis::DISPLAY_MASK_LABEL);
     label_->setHorizonCulling(false);
     label_->setOcclusionCulling(false);
-
+    label_->setText(lastText_);
 
     // Note that labels are not flattened (by default) in overhead mode
 
@@ -96,23 +101,25 @@ void EntityLabelNode::update(const simData::CommonPrefs& commonPrefs, const std:
 
     // Note: no need to clamp the label's geo transform in overhead mode, since the Locator
     // will take care of that for us. -gw
-
-    addChild(label_.get());
+    if (locatorNode_.valid())
+      locatorNode_->addChild(label_.get());
+    else
+      addChild(label_.get());
     forceStyle = true;
   }
 
   // Detect label changes in the last update and apply those changes
   if (label_.valid())
   {
-    // check for an update:
-    const bool textChanged = (text != lastText_);
-
     setNodeMask(draw ? DISPLAY_MASK_LABEL : DISPLAY_MASK_NONE);
-    label_->setNodeMask(draw ? DISPLAY_MASK_LABEL : DISPLAY_MASK_NONE);
-    // if label was just enabled with this prefs change, force our locator node to sync with its locator
-    if (draw && (!hasLastPrefs_ || !lastCommonPrefs_.draw() || !lastCommonPrefs_.labelprefs().draw()))
-      syncWithLocator();
+    if (locatorNode_.valid())
+    {
+      locatorNode_->setNodeMask(draw ? DISPLAY_MASK_LABEL : DISPLAY_MASK_NONE);
 
+      // if label was just enabled with this prefs change, force our locator node to sync with its locator
+      if (draw && (!hasLastPrefs_ || !lastCommonPrefs_.draw() || !lastCommonPrefs_.labelprefs().draw()))
+        locatorNode_->syncWithLocator();
+    }
     // For priority pref, 0 is least likely to show, higher values more likely to show, negative values are always shown
     // FLT_MAX means always show to osgEarth
     const float actualPriority = (labelPrefs.priority() >= 0.0) ? labelPrefs.priority() : std::numeric_limits<float>::max();
@@ -135,23 +142,18 @@ void EntityLabelNode::update(const simData::CommonPrefs& commonPrefs, const std:
       PB_FIELD_CHANGED(&lastLabelPrefs, &labelPrefs, alignment) ||
       PB_FIELD_CHANGED(&lastLabelPrefs, &labelPrefs, backdropimplementation);
 
-    if (textChanged)
-    {
-      // update the text label.
-      label_->setText(text);
-    }
-
     // update the style:
     if (labelStylePrefsChanged || forceStyle)
     {
-      osgEarth::Symbology::Style style;
-      osgEarth::Symbology::TextSymbol* ts = style.getOrCreate<osgEarth::Symbology::TextSymbol>();
-      ts->alignment() = static_cast<osgEarth::Symbology::TextSymbol::Alignment>(labelPrefs.alignment());
+      osgEarth::Style style;
+      osgEarth::TextSymbol* ts = style.getOrCreate<osgEarth::TextSymbol>();
+      ts->alignment() = static_cast<osgEarth::TextSymbol::Alignment>(labelPrefs.alignment());
       ts->pixelOffset() = osg::Vec2s(labelPrefs.offsetx(), labelPrefs.offsety());
+      ts->encoding() = osgEarth::TextSymbol::ENCODING_UTF8;
 
       // text color:
       osg::Vec4 color = ColorUtils::RgbaToVec4(labelPrefs.color());
-      ts->fill() = osgEarth::Symbology::Fill(color.r(), color.g(), color.b(), color.a());
+      ts->fill() = osgEarth::Fill(color.r(), color.g(), color.b(), color.a());
 
       // outline:
       if (labelPrefs.textoutline() != simData::TO_NONE && labelPrefs.backdroptype() != simData::BDT_NONE && color.a() != 0)
@@ -177,18 +179,25 @@ void EntityLabelNode::update(const simData::CommonPrefs& commonPrefs, const std:
       }
 
       ts->size() = simVis::osgFontSize(static_cast<float>(labelPrefs.overlayfontpointsize()));
-      ts->content()->setLiteral(!commonPrefs.name().empty() ? commonPrefs.name() : "unnamed");
 
       label_->setStyle(style);
     }
 
     // apply the local altitude offset passed in
-    label_->setLocalOffset(osg::Vec3f(0.0f, 0.0f, zOffset));
+    const osg::Vec3d labelOffset(0.0, 0.0, zOffset);
+    if (label_->getLocalOffset() != labelOffset)
+      label_->setLocalOffset(labelOffset);
+
+    // check for an update:
+    if (text != lastText_)
+    {
+      label_->setText(text);
+      lastText_ = text;
+    }
   }
 
   lastCommonPrefs_ = commonPrefs;
   hasLastPrefs_ = true;
-  lastText_ = text;
 }
 
 }

@@ -20,30 +20,40 @@
 *
 */
 #include "osg/ArgumentParser"
+#include "osg/Depth"
+#include "osgEarth/Version"
 #include "osgEarth/MapNode"
 #include "osgEarth/TerrainEngineNode"
-#include "osgEarthUtil/Ocean"
+
+#if OSGEARTH_VERSION_LESS_THAN(3,0,0)
+#include "osgEarth/Ocean"
+#endif
 
 // Potentially defines HAVE_TRITON_NODEKIT, include first
 #include "simVis/osgEarthVersion.h"
 
 #ifdef HAVE_TRITON_NODEKIT
+#include "osgEarthTriton/TritonLayer"
+#if OSGEARTH_VERSION_LESS_THAN(3,0,0)
 #include "osgEarthTriton/TritonOptions"
-#else
-#include "osgEarthDrivers/ocean_triton/TritonOptions"
 #endif
-#include "osgEarthDrivers/ocean_simple/SimpleOceanOptions"
+#endif
+#include "osgEarth/SimpleOceanLayer"
+
 #include "simVis/BathymetryGenerator.h"
 #include "simVis/Constants.h"
 #include "simVis/SceneManager.h"
+#include "simVis/OverheadMode.h"
 #include "simUtil/ExampleResources.h"
 #include "InstallOcean.h"
 
+#if OSGEARTH_VERSION_LESS_THAN(3,0,0)
 namespace osgEarth {
   // 7/5/2016: osgEarth::Drivers::SimpleOcean became osgEarth::SimpleOcean; this
   // "using" statement allows for compilation both before and after this change.
   using namespace Drivers;
 }
+#endif
 
 namespace SimpleServer {
 
@@ -106,32 +116,31 @@ void InstallOcean::install(simVis::SceneManager& scene)
   }
 
   // Install the driver for the ocean
-  osg::ref_ptr<osgEarth::Util::OceanNode> oceanNode;
+#ifdef HAVE_TRITON_NODEKIT
   if (type_ == TRITON)
   {
-    osgEarth::Triton::TritonOptions triton;
-    if (!user_.empty())
-      triton.user() = user_;
-    if (!license_.empty())
-      triton.licenseCode() = license_;
-    if (!resourcePath_.empty())
-      triton.resourcePath() = resourcePath_;
+    osg::ref_ptr<osgEarth::Triton::TritonLayer> layer = new osgEarth::Triton::TritonLayer();
+    layer->setUserName(user_);
+    layer->setLicenseCode(license_);
+    layer->setResourcePath(resourcePath_);
+    layer->setUseHeightMap(false);
+    layer->setMaxAltitude(30000.0f);
+    layer->setRenderBinNumber(simVis::BIN_OCEAN);
 
-    triton.useHeightMap() = false;
-    triton.maxAltitude() = 30000.0f;
-    triton.renderBinNumber() = simVis::BIN_OCEAN;
-    oceanNode = osgEarth::Util::OceanNode::create(triton, scene.getMapNode());
+    // Configure it to work in overhead mode
+    simVis::OverheadMode::configureOceanLayer(layer.get());
+
+    // Add to the map
+    scene.getMap()->addLayer(layer.get());
   }
   else // type_ == SIMPLE
+#endif
   {
-    osgEarth::SimpleOcean::SimpleOceanOptions ocean;
-    ocean.maxAltitude() = 30000.0f;
-    ocean.renderBinNumber() = simVis::BIN_OCEAN;
-    oceanNode = osgEarth::Util::OceanNode::create(ocean, scene.getMapNode());
+    osgEarth::SimpleOceanLayer* ocean = new osgEarth::SimpleOceanLayer();
+    ocean->getOrCreateStateSet()->setRenderBinDetails(simVis::BIN_OCEAN, simVis::BIN_GLOBAL_SIMSDK);
+    ocean->setUseBathymetry(false);
+    ocean->setMaxAltitude(30000.0f);
   }
-
-  if (oceanNode.valid())
-    scene.setOceanNode(oceanNode.get());
 }
 
 }

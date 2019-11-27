@@ -85,6 +85,9 @@ simData::ObjectType DataStoreHelpers::typeFromChar(char entityTypeChar)
   case 'R':
   case 'r': return simData::PROJECTOR;
 
+  case 'C':
+  case 'c': return simData::CUSTOM_RENDERING;
+
   case simData::ALL:
   case simData::NONE:
     return simData::NONE;
@@ -109,6 +112,8 @@ std::string DataStoreHelpers::typeToString(simData::ObjectType entityType)
     return "D";
   case simData::PROJECTOR:
     return "R";
+  case simData::CUSTOM_RENDERING:
+    return "C";
   case simData::ALL:
   case simData::NONE:
     return "";
@@ -140,6 +145,8 @@ std::string DataStoreHelpers::fullTypeToString(simData::ObjectType entityType)
     return "LOB";
   case simData::PROJECTOR:
     return "Projector";
+  case simData::CUSTOM_RENDERING:
+    return "Custom";
   case simData::ALL:
   case simData::NONE:
     return "";
@@ -197,6 +204,12 @@ uint64_t DataStoreHelpers::originalIdFromId(ObjectId objectId, const simData::Da
   case simData::LOB_GROUP:
   {
     const simData::LobGroupProperties* props = dataStore->lobGroupProperties(objectId, &transaction);
+    assert(props);
+    return props->originalid();
+  }
+  case simData::CUSTOM_RENDERING:
+  {
+    const simData::CustomRenderingProperties* props = dataStore->customRenderingProperties(objectId, &transaction);
     assert(props);
     return props->originalid();
   }
@@ -263,6 +276,8 @@ google::protobuf::Message* DataStoreHelpers::makeMessage(simData::ObjectType ent
     return new simData::LobGroupPrefs();
   case simData::PROJECTOR:
     return new simData::ProjectorPrefs();
+  case simData::CUSTOM_RENDERING:
+    return new simData::CustomRenderingPrefs();
   }
 
   assert(false);
@@ -493,6 +508,34 @@ namespace {
   }
 }
 
+/** Helper method to determine if a Custom Rendering is active */
+bool isCustomRenderingActive(const simData::DataStore& dataStore, simData::ObjectId objectId, double atTime)
+{
+  // Host platform must be active. Custom Renderings can be top-level entities, ignore if host ID is 0
+  simData::DataStore::Transaction propertyTrans;
+  const auto* property = dataStore.customRenderingProperties(objectId, &propertyTrans);
+  if (property->hostid() != 0 && !isPlatformActive(dataStore, property->hostid(), atTime))
+    return false;
+
+  const auto* slice = dataStore.customRenderingCommandSlice(objectId);
+  if (slice == NULL)
+    return false;
+
+  // Check the draw state
+  auto iter = slice->upper_bound(atTime);
+  while (iter.hasPrevious())
+  {
+    const auto* command = iter.previous();
+    if (command->has_time() && command->updateprefs().commonprefs().has_datadraw())
+    {
+      return command->updateprefs().commonprefs().datadraw();
+    }
+  }
+
+  // no previous data draw command exists
+  return false;
+}
+
 bool DataStoreHelpers::isEntityActive(const simData::DataStore& dataStore, simData::ObjectId objectId, double atTime)
 {
   const simData::ObjectType type = dataStore.objectType(objectId);
@@ -516,6 +559,9 @@ bool DataStoreHelpers::isEntityActive(const simData::DataStore& dataStore, simDa
   case simData::PROJECTOR:
     return true;
 
+  case simData::CUSTOM_RENDERING:
+    return isCustomRenderingActive(dataStore, objectId, atTime);
+
   case simData::NONE:
     // Entity does not exist
     break;
@@ -526,6 +572,28 @@ bool DataStoreHelpers::isEntityActive(const simData::DataStore& dataStore, simDa
     break;
   }
   return false;
+}
+
+double DataStoreHelpers::getUserVerticalDatum(const simData::DataStore& dataStore, simData::ObjectId id)
+{
+  // Custom Rendering can be anywhere; but they do not support custom coordinate frames.
+  // Other types use the hosting platform for vertical datum.
+
+  if ((id == 0) || (dataStore.objectType(id) == simData::CUSTOM_RENDERING))
+  {
+    simData::DataStore::Transaction transaction;
+    auto sp = dataStore.scenarioProperties(&transaction);
+    if ((sp != NULL) && sp->has_coordinateframe())
+      return sp->coordinateframe().verticaldatumuservalue();
+    return 0.0;
+  }
+
+  simData::ObjectId platformId = simData::DataStoreHelpers::getPlatformHostId(id, &dataStore);
+  simData::DataStore::Transaction transaction;
+  const simData::PlatformProperties* prop = dataStore.platformProperties(platformId, &transaction);
+  if (prop != NULL)
+    return prop->coordinateframe().verticaldatumuservalue();
+  return 0.0;
 }
 
 }

@@ -21,9 +21,8 @@
  */
 #include "osg/Geode"
 #include "osg/Geometry"
-#include "osg/LineWidth"
-#include "osgEarth/Version"
-#include "osgEarthUtil/Ephemeris"
+#include "osgEarth/LineDrawable"
+#include "osgEarth/Ephemeris"
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Math.h"
 #include "simCore/Calc/CoordinateConverter.h"
@@ -34,17 +33,19 @@
 #include "simVis/Utils.h"
 #include "simVis/EphemerisVector.h"
 
-using namespace osgEarth::Symbology;
-
 namespace simVis
 {
 
 /** Number of vertices to use when drawing the line vectors (should be at least 2) */
-static const int NUM_LINE_VERTICES = 4;
+static const unsigned int NUM_LINE_VERTICES = 4;
 /** Ephemeris vector display mask when visible; uses label to avoid affecting platform bounds */
 static const simVis::DisplayMask DISPLAY_MASK_EPHEMERIS = DISPLAY_MASK_LABEL;
 /** Interval in minutes for updating ephemeris vectors on time, when they aren't rebuilt due to other means */
 static const int REBUILD_TIMEOUT = 15; // minutes of scenario time before vector gets rebuilt even when platform not moving
+
+// Indices for the moon and sun vector
+static const int VECTOR_MOON = 0;
+static const int VECTOR_SUN = 1;
 
 /** Every XX minutes of scenario time, make sure the ephemeris vector is rebuilt for new positions */
 class EphemerisVector::RebuildOnTimer : public osg::Callback
@@ -66,8 +67,8 @@ public:
       assert(clock != NULL);
       if (clock != NULL)
       {
-        const simCore::TimeStamp now = clock->currentTime();
-        const simCore::Seconds delta = now - ephemeris->lastUpdateTime_;
+        const simCore::TimeStamp& now = clock->currentTime();
+        const simCore::Seconds& delta = now - ephemeris->lastUpdateTime_;
         if (fabs(delta.Double()) > maxDelta_)
           ephemeris->rebuild_(ephemeris->lastPrefs_);
       }
@@ -84,21 +85,20 @@ private:
 EphemerisVector::EphemerisVector(const simVis::Color& moonColor, const simVis::Color& sunColor, float lineWidth)
   : Group(),
     coordConvert_(new simCore::CoordinateConverter),
-    ephemeris_(new osgEarth::Util::Ephemeris),
+    ephemeris_(new osgEarth::Ephemeris),
     lastUpdateTime_(simCore::INFINITE_TIME_STAMP),
     hasLastPrefs_(false)
 {
   setName("EphemerisVector");
   setNodeMask(DISPLAY_MASK_NONE);
-  getOrCreateStateSet()->setAttributeAndModes(new osg::LineWidth(lineWidth));
+
+  // Group to hold the vector lines:
+  geomGroup_ = new osgEarth::LineGroup();
+  addChild(geomGroup_.get());
 
   // Create and add the moon and sun lines
-  moonGeode_ = createGeode_(moonVertices_, moonColor);
-  moonGeode_->setName("Moon");
-  addChild(moonGeode_.get());
-  sunGeode_ = createGeode_(sunVertices_, sunColor);
-  sunGeode_->setName("Sun");
-  addChild(sunGeode_.get());
+  geomGroup_->addChild(createVector_(moonColor, lineWidth));
+  geomGroup_->addChild(createVector_(sunColor, lineWidth));
 
   // Add a callback to redraw ephemeris vectors when time passes in scenario
   addUpdateCallback(new RebuildOnTimer);
@@ -115,28 +115,17 @@ void EphemerisVector::setModelNode(const PlatformModelNode* hostPlatformModel)
   modelNode_ = hostPlatformModel;
 }
 
-osg::Geode* EphemerisVector::createGeode_(osg::observer_ptr<osg::Vec3Array>& vertices, const simVis::Color& color) const
+osg::Node* EphemerisVector::createVector_(const simVis::Color& color, float lineWidth) const
 {
-  osg::ref_ptr<osg::Geode> geode = new osg::Geode;
-  osg::ref_ptr<osg::Geometry> geom = new osg::Geometry();
+  osgEarth::LineDrawable* geom = new osgEarth::LineDrawable(GL_LINE_STRIP);
+  geom->setDataVariance(osg::Object::DYNAMIC);
   geom->setName("simVis::EphemerisVector");
-  geom->setUseVertexBufferObjects(true);
-
-  // Configure the vertices array
-  vertices = new osg::Vec3Array(osg::Array::BIND_PER_VERTEX);
-  for (int k = 0; k < NUM_LINE_VERTICES; ++k)
-    vertices->push_back(osg::Vec3(k, 0, 0));
-  geom->setVertexArray(vertices.get());
-  geom->addPrimitiveSet(new osg::DrawArrays(GL_LINE_STRIP, 0, NUM_LINE_VERTICES));
-
-  // Use a single color for the line
-  osg::ref_ptr<osg::Vec4Array> colorArray = new osg::Vec4Array(osg::Array::BIND_OVERALL);
-  geom->setColorArray(colorArray.get());
-  colorArray->push_back(color);
-
-  // Add the drawable and return the geode
-  geode->addDrawable(geom);
-  return geode.release();
+  geom->allocate(NUM_LINE_VERTICES);
+  for (unsigned int k = 0; k < NUM_LINE_VERTICES; ++k)
+    geom->setVertex(k, osg::Vec3(k, 0.f, 0.f));
+  geom->setColor(color);
+  geom->setLineWidth(lineWidth);
+  return geom;
 }
 
 void EphemerisVector::rebuild_(const simData::PlatformPrefs& prefs)
@@ -156,10 +145,11 @@ void EphemerisVector::rebuild_(const simData::PlatformPrefs& prefs)
     setNodeMask(0);
     return;
   }
+
   // Pull out the DateTime that we can then send to the Ephemeris calculations
-  const simCore::TimeStamp timeStamp = clock->currentTime();
+  const simCore::TimeStamp& timeStamp = clock->currentTime();
   lastUpdateTime_ = timeStamp;
-  const osgEarth::DateTime dateTime(timeStamp.secondsSinceRefYear(1970));
+  const osgEarth::DateTime dateTime(timeStamp.secondsSinceRefYear(1970).getSeconds());
 
   // Reset the coordinate conversion center point
   const simCore::Coordinate asEcef(simCore::COORD_SYS_ECEF, simCore::Vec3(lastUpdate_.x(), lastUpdate_.y(), lastUpdate_.z()));
@@ -171,38 +161,32 @@ void EphemerisVector::rebuild_(const simData::PlatformPrefs& prefs)
   const float lineLength = VectorScaling::lineLength(modelNode_.get(), static_cast<float>(prefs.axisscale()));
 
   // Draw the moon vector
+  osgEarth::LineDrawable* moonGeom = geomGroup_->getLineDrawable(VECTOR_MOON);
   if (prefs.drawmoonvec())
   {
-#if OSGEARTH_VERSION_LESS_THAN(2,10,0)
-    rebuildLine_(ephemeris_->getMoonPositionECEF(dateTime), *moonVertices_, lineLength);
-#else
-    osgEarth::Util::CelestialBody moon = ephemeris_->getMoonPosition(dateTime);
-    rebuildLine_(moon.geocentric, *moonVertices_, lineLength);
-#endif
-    moonGeode_->setNodeMask(DISPLAY_MASK_EPHEMERIS);
+    const osgEarth::CelestialBody& moon = ephemeris_->getMoonPosition(dateTime);
+    rebuildLine_(moonGeom, moon.geocentric, lineLength);
+    moonGeom->setNodeMask(DISPLAY_MASK_EPHEMERIS);
   }
   else
-    moonGeode_->setNodeMask(0);
+    moonGeom->setNodeMask(0);
 
   // Draw the sun vector
+  osgEarth::LineDrawable* sunGeom = geomGroup_->getLineDrawable(VECTOR_SUN);
   if (prefs.drawsunvec())
   {
-#if OSGEARTH_VERSION_LESS_THAN(2,10,0)
-    rebuildLine_(ephemeris_->getSunPositionECEF(dateTime), *sunVertices_, lineLength);
-#else
-    osgEarth::Util::CelestialBody sun = ephemeris_->getSunPosition(dateTime);
-    rebuildLine_(sun.geocentric, *sunVertices_, lineLength);
-#endif
-    sunGeode_->setNodeMask(DISPLAY_MASK_EPHEMERIS);
+    const osgEarth::CelestialBody& sun = ephemeris_->getSunPosition(dateTime);
+    rebuildLine_(sunGeom, sun.geocentric, lineLength);
+    sunGeom->setNodeMask(DISPLAY_MASK_EPHEMERIS);
   }
   else
-    sunGeode_->setNodeMask(0);
+    sunGeom->setNodeMask(0);
 
   // Always show this group, at this point
   setNodeMask(DISPLAY_MASK_EPHEMERIS);
 }
 
-void EphemerisVector::rebuildLine_(const osg::Vec3& ephemerisPosition, osg::Vec3Array& vertices, float lineLength) const
+void EphemerisVector::rebuildLine_(osgEarth::LineDrawable* geom, const osg::Vec3& ephemerisPosition, float lineLength) const
 {
   // Get the tangent plane (XEast) coordinates of the moon relative to platform-centric system
   simCore::Coordinate asTp;
@@ -214,10 +198,7 @@ void EphemerisVector::rebuildLine_(const osg::Vec3& ephemerisPosition, osg::Vec3
   relToPlatform.normalize();
   relToPlatform *= lineLength;
 
-  // Generate all the points from center of platform to end of line
-  vertices.clear();
-  VectorScaling::generatePoints(vertices, osg::Vec3(0, 0, 0), relToPlatform, NUM_LINE_VERTICES);
-  vertices.dirty();
+  VectorScaling::generatePoints(*geom, osg::Vec3(), relToPlatform);
 }
 
 void EphemerisVector::setPrefs(const simData::PlatformPrefs& prefs)

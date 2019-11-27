@@ -25,7 +25,7 @@
 #include <string>
 #include "osg/ref_ptr"
 #include "osg/Referenced"
-#include "osgEarthSymbology/Style"
+#include "osgEarth/Style"
 #include "simCore/Calc/Vec3.h"
 #include "simCore/Common/Common.h"
 #include "simData/ObjectId.h"
@@ -34,12 +34,13 @@
 namespace osg { class Group; }
 namespace osgEarth {
   class MapNode;
-  namespace Annotation {
-    class LabelNode;
-  }
+  class LabelNode;
 }
 namespace simData { class DataStore; }
-namespace simVis { class AnimatedLineNode; }
+namespace simVis {
+  class AnimatedLineNode;
+  class EntityNode;
+}
 
 namespace simUtil {
 
@@ -129,17 +130,17 @@ public:
 
   /**
   * Retrieves the LineGraphic's label component.
-  * @return simVis::AnimatedLineNode representing the label component of the LineGraphic.
+  * @return Node representing the label component of the LineGraphic.
   */
-  osgEarth::Annotation::LabelNode* label() const;
+  osgEarth::LabelNode* label() const;
 
 private:
   osg::Group* scene_;
 
   osg::ref_ptr<osgEarth::SpatialReference> wgs84Srs_;
   osg::ref_ptr<simVis::AnimatedLineNode> animatedLine_;
-  osgEarth::Symbology::Style labelStyle_;
-  osg::ref_ptr<osgEarth::Annotation::LabelNode> label_;
+  osgEarth::Style labelStyle_;
+  osg::ref_ptr<osgEarth::LabelNode> label_;
   int displayMask_;
 };
 
@@ -209,7 +210,11 @@ private:
   simCore::Vec3 lla_;
 };
 
-/** Position based off a platform's LLA coordinate location. */
+#ifdef USE_DEPRECATED_SIMDISSDK_API
+/**
+ * @deprecated class, may be removed in a future release. Use simUtil::EntityNodePosition instead.
+ * Position based off a platform's LLA coordinate location.
+ */
 class SDKUTIL_EXPORT PlatformPosition : public Position
 {
 public:
@@ -237,6 +242,41 @@ private:
 
   const simData::DataStore& dataStore_;
   simData::ObjectId platformId_;
+  /** Cache of the LLA from the data store. */
+  mutable simCore::Vec3 lla_;
+};
+
+#endif
+
+/** Position based off a node's locator LLA coordinate location. */
+class SDKUTIL_EXPORT EntityNodePosition : public Position
+{
+public:
+  explicit EntityNodePosition(simVis::EntityNode* node);
+
+  virtual bool isValid() const;
+  virtual const simCore::Vec3& lla() const;
+  virtual bool operator==(const Position& other) const;
+  virtual bool operator!=(const Position& other) const;
+
+  /**
+  * Returns the Unique ID of the node
+  * @return The Unique ID of the node
+  */
+  simData::ObjectId id() const;
+
+  /**
+  * Returns the display name of the entity or empty string if there is no entity
+  * @return the display name of the entity or empty string if there is no entity
+  */
+  std::string entityName() const;
+
+protected:
+  /** Reference-derived */
+  virtual ~EntityNodePosition();
+
+private:
+  osg::ref_ptr<simVis::EntityNode> node_;
   /** Cache of the LLA from the data store. */
   mutable simCore::Vec3 lla_;
 };

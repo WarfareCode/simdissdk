@@ -26,7 +26,7 @@
 
 #include "osgEarth/MapNode"
 #include "osgEarth/GeoData"
-#include "osgEarthAnnotation/GeoPositionNode"
+#include "osgEarth/GeoPositionNode"
 
 #include "osg/Geode"
 #include "osg/Geometry"
@@ -40,7 +40,7 @@ namespace simVis
  * Radial line-of-sight node renders an LOS display corresponding to
  * the data in a RadialLOS structure.
  */
-class SDKVIS_EXPORT RadialLOSNode : public osgEarth::Annotation::GeoPositionNode
+class SDKVIS_EXPORT RadialLOSNode : public osgEarth::GeoPositionNode
 {
 public:
   /**
@@ -76,20 +76,20 @@ public:
    * @note Setting a new data model will override values set by these functions
    * @{
    */
-  void setMaxRange(const Distance& value);
-  const Distance& getMaxRange() const { return los_.getMaxRange(); }
+  void setMaxRange(const osgEarth::Distance& value);
+  const osgEarth::Distance& getMaxRange() const { return los_.getMaxRange(); }
 
-  void setCentralAzimuth(const Angle& value);
-  const Angle& getCentralAzimuth() const { return los_.getCentralAzimuth(); }
+  void setCentralAzimuth(const osgEarth::Angle& value);
+  const osgEarth::Angle& getCentralAzimuth() const { return los_.getCentralAzimuth(); }
 
-  void setFieldOfView(const Angle& value);
-  const Angle& getFieldOfView() const { return los_.getFieldOfView(); }
+  void setFieldOfView(const osgEarth::Angle& value);
+  const osgEarth::Angle& getFieldOfView() const { return los_.getFieldOfView(); }
 
-  void setRangeResolution(const Distance& value);
-  const Distance& getRangeResolution() const { return los_.getRangeResolution(); }
+  void setRangeResolution(const osgEarth::Distance& value);
+  const osgEarth::Distance& getRangeResolution() const { return los_.getRangeResolution(); }
 
-  void setAzimuthalResolution(const Angle& value);
-  const Angle& getAzimuthalResolution() const { return los_.getAzimuthalResolution(); }
+  void setAzimuthalResolution(const osgEarth::Angle& value);
+  const osgEarth::Angle& getAzimuthalResolution() const { return los_.getAzimuthalResolution(); }
   ///@}
 
   /**
@@ -114,23 +114,11 @@ public:
    */
   const osg::Vec4& getObstructedColor() const { return obstructedColor_; }
 
-  /**
-   * Sets the sample point color
-   * @param[in ] color for the sample points (rgba, [0..1])
-   */
-  void setSamplePointColor(const osg::Vec4& color);
-
-  /**
-   * Gets the sample point color
-   */
-  const osg::Vec4& getSamplePointColor() const { return samplePointColor_; }
-
   /** Set the node active or inactive.  Inactive node will not draw LOS or perform LOS calculations */
   void setActive(bool);
 
   /** Returns active state of node */
   bool getActive() const { return active_; }
-
 
 public: // GeoPositionNode
 
@@ -164,6 +152,12 @@ private:
   /** Not implemented */
   RadialLOSNode(const RadialLOSNode& rhs);
 
+  /**
+   * Central location to call los_.compute() to reduce spam on error.
+   * Returning true means valid graphics were added to the scene.
+   */
+  bool updateLOS_(osgEarth::MapNode* mapNode, const simCore::Coordinate& coord);
+
   // callback hook.
   struct TerrainCallbackHook : public osgEarth::TerrainCallback
   {
@@ -181,11 +175,12 @@ private:
   osg::ref_ptr<osgEarth::DrapeableNode> drapeable_;
   osg::Vec4 visibleColor_;
   osg::Vec4 obstructedColor_;
-  osg::Vec4 samplePointColor_;
   osgEarth::GeoCircle bound_;
   osgEarth::optional<RadialLOS> losPrevious_;
   osg::ref_ptr<TerrainCallbackHook> callbackHook_;
   bool active_;
+  bool isValid_;
+  bool requireUpdateLOS_;
 
   /** Rebuilds the geometry if needed when parameters change. */
   void refreshGeometry_();

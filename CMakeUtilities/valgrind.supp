@@ -1,0 +1,339 @@
+{
+   Protobuf_SuppressStaticDescriptor
+   Memcheck:Leak
+   ...
+   fun:_Z41__static_initialization_and_destruction_0ii
+}
+
+{
+  GLlib:Cond
+  Memcheck:Cond
+  obj:*/libGLcore.so.*
+  ...
+}
+
+{
+  AllofGL
+  Memcheck:Value8
+  obj:*/libGLcore.so.*.*
+  ...
+}
+
+{
+  AllofX
+  Memcheck:Cond
+  obj:*/libXft.so.*.*.*
+  ...
+}
+
+{
+  AllofX
+  Memcheck:Cond
+  obj:*/libXcursor.so.*.*.*
+  ...
+}
+
+{
+  AllofX
+  Memcheck:Param
+  writev(vector[...])
+  fun:writev
+  obj:*/libX11.so.*.*.*
+  ...
+}
+
+{
+  AllofThread
+  Memcheck:Param
+  write(buf)
+  obj:*/libpthread-2.*.so
+  ...
+}
+
+{
+   GLIssue
+   Memcheck:Leak
+   fun:malloc
+   fun:_dl_map_object_deps
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_error
+   fun:_dlerror_run
+   fun:dlopen@@GLIBC_2.*
+   obj:*/libGL.so.*
+   obj:*/libGLcore.so.*
+   obj:*
+}
+
+{
+   GLIssue
+   Memcheck:Leak
+   fun:?alloc
+   ...
+   fun:dlopen@@GLIBC_2.*
+   obj:*/libGL.so.*.*
+}
+
+{
+   GLIssue
+   Memcheck:Leak
+   fun:realloc
+   obj:*/libGL.so.*.*
+}
+
+{
+  Ignore CPLCreateOrAcquireMutex issues
+  Memcheck:Leak
+  ...
+  fun:CPLCreateOrAcquireMutex
+  ...
+}
+
+{
+   QDir::homePath leaves reachable memory
+   Memcheck:Leak
+   ...
+   fun:*QString*Local8Bit*
+   ...
+   fun:*QDir*homePath*
+   ...
+}
+
+{
+   QDir::exists leaves reachable memory
+   Memcheck:Leak
+   ...
+   fun:*QString*Local8Bit*
+   ...
+   fun:*QDir*exist*
+   ...
+}
+
+{
+   QFile::exists leaves reachable memory
+   Memcheck:Leak
+   ...
+   fun:*QString*Local8Bit*
+   ...
+   fun:*QFile*exist*
+   ...
+}
+
+{
+   QFile constructor leaves reachable memory
+   Memcheck:Leak
+   ...
+   fun:*QObject*QObjectPrivate*
+   fun:*QIODevice*QIODevicePrivate*QObject*
+   fun:*QFile*QString*
+   ...
+}
+
+{
+   QRegularExpression::match leaves reachable memory
+   Memcheck:Leak
+   ...
+   fun:*QThreadStorageData*get*
+   ...
+   fun:*QRegularExpression*match*
+   ...
+}
+
+{
+   ADDRESS_IN_RANGE/Conditional jump or move depends on uninitialized value
+   Memcheck:Addr8
+   ...
+   fun:CPLGetSymbol
+   ...
+}
+
+{
+   osgEarth CURL Leak ignored
+   Memcheck:Leak
+   ...
+   fun:curl_global_init
+   fun:*osgEarth*HTTPClient*globalInit*
+   ...
+}
+
+{
+   osgEarth Registry initialization of GDAL ignored (OGR)
+   Memcheck:Leak
+   ...
+   fun:OGRRegisterAll
+   ...
+}
+
+{
+   Initialization of GDAL ignored (GDAL)
+   Memcheck:Leak
+   ...
+   fun:GDALAllRegister
+   ...
+}
+
+{
+   osgEarth Registry initialization
+   Memcheck:Leak
+   ...
+   fun:*osgEarth*Registry*instance*
+   ...
+}
+
+{
+   osgEarth Registry initialization of GDAL ignored (GDAL)
+   Memcheck:Leak
+   ...
+   fun:*LoadProjLibrary*
+   ...
+}
+
+{
+   GDAL File Manager
+   Memcheck:Leak
+   ...
+   fun:*VSIFileManager*
+   ...
+}
+
+{
+   QSettings leaks in QLockFile/QTemporaryFile/QFile/qrand.
+   Memcheck:Leak
+   ...
+   fun:*qrand*
+   ...
+   fun:*QTemporaryFile*open*
+   ...
+   fun:*QSettings*
+   ...
+}
+
+{
+   QSettings leaks in QLibraryInfo::location.
+   Memcheck:Leak
+   ...
+   fun:*QLibraryInfo*location*
+   ...
+   fun:*QSettings*
+   ...
+}
+
+{
+   Invalid free / delete / delete[] in exit on unit tests
+   Memcheck:Free
+   fun:free
+   ...
+   fun:_vgnU_freeres
+   fun:exit
+   ...
+}
+
+
+{
+   UnitsFormatter test issue from OSG if DLL not found
+   Memcheck:Leak
+   ...
+   fun:_dlerror_run*
+   ...
+   fun:dlopen*
+   ...
+   fun:*osgDB*DynamicLibrary*getLibraryHandle*
+   ...
+}
+
+{
+   dlsym leak
+   Memcheck:Leak
+   fun:calloc
+   fun:_dlerror_run
+   fun:dlsym
+   ...
+   fun:_dl_init
+}
+
+
+{
+   Ignore osgEarth globals in ref_ptr
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_GLOBAL__sub_*
+   fun:_dl_init
+   ...
+}
+
+{
+   Protobuf globals that leak even when protobuf is not directly used
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*google*protobuf*GoogleOnceInitImpl*Closure*
+}
+{
+   Protobuf globals that leak even when protobuf is not directly used
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:_ZN7simData32protobuf_AddDesc_simData_2eprotoEv
+}
+{
+   Protobuf globals that leak even when protobuf is not directly used
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*google*protobuf*protobuf_AddDesc_google*protobuf*descriptor*protoEv
+}
+{
+   Protobuf globals that leak even when protobuf is not directly used
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*google*protobuf*DescriptorPool*InternalAddGeneratedFile*
+}
+{
+   Protobuf globals that leak even when protobuf is not directly used
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   ...
+   fun:*mapnik*vector*protobuf_AddDesc_vector*tile*proto*
+   fun:_dl_init
+   ...
+}
+
+{
+   libglib leaks on CentOS7
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:*alloc
+   ...
+   obj:/usr/lib64/libglib*
+   fun:_dl_init
+   ...
+}
+
+{
+   GDAL/TBB conditional jump
+   Memcheck:Cond
+   ...
+   fun:*_INTERNAL*src_tbb_dynamic_link_cpp*init*dl*data*
+   fun:run_initializer
+   fun:atomic_do_once
+   fun:atomic_once
+   fun:*tbb*internal*init_dynamic_link_data*
+   ...
+}
+{
+   CentOS 7 GDAL issue
+   Memcheck:Leak
+   match-leak-kinds: reachable
+   fun:*alloc
+   ...
+   fun:dl_open_worker
+   fun:_dl_catch_error
+   fun:_dl_open
+   fun:dlopen_doit
+   fun:_dl_catch_error
+   ...
+}

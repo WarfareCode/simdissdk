@@ -22,6 +22,8 @@
 #include "osg/Geode"
 #include "osg/Geometry"
 
+#include "osgEarth/LineDrawable"
+
 #include "simCore/Calc/Math.h"
 #include "simCore/Calc/CoordinateConverter.h"
 #include "simNotify/Notify.h"
@@ -39,7 +41,7 @@ namespace simVis
 VelocityVector::VelocityVector(Locator* hostLocator, const osg::Vec4f& vectorColor, float lineWidth)
   : LocatorNode(new Locator(hostLocator, Locator::COMP_POSITION)),
     forceRebuild_(true),
-    lineWidth_(new osg::LineWidth(lineWidth)),
+    lineWidth_(lineWidth),
     vectorColor_(vectorColor)
 {
   setName("VelocityVector");
@@ -62,7 +64,7 @@ int VelocityVector::rebuild_(const simData::PlatformPrefs& prefs)
     return 1;
   }
 
-  osg::ref_ptr<osg::Geode> geode = new osg::Geode();
+  osg::ref_ptr<osgEarth::LineGroup> geode = new osgEarth::LineGroup();
   createVelocityVector_(prefs, geode.get());
 
   // disable lighting
@@ -71,7 +73,7 @@ int VelocityVector::rebuild_(const simData::PlatformPrefs& prefs)
   setNodeMask(DISPLAY_MASK_PLATFORM);
   this->addChild(geode.get());
   return 0;
-};
+}
 
 void VelocityVector::setPrefs(bool draw, const simData::PlatformPrefs& prefs, bool force)
 {
@@ -125,15 +127,8 @@ void VelocityVector::update(const simData::PlatformUpdate& platformUpdate)
 
 void VelocityVector::createVelocityVector_(const simData::PlatformPrefs& prefs, osg::Geode* geode) const
 {
-  osg::ref_ptr<osg::Geometry> geom = new osg::Geometry();
+  osg::ref_ptr<osgEarth::LineDrawable> geom = new osgEarth::LineDrawable(GL_LINES);
   geom->setName("simVis::VelocityVector");
-  geom->setUseVertexBufferObjects(true);
-
-  osg::ref_ptr<osg::Vec3Array> vertices = new osg::Vec3Array();
-  geom->setVertexArray(vertices.get());
-
-  osg::ref_ptr<osg::Vec4Array> colorArray = new osg::Vec4Array(osg::Array::BIND_PER_PRIMITIVE_SET);
-  geom->setColorArray(colorArray.get());
 
   simCore::Coordinate ecef;
   ecef.setCoordinateSystem(simCore::COORD_SYS_ECEF);
@@ -147,8 +142,8 @@ void VelocityVector::createVelocityVector_(const simData::PlatformPrefs& prefs, 
   if (prefs.velvecusestaticlength())
   {
     simCore::v3Norm(lla.velocity(), velocity);
-    const Units sizeUnits = simVis::convertUnitsToOsgEarth(prefs.velvecstaticlenunits());
-    scale = sizeUnits.convertTo(Units::METERS, prefs.velvecstaticlen());
+    const osgEarth::Units sizeUnits = simVis::convertUnitsToOsgEarth(prefs.velvecstaticlenunits());
+    scale = sizeUnits.convertTo(osgEarth::Units::METERS, prefs.velvecstaticlen());
   }
   else
   {
@@ -165,16 +160,15 @@ void VelocityVector::createVelocityVector_(const simData::PlatformPrefs& prefs, 
   simCore::v3Scale(scale, velocity, velocity);
 
   // draw velocity vector
-  vertices->push_back(osg::Vec3(0, 0, 0));
-  vertices->push_back(osg::Vec3(velocity.x(), velocity.y(), velocity.z()));
-  geom->addPrimitiveSet(new osg::DrawArrays(GL_LINE_STRIP, 0, 2));
-  colorArray->push_back(vectorColor_);
-
+  geom->allocate(2);
+  geom->setVertex(0, osg::Vec3());
+  geom->setVertex(1, osg::Vec3(velocity.x(), velocity.y(), velocity.z()));
+  geom->setColor(vectorColor_);
   // set linewidth
-  geom->getOrCreateStateSet()->setAttributeAndModes(lineWidth_.get(), 1);
+  geom->setLineWidth(lineWidth_);
 
   // Add the drawable to the geode
-  geode->addDrawable(geom);
+  geode->addDrawable(geom.get());
 }
 
 }

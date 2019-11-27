@@ -30,8 +30,7 @@
 #include "simVis/RFProp/BearingProfileMap.h"
 #include "simVis/RFProp/ProfileManager.h"
 
-using namespace simRF;
-
+namespace simRF {
 //----------------------------------------------------------------------------
 ProfileManager::ProfileManager()
  : osg::Group(),
@@ -356,6 +355,11 @@ Profile* ProfileManager::getProfileByBearing(double bearingR) const
   return currentProfileMap_->getProfileByBearing(bearingR);
 }
 
+const Profile* ProfileManager::getProfile(unsigned int index) const
+{
+  return ((index < getNumChildren()) ? dynamic_cast<const Profile*>(getChild(index)) : NULL);
+}
+
 void ProfileManager::addProfile(Profile* profile)
 {
   if (!profile)
@@ -458,3 +462,4 @@ void ProfileManager::dirty()
   }
 }
 
+}

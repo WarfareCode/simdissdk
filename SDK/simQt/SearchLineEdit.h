@@ -27,10 +27,13 @@
 #include <QPixmap>
 #include "simCore/Common/Common.h"
 
+class QProxyStyle;
 class QTimer;
 class QToolButton;
 class QWidgetAction;
+#ifdef USE_DEPRECATED_SIMDISSDK_API
 class Ui_SearchLineEditQt4;
+#endif
 
 namespace simQt
 {
@@ -76,6 +79,7 @@ private:
   QTimer* searchTimer_;
   QWidgetAction* iconAction_;
   bool iconEnabled_;
+  QProxyStyle* proxyStyle_;
 };
 
 

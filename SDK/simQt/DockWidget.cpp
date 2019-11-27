@@ -60,6 +60,13 @@ const simQt::Settings::MetaData DockWidget::DISABLE_DOCKING_METADATA = simQt::Se
   false, QObject::tr("Disables docking on all windows. Overrides individual windows' dockable state"),
   simQt::Settings::ADVANCED);
 
+/// Setting that can be used to change dock widget border size
+const QString DOCK_BORDER_THICKNESS = "Windows/Undocked Border Thickness";
+/// Metadata for DOCK_BORDER_THICKNESS
+const simQt::Settings::MetaData DOCK_BORDER_METADATA = simQt::Settings::MetaData::makeInteger(
+  3, QObject::tr("Set border thickness of dock widgets, in pixels"),
+  simQt::Settings::ADVANCED, 1, 10);
+
 /** Index value for the search widget if it exists */
 static const int SEARCH_LAYOUT_INDEX = 2;
 /** Default docking flags enables all buttons, but not search */
@@ -254,6 +261,7 @@ void DockWidget::init_()
   haveFocus_ = false;
   isDockable_ = true;
   disableAllDocking_ = NULL;
+  borderThickness_ = NULL;
 
   createStylesheets_();
 
@@ -318,6 +326,11 @@ void DockWidget::init_()
   titleBar_ = createTitleBar_();
   // Create our non-visible title bar widget
   noTitleBar_ = new QWidget();
+  // Widget needs a layout, else QWidget::sizeHint() returns (-1,-1), which adversely
+  // affects the size of the QGLWidget in SIMDIS in fullscreen mode.
+  QHBoxLayout* noLayout = new QHBoxLayout;
+  noLayout->setMargin(0);
+  noTitleBar_->setLayout(noLayout);
   noTitleBar_->setMinimumSize(1, 1);
 
   // Turn on the title bar
@@ -728,7 +741,7 @@ void DockWidget::setWidget(QWidget* widget)
 
 bool DockWidget::isDockable() const
 {
-  return isDockable_;
+  return !allDockingDisabled() && isDockable_;
 }
 
 void DockWidget::setDockable(bool dockable)
@@ -738,13 +751,17 @@ void DockWidget::setDockable(bool dockable)
   // call this method.
 
   // Override the dockability flag with the global if needed
-  const bool globalDockDisable = (disableAllDocking_ != NULL && disableAllDocking_->value());
+  const bool globalDockDisable = allDockingDisabled();
   if (globalDockDisable)
     dockable = false;
 
   // Update settings and QMenu's QAction
   bool emitIt = (dockable != isDockable_);
-  isDockable_ = dockable;
+  // Do not override isDockable_ if globalDockDisable is active
+  if (!globalDockDisable)
+    isDockable_ = dockable;
+  else
+    emitIt = false;
 
   // only set dockable if we can be dockable
   if (dockable)
@@ -762,6 +779,11 @@ void DockWidget::setDockable(bool dockable)
     dockableAction_->setChecked(dockable);
   if (emitIt)
     emit isDockableChanged(isDockable_);
+}
+
+bool DockWidget::allDockingDisabled() const
+{
+  return (disableAllDocking_ != NULL && disableAllDocking_->value());
 }
 
 void DockWidget::verifyDockState_(bool floating)
@@ -786,8 +808,9 @@ void DockWidget::setEscapeClosesWidget(bool escapeCloses)
 
 QTabBar* DockWidget::findTabWithTitle_(const QList<QTabBar*>& fromBars, const QString& title, int& index) const
 {
-  Q_FOREACH(QTabBar* tabBar, fromBars)
+  for (auto it = fromBars.begin(); it != fromBars.end(); ++it)
   {
+    QTabBar* tabBar = *it;
     // Now search each tab bar for the tab whose title matches ours
     int numTabs = tabBar->count();
     for (index = 0; index < numTabs; index++)
@@ -1028,6 +1051,14 @@ void DockWidget::show()
   setFocus();
 }
 
+void DockWidget::setGlobalSettings(Settings* globalSettings)
+{
+  if (globalSettings_ == globalSettings)
+    return;
+  globalSettings_ = globalSettings;
+  applyGlobalSettings_();
+}
+
 void DockWidget::loadSettings_()
 {
   // nothing to do if ignoring settings
@@ -1049,13 +1080,7 @@ void DockWidget::loadSettings_()
   }
 
   // Initialize the bound setting for disable-all-docking
-  if (globalSettings_)
-  {
-    disableAllDocking_ = new simQt::BoundBooleanSetting(this, *globalSettings_, DockWidget::DISABLE_DOCKING_SETTING,
-      DockWidget::DISABLE_DOCKING_METADATA);
-    connect(disableAllDocking_, SIGNAL(valueChanged(bool)), this, SLOT(setGlobalNotDockableFlag_(bool)));
-    setGlobalNotDockableFlag_(disableAllDocking_->value());
-  }
+  applyGlobalSettings_();
 
   normalGeometry_ = geometry();
   restoreFloating_(widgetGeometry.toByteArray());
@@ -1139,7 +1164,30 @@ void DockWidget::setGlobalNotDockableFlag_(bool disallowDocking)
 {
   if (dockableAction_)
     dockableAction_->setEnabled(!disallowDocking);
-  setDockable(isDockable_ && !disallowDocking);
+  // Call setDockable() with the current dockable state. setDockable()
+  // will check disableAllDocking_'s value and dock or undock appropriately
+  setDockable(isDockable_);
+}
+
+void DockWidget::setBorderThickness_(int thickness)
+{
+  setStyleSheet(QString("QDockWidget { border: %1px solid; }").arg(thickness));
+}
+
+void DockWidget::applyGlobalSettings_()
+{
+  if (!globalSettings_)
+    return;
+  delete disableAllDocking_;
+  disableAllDocking_ = new simQt::BoundBooleanSetting(this, *globalSettings_, DockWidget::DISABLE_DOCKING_SETTING,
+    DockWidget::DISABLE_DOCKING_METADATA);
+  connect(disableAllDocking_, SIGNAL(valueChanged(bool)), this, SLOT(setGlobalNotDockableFlag_(bool)));
+  setGlobalNotDockableFlag_(disableAllDocking_->value());
+
+  delete borderThickness_;
+  borderThickness_ = new simQt::BoundIntegerSetting(this, *globalSettings_, DOCK_BORDER_THICKNESS, DOCK_BORDER_METADATA);
+  connect(borderThickness_, SIGNAL(valueChanged(int)), this, SLOT(setBorderThickness_(int)));
+  setBorderThickness_(borderThickness_->value());
 }
 
 }

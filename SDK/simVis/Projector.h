@@ -31,7 +31,6 @@ namespace osg { class Texture2D; }
 namespace simVis
 {
   class EntityLabelNode;
-  class LabelContentCallback;
   struct LocatorCallback;
 
 /** Projector video interface on the MediaPlayer2 side */
@@ -103,14 +102,8 @@ public:
   /// Load image into texture
   void setImage(osg::Image *image);
 
-  /**
-  * Sets a custom callback that will be used to generate the string that goes in the label.
-  * @param callback Callback that will generate content; if NULL will only display platform name/alias
-  */
-  void setLabelContentCallback(LabelContentCallback* callback);
-
-  /// Returns current content callback
-  LabelContentCallback* labelContentCallback() const;
+  /// Gets the texture generation matrix
+  const osg::Matrixd& getTexGenMatrix() const { return texGenMatrix_; }
 
   /**
    * Gets a pointer to the last data store update, or NULL if
@@ -151,9 +144,10 @@ public: // EntityNode interface
   */
   virtual const std::string getEntityName(EntityNode::NameType nameType, bool allowBlankAlias = false) const;
 
+  /// Returns the pop up text based on the label content callback, update and preference
+  virtual std::string popupText() const;
   /// Returns the hook text based on the label content callback, update and preference
   virtual std::string hookText() const;
-
   /// Returns the legend text based on the label content callback, update and preference
   virtual std::string legendText() const;
 
@@ -178,11 +172,11 @@ public: // EntityNode interface
   /** This entity type is, at this time, unpickable. */
   virtual unsigned int objectIndexTag() const;
 
-  /** Configure a state set to accept the texture projected by this projector */
-  void addProjectionToStateSet(osg::StateSet* stateSet);
+  /** Configure a node to accept the texture projected by this projector */
+  void addProjectionToNode(osg::Node* node);
 
-  /** Remove the attributes added by addProjectionToStateSet */
-  void removeProjectionFromStateSet(osg::StateSet* stateSet);
+  /** Remove the setup configured by addProjectionToNode */
+  void removeProjectionFromNode(osg::Node* node);
 
   /**
   * Get the traversal mask for this node type
@@ -192,7 +186,6 @@ public: // EntityNode interface
 
   /** Return the proper library name */
   virtual const char* libraryName() const { return "simVis"; }
-
   /** Return the class name */
   virtual const char* className() const { return "ProjectorNode"; }
 
@@ -220,10 +213,10 @@ private:
   osg::observer_ptr<const EntityNode> host_;
   osg::ref_ptr<LocatorCallback> locatorCallback_;
   osg::ref_ptr<EntityLabelNode> label_;
-  osg::ref_ptr<LabelContentCallback> contentCallback_;
   bool                         hasLastUpdate_;
   bool                         hasLastPrefs_;
 
+  osg::Matrixd texGenMatrix_;
   osg::ref_ptr<osg::Texture2D> texture_;
   // Projector video interface for transferring video image.
   osg::ref_ptr<ProjectorTextureImpl> projectorTextureImpl_;
@@ -233,10 +226,12 @@ private:
   osg::MatrixTransform* graphics_;
   osg::ref_ptr<osg::Uniform> projectorActive_;
   osg::ref_ptr<osg::Uniform> projectorAlpha_;
-  osg::ref_ptr<osg::Uniform> texGenMatUniform_;
   osg::ref_ptr<osg::Uniform> texProjPosUniform_;
   osg::ref_ptr<osg::Uniform> texProjDirUniform_;
   osg::ref_ptr<osg::Uniform> texProjSamplerUniform_;
+
+  osg::ref_ptr<osg::NodeCallback> projectOnNodeCallback_;
+
   friend class ProjectorManager; // manager wants access to the uniforms.
 
   void getMatrices_(

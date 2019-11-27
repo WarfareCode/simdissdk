@@ -30,14 +30,8 @@ namespace simQt {
 EntityCategoryFilter::EntityCategoryFilter(simData::DataStore* dataStore, WidgetType widgetType)
   : EntityFilter(),
     categoryFilter_(new simData::CategoryFilter(dataStore, true)),
-    widgetType_(widgetType)
-{
-}
-
-EntityCategoryFilter::EntityCategoryFilter(const simData::CategoryFilter& categoryFilter, WidgetType widgetType)
-  : EntityFilter(),
-    categoryFilter_(new simData::CategoryFilter(categoryFilter)),
-    widgetType_(widgetType)
+    widgetType_(widgetType),
+    settings_(NULL)
 {
 }
 
@@ -64,6 +58,7 @@ QWidget* EntityCategoryFilter::widget(QWidget* newWidgetParent) const
     CategoryFilterWidget2* rv = new CategoryFilterWidget2(newWidgetParent);
     rv->setDataStore(categoryFilter_->getDataStore());
     rv->setFilter(*categoryFilter_);
+    rv->setSettings(settings_, settingsKeyPrefix_);
     bindToWidget(rv);
     return rv;
   }
@@ -127,7 +122,8 @@ void EntityCategoryFilter::setCategoryFilter(const simData::CategoryFilter& cate
   if ((*categoryFilter_) == categoryFilter)
     return;
 
-  *categoryFilter_ = categoryFilter;
+  // use assign so that categoryFilter_ keeps its auto update
+  categoryFilter_->assign(categoryFilter, false);
   // send out signal to alert any guis bound to this filter
   emit categoryFilterChanged(*categoryFilter_);
   // send out general filter update signal
@@ -139,9 +135,16 @@ const simData::CategoryFilter& EntityCategoryFilter::categoryFilter() const
   return *categoryFilter_;
 }
 
+void EntityCategoryFilter::setSettings(Settings* settings, const QString& settingsKeyPrefix)
+{
+  settings_ = settings;
+  settingsKeyPrefix_ = settingsKeyPrefix;
+}
+
 void EntityCategoryFilter::setCategoryFilterFromGui_(const simData::CategoryFilter& categoryFilter)
 {
-  *categoryFilter_ = categoryFilter;
+  // use assign so that categoryFilter_ keeps its auto update
+  categoryFilter_->assign(categoryFilter, false);
   // the GUI has changed the filter, send out general filter update signal
   emit filterUpdated();
 }

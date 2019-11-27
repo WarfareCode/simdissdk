@@ -62,6 +62,8 @@ int testPrintSeconds()
   // Note rounding
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 1.234567), 1970, 3) == "1.235");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 3.9), 1971, 0) == "4");
+  // Negative value
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, -5.), 1971, 0) == "-5");
   return rv;
 }
 
@@ -77,9 +79,35 @@ int testPrintMinutes()
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1971, 0) == "-525600:00");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 61.234567), 1970, 2) == "1:01.23");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 61.234567), 1970, 3) == "1:01.235");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 3661.234567), 1970, 2) == "61:01.23");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 3661.234567), 1970, 3) == "61:01.235");
   // Note rounding
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 3.9), 1971, 0) == "0:04");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 8*60 - 0.1), 1971, 0) == "8:00");
+  // Negative value
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, -5.), 1971, 0) == "-0:05");
+  return rv;
+}
+
+int testPrintMinutesWrapped()
+{
+  int rv = 0;
+  simCore::MinutesWrappedTimeFormatter format;
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1970, 3) == "0:00.000");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1970, 5) == "0:00.00000");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1970, 1) == "0:00.0");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1970, 0) == "0:00");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 0), 1970, 0) == "0:00");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1971, 0) == "0:00");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 61.234567), 1970, 2) == "1:01.23");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 61.234567), 1970, 3) == "1:01.235");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 3661.234567), 1970, 2) == "1:01.23");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 3661.234567), 1970, 3) == "1:01.235");
+  // Note rounding
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 3.9), 1971, 0) == "0:04");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 8 * 60 - 0.1), 1971, 0) == "8:00");
+  // Negative value
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, -5.), 1971, 0) == "-0:05");
   return rv;
 }
 
@@ -95,9 +123,39 @@ int testPrintHours()
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1971, 0) == "-8760:00:00");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 3661.234567), 1970, 2) == "1:01:01.23");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 3661.234567), 1970, 3) == "1:01:01.235");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 90061.234567), 1970, 2) == "25:01:01.23");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 90061.234567), 1970, 3) == "25:01:01.235");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 86461.234567), 1970, 2) == "24:01:01.23");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 86461.234567), 1970, 3) == "24:01:01.235");
   // Note rounding
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 8*60 - 0.1), 1971, 0) == "0:08:00");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 3600 - 0.1), 1971, 0) == "1:00:00");
+  // Negative value
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, -5.), 1971, 0) == "-0:00:05");
+  return rv;
+}
+
+int testPrintHoursWrapped()
+{
+  int rv = 0;
+  simCore::HoursWrappedTimeFormatter format;
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1970, 3) == "0:00:00.000");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1970, 5) == "0:00:00.00000");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1970, 1) == "0:00:00.0");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1970, 0) == "0:00:00");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 0), 1970, 0) == "0:00:00");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 0), 1971, 0) == "0:00:00");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 3661.234567), 1970, 2) == "1:01:01.23");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 3661.234567), 1970, 3) == "1:01:01.235");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 90061.234567), 1970, 2) == "1:01:01.23");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 90061.234567), 1970, 3) == "1:01:01.235");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 86461.234567), 1970, 2) == "0:01:01.23");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1970, 86461.234567), 1970, 3) == "0:01:01.235");
+  // Note rounding
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 8 * 60 - 0.1), 1971, 0) == "0:08:00");
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 3600 - 0.1), 1971, 0) == "1:00:00");
+  // Negative value
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, -5.), 1971, 0) == "-0:00:05");
   return rv;
 }
 
@@ -132,6 +190,8 @@ int testPrintOrdinal()
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 8*60 - 0.1), 1971, 0) == "001 1971 00:08:00");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 3600 - 0.1), 1971, 0) == "001 1971 01:00:00");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, 24*3600 - 0.1), 1971, 0) == "002 1971 00:00:00");
+  // Negative value
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, -5.), 1971, 0) == "365 1970 23:59:55");
   return rv;
 }
 
@@ -187,6 +247,9 @@ int testPrintMonthDay()
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1973, 86400*304), 1970, 0) == "Nov 1 1973 00:00:00");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1973, 86400*334), 1970, 0) == "Dec 1 1973 00:00:00");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1973, 86400*365), 1970, 0) == "Jan 1 1974 00:00:00");
+
+  // Negative value
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, -5.), 1971, 0) == "Dec 31 1970 23:59:55");
   return rv;
 }
 
@@ -243,6 +306,8 @@ int testPrintDtg()
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1973, 86400*334), 1970, 0) == "010000:00 Z Dec73");
   rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1973, 86400*365), 1970, 0) == "010000:00 Z Jan74");
 
+  // Negative value
+  rv += SDK_ASSERT(format.toString(simCore::TimeStamp(1971, -5.), 1971, 0) == "312359:55 Z Dec70");
   return rv;
 }
 
@@ -749,7 +814,9 @@ int TimeStringTest(int argc, char* argv[])
   rv += SDK_ASSERT(testTimeStringValidate() == 0);
   rv += SDK_ASSERT(testPrintSeconds() == 0);
   rv += SDK_ASSERT(testPrintMinutes() == 0);
+  rv += SDK_ASSERT(testPrintMinutesWrapped() == 0);
   rv += SDK_ASSERT(testPrintHours() == 0);
+  rv += SDK_ASSERT(testPrintHoursWrapped() == 0);
   rv += SDK_ASSERT(testPrintOrdinal() == 0);
   rv += SDK_ASSERT(testPrintMonthDay() == 0);
   rv += SDK_ASSERT(testPrintDtg() == 0);

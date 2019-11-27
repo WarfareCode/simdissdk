@@ -26,10 +26,12 @@
 #include <memory>
 #include <string>
 #include "osgEarth/GeoData"
-#include "osgEarthSymbology/Style"
+#include "osgEarth/Style"
 #include "osg/Group"
 #include "simCore/Common/Common.h"
 #include "simCore/Calc/Vec3.h"
+
+namespace simCore { class UnitsRegistry; }
 
 namespace simVis { namespace GOG
 {
@@ -51,7 +53,9 @@ namespace simVis { namespace GOG
     GOG_THREE_D_OFFSET_ALT_SET,
     GOG_EXTRUDE_SET,
     GOG_POINT_SIZE_SET,
-    GOG_LINE_PROJECTION_SET
+    GOG_LINE_PROJECTION_SET,
+    GOG_TEXT_OUTLINE_COLOR_SET,
+    GOG_TEXT_OUTLINE_THICKNESS_SET
   };
 
   // stipple defines
@@ -79,6 +83,13 @@ namespace simVis { namespace GOG
     osgEarth::optional<osgEarth::GeoPoint> refPoint_;
     /** Error reporting */
     std::shared_ptr<ErrorHandler> errorHandler_;
+    /** Possibly NULL pointer to the shared Units Registry */
+    const simCore::UnitsRegistry* unitsRegistry_;
+
+    GOGContext()
+      : unitsRegistry_(NULL)
+    {
+    }
   };
 
 
@@ -113,7 +124,8 @@ namespace simVis { namespace GOG
     GOG_CYLINDER,
     GOG_SPHERE,
     GOG_HEMISPHERE,
-    GOG_LATLONALTBOX
+    GOG_LATLONALTBOX,
+    GOG_CONE
   };
 
   /** Describes the original load format of the shape */

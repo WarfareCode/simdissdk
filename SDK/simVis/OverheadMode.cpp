@@ -28,10 +28,11 @@
 #include "simCore/Calc/Calculations.h"
 #include "simCore/String/Format.h"
 #include "simVis/LocatorNode.h"
-#include "simVis/View.h"
+#include "simVis/OverheadMode.h"
 #include "simVis/Scenario.h"
 #include "simVis/Shaders.h"
-#include "simVis/OverheadMode.h"
+#include "simVis/View.h"
+#include "simVis/Constants.h"
 
 namespace simVis {
 
@@ -43,8 +44,8 @@ static const std::string OVERHEAD_MODE_TOKEN = "simSDK.OverheadModeEnabled";
 
 namespace
 {
-    // Just for debugging. It will turn any flattened geometry Yellow.
-    static const char* s_overheadModeDebugFS =
+  // Just for debugging. It will turn any flattened geometry Yellow.
+  static const char* s_overheadModeDebugFS =
         "#version 330\n"
         "uniform bool " FLATTEN_UNIFORM ";\n"
         "void simVis_flatten_FS_debug(inout vec4 color) { \n"
@@ -127,6 +128,40 @@ namespace
     }
     int _count;
   };
+
+  /**
+   * Cull callback for ocean layers that will change the stateset
+   * when in overhead mode
+   */
+  class OceanOverheadModeCallback : public osgEarth::Layer::TraversalCallback
+  {
+  public:
+    osg::ref_ptr<osg::StateSet> _stateset;
+
+    OceanOverheadModeCallback()
+    {
+      _stateset = new osg::StateSet();
+      // draw the ocean in the same render bin as the terrain
+      _stateset->setRenderBinDetails(simVis::BIN_TERRAIN, simVis::BIN_GLOBAL_SIMSDK, osg::StateSet::OVERRIDE_RENDERBIN_DETAILS);
+      // disable depth buffer writes
+      _stateset->setAttributeAndModes(new osg::Depth(osg::Depth::LESS, 0, 1, false));
+    }
+
+    void operator()(osg::Node* node, osg::NodeVisitor* nv) const
+    {
+      if (simVis::OverheadMode::isActive(nv))
+      {
+        osgUtil::CullVisitor* cv = dynamic_cast<osgUtil::CullVisitor*>(nv);
+        cv->pushStateSet(_stateset.get());
+        traverse(node, nv);
+        cv->popStateSet();
+      }
+      else
+      {
+        traverse(node, nv);
+      }
+    }
+  };
 }
 
 void OverheadMode::install(osg::Node* root)
@@ -162,6 +197,7 @@ void OverheadMode::setEnabled(bool enable, simVis::View* view)
 
   if (enable)
   {
+    // Install a shader that transforms all vertices to the ellipsoid.
     osg::StateSet* ss = viewCam->getOrCreateStateSet();
     osgEarth::VirtualProgram* vp = osgEarth::VirtualProgram::getOrCreate(ss);
     simVis::Shaders package;
@@ -271,6 +307,11 @@ void OverheadMode::IndicatorCallback::operator()(osg::Node* node, osg::NodeVisit
   osg::UserDataContainer* udc = nv->getOrCreateUserDataContainer();
   udc->setUserValue(OVERHEAD_MODE_TOKEN, enabled_);
   traverse(node, nv);
+}
+
+void OverheadMode::configureOceanLayer(osgEarth::Layer* layer)
+{
+  layer->setCullCallback(new OceanOverheadModeCallback());
 }
 
 ///////////////////////////////////////////////////////////

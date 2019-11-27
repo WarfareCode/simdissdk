@@ -22,7 +22,7 @@
 #include <iomanip>
 #include <set>
 
-#include "osgEarthAnnotation/LocalGeometryNode"
+#include "osgEarth/LocalGeometryNode"
 
 #include "simNotify/Notify.h"
 #include "simCore/Common/Exception.h"
@@ -35,23 +35,28 @@
 #include "simCore/Calc/Mgrs.h"
 #include "simVis/GOG/GOGNode.h"
 #include "simVis/GOG/GogNodeInterface.h"
+#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Parser.h"
 #include "simVis/GOG/Utils.h"
 #include "simVis/GOG/ErrorHandler.h"
 #include "simVis/Constants.h"
 #include "simVis/Utils.h"
 
-using namespace simVis;
-using namespace simVis::GOG;
 using namespace osgEarth;
-using namespace osgEarth::Symbology;
-
 
 namespace
 {
 
+// Define the shape geo type, relative or absolute, i.e. has xyz points or lla points
+enum ShapeType
+{
+  SHAPE_UNKNOWN,
+  SHAPE_RELATIVE,
+  SHAPE_ABSOLUTE
+};
+
 /** Default Specialization of ErrorHandler that prints a generic message using SIM_WARN and SIM_ERROR */
-class NotifyErrorHandler : public ErrorHandler
+class NotifyErrorHandler : public simVis::GOG::ErrorHandler
 {
   virtual void printWarning(size_t lineNumber, const std::string& warningText)
   {
@@ -66,6 +71,8 @@ class NotifyErrorHandler : public ErrorHandler
 }
 
 //------------------------------------------------------------------------
+
+namespace simVis { namespace GOG {
 
 Parser::Parser(osgEarth::MapNode* mapNode) :
 mapNode_(mapNode),
@@ -109,7 +116,7 @@ std::string Parser::parseGogColor_(const std::string& c, bool isHex) const
   if (!isHex)
   {
     Color color;
-    std::map<std::string, osgEarth::Symbology::Color>::const_iterator it = colors_.find(simCore::lowerCase(c));
+    std::map<std::string, simVis::Color>::const_iterator it = colors_.find(simCore::lowerCase(c));
     if (it != colors_.end())
       color = it->second;
     else
@@ -136,7 +143,7 @@ std::string Parser::parseGogGeodeticAngle_(const std::string& input) const
   return "0.0";
 }
 
-void Parser::addOverwriteColor(const std::string& key, osgEarth::Symbology::Color color)
+void Parser::addOverwriteColor(const std::string& key, simVis::Color color)
 {
   if (key.empty())
     return;
@@ -159,6 +166,11 @@ void Parser::setReferenceLocation(const osgEarth::GeoPoint& refPoint)
   context_.refPoint_ = refPoint;
 }
 
+void Parser::setUnitsRegistry(const simCore::UnitsRegistry* registry)
+{
+  context_.unitsRegistry_ = registry;
+}
+
 GogNodeInterface* Parser::createGOG(const std::vector<std::string>& lines, const GOGNodeType& nodeType, GogFollowData& followData) const
 {
   std::stringstream buf;
@@ -179,7 +191,7 @@ GogNodeInterface* Parser::createGOG(const std::vector<std::string>& lines, const
   return result;
 }
 
-bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>& metaData) const
+bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::vector<GogMetaData>& metaData) const
 {
   // Set up the modifier state object with default values. The state persists
   // across the parsing of the GOG input, spanning actual objects. (e.g. if the
@@ -193,12 +205,13 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
   std::set<std::string> unhandledStyleKeywords;
   unhandledStyleKeywords.insert("innerradius");
 
-  // relative shapes will store their metadata differently, and need a metadata flag to indicate they are relative
-  bool relative = false;
+  // need to track shape type, relative or absolute
+  ShapeType type = SHAPE_UNKNOWN;
   // valid commands must occur within a start/end block
   bool validStartEndBlock = false;
+  bool invalidShape = false;
 
-  Config current;
+  ParsedShape current;
   std::string line;
   GogMetaData currentMetaData;
   currentMetaData.shape = GOG_UNKNOWN;
@@ -213,17 +226,11 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
   // track line number parsed for error reporting
   size_t lineNumber = 0;
 
-  // parse each line from the stream individually
+  std::vector<std::string> tokens;
   while (simCore::getStrippedLine(input, line))
   {
     ++lineNumber;
-    StringVector tokens;
-    StringTokenizer tokenizer;
-    tokenizer.addDelims(" \t");
-    tokenizer.keepEmpties() = false;
-    // keep the quotes to protect quoted token from lower-casing below
-    tokenizer.addQuotes("'\"", true);
-    tokenizer.tokenize(line, tokens);
+    simCore::quoteTokenizer(tokens, line);
 
     // convert tokens to lower case (unless it's in quotes or commented)
     for (StringVector::iterator j = tokens.begin(); j != tokens.end(); ++j)
@@ -286,13 +293,15 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
         continue;
       }
 
-      // apply all cached information to metadata when end is reached
-      if (tokens[0] == "end")
+      // apply all cached information to metadata when end is reached, only if shape is valid
+      if (tokens[0] == "end" && !invalidShape)
       {
-        updateMetaData_(state, refOriginLine, positionLines, relative, currentMetaData);
+        if (type == SHAPE_ABSOLUTE)
+          current.set(GOG_ABSOLUTE, "1");
+        updateMetaData_(state, refOriginLine, positionLines, type == SHAPE_RELATIVE, currentMetaData);
         metaData.push_back(currentMetaData);
         state.apply(current);
-        output.add(current);
+        output.push_back(current);
       }
 
       // clear reference origin settings for new block of commands
@@ -301,15 +310,16 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       refLon.clear();
       refAlt.clear();
       positionLines.clear();
-      relative = false;
+      type = SHAPE_UNKNOWN;
+      invalidShape = false;
 
       // "start" indicates a valid block, "end" indicates the block of commands are complete and subsequent commands will be invalid
       validStartEndBlock = (tokens[0] == "start");
       currentMetaData.metadata.clear();
       currentMetaData.shape = GOG_UNKNOWN;
       currentMetaData.clearSetFields();
-      current = Config();
-      current.set("linenumber", lineNumber);  // Save the line number in the configuration
+      current.reset();
+      current.setLineNumber(lineNumber);
       state = ModifierState();
       state.lineColor_ = parseGogColor_("red", false);
     }
@@ -319,38 +329,43 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       {
         // special case: annotations. you can have multiple annotations within
         // a single start/end block.
-        if (current.key() == "annotation")
+        if (current.shape() == "annotation")
         {
-          updateMetaData_(state, refOriginLine, positionLines, relative, currentMetaData);
+          updateMetaData_(state, refOriginLine, positionLines, type == SHAPE_RELATIVE, currentMetaData);
           metaData.push_back(currentMetaData);
           currentMetaData.metadata.clear();
           positionLines.clear();
-          relative = false;
+          type = SHAPE_UNKNOWN;
           currentMetaData.shape = GOG_UNKNOWN;
           currentMetaData.clearSetFields();
           state.apply(current);
-          output.add(current);
-          current = Config();
+          output.push_back(current);
+          current.reset();
           // if available, recreate reference origin
           // values are needed for subsequent annotation points since meta data was cleared and a new "current" is used
           if (!refOriginLine.empty())
           {
-            current.set("lat", refLat);
-            current.set("lon", refLon);
+            current.set(GOG_REF_LAT, refLat);
+            current.set(GOG_REF_LON, refLon);
             if (!refAlt.empty())
             {
-              current.set("alt", refAlt);
+              current.set(GOG_REF_ALT, refAlt);
             }
           }
         }
         currentMetaData.metadata += line + "\n";
+        if (currentMetaData.shape != GOG_UNKNOWN)
+        {
+          SIM_WARN << "Multiple shape keywords found in single start/end block\n";
+          invalidShape = true;
+        }
         currentMetaData.shape = GOG_ANNOTATION;
-        current.key() = "annotation";
+        current.setShape("annotation");
         const std::string textToken = osgEarth::trim(line.substr(tokens[0].length() + 1));
         // Store the un-decoded text in textToken to avoid problems with trim in osgEarth code. (SIMDIS-2875)
-        current.add("text", textToken);
+        current.set(GOG_TEXT, textToken);
         // add support to show annotation text in dialog
-        current.add("3d name", Utils::decodeAnnotation(textToken));
+        current.set(GOG_3D_NAME, Utils::decodeAnnotation(textToken));
       }
       else
       {
@@ -370,26 +385,37 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       tokens[0] == "line"          ||
       tokens[0] == "poly"          ||
       tokens[0] == "polygon"       ||
-      tokens[0] == "linesegs"
+      tokens[0] == "linesegs"      ||
+      tokens[0] == "cone"
       )
     {
+      if (currentMetaData.shape != GOG_UNKNOWN)
+      {
+        SIM_WARN << "Multiple shape keywords found in single start/end block\n";
+        invalidShape = true;
+      }
       currentMetaData.shape = Parser::getShapeFromKeyword(tokens[0]);
-      current.key() = line;
+      current.setShape(line);
     }
     else if (tokens[0] == "latlonaltbox")
     {
       if (tokens.size() > 5)
       {
+        if (currentMetaData.shape != GOG_UNKNOWN)
+        {
+          SIM_WARN << "Multiple shape keywords found in single start/end block\n";
+          invalidShape = true;
+        }
         currentMetaData.shape = Parser::getShapeFromKeyword(tokens[0]);
         currentMetaData.metadata += line + "\n";
-        current.key() = "latlonaltbox";
-        current.add("n", tokens[1]);
-        current.add("s", tokens[2]);
-        current.add("w", tokens[3]);
-        current.add("e", tokens[4]);
-        current.add("minalt", tokens[5]);
+        current.setShape("latlonaltbox");
+        current.set(GOG_LLABOX_N, tokens[1]);
+        current.set(GOG_LLABOX_S, tokens[2]);
+        current.set(GOG_LLABOX_W, tokens[3]);
+        current.set(GOG_LLABOX_E, tokens[4]);
+        current.set(GOG_LLABOX_MINALT, tokens[5]);
         if (tokens.size() > 6)
-          current.add("maxalt", tokens[6]);
+          current.set(GOG_LLABOX_MAXALT, tokens[6]);
       }
       else
       {
@@ -399,7 +425,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     // arguments
     else if (tokens[0] == "off")
     {
-      current.set("draw", "false");
+      current.set(GOG_DRAW, "false");
     }
     else if (tokens[0] == "ref" || tokens[0] == "referencepoint")
     {
@@ -410,14 +436,14 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
         refOriginLine = line;
 
         refLat = parseGogGeodeticAngle_(tokens[1]);
-        current.set("lat", refLat);
+        current.set(GOG_REF_LAT, refLat);
         refLon = parseGogGeodeticAngle_(tokens[2]);
-        current.set("lon", refLon);
+        current.set(GOG_REF_LON, refLon);
 
         if (tokens.size() >= 4)
         {
           refAlt = tokens[3];
-          current.set("alt", refAlt);
+          current.set(GOG_REF_ALT, refAlt);
         }
       }
       else
@@ -430,16 +456,18 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     {
       if (tokens.size() >= 3)
       {
+        if (type == SHAPE_UNKNOWN)
+          type = SHAPE_RELATIVE;
+        // ignore relative components if this shape is already defined as absolute
+        else if (type == SHAPE_ABSOLUTE)
+          continue;
         // need to cache xyz for annotations
         positionLines += line + "\n";
-        relative = true;
 
-        Config point("xy");
-        point.set("x", tokens[1]);
-        point.set("y", tokens[2]);
         if (tokens.size() >= 4)
-          point.set("z", tokens[3]);
-        current.add(point);
+          current.append(ParsedShape::XYZ, PositionStrings(tokens[1], tokens[2], tokens[3]));
+        else
+          current.append(ParsedShape::XYZ, PositionStrings(tokens[1], tokens[2]));
       }
       else
       {
@@ -450,16 +478,17 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     {
       if (tokens.size() >= 3)
       {
-        current.set(simVis::GOG::AbsoluteKeyword, 1);
+        if (type == SHAPE_UNKNOWN)
+          type = SHAPE_ABSOLUTE;
+        else if (type == SHAPE_RELATIVE)
+          continue;
         // need to save lla for annotations
         positionLines += line + "\n";
 
-        Config point("ll");
-        point.set("lat", parseGogGeodeticAngle_(tokens[1]));
-        point.set("lon", parseGogGeodeticAngle_(tokens[2]));
         if (tokens.size() >= 4)
-          point.set("alt", tokens[3]);
-        current.add(point);
+          current.append(ParsedShape::LLA, PositionStrings(tokens[1], tokens[2], tokens[3]));
+        else
+          current.append(ParsedShape::LLA, PositionStrings(tokens[1], tokens[2]));
       }
       else
       {
@@ -479,12 +508,12 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
           // need to save lla for annotations
           positionLines += line + "\n";
 
-          Config point("ll");
-          point.set("lat", simCore::buildString("", lat * simCore::RAD2DEG));
-          point.set("lon", simCore::buildString("", lon * simCore::RAD2DEG));
+          const std::string& latString = simCore::buildString("", lat * simCore::RAD2DEG);
+          const std::string& lonString = simCore::buildString("", lon * simCore::RAD2DEG);
           if (tokens.size() >= 3)
-            point.set("alt", tokens[2]);
-          current.add(point);
+            current.append(ParsedShape::LLA, PositionStrings(latString, lonString, tokens[2]));
+          else
+            current.append(ParsedShape::LLA, PositionStrings(latString, lonString));
         }
       }
       else
@@ -496,13 +525,15 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     {
       if (tokens.size() >= 3)
       {
+        if (type == SHAPE_UNKNOWN)
+          type = SHAPE_RELATIVE;
+        else if (type == SHAPE_ABSOLUTE)
+          continue;
         currentMetaData.metadata += line + "\n";
-        Config point("centerxy");
-        point.set("x", tokens[1]);
-        point.set("y", tokens[2]);
         if (tokens.size() >= 4)
-          point.set("z", tokens[3]);
-        current.add(point);
+          current.set(GOG_CENTERXY, PositionStrings(tokens[1], tokens[2], tokens[3]));
+        else
+          current.set(GOG_CENTERXY, PositionStrings(tokens[1], tokens[2]));
       }
       else
       {
@@ -513,14 +544,15 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     {
       if (tokens.size() >= 3)
       {
-        current.add(simVis::GOG::AbsoluteKeyword, 1);
+        if (type == SHAPE_UNKNOWN)
+          type = SHAPE_ABSOLUTE;
+        else if (type == SHAPE_RELATIVE)
+          continue;
         currentMetaData.metadata += line + "\n";
-        Config point("centerll");
-        point.set("lat", parseGogGeodeticAngle_(tokens[1]));
-        point.set("lon", parseGogGeodeticAngle_(tokens[2]));
         if (tokens.size() >= 4)
-          point.set("alt", tokens[3]);
-        current.add(point);
+          current.set(GOG_CENTERLL, PositionStrings(tokens[1], tokens[2], tokens[3]));
+        else
+          current.set(GOG_CENTERLL, PositionStrings(tokens[1], tokens[2]));
       }
       else
       {
@@ -660,13 +692,13 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     }
     else if (tokens[0] == "filled")
     {
-      current.set(tokens[0], "true");
+      current.set(GOG_FILLED, "true");
     }
     else if (tokens[0] == "outline")
     {
       if (tokens.size() >= 2)
       {
-        current.set(tokens[0], (tokens[1] == "true" ? "true" : "false"));
+        current.set(GOG_OUTLINE, (tokens[1] == "true" ? "true" : "false"));
         currentMetaData.setExplicitly(GOG_OUTLINE_SET);
       }
       else
@@ -674,13 +706,38 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
         printError_(lineNumber, "outline command requires 1 argument");
       }
     }
+    else if (tokens[0] == "textoutlinecolor")
+    {
+      if (tokens.size() == 2)
+      {
+        state.textOutlineColor_ = parseGogColor_(tokens[1], false);
+        currentMetaData.setExplicitly(GOG_TEXT_OUTLINE_COLOR_SET);
+      }
+      else if (tokens.size() == 3)
+      {
+        state.textOutlineColor_ = parseGogColor_(tokens[2], true);
+        currentMetaData.setExplicitly(GOG_TEXT_OUTLINE_COLOR_SET);
+      }
+      else
+        printError_(lineNumber, "textoutlinecolor command requires at least 1 argument");
+    }
+    else if (tokens[0] == "textoutlinethickness")
+    {
+      if (tokens.size() >= 2)
+      {
+        state.textOutlineThickness_ = tokens[1];
+        currentMetaData.setExplicitly(GOG_TEXT_OUTLINE_THICKNESS_SET);
+      }
+      else
+        printError_(lineNumber, "textoutlinethickness command requires 1 argument");
+    }
     else if (startsWith(line, "3d billboard"))
     {
       // SIMDIS user manual claims this command is a singleton, however there are examples with boolean arguments in the public
       if (tokens.size() >= 3)
-        current.set("3d billboard", (tokens[2] == "true" ? "true" : "false"));
+        current.set(GOG_3D_BILLBOARD, (tokens[2] == "true" ? "true" : "false"));
       else
-        current.set("3d billboard", "true");
+        current.set(GOG_3D_BILLBOARD, "true");
     }
     else if (tokens[0] == "diameter")
     {
@@ -688,7 +745,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       {
         currentMetaData.metadata += line + "\n";
         double value = as<double>(tokens[1], 1.0);
-        current.set("radius", Stringify() << (value*0.5));
+        current.set(GOG_RADIUS, Stringify() << (value*0.5));
       }
       else
       {
@@ -700,7 +757,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 2)
       {
         currentMetaData.metadata += line + "\n";
-        current.set("radius", tokens[1]);
+        current.set(GOG_RADIUS, tokens[1]);
       }
       else
       {
@@ -712,7 +769,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 2)
       {
         currentMetaData.metadata += line + "\n";
-        current.set(tokens[0], tokens[1]);
+        current.set(GOG_ANGLESTART, tokens[1]);
       }
       else
       {
@@ -724,7 +781,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 2)
       {
         currentMetaData.metadata += line + "\n";
-        current.set(tokens[0], tokens[1]);
+        current.set(GOG_ANGLEEND, tokens[1]);
       }
       else
       {
@@ -736,7 +793,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 2)
       {
         currentMetaData.metadata += line + "\n";
-        current.set(tokens[0], tokens[1]);
+        current.set(GOG_ANGLEDEG, tokens[1]);
       }
       else
       {
@@ -748,7 +805,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 2)
       {
         currentMetaData.metadata += line + "\n";
-        current.set(tokens[0], tokens[1]);
+        current.set(GOG_MAJORAXIS, tokens[1]);
       }
       else
       {
@@ -760,7 +817,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 2)
       {
         currentMetaData.metadata += line + "\n";
-        current.set(tokens[0], tokens[1]);
+        current.set(GOG_MINORAXIS, tokens[1]);
       }
       else
       {
@@ -773,7 +830,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       {
         currentMetaData.metadata += line + "\n";
         double value = as<double>(tokens[1], 1.0);
-        current.set("majoraxis", Stringify() << (value*2.0));
+        current.set(GOG_MAJORAXIS, Stringify() << (value*2.0));
       }
       else
       {
@@ -786,7 +843,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       {
         currentMetaData.metadata += line + "\n";
         double value = as<double>(tokens[1], 1.0);
-        current.set("minoraxis", Stringify() << (value*2.0));
+        current.set(GOG_MINORAXIS, Stringify() << (value*2.0));
       }
       else
       {
@@ -798,9 +855,9 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 4)
       {
         currentMetaData.metadata += line + "\n";
-        current.set("scalex", tokens[1]);
-        current.set("scaley", tokens[2]);
-        current.set("scalez", tokens[3]);
+        current.set(GOG_SCALEX, tokens[1]);
+        current.set(GOG_SCALEY, tokens[2]);
+        current.set(GOG_SCALEZ, tokens[3]);
       }
       else
       {
@@ -812,20 +869,20 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 2)
       {
         currentMetaData.metadata += line + "\n";
-        current.set("heading", tokens[1]);
+        current.set(GOG_ORIENT_HEADING, tokens[1]);
         if (tokens.size() >= 3)
         {
-          current.set("pitch", tokens[2]);
+          current.set(GOG_ORIENT_PITCH, tokens[2]);
           if (tokens.size() >= 4)
           {
-            current.set("roll", tokens[3]);
-            current.set("orient", "cpr"); // c=heading(course), p=pitch, r=roll
+            current.set(GOG_ORIENT_ROLL, tokens[3]);
+            current.set(GOG_ORIENT, "cpr"); // c=heading(course), p=pitch, r=roll
           }
           else
-            current.set("orient", "cp"); // c=heading(course), p=pitch, r=roll
+            current.set(GOG_ORIENT, "cp"); // c=heading(course), p=pitch, r=roll
         }
         else
-          current.set("orient", "c");
+          current.set(GOG_ORIENT, "c");
       }
       else
       {
@@ -835,7 +892,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     else if (startsWith(line, "rotate"))
     {
       currentMetaData.metadata += line + "\n";
-      current.set("3d follow", "cpr"); // c=heading(course), p=pitch, r=roll
+      current.set(GOG_3D_FOLLOW, "cpr"); // c=heading(course), p=pitch, r=roll
     }
     else if (
       startsWith(line, "3d name") ||
@@ -847,13 +904,28 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     {
       if (tokens.size() >= 3)
       {
-        // name is the only value to store in meta data
-        if (startsWith(line, "3d name"))
+        const std::string tag = Stringify() << tokens[0] << " " << tokens[1];
+        const std::string restOfLine = line.substr(tag.length() + 1);
+
+        if (tokens[1] == "name")
+        {
+          // name is the only value to store in meta data
           currentMetaData.metadata += line + "\n";
-        std::string tag = Stringify() << tokens[0] << " " << tokens[1];
-        current.set(tag, line.substr(tag.length() + 1));
-        if (startsWith(line, "3d offsetalt"))
+          current.set(GOG_3D_NAME, restOfLine);
+        }
+        else if (tokens[1] == "offsetalt")
+        {
+          current.set(GOG_3D_OFFSETALT, restOfLine);
           currentMetaData.setExplicitly(GOG_THREE_D_OFFSET_ALT_SET);
+        }
+        else if (tokens[1] == "offsetcourse")
+          current.set(GOG_3D_OFFSETCOURSE, restOfLine);
+        else if (tokens[1] == "offsetpitch")
+          current.set(GOG_3D_OFFSETPITCH, restOfLine);
+        else if (tokens[1] == "offsetroll")
+          current.set(GOG_3D_OFFSETROLL, restOfLine);
+        else if (tokens[1] == "follow")
+          current.set(GOG_3D_FOLLOW, restOfLine);
       }
       else
       {
@@ -865,12 +937,12 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       // stored in the style, not in meta data
       if (tokens.size() >= 2)
       {
-        current.set(tokens[0], tokens[1]);
+        current.set(GOG_EXTRUDE, tokens[1]);
         currentMetaData.setExplicitly(GOG_EXTRUDE_SET);
         if (tokens.size() >= 3)
         {
           // handle optional extrude height
-          current.set("extrudeheight", tokens[2]);
+          current.set(GOG_EXTRUDE_HEIGHT, tokens[2]);
         }
       }
       else
@@ -883,7 +955,7 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
       if (tokens.size() >= 2)
       {
         currentMetaData.metadata += line + "\n";
-        current.set(tokens[0], tokens[1]);
+        current.set(GOG_HEIGHT, tokens[1]);
       }
       else
       {
@@ -892,32 +964,32 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
     }
     else if (tokens[0] == "tessellate")
     {
-      current.set(tokens[0], tokens[1]);
+      current.set(GOG_TESSELLATE, tokens[1]);
       currentMetaData.setExplicitly(GOG_TESSELLATE_SET);
     }
     else if (tokens[0] == "lineprojection")
     {
-      current.set(tokens[0], tokens[1]);
+      current.set(GOG_LINEPROJECTION, tokens[1]);
       currentMetaData.setExplicitly(GOG_LINE_PROJECTION_SET);
     }
     else if (tokens[0] == "linestyle")
     {
-      current.set(tokens[0], tokens[1]);
+      current.set(GOG_LINESTYLE, tokens[1]);
       currentMetaData.setExplicitly(GOG_LINE_STYLE_SET);
     }
     else if (tokens[0] == "depthbuffer")
     {
-      current.set(tokens[0], tokens[1]);
+      current.set(GOG_DEPTHBUFFER, tokens[1]);
       currentMetaData.setExplicitly(GOG_DEPTH_BUFFER_SET);
     }
     else if (tokens[0] == "fontname")
     {
-      current.set(tokens[0], tokens[1]);
+      current.set(GOG_FONTNAME, tokens[1]);
       currentMetaData.setExplicitly(GOG_FONT_NAME_SET);
     }
     else if (tokens[0] == "fontsize")
     {
-      current.set(tokens[0], tokens[1]);
+      current.set(GOG_FONTSIZE, tokens[1]);
       currentMetaData.setExplicitly(GOG_FONT_SIZE_SET);
     }
     else // treat everything as a name/value pair
@@ -931,8 +1003,6 @@ bool Parser::parse(std::istream& input, Config& output, std::vector<GogMetaData>
           // NOTE: to prevent warnings for actual commands, commands should be added to if/else check
           SIM_WARN << "Unknown GOG command " << tokens[0] << " found on line " << lineNumber << std::endl;
         }
-        // Store the command anyways
-        current.set(tokens[0], (tokens.size() == 1) ? std::string() : tokens[1]);
       }
     }
   }
@@ -975,26 +1045,23 @@ void Parser::updateMetaData_(const ModifierState& state, const std::string& refO
       currentMetaData.metadata += positionLines;
 }
 
-bool Parser::createGOGs_(const Config& conf, const GOGNodeType& nodeType, const std::vector<GogMetaData>& metaData, OverlayNodeVector& output, std::vector<GogFollowData>& followData) const
+bool Parser::createGOGs_(const std::vector<ParsedShape>& parsedShapes, const GOGNodeType& nodeType, const std::vector<GogMetaData>& metaData, OverlayNodeVector& output, std::vector<GogFollowData>& followData) const
 {
   // add exception handling prior to passing data to renderer
   SAFETRYBEGIN;
-  const ConfigSet& objects = conf.children();
-
-  size_t index = 0;
-  for (ConfigSet::const_iterator i = objects.begin(); i != objects.end(); ++i)
+  for (size_t index = 0; index < parsedShapes.size(); ++index)
   {
-    const Config& conf = *i;
+    const ParsedShape& shape = parsedShapes[index];
 
     GogFollowData follow;
     // make sure the lists are parallel, assert if they are not
     assert(index < metaData.size());
-    GogNodeInterface* node = registry_.createGOG(conf, nodeType, style_, context_, metaData[index], follow);
+    GogNodeInterface* node = registry_.createGOG(shape, nodeType, style_, context_, metaData[index], follow);
 
     if (node)
     {
       // update draw
-      node->setDrawState(conf.value<bool>("draw", true));
+      node->setDrawState(shape.boolValue(GOG_DRAW, true));
       output.push_back(node);
       followData.push_back(follow);
 
@@ -1002,7 +1069,6 @@ bool Parser::createGOGs_(const Config& conf, const GOGNodeType& nodeType, const 
       if (node->osgNode())
         simVis::setLighting(node->osgNode()->getOrCreateStateSet(), osg::StateAttribute::OFF | osg::StateAttribute::OVERRIDE | osg::StateAttribute::PROTECTED);
     }
-    index++;
   }
 
   return true;
@@ -1014,13 +1080,13 @@ bool Parser::createGOGs_(const Config& conf, const GOGNodeType& nodeType, const 
 bool Parser::createGOGs(std::istream& input, const GOGNodeType& nodeType, OverlayNodeVector& output, std::vector<GogFollowData>& followData) const
 {
   // first, parse from GOG into Config
-  Config conf;
+  std::vector<ParsedShape> parsedShapes;
   std::vector<GogMetaData> metaData;
-  if (!parse(input, conf, metaData))
+  if (!parse(input, parsedShapes, metaData))
     return false;
 
   // then parse from Config into Annotation.
-  return createGOGs_(conf, nodeType, metaData, output, followData);
+  return createGOGs_(parsedShapes, nodeType, metaData, output, followData);
 }
 
 GogShape Parser::getShapeFromKeyword(const std::string& keyword)
@@ -1053,6 +1119,8 @@ GogShape Parser::getShapeFromKeyword(const std::string& keyword)
     return GOG_LINESEGS;
   if (keyword == "latlonaltbox")
     return GOG_LATLONALTBOX;
+  if (keyword == "cone")
+    return GOG_CONE;
   return GOG_UNKNOWN;
 }
 
@@ -1086,6 +1154,8 @@ std::string Parser::getKeywordFromShape(GogShape shape)
     return "linesegs";
   case GOG_LATLONALTBOX:
     return "latlonaltbox";
+  case GOG_CONE:
+    return "cone";
   case GOG_UNKNOWN:
     return "";
   }
@@ -1112,3 +1182,5 @@ void Parser::setErrorHandler(std::shared_ptr<ErrorHandler> errorHandler)
   else
     context_.errorHandler_ = errorHandler;
 }
+
+} }

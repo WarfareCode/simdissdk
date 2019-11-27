@@ -26,7 +26,7 @@
  * various settings and testing the local grid code.
  */
 #include <sstream>
-#include "osgEarthUtil/Controls"
+#include "osgEarth/Controls"
 
 #include "simNotify/Notify.h"
 #include "simCore/Common/Version.h"
@@ -205,7 +205,7 @@ ui::Control* createHelp(simData::DataStore& ds, simData::ObjectId id)
   ui::VBox* vbox = new ui::VBox();
   vbox->setPadding(10);
   vbox->setBackColor(0, 0, 0, 0);
-  vbox->addControl(new ui::LabelControl(s_title, 20, osg::Vec4f(1, 1, 0, 1)));
+  vbox->addControl(new ui::LabelControl(s_title, 20, simVis::Color::Yellow));
 
   // Grid for the various controls, memory will be owned by vbox
   ui::Grid* grid = new ui::Grid();
@@ -262,7 +262,8 @@ int main(int argc, char** argv)
 {
   simCore::checkVersionThrow();
   osg::ArgumentParser arguments(&argc, argv);
-  osg::DisplaySettings::instance()->setNumMultiSamples(4);
+  if (arguments.read("--multisample"))
+    osg::DisplaySettings::instance()->setNumMultiSamples(4);
   simExamples::configureSearchPaths();
 
   // initialize a SIMDIS viewer and load a planet.

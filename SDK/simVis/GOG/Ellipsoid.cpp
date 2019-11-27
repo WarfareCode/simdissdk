@@ -20,84 +20,71 @@
  *
  */
 #include "osg/CullFace"
-#include "osgEarthAnnotation/LocalGeometryNode"
-#include "osgEarthAnnotation/AnnotationUtils"
+#include "osgEarth/LocalGeometryNode"
+#include "osgEarth/AnnotationUtils"
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/Math.h"
+#include "simVis/Types.h"
 #include "simVis/GOG/Ellipsoid.h"
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
+#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 
-using namespace simVis::GOG;
-using namespace osgEarth::Symbology;
+namespace simVis { namespace GOG {
 
-GogNodeInterface* Ellipsoid::deserialize(const osgEarth::Config&  conf,
+GogNodeInterface* Ellipsoid::deserialize(const ParsedShape& parsedShape,
                        simVis::GOG::ParserData& p,
                        const GOGNodeType&       nodeType,
                        const GOGContext&        context,
                        const GogMetaData&       metaData,
-                       MapNode*                 mapNode)
+                       osgEarth::MapNode*       mapNode)
 {
   // all the ways to set the radii
-  Distance y_diam(conf.value("minoraxis", 1000.0), p.units_.rangeUnits_);
-  Distance x_diam(conf.value("majoraxis", 1000.0), p.units_.rangeUnits_);
-  Distance z_diam(conf.value("height", 0.0), p.units_.altitudeUnits_);
+  osgEarth::Distance y_diam(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_MINORAXIS, 1000.0)), osgEarth::Units::METERS);
+  osgEarth::Distance x_diam(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_MAJORAXIS, 1000.0)), osgEarth::Units::METERS);
+  osgEarth::Distance z_diam(p.units_.altitudeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_HEIGHT, 0.0)), osgEarth::Units::METERS);
 
-  if (conf.hasValue("radius"))
+  if (parsedShape.hasValue(GOG_RADIUS))
   {
-    x_diam = conf.value<double>("radius", 0) * 2;
-    y_diam = conf.value<double>("radius", 0) * 2;
+    x_diam = parsedShape.doubleValue(GOG_RADIUS, 0) * 2;
+    y_diam = x_diam;
     if (z_diam == 0.0)
-      z_diam = conf.value<double>("radius", 0) * 2;
+      z_diam = x_diam;
   }
 
-  if (conf.hasValue("diameter"))
-  {
-    x_diam = conf.value<double>("diameter", 0);
-    y_diam = conf.value<double>("diameter", 0);
-    if (z_diam == 0.0)
-      z_diam = conf.value<double>("diameter", 0);
-  }
+  osg::Vec4f color(simVis::Color::White);
 
-  if (conf.hasValue("semiminoraxis"))
-  {
-    y_diam = conf.value<double>("semiminoraxis", 0) * 2;
-  }
+  float x_radius_m = x_diam.as(osgEarth::Units::METERS) / 2.0;
+  float y_radius_m = y_diam.as(osgEarth::Units::METERS) / 2.0;
+  float z_radius_m = z_diam.as(osgEarth::Units::METERS) / 2.0;
 
-  if (conf.hasValue("semimajoraxis"))
-  {
-    x_diam = conf.value<double>("semimajoraxis", 0) * 2;
-  }
-
-  osg::Vec4f color(Color::White);
-
-  float x_radius_m = x_diam.as(Units::METERS) / 2.0;
-  float y_radius_m = y_diam.as(Units::METERS) / 2.0;
-  float z_radius_m = z_diam.as(Units::METERS) / 2.0;
-
-  osg::Node* shape = osgEarth::Annotation::AnnotationUtils::createEllipsoid(
+  osg::Node* shape = osgEarth::AnnotationUtils::createEllipsoid(
     y_radius_m, x_radius_m, z_radius_m, color);  // y, x, z order to match SIMDIS 9
+  shape->setName("GOG Ellipsoid");
 
-  osgEarth::Annotation::LocalGeometryNode* node = NULL;
+  osgEarth::LocalGeometryNode* node = NULL;
 
   if (nodeType == GOGNODE_GEOGRAPHIC)
   {
-    node = new osgEarth::Annotation::LocalGeometryNode(mapNode, shape, p.style_);
-    Utils::applyLocalGeometryOffsets(*node, p);
+    node = new osgEarth::LocalGeometryNode();
+    node->getPositionAttitudeTransform()->addChild(shape);
+    node->setStyle(p.style_);
+    node->setMapNode(mapNode);
   }
   else
-  {
     node = new HostedLocalGeometryNode(shape, p.style_);
-    node->setLocalOffset(p.getLTPOffset());
-  }
+  node->setName("GOG Ellipsoid Position");
 
   GogNodeInterface* rv = NULL;
   if (node)
   {
+    Utils::applyLocalGeometryOffsets(*node, p, nodeType);
     rv = new SphericalNodeInterface(node, metaData);
-    rv->applyConfigToStyle(conf, p.units_);
+    rv->applyToStyle(parsedShape, p.units_);
   }
   return rv;
 }
+
+} }

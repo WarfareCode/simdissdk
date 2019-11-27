@@ -32,785 +32,206 @@
 #include "simCore/EM/Constants.h"
 #include "simCore/EM/AntennaPattern.h"
 
-using namespace std;
-using namespace simCore;
+namespace simCore {
 
 // Returns the string representation of the antenna pattern type
-std::string simCore::antennaPatternTypeString(AntennaPatternType antPatType)
+std::string antennaPatternTypeString(AntennaPatternType antPatType)
 {
   switch (antPatType)
   {
-  case ANTENNA_PATTERN_PEDESTAL:  return ANTENNA_STRING_ALGORITHM_PEDESTAL; break;
-  case ANTENNA_PATTERN_GAUSS:  return ANTENNA_STRING_ALGORITHM_GAUSS; break;
-  case ANTENNA_PATTERN_CSCSQ:  return ANTENNA_STRING_ALGORITHM_CSCSQ; break;
-  case ANTENNA_PATTERN_SINXX:  return ANTENNA_STRING_ALGORITHM_SINXX; break;
-  case ANTENNA_PATTERN_OMNI:  return ANTENNA_STRING_ALGORITHM_OMNI; break;
-  case ANTENNA_PATTERN_TABLE:  return ANTENNA_STRING_FORMAT_TABLE; break;
-  case ANTENNA_PATTERN_MONOPULSE:  return ANTENNA_STRING_FORMAT_MONOPULSE; break;
-  case ANTENNA_PATTERN_CRUISE:  return ANTENNA_STRING_FORMAT_CRUISE; break;
-  case ANTENNA_PATTERN_RELATIVE:  return ANTENNA_STRING_FORMAT_RELATIVE; break;
-  case ANTENNA_PATTERN_BILINEAR:  return ANTENNA_STRING_FORMAT_BILINEAR; break;
-  case ANTENNA_PATTERN_NSMA:  return ANTENNA_STRING_FORMAT_NSMA; break;
-  case ANTENNA_PATTERN_EZNEC:  return ANTENNA_STRING_FORMAT_EZNEC; break;
-  case ANTENNA_PATTERN_XFDTD:  return ANTENNA_STRING_FORMAT_XFDTD; break;
-  default: return "UNKNOWN"; break;
+  case ANTENNA_PATTERN_PEDESTAL:
+    return ANTENNA_STRING_ALGORITHM_PEDESTAL;
+  case ANTENNA_PATTERN_GAUSS:
+    return ANTENNA_STRING_ALGORITHM_GAUSS;
+  case ANTENNA_PATTERN_CSCSQ:
+    return ANTENNA_STRING_ALGORITHM_CSCSQ;
+  case ANTENNA_PATTERN_SINXX:
+    return ANTENNA_STRING_ALGORITHM_SINXX;
+  case ANTENNA_PATTERN_OMNI:
+    return ANTENNA_STRING_ALGORITHM_OMNI;
+  case ANTENNA_PATTERN_TABLE:
+    return ANTENNA_STRING_FORMAT_TABLE;
+  case ANTENNA_PATTERN_MONOPULSE:
+    return ANTENNA_STRING_FORMAT_MONOPULSE;
+  case ANTENNA_PATTERN_CRUISE:
+    return ANTENNA_STRING_FORMAT_CRUISE;
+  case ANTENNA_PATTERN_RELATIVE:
+    return ANTENNA_STRING_FORMAT_RELATIVE;
+  case ANTENNA_PATTERN_BILINEAR:
+    return ANTENNA_STRING_FORMAT_BILINEAR;
+  case ANTENNA_PATTERN_NSMA:
+    return ANTENNA_STRING_FORMAT_NSMA;
+  case ANTENNA_PATTERN_EZNEC:
+    return ANTENNA_STRING_FORMAT_EZNEC;
+  case ANTENNA_PATTERN_XFDTD:
+    return ANTENNA_STRING_FORMAT_XFDTD;
+  default:
+    return "UNKNOWN";
   }
 }
 
 // Returns the antenna pattern type for the given string
-AntennaPatternType simCore::antennaPatternType(const std::string& antPatStr)
+AntennaPatternType antennaPatternType(const std::string& antPatStr)
 {
-  simCore::AntennaPatternType type = simCore::NO_ANTENNA_PATTERN;
-  if (!antPatStr.empty())
-  {
-    if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_ALGORITHM_SINXX) == 0)
-      type = simCore::ANTENNA_PATTERN_SINXX;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_ALGORITHM_PEDESTAL) == 0)
-      type = simCore::ANTENNA_PATTERN_PEDESTAL;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_ALGORITHM_GAUSS) == 0)
-      type = simCore::ANTENNA_PATTERN_GAUSS;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_ALGORITHM_OMNI) == 0)
-      type = simCore::ANTENNA_PATTERN_OMNI;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_ALGORITHM_CSCSQ) == 0)
-      type = simCore::ANTENNA_PATTERN_CSCSQ;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_FORMAT_TABLE) == 0)
-      type = simCore::ANTENNA_PATTERN_TABLE;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_FORMAT_RELATIVE) == 0)
-      type = simCore::ANTENNA_PATTERN_RELATIVE;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_FORMAT_MONOPULSE) == 0)
-      type = simCore::ANTENNA_PATTERN_MONOPULSE;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_FORMAT_BILINEAR) == 0)
-      type = simCore::ANTENNA_PATTERN_BILINEAR;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_FORMAT_CRUISE) == 0)
-      type = simCore::ANTENNA_PATTERN_CRUISE;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_FORMAT_NSMA) == 0)
-      type = simCore::ANTENNA_PATTERN_NSMA;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_FORMAT_EZNEC) == 0)
-      type = simCore::ANTENNA_PATTERN_EZNEC;
-    else if (simCore::caseCompare(antPatStr, simCore::ANTENNA_STRING_FORMAT_XFDTD) == 0)
-      type = simCore::ANTENNA_PATTERN_XFDTD;
-    else
-    {
-      // check value as a filename for the pattern extension
-      std::string extension = simCore::getExtension(antPatStr);
-      if (extension == simCore::ANTENNA_STRING_EXTENSION_TABLE)
-        type = simCore::ANTENNA_PATTERN_TABLE;
-      else if (extension == simCore::ANTENNA_STRING_EXTENSION_RELATIVE)
-        type = simCore::ANTENNA_PATTERN_RELATIVE;
-      else if (extension == simCore::ANTENNA_STRING_EXTENSION_BILINEAR)
-        type = simCore::ANTENNA_PATTERN_BILINEAR;
-      else if (extension == simCore::ANTENNA_STRING_EXTENSION_CRUISE)
-        type = simCore::ANTENNA_PATTERN_CRUISE;
-      else if (extension == simCore::ANTENNA_STRING_EXTENSION_MONOPULSE)
-        type = simCore::ANTENNA_PATTERN_MONOPULSE;
-      else if (extension == simCore::ANTENNA_STRING_EXTENSION_NSMA)
-        type = simCore::ANTENNA_PATTERN_NSMA;
-      else if (extension == simCore::ANTENNA_STRING_EXTENSION_EZNEC)
-        type = simCore::ANTENNA_PATTERN_EZNEC;
-      else if (extension == simCore::ANTENNA_STRING_EXTENSION_XFDTD)
-        type = simCore::ANTENNA_PATTERN_XFDTD;
-    }
-  }
-  return type;
+  if (antPatStr.empty())
+    return simCore::NO_ANTENNA_PATTERN;
+
+  // algorithm & format keywords are all uppercase
+  const std::string& algorithmOrFormat = upperCase(antPatStr);
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_ALGORITHM_SINXX)
+    return simCore::ANTENNA_PATTERN_SINXX;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_ALGORITHM_PEDESTAL)
+    return simCore::ANTENNA_PATTERN_PEDESTAL;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_ALGORITHM_GAUSS)
+    return simCore::ANTENNA_PATTERN_GAUSS;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_ALGORITHM_OMNI)
+    return simCore::ANTENNA_PATTERN_OMNI;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_ALGORITHM_CSCSQ)
+    return simCore::ANTENNA_PATTERN_CSCSQ;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_FORMAT_TABLE)
+    return simCore::ANTENNA_PATTERN_TABLE;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_FORMAT_RELATIVE)
+    return simCore::ANTENNA_PATTERN_RELATIVE;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_FORMAT_MONOPULSE)
+    return simCore::ANTENNA_PATTERN_MONOPULSE;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_FORMAT_BILINEAR)
+    return simCore::ANTENNA_PATTERN_BILINEAR;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_FORMAT_CRUISE)
+    return simCore::ANTENNA_PATTERN_CRUISE;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_FORMAT_NSMA)
+    return simCore::ANTENNA_PATTERN_NSMA;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_FORMAT_EZNEC)
+    return simCore::ANTENNA_PATTERN_EZNEC;
+  if (algorithmOrFormat == simCore::ANTENNA_STRING_FORMAT_XFDTD)
+    return simCore::ANTENNA_PATTERN_XFDTD;
+
+  // check value as a filename for the pattern extension
+  const std::string& extension = simCore::getExtension(antPatStr);
+  if (extension == simCore::ANTENNA_STRING_EXTENSION_TABLE)
+    return simCore::ANTENNA_PATTERN_TABLE;
+  if (extension == simCore::ANTENNA_STRING_EXTENSION_RELATIVE)
+    return simCore::ANTENNA_PATTERN_RELATIVE;
+  if (extension == simCore::ANTENNA_STRING_EXTENSION_BILINEAR)
+    return simCore::ANTENNA_PATTERN_BILINEAR;
+  if (extension == simCore::ANTENNA_STRING_EXTENSION_CRUISE)
+    return simCore::ANTENNA_PATTERN_CRUISE;
+  if (extension == simCore::ANTENNA_STRING_EXTENSION_MONOPULSE)
+    return simCore::ANTENNA_PATTERN_MONOPULSE;
+  if (extension == simCore::ANTENNA_STRING_EXTENSION_NSMA)
+    return simCore::ANTENNA_PATTERN_NSMA;
+  if (extension == simCore::ANTENNA_STRING_EXTENSION_EZNEC)
+    return simCore::ANTENNA_PATTERN_EZNEC;
+  if (extension == simCore::ANTENNA_STRING_EXTENSION_XFDTD)
+    return simCore::ANTENNA_PATTERN_XFDTD;
+
+  return simCore::NO_ANTENNA_PATTERN;
 }
 
-/* ************************************************************************** */
-/* SymmetricAntennaPattern                                                    */
-/* ************************************************************************** */
-
-bool simCore::readPattern(SymmetricAntennaPattern *sap, std::istream &in, const std::string &name, double frequency, double frequencythreshold)
+AntennaPattern* loadPatternFile(const std::string& filename, float freqMHz)
 {
-  string st;
-  double minfreq=0;
-  double stepfreq=1;
-  double minel=0;
-  double maxel=0;
-  double minaz=0;
-  double maxaz=0;
-  size_t numfreq=0;
-  size_t numel=0;
-  size_t numaz=0;
-  size_t i=0, j=0, k=0;
-  complex<double> magphase;
-  double magnitude=0, phase=0;
-  std::vector<string> vec;
-  bool found = false;
-  bool freqFound = false;
-
-  // check for valid pattern
-  while (getStrippedLine(in, st) && !found)
-  {
-    stringTokenizer(vec, st);
-    if (!vec.empty() && vec[0] == name)
-    {
-      found = true;
-    }
-  }
-
-  if (!found)
-  {
-    SIM_ERROR << "SymmetricAntennaPattern could not find pattern " << name;
-    return false;
-  }
-
-  // parse freq data
-  stringTokenizer(vec, st);
-  if (vec.size() > 2)
-  {
-    if (!isValidNumber(vec[0], minfreq))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern minimum frequency" << endl;
-      return 1;
-    }
-    double maxfreq = 0;
-    if (!isValidNumber(vec[1], maxfreq))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern maximum frequency" << endl;
-      return 1;
-    }
-    if (!isValidNumber(vec[2], stepfreq))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern step frequency" << endl;
-      return 1;
-    }
-
-    if (minfreq == maxfreq && minfreq == 0)
-    {
-      SIM_ERROR << "SymmetricAntennaPattern could not determine frequency limits";
-    }
-    numfreq = size_t(floor((maxfreq - minfreq) / stepfreq)) + 1;
-  }
-  else
-  {
-    SIM_ERROR << "SymmetricAntennaPattern expected 3 values for frequency limits";
-    return false;
-  }
-
-  // parse azimuth data
-  if (getTokens(in, vec, 3))
-  {
-    if (!isValidNumber(vec[0], minaz))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern minimum azimuth" << endl;
-      return 1;
-    }
-    if (!isValidNumber(vec[1], maxaz))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern maximum azimuth" << endl;
-      return 1;
-    }
-    double stepaz = 0;
-    if (!isValidNumber(vec[2], stepaz))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern step azimuth" << endl;
-      return 1;
-    }
-    numaz = size_t(floor((maxaz - minaz) / stepaz)) + 1;
-  }
-  else
-  {
-    SIM_ERROR << "SymmetricAntennaPattern expected 3 values for azimuth limits";
-    return false;
-  }
-
-  // parse elevation data
-  if (getTokens(in, vec, 3))
-  {
-    if (!isValidNumber(vec[0], minel))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern minimum elevation" << endl;
-      return 1;
-    }
-    if (!isValidNumber(vec[1], maxel))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern maximum elevation" << endl;
-      return 1;
-    }
-    double stepel = 0;
-    if (!isValidNumber(vec[2], stepel))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern step elevation" << endl;
-      return 1;
-    }
-    numel = size_t(floor((maxel - minel) / stepel)) + 1;
-  }
-  else
-  {
-    SIM_ERROR << "SymmetricAntennaPattern expected 3 values for elevation limits";
-    return false;
-  }
-
-  sap->initialize(minaz, maxaz, numaz, minel, maxel, numel);
-
-  // parse mag phase pairs
-  for (i = 0; i < numfreq; ++i)
-  {
-    double currentFreq = minfreq + i * stepfreq;
-    if (frequency < currentFreq + frequencythreshold && frequency > currentFreq - frequencythreshold)
-    {
-      freqFound = true;
-      for (j = 0; j < numaz; ++j)
-      {
-        for (k = 0; k < numel; ++k)
-        {
-          st.clear();
-          getStrippedLine(in, st);
-          stringTokenizer(vec, st);
-          if (vec.size() > 1)
-          {
-            if (!isValidNumber(vec[0], magnitude))
-            {
-              SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern magnitude" << endl;
-              return 1;
-            }
-            if (!isValidNumber(vec[1], phase))
-            {
-              SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern phase" << endl;
-              return 1;
-            }
-            magphase = polar(simCore::dB2Linear(magnitude), simCore::DEG2RAD*(phase));
-            (*sap)(j, k) = magphase;
-          }
-          else
-          {
-            SIM_ERROR << "SymmetricAntennaPattern expected magnitude and phase";
-            return false;
-          }
-          if (!in)
-          {
-            SIM_ERROR << "SymmetricAntennaPattern ran out of data for frequency " << frequency;
-            return false;
-          }
-        }
-      }
-    }
-    else
-    {
-      // skip over data until the next frequency
-      for (j = 0; j < numaz*numel; ++j)
-      {
-        getStrippedLine(in, st);
-      }
-    }
-  }
-
-  if (!freqFound)
-  {
-    SIM_ERROR << "SymmetricAntennaPattern could not find pattern " << name << " with frequency " << frequency << " within threshold " << frequencythreshold;
-    return false;
-  }
-
-  return true;
-}
-
-bool simCore::readPattern(SymmetricAntennaPattern *sap, const std::string &filename, const std::string &name, double frequency, double frequencythreshold)
-{
-  fstream in(filename.c_str(), ios::in);
-  return readPattern(sap, in, name, frequency, frequencythreshold);
-}
-
-/* ************************************************************************** */
-/* Bilinear look up table for gain only antenna patterns                      */
-/* ************************************************************************** */
-
-bool simCore::readPattern(SymmetricGainAntPattern *sap, istream &in, double frequency, double frequencyThreshold)
-{
-  string st;
-  double minfreq=0;
-  double stepfreq=1;
-  double minel=0;
-  double maxel=0;
-  double minaz=0;
-  double maxaz=0;
-  size_t numfreq=0;
-  size_t numel=0;
-  size_t numaz=0;
-  size_t i=0, j=0, k=0;
-  double magnitude=0;
-  std::vector<string> vec;
-  bool found = false;
-  bool freqFound = false;
-
-  // check for valid pattern
-  while (getStrippedLine(in, st) && !found)
-  {
-    stringTokenizer(vec, st);
-    if (!vec.empty() && vec[0] == "bilinear")
-    {
-      found = true;
-    }
-  }
-
-  if (!found)
-  {
-    SIM_ERROR << "SymmetricGainAntennaPattern could not find bilinear pattern with frequency " << frequency << " within threshold " << frequencyThreshold;
-    return false;
-  }
-
-  // parse freq data
-  stringTokenizer(vec, st);
-  if (vec.size() > 2)
-  {
-    if (!isValidNumber(vec[0], minfreq))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern minimum frequency" << endl;
-      return 1;
-    }
-    double maxfreq = 0;
-    if (!isValidNumber(vec[1], maxfreq))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern maximum frequency" << endl;
-      return 1;
-    }
-    if (!isValidNumber(vec[2], stepfreq))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern step frequency" << endl;
-      return 1;
-    }
-
-    if (minfreq == maxfreq && minfreq == 0)
-    {
-      SIM_ERROR << "SymmetricGainAntPattern could not determine frequency limits";
-    }
-    numfreq = size_t(floor((maxfreq - minfreq) / stepfreq)) + 1;
-  }
-  else
-  {
-    SIM_ERROR << "SymmetricGainAntPattern expected 3 values for frequency limits";
-    return false;
-  }
-
-  // parse azimuth data
-  if (getTokens(in, vec, 3))
-  {
-    if (!isValidNumber(vec[0], minaz))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern minimum azimuth" << endl;
-      return 1;
-    }
-    if (!isValidNumber(vec[1], maxaz))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern maximum azimuth" << endl;
-      return 1;
-    }
-    double stepaz = 0;
-    if (!isValidNumber(vec[2], stepaz))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern step azimuth" << endl;
-      return 1;
-    }
-    numaz = size_t(floor((maxaz - minaz) / stepaz)) + 1;
-  }
-  else
-  {
-    SIM_ERROR << "SymmetricGainAntPattern expecting 3 values for azimuth limits";
-    return false;
-  }
-
-  // parse elevation data
-  if (getTokens(in, vec, 3))
-  {
-    if (!isValidNumber(vec[0], minel))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern minimum elevation" << endl;
-      return 1;
-    }
-    if (!isValidNumber(vec[1], maxel))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern maximum elevation" << endl;
-      return 1;
-    }
-    double stepel = 0;
-    if (!isValidNumber(vec[2], stepel))
-    {
-      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern step elevation" << endl;
-      return 1;
-    }
-    numel = size_t((floor(maxel - minel) / stepel)) + 1;
-  }
-  else
-  {
-    SIM_ERROR << "SymmetricGainAntPattern expected 3 values for elevation limits";
-    return false;
-  }
-
-  sap->initialize(minaz, maxaz, numaz, minel, maxel, numel);
-
-  // parse mag phase pairs
-  for (i = 0; i < numfreq; ++i)
-  {
-    double currentFreq = minfreq + i * stepfreq;
-    if (frequency < currentFreq + frequencyThreshold && frequency > currentFreq - frequencyThreshold)
-    {
-      freqFound = true;
-      for (j = 0; j < numaz; ++j)
-      {
-        for (k = 0; k < numel; ++k)
-        {
-          st.clear();
-          getStrippedLine(in, st);
-          stringTokenizer(vec, st);
-          if (!vec.empty())
-          {
-            if (!isValidNumber(vec[0], magnitude))
-            {
-              SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern magnitude" << endl;
-              return 1;
-            }
-            (*sap)(j, k) = magnitude;
-          }
-          else
-          {
-            SIM_ERROR << "SymmetricGainAntPattern expected magnitude and phase";
-            return false;
-          }
-          if (!in)
-          {
-            SIM_ERROR << "SymmetricGainAntPattern ran out of data for frequency " << frequency;
-            return false;
-          }
-        }
-      }
-    }
-    else
-    {
-      // skip over data until the next frequency
-      for (j = 0; j < numaz*numel; ++j)
-      {
-        getStrippedLine(in, st);
-      }
-    }
-  }
-
-  if (!freqFound)
-  {
-    SIM_ERROR << "SymmetricGainAntPattern could not find bilinear pattern with frequency " << frequency << " within threshold " << frequencyThreshold;
-    return false;
-  }
-
-  return true;
-}
-
-bool simCore::readPattern(SymmetricGainAntPattern *sap, const string &filename, double frequency, double frequencythreshold)
-{
-  fstream in(filename.c_str(), ios::in);
-  return readPattern(sap, in, frequency, frequencythreshold);
-}
-
-
-  /* ************************************************************************** */
-
-  float simCore::calculateGain(const std::map<float, float> *azimData,
-    const std::map<float, float> *elevData,
-    AntennaLobeType &lastLobe,
-    float azim,
-    float elev,
-    float hbw,
-    float vbw,
-    float maxGain,
-    bool applyWeight)
-  {
-    if (!azimData || azimData->size() == 0 || !elevData || elevData->size() == 0)
-      return SMALL_DB_VAL;
-
-    std::map<float, float>::const_iterator iter;
-    if (applyWeight == false)
-    {
-      iter = azimData->begin();
-      std::map<float, float>::const_reverse_iterator riter = azimData->rbegin();
-      if (azim < iter->first || azim > riter->first)
-        return SMALL_DB_VAL;
-
-      iter = elevData->begin();
-      riter = elevData->rbegin();
-      if (elev < iter->first || elev > riter->first)
-        return SMALL_DB_VAL;
-    }
-
-    // Compute angular distance in normalized beam widths
-    double azim_bw = azim / hbw;
-    double elev_bw = elev / vbw;
-    double phi = sqrt(square(azim_bw) + square(elev_bw));
-
-    // Determine lobe
-    if (phi < 1.29)
-      lastLobe = ANTENNA_LOBE_MAIN;
-    else if (phi < 4.0)
-      lastLobe = ANTENNA_LOBE_SIDE;
-    else if (phi < 5.0)
-      lastLobe = ANTENNA_LOBE_SIDE;
-    else
-      lastLobe = ANTENNA_LOBE_BACK;
-
-    double azim_ang = applyWeight ? sdkMin(phi * hbw, M_PI) : azim;
-    double elev_ang = applyWeight ? sdkMin(phi * vbw, M_PI_2) : elev;
-    double az_gain = SMALL_DB_VAL;
-    double el_gain = SMALL_DB_VAL;
-
-    // Azimuth data
-    // gets the first element in map with an angle >= dazim
-    iter = azimData->lower_bound(static_cast<float>(azim_ang));
-
-    // checks if an element with a an angle >= azim_ang was found
-    if (iter != azimData->end())
-    {
-      // checks if the obtained element's angle is equal to the given angle,
-      // or if the obtained element is the first element in map
-      if ((iter->first == azim_ang) || (iter == azimData->begin()))
-      {
-        az_gain = iter->second;
-      }
-      else
-      {
-        // the obtained element's angle is > the given angle and it is not
-        // the first element in the map, so an interpolated angle between
-        // the current element and the previous element will be used
-        double hiGain = iter->second;
-        double hiAng = iter->first;
-        --iter;
-        double loGain = iter->second;
-        double loAng = iter->first;
-
-        az_gain = linearInterpolate(loGain, hiGain, loAng, azim_ang, hiAng);
-      }
-    }
-    else
-    {
-      // check for rounding errors due to casting
-      iter = azimData->begin();
-      std::map<float, float>::const_reverse_iterator riter = azimData->rbegin();
-      if (areEqual(azim_ang, iter->first))
-        az_gain = iter->second;
-      else if (areEqual(azim_ang, riter->first))
-        az_gain = riter->second;
-      else
-        az_gain = SMALL_DB_VAL;
-    }
-
-    // Elevation data
-    // gets the first element in map with an angle >= elev_ang
-    iter = elevData->lower_bound(static_cast<float>(elev_ang));
-
-    // checks if an element with a an angle >= elev_ang was found
-    if (iter != elevData->end())
-    {
-      // checks if the obtained element's angle is equal to the given angle,
-      // or if the obtained element is the first element in map
-      if ((iter->first == elev_ang) || (iter == elevData->begin()))
-      {
-        el_gain = iter->second;
-      }
-      else
-      {
-        // the obtained element's angle is > the given angle and it is not
-        // the first element in the map, so an interpolated angle between
-        // the current element and the previous element will be used
-        double hiGain = iter->second;
-        double hiAng = iter->first;
-        --iter;
-        double loGain = iter->second;
-        double loAng = iter->first;
-
-        el_gain = linearInterpolate(loGain, hiGain, loAng, elev_ang, hiAng);
-      }
-    }
-    else
-    {
-      // check for rounding errors due to casting
-      iter = elevData->begin();
-      std::map<float, float>::const_reverse_iterator riter = elevData->rbegin();
-      if (areEqual(elev_ang, iter->first))
-        el_gain = iter->second;
-      else if (areEqual(elev_ang, riter->first))
-        el_gain = riter->second;
-      else
-        el_gain = SMALL_DB_VAL;
-    }
-
-    // Determine angles (alpha & beta) associated with normalized
-    // azim / elev components.  They will be used to obtain a
-    // 'weighted average' antenna loss value
-
-    double gain;
-    if (applyWeight)
-    {
-      double alpha, beta;
-      if ((azim_bw == 0.0 && elev_bw == 0.0) || vbw == hbw)
-      {
-        gain = maxGain + (az_gain + el_gain) / 2.0;
-      }
-      else if (azim_bw <= elev_bw)
-      {
-        // since atan2 returns values between -pi and pi,
-        // alpha and beta should be in rad instead of deg
-        alpha = fabs(atan2(azim_bw, elev_bw));
-        if (alpha > M_PI_2)
-          alpha = M_PI - alpha;
-        beta = M_PI_2 - alpha;
-        gain = maxGain + (alpha * az_gain + beta * el_gain) / M_PI_2;
-      }
-      else
-      {
-        // since atan2 returns values between -pi and pi,
-        // alpha and beta should be in rad instead of deg
-        beta = fabs(atan2(elev_bw, azim_bw));
-        if (beta > M_PI_2)
-          beta = M_PI - beta;
-        alpha = M_PI_2 - beta;
-        gain = maxGain + (alpha * az_gain + beta * el_gain) / M_PI_2;
-      }
-    }
-    else
-    {
-      gain = maxGain + (az_gain + el_gain) / 2.0;
-    }
-
-    return static_cast<float>(gain);
-  }
-
-/* ************************************************************************** */
-/* AntennaPattern                                                             */
-/* ************************************************************************** */
-
-AntennaPattern* simCore::loadPatternFile(const std::string &filename, float freq)
-{
-  AntennaPattern* pattern = NULL;
   if (filename.empty())
-    return pattern;
+    return NULL;
 
-  if (simCore::caseCompare(filename, ANTENNA_STRING_ALGORITHM_SINXX) == 0)
-  {
-    pattern = new AntennaPatternSinXX;
-  }
-  else if (simCore::caseCompare(filename, ANTENNA_STRING_ALGORITHM_PEDESTAL) == 0)
-  {
-    pattern = new AntennaPatternPedestal;
-  }
-  else if (simCore::caseCompare(filename, ANTENNA_STRING_ALGORITHM_GAUSS) == 0)
-  {
-    pattern = new AntennaPatternGauss;
-  }
-  else if (simCore::caseCompare(filename, ANTENNA_STRING_ALGORITHM_OMNI) == 0)
-  {
-    pattern = new AntennaPatternOmni;
-  }
-  else if (simCore::caseCompare(filename, ANTENNA_STRING_ALGORITHM_CSCSQ) == 0)
-  {
-    pattern = new AntennaPatternCscSq;
-  }
-  else if (hasExtension(filename, ANTENNA_STRING_EXTENSION_TABLE))
+  // algorithm keywords are all uppercase
+  const std::string& algorithm = upperCase(filename);
+  if (algorithm == ANTENNA_STRING_ALGORITHM_SINXX)
+    return new AntennaPatternSinXX;
+  if (algorithm == ANTENNA_STRING_ALGORITHM_PEDESTAL)
+    return new AntennaPatternPedestal;
+  if (algorithm == ANTENNA_STRING_ALGORITHM_GAUSS)
+    return new AntennaPatternGauss;
+  if (algorithm == ANTENNA_STRING_ALGORITHM_OMNI)
+    return new AntennaPatternOmni;
+  if (algorithm == ANTENNA_STRING_ALGORITHM_CSCSQ)
+    return new AntennaPatternCscSq;
+
+  // pattern table extensions are all lowercase
+  const std::string& extension = simCore::getExtension(filename);
+  if (extension == ANTENNA_STRING_EXTENSION_TABLE)
   {
     AntennaPatternTable *antTable = new AntennaPatternTable;
-    if (antTable->readPat(filename) != 0)
-    {
-      delete antTable;
-    }
-    else
-    {
-      pattern = antTable;
-    }
+    if (antTable->readPat(filename) == 0)
+      return antTable;
+    delete antTable;
+    return NULL;
   }
-  else if (hasExtension(filename, ANTENNA_STRING_EXTENSION_RELATIVE))
+  if (extension == ANTENNA_STRING_EXTENSION_RELATIVE)
   {
     AntennaPatternRelativeTable *antTable = new AntennaPatternRelativeTable;
-    if (antTable->readPat(filename) != 0)
-    {
-      delete antTable;
-    }
-    else
-    {
-      pattern = antTable;
-    }
+    if (antTable->readPat(filename) == 0)
+      return antTable;
+    delete antTable;
+    return NULL;
   }
-  else if (hasExtension(filename, ANTENNA_STRING_EXTENSION_BILINEAR))
+  if (extension == ANTENNA_STRING_EXTENSION_BILINEAR)
   {
     AntennaPatternBiLinear *bilinear = new AntennaPatternBiLinear;
-    if (bilinear->readPat(filename, (freq*1e6)) != 0)
-    {
-      delete bilinear;
-    }
-    else
-    {
-      pattern = bilinear;
-    }
+    if (bilinear->readPat(filename, (freqMHz*1e6)) == 0)
+      return bilinear;
+    delete bilinear;
+    return NULL;
   }
-  else if (hasExtension(filename, ANTENNA_STRING_EXTENSION_CRUISE))
+  if (extension == ANTENNA_STRING_EXTENSION_CRUISE)
   {
     AntennaPatternCRUISE *antTable = new AntennaPatternCRUISE;
-    if (antTable->readPat(filename)!= 0)
-    {
-      delete antTable;
-    }
-    else
-    {
-      pattern = antTable;
-    }
+    if (antTable->readPat(filename) == 0)
+      return antTable;
+    delete antTable;
+    return NULL;
   }
-  else if (hasExtension(filename, ANTENNA_STRING_EXTENSION_MONOPULSE))
+  if (extension == ANTENNA_STRING_EXTENSION_MONOPULSE)
   {
     AntennaPatternMonopulse *monopulse = new AntennaPatternMonopulse;
-    if (monopulse->readPat(filename, (freq*1e6))!= 0)
-    {
-      delete monopulse;
-    }
-    else
-    {
-      pattern = monopulse;
-    }
+    if (monopulse->readPat(filename, (freqMHz*1e6)) == 0)
+      return monopulse;
+    delete monopulse;
+    return NULL;
   }
-  else if (hasExtension(filename, ANTENNA_STRING_EXTENSION_NSMA))
+  if (extension == ANTENNA_STRING_EXTENSION_NSMA)
   {
     AntennaPatternNSMA *antTable = new AntennaPatternNSMA;
-    if (antTable->readPat(filename)!= 0)
-    {
-      delete antTable;
-    }
-    else
-    {
-      pattern = antTable;
-    }
+    if (antTable->readPat(filename) == 0)
+      return antTable;
+    delete antTable;
+    return NULL;
   }
-  else if (hasExtension(filename, ANTENNA_STRING_EXTENSION_EZNEC))
+  if (extension == ANTENNA_STRING_EXTENSION_EZNEC)
   {
     AntennaPatternEZNEC *antTable = new AntennaPatternEZNEC;
-    if (antTable->readPat(filename) != 0)
-    {
-      delete antTable;
-    }
-    else
-    {
-      pattern = antTable;
-    }
+    if (antTable->readPat(filename) == 0)
+      return antTable;
+    delete antTable;
+    return NULL;
   }
-  else if (hasExtension(filename, ANTENNA_STRING_EXTENSION_XFDTD))
+  if (extension == ANTENNA_STRING_EXTENSION_XFDTD)
   {
     AntennaPatternXFDTD *antTable = new AntennaPatternXFDTD;
-    if (antTable->readPat(filename) != 0)
-    {
-      delete antTable;
-    }
-    else
-    {
-      pattern = antTable;
-    }
+    if (antTable->readPat(filename) == 0)
+      return antTable;
+    delete antTable;
+    return NULL;
+  }
+  return NULL;
   }
 
-  return pattern;
-}
+// ----------------------------------------------------------------------------
 
-// ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
+AntennaPatternGauss::AntennaPatternGauss()
+  : AntennaPattern(),
+  lastVbw_(-FLT_MAX)
+{
+  valid_ = true;
+  filename_ = ANTENNA_STRING_ALGORITHM_GAUSS;
+}
 
 float AntennaPatternGauss::gain(const AntennaGainParameters &params)
 {
-  // 0.69314718055994530942 = ln(2)
-  double antfac = -0.5 * (0.69314718055994530942 / square(sin(0.5*params.vbw_)));
-  double patfac = exp(antfac * square(sin(angFixPI(params.elev_))));
+  const double var = sin(0.5*params.vbw_); // Avoid divide by zero below
+  const double antfac = -0.5 * (M_LN2 / square(var == 0.0 ? 1.0 : var));
+  const double patfac = exp(antfac * square(sin(angFixPI(params.elev_))));
   // Ereps clips below 0.03
   return static_cast<float>(params.refGain_ + 20. * log10((patfac < 0.03) ? 0.03 : patfac));
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternGauss::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
@@ -845,16 +266,40 @@ void AntennaPatternGauss::minMaxGain(float *min, float *max, const AntennaGainPa
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
+
+AntennaPatternCscSq::AntennaPatternCscSq()
+  : AntennaPattern(),
+  lastVbw_(-FLT_MAX)
+{
+  valid_ = true;
+  filename_ = ANTENNA_STRING_ALGORITHM_CSCSQ;
+}
 
 float AntennaPatternCscSq::gain(const AntennaGainParameters &params)
 {
   double delev = angFixPI(params.elev_);
-  double elevFactor = (delev <= params.vbw_) ? sdkMin(1.0, sdkMax(0.03, (1.0 + delev/params.vbw_))) : (sin(params.vbw_)/sin(fabs(delev)));
+  double elevFactor;
+  if (delev <= params.vbw_)
+  {
+    double onePlus = 1.0 + delev;
+    if (params.vbw_ != 0.f)
+      onePlus = 1.0 + delev/params.vbw_; // protect against divide by zero with params.vbw_
+    else
+      assert(0); //params.vbw_ should not be zero, would result in a divide by zero
+    elevFactor = sdkMin(1.0, sdkMax(0.03, onePlus));
+  }
+  else
+  {
+    double denom = sin(fabs(delev));
+    if (denom == 0.0)
+      denom = 1.0; // protect against divide by zero below
+    elevFactor = sin(params.vbw_ / denom);
+  }
+
+  if (elevFactor == 0.0)
+    elevFactor = 0.03; // Set to minimum possible result from if block above to avoid log10(0) below
   return static_cast<float>(params.refGain_ + 20. * log10(elevFactor));
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternCscSq::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
@@ -889,12 +334,24 @@ void AntennaPatternCscSq::minMaxGain(float *min, float *max, const AntennaGainPa
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
+
+AntennaPatternSinXX::AntennaPatternSinXX()
+  : AntennaPattern(),
+  lastVbw_(-FLT_MAX),
+  lastHbw_(-FLT_MAX)
+{
+  valid_ = true;
+  filename_ = ANTENNA_STRING_ALGORITHM_SINXX;
+}
 
 float AntennaPatternSinXX::gain(const AntennaGainParameters &params)
 {
   double delev = angFixPI(params.elev_);
   double dazim = angFixPI(params.azim_);
+
+  // Avoid divide by zero below
+  if (params.hbw_ == 0.f || params.vbw_ == 0.f)
+    return params.refGain_;
 
   // Compute angular distance in normalized beam widths
   double phi = sqrt(square(dazim/params.hbw_) + square(delev/params.vbw_));
@@ -912,8 +369,6 @@ float AntennaPatternSinXX::gain(const AntennaGainParameters &params)
 
   return static_cast<float>(gain);
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternSinXX::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
@@ -954,14 +409,18 @@ void AntennaPatternSinXX::minMaxGain(float *min, float *max, const AntennaGainPa
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
+
+AntennaPatternOmni::AntennaPatternOmni()
+  : AntennaPattern()
+{
+  valid_ = true;
+  filename_ = ANTENNA_STRING_ALGORITHM_OMNI;
+}
 
 float AntennaPatternOmni::gain(const AntennaGainParameters &params)
 {
   return params.refGain_;
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternOmni::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
@@ -974,7 +433,16 @@ void AntennaPatternOmni::minMaxGain(float *min, float *max, const AntennaGainPar
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
+
+AntennaPatternPedestal::AntennaPatternPedestal()
+  : AntennaPattern(),
+  lastVbw_(-FLT_MAX),
+  lastHbw_(-FLT_MAX),
+  lastGain_(SMALL_DB_VAL)
+{
+  valid_ = true;
+  filename_ = ANTENNA_STRING_ALGORITHM_PEDESTAL;
+}
 
 float AntennaPatternPedestal::gain(const AntennaGainParameters &params)
 {
@@ -982,6 +450,10 @@ float AntennaPatternPedestal::gain(const AntennaGainParameters &params)
 
   double delev = angFixPI(params.elev_);
   double dazim = angFixPI(params.azim_);
+
+  // Avoid divide by zero below
+  if (params.hbw_ == 0.f || params.vbw_ == 0.f)
+    return params.refGain_;
 
   // Compute angular distance in normalized beam widths
   double phi = (sqrt(square(dazim/params.hbw_) + square(delev/params.vbw_)));
@@ -1010,7 +482,6 @@ float AntennaPatternPedestal::gain(const AntennaGainParameters &params)
   return static_cast<float>(gain);
 }
 
-// ----------------------------------------------------------------------------
 
 void AntennaPatternPedestal::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
@@ -1050,7 +521,184 @@ void AntennaPatternPedestal::minMaxGain(float *min, float *max, const AntennaGai
   *max = maxGain_;
 }
 
-// ----------------------------------------------------------------------------
+
+/* ************************************************************************** */
+/* This function returns the gain for lookup table-based antennaPatterns */
+
+float calculateGain(const std::map<float, float> *azimData,
+  const std::map<float, float> *elevData,
+  AntennaLobeType &lastLobe,
+  float azim,
+  float elev,
+  float hbw,
+  float vbw,
+  float maxGain,
+  bool applyWeight)
+{
+  if (!azimData || azimData->size() == 0 || !elevData || elevData->size() == 0)
+    return SMALL_DB_VAL;
+
+  if (hbw == 0.f || vbw == 0.f)
+  {
+    assert(0); // hbw and vbw must be non-zero to avoid divide-by-zero errors
+    return SMALL_DB_VAL;
+  }
+
+  std::map<float, float>::const_iterator iter;
+  if (applyWeight == false)
+  {
+    iter = azimData->begin();
+    std::map<float, float>::const_reverse_iterator riter = azimData->rbegin();
+    if (azim < iter->first || azim > riter->first)
+      return SMALL_DB_VAL;
+
+    iter = elevData->begin();
+    riter = elevData->rbegin();
+    if (elev < iter->first || elev > riter->first)
+      return SMALL_DB_VAL;
+  }
+
+  // Compute angular distance in normalized beam widths
+  const double azim_bw = azim / hbw;
+  const double elev_bw = elev / vbw;
+  const double phi = sqrt(square(azim_bw) + square(elev_bw));
+
+  // Determine lobe
+  if (phi < 1.29)
+    lastLobe = ANTENNA_LOBE_MAIN;
+  else if (phi < 4.0)
+    lastLobe = ANTENNA_LOBE_SIDE;
+  else if (phi < 5.0)
+    lastLobe = ANTENNA_LOBE_SIDE;
+  else
+    lastLobe = ANTENNA_LOBE_BACK;
+
+  const double azim_ang = applyWeight ? sdkMin(phi * hbw, M_PI) : azim;
+  const double elev_ang = applyWeight ? sdkMin(phi * vbw, M_PI_2) : elev;
+  double az_gain = SMALL_DB_VAL;
+  double el_gain = SMALL_DB_VAL;
+
+  // Azimuth data
+  // gets the first element in map with an angle >= dazim
+  iter = azimData->lower_bound(static_cast<float>(azim_ang));
+
+  // checks if an element with a an angle >= azim_ang was found
+  if (iter != azimData->end())
+  {
+    // checks if the obtained element's angle is equal to the given angle,
+    // or if the obtained element is the first element in map
+    if ((iter->first == azim_ang) || (iter == azimData->begin()))
+    {
+      az_gain = iter->second;
+    }
+    else
+    {
+      // the obtained element's angle is > the given angle and it is not
+      // the first element in the map, so an interpolated angle between
+      // the current element and the previous element will be used
+      double hiGain = iter->second;
+      double hiAng = iter->first;
+      --iter;
+      double loGain = iter->second;
+      double loAng = iter->first;
+
+      az_gain = linearInterpolate(loGain, hiGain, loAng, azim_ang, hiAng);
+    }
+  }
+  else
+  {
+    // check for rounding errors due to casting
+    iter = azimData->begin();
+    std::map<float, float>::const_reverse_iterator riter = azimData->rbegin();
+    if (areEqual(azim_ang, iter->first))
+      az_gain = iter->second;
+    else if (areEqual(azim_ang, riter->first))
+      az_gain = riter->second;
+    else
+      az_gain = SMALL_DB_VAL;
+  }
+
+  // Elevation data
+  // gets the first element in map with an angle >= elev_ang
+  iter = elevData->lower_bound(static_cast<float>(elev_ang));
+
+  // checks if an element with a an angle >= elev_ang was found
+  if (iter != elevData->end())
+  {
+    // checks if the obtained element's angle is equal to the given angle,
+    // or if the obtained element is the first element in map
+    if ((iter->first == elev_ang) || (iter == elevData->begin()))
+    {
+      el_gain = iter->second;
+    }
+    else
+    {
+      // the obtained element's angle is > the given angle and it is not
+      // the first element in the map, so an interpolated angle between
+      // the current element and the previous element will be used
+      double hiGain = iter->second;
+      double hiAng = iter->first;
+      --iter;
+      double loGain = iter->second;
+      double loAng = iter->first;
+
+      el_gain = linearInterpolate(loGain, hiGain, loAng, elev_ang, hiAng);
+    }
+  }
+  else
+  {
+    // check for rounding errors due to casting
+    iter = elevData->begin();
+    std::map<float, float>::const_reverse_iterator riter = elevData->rbegin();
+    if (areEqual(elev_ang, iter->first))
+      el_gain = iter->second;
+    else if (areEqual(elev_ang, riter->first))
+      el_gain = riter->second;
+    else
+      el_gain = SMALL_DB_VAL;
+  }
+
+  // Determine angles (alpha & beta) associated with normalized
+  // azim / elev components.  They will be used to obtain a
+  // 'weighted average' antenna loss value
+
+  double gain;
+  if (applyWeight)
+  {
+    double alpha, beta;
+    if ((azim_bw == 0.0 && elev_bw == 0.0) || vbw == hbw)
+    {
+      gain = maxGain + (az_gain + el_gain) / 2.0;
+    }
+    else if (azim_bw <= elev_bw)
+    {
+      // since atan2 returns values between -pi and pi,
+      // alpha and beta should be in rad instead of deg
+      alpha = fabs(atan2(azim_bw, elev_bw));
+      if (alpha > M_PI_2)
+        alpha = M_PI - alpha;
+      beta = M_PI_2 - alpha;
+      gain = maxGain + (alpha * az_gain + beta * el_gain) / M_PI_2;
+    }
+    else
+    {
+      // since atan2 returns values between -pi and pi,
+      // alpha and beta should be in rad instead of deg
+      beta = fabs(atan2(elev_bw, azim_bw));
+      if (beta > M_PI_2)
+        beta = M_PI - beta;
+      alpha = M_PI_2 - beta;
+      gain = maxGain + (alpha * az_gain + beta * el_gain) / M_PI_2;
+    }
+  }
+  else
+  {
+    gain = maxGain + (az_gain + el_gain) / 2.0;
+  }
+
+  return static_cast<float>(gain);
+}
+
 // ----------------------------------------------------------------------------
 /// AntennaPatternTable methods
 
@@ -1061,8 +709,6 @@ AntennaPatternTable::AntennaPatternTable(bool type)
   lastHbw_(-FLT_MAX),
   lastGain_(SMALL_DB_VAL)
 {}
-
-// ----------------------------------------------------------------------------
 
 float AntennaPatternTable::gain(const AntennaGainParameters &params)
 {
@@ -1079,8 +725,7 @@ float AntennaPatternTable::gain(const AntennaGainParameters &params)
     params.weighting_);
 }
 
-/// --------------------------------------------------------------------------
-int AntennaPatternTable::readPat(istream& fp)
+int AntennaPatternTable::readPat(std::istream& fp)
 {
   int i, j;
   short symmetry;
@@ -1097,7 +742,7 @@ int AntennaPatternTable::readPat(istream& fp)
   {
     if (!getStrippedLine(fp, st))
     {
-      SIM_ERROR << "Antenna Table EOF reached while reading antenna pattern table data" << endl;
+      SIM_ERROR << "Antenna Table EOF reached while reading antenna pattern table data" << std::endl;
       return 1;
     }
     stringTokenizer(tmpvec, st);
@@ -1106,31 +751,31 @@ int AntennaPatternTable::readPat(istream& fp)
   // Read in type and symmetry
   if (tmpvec.size() < 2)
   {
-    SIM_ERROR << "Invalid number of tokens for antenna pattern table type and symmetry" << endl;
+    SIM_ERROR << "Invalid number of tokens for antenna pattern table type and symmetry" << std::endl;
     return 1;
   }
   short type = 0;
   if (!isValidNumber(tmpvec[0], type))
   {
-    SIM_ERROR << "Encountered invalid number for antenna pattern table type" << endl;
+    SIM_ERROR << "Encountered invalid number for antenna pattern table type" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], symmetry))
   {
-    SIM_ERROR << "Encountered invalid number for antenna pattern table symmetry" << endl;
+    SIM_ERROR << "Encountered invalid number for antenna pattern table symmetry" << std::endl;
     return 1;
   }
 
   if (!(type == 1 || type == 0))
   {
-    SIM_ERROR << "Antenna Table Type must be 0 or 1 : " << type << endl;
+    SIM_ERROR << "Antenna Table Type must be 0 or 1 : " << type << std::endl;
     return 1;
   }
   beamWidthType_ = (type != 0);
 
   if (!(symmetry == 1 || symmetry == 2 || symmetry == 4))
   {
-    SIM_ERROR << "Antenna Table Symmetry must be 1, 2 or 4 : " << symmetry << endl;
+    SIM_ERROR << "Antenna Table Symmetry must be 1, 2 or 4 : " << symmetry << std::endl;
     return 1;
   }
 
@@ -1141,19 +786,19 @@ int AntennaPatternTable::readPat(istream& fp)
     //  Read table size
     if (!getStrippedLine(fp, st))
     {
-      SIM_ERROR << "Antenna Table EOF reached while reading table size" << endl;
+      SIM_ERROR << "Antenna Table EOF reached while reading table size" << std::endl;
       return 1;
     }
     stringTokenizer(tmpvec, st);
 
     if (tmpvec.empty())
     {
-      SIM_ERROR << "Invalid number of tokens for antenna pattern table size" << endl;
+      SIM_ERROR << "Invalid number of tokens for antenna pattern table size" << std::endl;
       return 1;
     }
     if (!isValidNumber(tmpvec[0], tableSize[i]))
     {
-      SIM_ERROR << "Encountered invalid number for antenna table size" << endl;
+      SIM_ERROR << "Encountered invalid number for antenna table size" << std::endl;
       return 1;
     }
     value[i] = new float[tableSize[i]];
@@ -1163,24 +808,24 @@ int AntennaPatternTable::readPat(istream& fp)
       dblVal=0;
       if (!getStrippedLine(fp, st))
       {
-        SIM_ERROR << "Antenna Table EOF reached while reading data" << endl;
+        SIM_ERROR << "Antenna Table EOF reached while reading data" << std::endl;
         return 1;
       }
       stringTokenizer(tmpvec, st);
 
       if (tmpvec.size() < 2)
       {
-        SIM_ERROR << "Invalid number of tokens for antenna pattern table angle and gain" << endl;
+        SIM_ERROR << "Invalid number of tokens for antenna pattern table angle and gain" << std::endl;
         return 1;
       }
       if (!isValidNumber(tmpvec[0], dblVal))
       {
-        SIM_ERROR << "Encountered invalid number for antenna table angle" << endl;
+        SIM_ERROR << "Encountered invalid number for antenna table angle" << std::endl;
         return 1;
       }
       if (!isValidNumber(tmpvec[1], gain[i][j]))
       {
-        SIM_ERROR << "Encountered invalid number for antenna table gain" << endl;
+        SIM_ERROR << "Encountered invalid number for antenna table gain" << std::endl;
         return 1;
       }
 
@@ -1274,8 +919,6 @@ int AntennaPatternTable::readPat(istream& fp)
   return 0;
 }
 
-// ----------------------------------------------------------------------------
-
 void AntennaPatternTable::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
   assert(min && max);
@@ -1316,16 +959,14 @@ void AntennaPatternTable::minMaxGain(float *min, float *max, const AntennaGainPa
   *max = maxGain_;
 }
 
-// ----------------------------------------------------------------------------
-
 int AntennaPatternTable::readPat(const std::string& inFileName)
 {
   int st=1;
   if (!inFileName.empty())
   {
     filename_.clear();
-    fstream inFile;
-    inFile.open(inFileName.c_str(), ios::in);
+    std::fstream inFile;
+    inFile.open(inFileName.c_str(), std::ios::in);
     if (inFile.is_open())
     {
       st = readPat(inFile);
@@ -1340,7 +981,6 @@ int AntennaPatternTable::readPat(const std::string& inFileName)
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
 /// AntennaPatternRelativeTable methods
 
 AntennaPatternRelativeTable::AntennaPatternRelativeTable()
@@ -1350,11 +990,10 @@ AntennaPatternRelativeTable::AntennaPatternRelativeTable()
   lastGain_(SMALL_DB_VAL)
 {}
 
-// ----------------------------------------------------------------------------
-
 float AntennaPatternRelativeTable::gain(const AntennaGainParameters &params)
 {
-  if (!valid_) return SMALL_DB_VAL;
+  if (!valid_)
+    return SMALL_DB_VAL;
   AntennaLobeType lastLobe;
   return calculateGain(&azimData_,
     &elevData_,
@@ -1367,9 +1006,7 @@ float AntennaPatternRelativeTable::gain(const AntennaGainParameters &params)
     params.weighting_);
 }
 
-// ----------------------------------------------------------------------------
-
-int AntennaPatternRelativeTable::readPat_(istream& fp)
+int AntennaPatternRelativeTable::readPat_(std::istream& fp)
 {
   assert(fp);
 
@@ -1390,7 +1027,7 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
   {
     if (!getStrippedLine(fp, st))
     {
-      SIM_ERROR << "Relative Table EOF reached" << endl;
+      SIM_ERROR << "Relative Table EOF reached" << std::endl;
       return 1;
     }
     stringTokenizer(tmpvec, st, delimiter);
@@ -1402,30 +1039,30 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
   {
     if (!isValidNumber(tmpvec[0], azimLen))
     {
-      SIM_ERROR << "Encountered invalid number for relative Table azimuth length" << endl;
+      SIM_ERROR << "Encountered invalid number for relative Table azimuth length" << std::endl;
       return 1;
     }
     if (!isValidNumber(tmpvec[1], elevLen))
     {
-      SIM_ERROR << "Encountered invalid number for relative Table elevation length" << endl;
+      SIM_ERROR << "Encountered invalid number for relative Table elevation length" << std::endl;
       return 1;
     }
   }
   else
   {
-    SIM_ERROR << "Relative Table azim and elev length not found" << endl;
+    SIM_ERROR << "Relative Table azim and elev length not found" << std::endl;
     return 1;
   }
 
   if (azimLen < 2)
   {
-    SIM_ERROR << "Relative Table azim length < 2 : " << azimLen << endl;
+    SIM_ERROR << "Relative Table azim length < 2 : " << azimLen << std::endl;
     return 1;
   }
 
   if (elevLen < 2)
   {
-    SIM_ERROR << "Relative Table elev length < 2 : " << elevLen << endl;
+    SIM_ERROR << "Relative Table elev length < 2 : " << elevLen << std::endl;
     return 1;
   }
 
@@ -1437,7 +1074,7 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
     {
       if (!getStrippedLine(fp, st))
       {
-        SIM_ERROR << "Relative Table EOF reached while reading azim data" << endl;
+        SIM_ERROR << "Relative Table EOF reached while reading azim data" << std::endl;
         return 1;
       }
       stringTokenizer(tmpvec, st, delimiter);
@@ -1447,12 +1084,12 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
       double azAng = 0;
       if (!isValidNumber(tmpvec[0], azAng))
       {
-        SIM_ERROR << "Encountered invalid number for Relative Table azimuth angle" << endl;
+        SIM_ERROR << "Encountered invalid number for Relative Table azimuth angle" << std::endl;
         return 1;
       }
       if (!isValidNumber(tmpvec[1], tmp))
       {
-        SIM_ERROR << "Encountered invalid number for Relative Table azimuth data" << endl;
+        SIM_ERROR << "Encountered invalid number for Relative Table azimuth data" << std::endl;
         return 1;
       }
       // map key stored as radians
@@ -1460,7 +1097,7 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
     }
     else
     {
-      SIM_ERROR << "Relative Table corresponding azim angle and gain value not found" << endl;
+      SIM_ERROR << "Relative Table corresponding azim angle and gain value not found" << std::endl;
       return 1;
     }
   }
@@ -1481,7 +1118,7 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
     {
       if (!getStrippedLine(fp, st))
       {
-        SIM_ERROR << "Relative Table EOF reached while reading elev data" << endl;
+        SIM_ERROR << "Relative Table EOF reached while reading elev data" << std::endl;
         return 1;
       }
       stringTokenizer(tmpvec, st, delimiter);
@@ -1491,12 +1128,12 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
       double elAng = 0;
       if (!isValidNumber(tmpvec[0], elAng))
       {
-        SIM_ERROR << "Encountered invalid number for Relative Table elevation angle" << endl;
+        SIM_ERROR << "Encountered invalid number for Relative Table elevation angle" << std::endl;
         return 1;
       }
       if (!isValidNumber(tmpvec[1], tmp))
       {
-        SIM_ERROR << "Encountered invalid number for Relative Table elevation data" << endl;
+        SIM_ERROR << "Encountered invalid number for Relative Table elevation data" << std::endl;
         return 1;
       }
       // map key stored as radians
@@ -1504,7 +1141,7 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
     }
     else
     {
-      SIM_ERROR << "Relative Table: corresponding elev angle and gain value not found" << endl;
+      SIM_ERROR << "Relative Table: corresponding elev angle and gain value not found" << std::endl;
       return 1;
     }
   }
@@ -1512,8 +1149,6 @@ int AntennaPatternRelativeTable::readPat_(istream& fp)
   valid_ = true;
   return 0;
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternRelativeTable::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
@@ -1555,16 +1190,14 @@ void AntennaPatternRelativeTable::minMaxGain(float *min, float *max, const Anten
   *max = maxGain_;
 }
 
-// ----------------------------------------------------------------------------
-
 int AntennaPatternRelativeTable::readPat(const std::string& inFileName)
 {
   int st=1;
   if (!inFileName.empty())
   {
     filename_.clear();
-    fstream inFile;
-    inFile.open(inFileName.c_str(), ios::in);
+    std::fstream inFile;
+    inFile.open(inFileName.c_str(), std::ios::in);
     if (inFile.is_open())
     {
       st = readPat_(inFile);
@@ -1578,7 +1211,6 @@ int AntennaPatternRelativeTable::readPat(const std::string& inFileName)
   return st;
 }
 
-// ----------------------------------------------------------------------------
 // ----------------------------------------------------------------------------
 /// AntennaPatternCRUISE methods
 
@@ -1595,8 +1227,6 @@ AntennaPatternCRUISE::AntennaPatternCRUISE()
   azimData_(NULL),
   elevData_(NULL)
 {}
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternCRUISE::reset_()
 {
@@ -1629,8 +1259,6 @@ void AntennaPatternCRUISE::reset_()
   maxGain_ = SMALL_DB_VAL;
 }
 
-// ----------------------------------------------------------------------------
-
 float AntennaPatternCRUISE::gain(const AntennaGainParameters &params)
 {
   if (!valid_) return SMALL_DB_VAL;
@@ -1662,7 +1290,9 @@ float AntennaPatternCRUISE::gain(const AntennaGainParameters &params)
   }
   else
   {
-    temp      = (dazim-azimMin_)/azimStep_;
+    temp      = (dazim-azimMin_);
+    if (azimStep_ != 0.0)
+      temp    = temp/azimStep_;
     alowindex = static_cast<int>(floor(temp));
     adelta    = temp - alowindex;
   }
@@ -1680,7 +1310,9 @@ float AntennaPatternCRUISE::gain(const AntennaGainParameters &params)
   }
   else
   {
-    temp      = (delev-elevMin_)/elevStep_;
+    temp      = (delev-elevMin_);
+    if (elevStep_ != 0.0)
+      temp    = temp/elevStep_;
     elowindex = static_cast<int>(floor(temp));
     edelta    = temp - elowindex;
   }
@@ -1703,7 +1335,10 @@ float AntennaPatternCRUISE::gain(const AntennaGainParameters &params)
       if (params.freq_ < freqData_[i])
       {
         flowindex = i - 1;
-        fdelta = (params.freq_ - freqData_[flowindex]) / (freqData_[flowindex+1] - freqData_[flowindex]);
+        fdelta = (params.freq_ - freqData_[flowindex]);
+        double denom = (freqData_[flowindex + 1] - freqData_[flowindex]);
+        if (denom != 0.0)
+          fdelta = fdelta / denom;
         break;
       }
     }
@@ -1724,8 +1359,6 @@ float AntennaPatternCRUISE::gain(const AntennaGainParameters &params)
   return static_cast<float>(square(azGain * elGain));
 }
 
-// ----------------------------------------------------------------------------
-
 void AntennaPatternCRUISE::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
   assert(min && max);
@@ -1736,9 +1369,7 @@ void AntennaPatternCRUISE::minMaxGain(float *min, float *max, const AntennaGainP
   *max = maxGain_;
 }
 
-// ----------------------------------------------------------------------------
-
-int AntennaPatternCRUISE::readPat_(istream& fp)
+int AntennaPatternCRUISE::readPat_(std::istream& fp)
 {
   assert(fp);
 
@@ -1795,7 +1426,7 @@ int AntennaPatternCRUISE::readPat_(istream& fp)
   {
     delete [] elevData_;
     elevData_ = 0;
-    SIM_ERROR << "CRUISE azimLen_(" << azimLen_ << ") != elevLen_(" << elevLen_ << ") or freqLen_s (" << tmpFreq << ", "<< freqLen_ << ") do not match!" << endl;
+    SIM_ERROR << "CRUISE azimLen_(" << azimLen_ << ") != elevLen_(" << elevLen_ << ") or freqLen_s (" << tmpFreq << ", "<< freqLen_ << ") do not match!" << std::endl;
     return 1;
   }
 
@@ -1807,7 +1438,7 @@ int AntennaPatternCRUISE::readPat_(istream& fp)
   for (i = 0; i < freqLen_; i++)
   {
     fp >> tmpData;
-#ifdef DEBUG
+#ifndef NDEBUG
     // convert GHz to Hz
     assert(floor(0.5 + freqData_[i]) == floor(0.5 + (tmpData*1e09)));
 #endif
@@ -1827,16 +1458,14 @@ int AntennaPatternCRUISE::readPat_(istream& fp)
   return 0;
 }
 
-// ----------------------------------------------------------------------------
-
 int AntennaPatternCRUISE::readPat(const std::string& inFileName)
 {
   int st=1;
   if (!inFileName.empty())
   {
     filename_.clear();
-    fstream inFile;
-    inFile.open(inFileName.c_str(), ios::in);
+    std::fstream inFile;
+    inFile.open(inFileName.c_str(), std::ios::in);
     if (inFile.is_open())
     {
       st = readPat_(inFile);
@@ -1869,6 +1498,216 @@ int AntennaPatternCRUISE::readPat(const std::string& inFileName)
 }
 
 // ----------------------------------------------------------------------------
+/// AntennaPatternMonopulse helper functions
+
+/* SymmetricAntennaPattern                                                    */
+
+bool readPattern(SymmetricAntennaPattern *sap, std::istream &in, const std::string &name, double frequency, double frequencythreshold)
+{
+  // check for valid pattern
+  std::string st;
+  std::vector<std::string> vec;
+  bool found = false;
+  // on name match, perform extra getStrippedLine to get freq data line, then break out
+  while (getStrippedLine(in, st) && !found)
+  {
+    stringTokenizer(vec, st);
+    if (!vec.empty() && vec[0] == name)
+    {
+      found = true;
+    }
+  }
+
+  if (!found)
+  {
+    SIM_ERROR << "SymmetricAntennaPattern could not find pattern " << name;
+    return false;
+  }
+
+  double minfreq = 0;
+  double stepfreq = 1;
+  double minel = 0;
+  double maxel = 0;
+  double minaz = 0;
+  double maxaz = 0;
+  size_t numfreq = 0;
+  size_t numel = 0;
+  size_t numaz = 0;
+  std::complex<double> magphase;
+  double magnitude = 0, phase = 0;
+  bool freqFound = false;
+
+  // parse freq data
+  stringTokenizer(vec, st);
+  if (vec.size() > 2)
+  {
+    if (!isValidNumber(vec[0], minfreq))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern minimum frequency" << std::endl;
+      return 1;
+    }
+    double maxfreq = 0;
+    if (!isValidNumber(vec[1], maxfreq))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern maximum frequency" << std::endl;
+      return 1;
+    }
+    if (!isValidNumber(vec[2], stepfreq))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern step frequency" << std::endl;
+      return 1;
+    }
+
+    if (stepfreq == 0.) // Protect against divide by zero below
+    {
+      SIM_ERROR << "SymmetricAntennaPattern can not use step frequency of 0" << std::endl;
+      return 1;
+    }
+    if (minfreq == maxfreq && minfreq == 0)
+    {
+      SIM_ERROR << "SymmetricAntennaPattern could not determine frequency limits" << std::endl;
+    }
+    numfreq = size_t(floor((maxfreq - minfreq) / stepfreq)) + 1;
+  }
+  else
+  {
+    SIM_ERROR << "SymmetricAntennaPattern expected 3 values for frequency limits" << std::endl;
+    return false;
+  }
+
+  // parse azimuth data
+  if (getTokens(in, vec, 3))
+  {
+    if (!isValidNumber(vec[0], minaz))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern minimum azimuth" << std::endl;
+      return 1;
+    }
+    if (!isValidNumber(vec[1], maxaz))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern maximum azimuth" << std::endl;
+      return 1;
+    }
+    double stepaz = 0.;
+    if (!isValidNumber(vec[2], stepaz))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern step azimuth" << std::endl;
+      return 1;
+    }
+    if (stepaz == 0.) // Protect against divide by zero below
+    {
+      SIM_ERROR << "SymmetricAntennaPattern can not use step azimuth of 0" << std::endl;
+      return 1;
+    }
+    numaz = size_t(floor((maxaz - minaz) / stepaz)) + 1;
+  }
+  else
+  {
+    SIM_ERROR << "SymmetricAntennaPattern expected 3 values for azimuth limits" << std::endl;
+    return false;
+  }
+
+  // parse elevation data
+  if (getTokens(in, vec, 3))
+  {
+    if (!isValidNumber(vec[0], minel))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern minimum elevation" << std::endl;
+      return 1;
+    }
+    if (!isValidNumber(vec[1], maxel))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern maximum elevation" << std::endl;
+      return 1;
+    }
+    double stepel = 0;
+    if (!isValidNumber(vec[2], stepel))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern step elevation" << std::endl;
+      return 1;
+    }
+    if (stepel == 0.) // Protect against divide by zero below
+    {
+      SIM_ERROR << "SymmetricAntennaPattern can not use step elevation of 0" << std::endl;
+      return 1;
+    }
+    numel = size_t(floor((maxel - minel) / stepel)) + 1;
+  }
+  else
+  {
+    SIM_ERROR << "SymmetricAntennaPattern expected 3 values for elevation limits" << std::endl;
+    return false;
+  }
+
+  sap->initialize(minaz, maxaz, numaz, minel, maxel, numel);
+
+  // parse mag phase pairs
+  for (size_t i = 0; i < numfreq; ++i)
+  {
+    const double currentFreq = minfreq + i * stepfreq;
+    if (frequency < (currentFreq + frequencythreshold) && frequency >(currentFreq - frequencythreshold))
+    {
+      freqFound = true;
+      for (size_t j = 0; j < numaz; ++j)
+      {
+        for (size_t k = 0; k < numel; ++k)
+        {
+          st.clear();
+          getStrippedLine(in, st);
+          stringTokenizer(vec, st);
+          if (vec.size() > 1)
+          {
+            if (!isValidNumber(vec[0], magnitude))
+            {
+              SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern magnitude" << std::endl;
+              return 1;
+            }
+            if (!isValidNumber(vec[1], phase))
+            {
+              SIM_ERROR << "Encountered invalid number for SymmetricAntennaPattern phase" << std::endl;
+              return 1;
+            }
+            magphase = std::polar(simCore::dB2Linear(magnitude), simCore::DEG2RAD*(phase));
+            (*sap)(j, k) = magphase;
+          }
+          else
+          {
+            SIM_ERROR << "SymmetricAntennaPattern expected magnitude and phase" << std::endl;
+            return false;
+          }
+          if (!in)
+          {
+            SIM_ERROR << "SymmetricAntennaPattern ran out of data for frequency " << frequency << std::endl;
+            return false;
+          }
+        }
+      }
+    }
+    else
+    {
+      // skip over data until the next frequency
+      for (size_t j = 0; j < numaz*numel; ++j)
+      {
+        getStrippedLine(in, st);
+      }
+    }
+  }
+
+  if (!freqFound)
+  {
+    SIM_ERROR << "SymmetricAntennaPattern could not find pattern " << name << " with frequency " << frequency << " within threshold " << frequencythreshold << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+bool readPattern(SymmetricAntennaPattern *sap, const std::string &filename, const std::string &name, double frequency, double frequencythreshold)
+{
+  std::fstream in(filename.c_str(), std::ios::in);
+  return readPattern(sap, in, name, frequency, frequencythreshold);
+}
+
 // ----------------------------------------------------------------------------
 /// AntennaPatternMonopulse methods
 
@@ -1879,14 +1718,10 @@ AntennaPatternMonopulse::AntennaPatternMonopulse()
   maxDelGain_(SMALL_DB_VAL)
 {}
 
-// ----------------------------------------------------------------------------
-
 AntennaPatternMonopulse::~AntennaPatternMonopulse()
 {
   reset_();
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternMonopulse::reset_()
 {
@@ -1898,8 +1733,6 @@ void AntennaPatternMonopulse::reset_()
   minDelGain_ = -SMALL_DB_VAL;
   maxDelGain_ = SMALL_DB_VAL;
 }
-
-// ----------------------------------------------------------------------------
 
 float AntennaPatternMonopulse::gain(const AntennaGainParameters &params)
 {
@@ -1913,7 +1746,7 @@ float AntennaPatternMonopulse::gain(const AntennaGainParameters &params)
     {
       magph = BilinearLookup(delPat_, RAD2DEG*(params.azim_), RAD2DEG*(params.elev_));
     }
-    catch (const SymmetricAntennaPatternLimitException)
+    catch (const SymmetricAntennaPatternLimitException&)
     {
       return SMALL_DB_VAL;
     }
@@ -1924,7 +1757,7 @@ float AntennaPatternMonopulse::gain(const AntennaGainParameters &params)
     {
       magph = BilinearLookup(sumPat_, RAD2DEG*(params.azim_), RAD2DEG*(params.elev_));
     }
-    catch (const SymmetricAntennaPatternLimitException)
+    catch (const SymmetricAntennaPatternLimitException&)
     {
       return SMALL_DB_VAL;
     }
@@ -1932,8 +1765,6 @@ float AntennaPatternMonopulse::gain(const AntennaGainParameters &params)
 
   return static_cast<float>(params.refGain_ + linear2dB(std::abs(magph)));
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternMonopulse::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
@@ -1953,8 +1784,6 @@ void AntennaPatternMonopulse::minMaxGain(float *min, float *max, const AntennaGa
   *min = (params.delta_) ? minDelGain_ : minGain_;
   *max = (params.delta_) ? maxDelGain_ : maxGain_;
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternMonopulse::setMinMaxGain_(float *min, float *max, float maxGain, bool delta)
 {
@@ -1993,8 +1822,6 @@ void AntennaPatternMonopulse::setMinMaxGain_(float *min, float *max, float maxGa
   *max = static_cast<float>(dmax);
 }
 
-// ----------------------------------------------------------------------------
-
 int AntennaPatternMonopulse::readPat(const std::string& inFileName, double freq)
 {
   reset_();
@@ -2005,13 +1832,13 @@ int AntennaPatternMonopulse::readPat(const std::string& inFileName, double freq)
 
   if (!readPattern(&sumPat_, inFileName, "sum", freq_))
   {
-    SIM_ERROR << inFileName << " sum channel failed to load" << endl;
+    SIM_ERROR << inFileName << " sum channel failed to load" << std::endl;
     return 2;
   }
 
   if (!readPattern(&delPat_, inFileName, "diff", freq_))
   {
-    SIM_ERROR << inFileName << " diff channel failed to load" << endl;
+    SIM_ERROR << inFileName << " diff channel failed to load" << std::endl;
     return 2;
   }
 
@@ -2022,6 +1849,208 @@ int AntennaPatternMonopulse::readPat(const std::string& inFileName, double freq)
 }
 
 // ----------------------------------------------------------------------------
+/// AntennaPatternBiLinear helper functions
+
+/* Bilinear lookup table for gain only antenna patterns                      */
+bool readPattern(SymmetricGainAntPattern *sap, std::istream &in, double frequency, double frequencyThreshold)
+{
+  double minfreq = 0;
+  double stepfreq = 1;
+  double minel = 0;
+  double maxel = 0;
+  double minaz = 0;
+  double maxaz = 0;
+  size_t numfreq = 0;
+  size_t numel = 0;
+  size_t numaz = 0;
+  size_t i = 0, j = 0, k = 0;
+  double magnitude = 0;
+  bool found = false;
+  bool freqFound = false;
+
+  // check for valid pattern
+  std::string st;
+  std::vector<std::string> vec;
+  // on name match, perform extra getStrippedLine to get freq data line, then break out
+  while (getStrippedLine(in, st) && !found)
+  {
+    stringTokenizer(vec, st);
+    if (!vec.empty() && vec[0] == "bilinear")
+    {
+      found = true;
+    }
+  }
+
+  if (!found)
+  {
+    SIM_ERROR << "SymmetricGainAntennaPattern could not find bilinear pattern with frequency " << frequency << " within threshold " << frequencyThreshold << std::endl;
+    return false;
+  }
+
+  // parse freq data
+  stringTokenizer(vec, st);
+  if (vec.size() > 2)
+  {
+    if (!isValidNumber(vec[0], minfreq))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern minimum frequency" << std::endl;
+      return 1;
+    }
+    double maxfreq = 0;
+    if (!isValidNumber(vec[1], maxfreq))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern maximum frequency" << std::endl;
+      return 1;
+    }
+    if (!isValidNumber(vec[2], stepfreq))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern step frequency" << std::endl;
+      return 1;
+    }
+    if (stepfreq == 0.) // Protect against divide by zero below
+    {
+      SIM_ERROR << "SymmetricGainAntPattern can not use step frequency of 0" << std::endl;
+      return 1;
+    }
+    if (minfreq == maxfreq && minfreq == 0)
+    {
+      SIM_ERROR << "SymmetricGainAntPattern could not determine frequency limits" << std::endl;
+    }
+    numfreq = size_t(floor((maxfreq - minfreq) / stepfreq)) + 1;
+  }
+  else
+  {
+    SIM_ERROR << "SymmetricGainAntPattern expected 3 values for frequency limits" << std::endl;
+    return false;
+  }
+
+  // parse azimuth data
+  if (getTokens(in, vec, 3))
+  {
+    if (!isValidNumber(vec[0], minaz))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern minimum azimuth" << std::endl;
+      return 1;
+    }
+    if (!isValidNumber(vec[1], maxaz))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern maximum azimuth" << std::endl;
+      return 1;
+    }
+    double stepaz = 0;
+    if (!isValidNumber(vec[2], stepaz))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern step azimuth" << std::endl;
+      return 1;
+    }
+    if (stepaz == 0.) // Protect against divide by zero below
+    {
+      SIM_ERROR << "SymmetricGainAntPattern can not use step azimuth of 0" << std::endl;
+      return 1;
+    }
+    numaz = size_t(floor((maxaz - minaz) / stepaz)) + 1;
+  }
+  else
+  {
+    SIM_ERROR << "SymmetricGainAntPattern expecting 3 values for azimuth limits" << std::endl;
+    return false;
+  }
+
+  // parse elevation data
+  if (getTokens(in, vec, 3))
+  {
+    if (!isValidNumber(vec[0], minel))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern minimum elevation" << std::endl;
+      return 1;
+    }
+    if (!isValidNumber(vec[1], maxel))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern maximum elevation" << std::endl;
+      return 1;
+    }
+    double stepel = 0;
+    if (!isValidNumber(vec[2], stepel))
+    {
+      SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern step elevation" << std::endl;
+      return 1;
+    }
+    if (stepel == 0.) // Protect against divide by zero below
+    {
+      SIM_ERROR << "SymmetricGainAntPattern can not use step elevation of 0" << std::endl;
+      return 1;
+    }
+    numel = size_t((floor(maxel - minel) / stepel)) + 1;
+  }
+  else
+  {
+    SIM_ERROR << "SymmetricGainAntPattern expected 3 values for elevation limits" << std::endl;
+    return false;
+  }
+
+  sap->initialize(minaz, maxaz, numaz, minel, maxel, numel);
+
+  // parse mag phase pairs
+  for (i = 0; i < numfreq; ++i)
+  {
+    double currentFreq = minfreq + i * stepfreq;
+    if (frequency < currentFreq + frequencyThreshold && frequency > currentFreq - frequencyThreshold)
+    {
+      freqFound = true;
+      for (j = 0; j < numaz; ++j)
+      {
+        for (k = 0; k < numel; ++k)
+        {
+          st.clear();
+          getStrippedLine(in, st);
+          stringTokenizer(vec, st);
+          if (!vec.empty())
+          {
+            if (!isValidNumber(vec[0], magnitude))
+            {
+              SIM_ERROR << "Encountered invalid number for SymmetricGainAntPattern magnitude" << std::endl;
+              return 1;
+            }
+            (*sap)(j, k) = magnitude;
+          }
+          else
+          {
+            SIM_ERROR << "SymmetricGainAntPattern expected magnitude" << std::endl;
+            return false;
+          }
+          if (!in)
+          {
+            SIM_ERROR << "SymmetricGainAntPattern ran out of data for frequency " << frequency << std::endl;
+            return false;
+          }
+        }
+      }
+    }
+    else
+    {
+      // skip over data until the next frequency
+      for (j = 0; j < numaz*numel; ++j)
+      {
+        getStrippedLine(in, st);
+      }
+    }
+  }
+
+  if (!freqFound)
+  {
+    SIM_ERROR << "SymmetricGainAntPattern could not find bilinear pattern with frequency " << frequency << " within threshold " << frequencyThreshold << std::endl;
+    return false;
+  }
+
+  return true;
+}
+
+bool readPattern(SymmetricGainAntPattern *sap, const std::string &filename, double frequency, double frequencythreshold)
+{
+  std::fstream in(filename.c_str(), std::ios::in);
+  return readPattern(sap, in, frequency, frequencythreshold);
+}
+
 // ----------------------------------------------------------------------------
 /// AntennaPatternBiLinear methods
 
@@ -2030,14 +2059,10 @@ AntennaPatternBiLinear::AntennaPatternBiLinear()
   freq_(0)
 {}
 
-// ----------------------------------------------------------------------------
-
 AntennaPatternBiLinear::~AntennaPatternBiLinear()
 {
   reset_();
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternBiLinear::reset_()
 {
@@ -2048,8 +2073,6 @@ void AntennaPatternBiLinear::reset_()
   maxGain_ = SMALL_DB_VAL;
 }
 
-// ----------------------------------------------------------------------------
-
 float AntennaPatternBiLinear::gain(const AntennaGainParameters &params)
 {
   if (!valid_) return SMALL_DB_VAL;
@@ -2059,7 +2082,7 @@ float AntennaPatternBiLinear::gain(const AntennaGainParameters &params)
   {
     gain = static_cast<float>(BilinearLookup(antPat_, RAD2DEG*(params.azim_), RAD2DEG*(params.elev_)));
   }
-  catch (const SymmetricGainAntPatternLimitException)
+  catch (const SymmetricGainAntPatternLimitException&)
   {
     // error, could not find requested angles
     return SMALL_DB_VAL;
@@ -2067,8 +2090,6 @@ float AntennaPatternBiLinear::gain(const AntennaGainParameters &params)
   // units are stored as dB, therefore add
   return params.refGain_ + gain;
 }
-
-// ----------------------------------------------------------------------------
 
 void AntennaPatternBiLinear::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
@@ -2080,8 +2101,6 @@ void AntennaPatternBiLinear::minMaxGain(float *min, float *max, const AntennaGai
   *max = maxGain_ + params.refGain_;
 }
 
-// ----------------------------------------------------------------------------
-
 int AntennaPatternBiLinear::readPat(const std::string& inFileName, double freq)
 {
   reset_();
@@ -2092,7 +2111,7 @@ int AntennaPatternBiLinear::readPat(const std::string& inFileName, double freq)
 
   if (!readPattern(&antPat_, inFileName, freq_))
   {
-    SIM_ERROR << inFileName << " Bilinear pattern failed to load" << endl;
+    SIM_ERROR << inFileName << " Bilinear pattern failed to load" << std::endl;
     return 2;
   }
 
@@ -2125,7 +2144,6 @@ int AntennaPatternBiLinear::readPat(const std::string& inFileName, double freq)
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
 /// AntennaPatternNSMA methods
 
 AntennaPatternNSMA::AntennaPatternNSMA()
@@ -2141,8 +2159,6 @@ AntennaPatternNSMA::AntennaPatternNSMA()
   minVVGain_(-SMALL_DB_VAL),
   maxVVGain_(SMALL_DB_VAL)
 {}
-
-// ----------------------------------------------------------------------------
 
 float AntennaPatternNSMA::gain(const AntennaGainParameters &params)
 {
@@ -2202,8 +2218,6 @@ float AntennaPatternNSMA::gain(const AntennaGainParameters &params)
   }
 }
 
-// ----------------------------------------------------------------------------
-
 void AntennaPatternNSMA::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
   assert(min && max);
@@ -2260,8 +2274,6 @@ void AntennaPatternNSMA::minMaxGain(float *min, float *max, const AntennaGainPar
   }
 }
 
-// ----------------------------------------------------------------------------
-
 void AntennaPatternNSMA::setMinMax_(float *min, float *max, float maxGain, PolarityType polarity)
 {
   assert(min && max);
@@ -2305,7 +2317,7 @@ namespace
   * @param[out] errMsg Error message, empty if no error detected
   * @return 0 on success, !0 on error
   */
-  int readNmsaData(const std::vector<std::string>& tmpvec, const std::string& patternType, std::map<float, float>& dataContainer, std::string& errMsg)
+  int readNsmaData(const std::vector<std::string>& tmpvec, const std::string& patternType, std::map<float, float>& dataContainer, std::string& errMsg)
   {
     assert(tmpvec.size() > 1);
     double angle;
@@ -2326,7 +2338,7 @@ namespace
   }
 }
 
-int AntennaPatternNSMA::readPat_(istream& fp)
+int AntennaPatternNSMA::readPat_(std::istream& fp)
 {
   assert(fp);
 
@@ -2347,7 +2359,7 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   {
     if (!getStrippedLine(fp, st))
     {
-      SIM_ERROR << "EOF reached while processing NSMA data" << endl;
+      SIM_ERROR << "EOF reached while processing NSMA data" << std::endl;
       return 1;
     }
   }
@@ -2355,17 +2367,17 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // [frequency range] + CRLF
   if (getTokens(fp, tmpvec, 2, "-") == false)
   {
-    SIM_ERROR << "Error processing NSMA frequency range" << endl;
+    SIM_ERROR << "Error processing NSMA frequency range" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[0], minFreq_))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA minimum frequency" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA minimum frequency" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], maxFreq_))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA maximum frequency" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA maximum frequency" << std::endl;
     return 1;
   }
   // convert MHz to Hz
@@ -2375,25 +2387,25 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // [mid-band gain] + CRLF
   if (getTokens(fp, tmpvec, 1) == false)
   {
-    SIM_ERROR << "Error processing NSMA mid band gain" << endl;
+    SIM_ERROR << "Error processing NSMA mid band gain" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[0], midBandGain_))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA midban gain" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA midban gain" << std::endl;
     return 1;
   }
 
   // [Half-power beam width] + CRLF
   if (getTokens(fp, tmpvec, 1) == false)
   {
-    SIM_ERROR << "Error processing NSMA half power beam width" << endl;
+    SIM_ERROR << "Error processing NSMA half power beam width" << std::endl;
     return 1;
   }
   double halfPwrBW = 0;
   if (!isValidNumber(tmpvec[0], halfPwrBW))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA half power beam width" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA half power beam width" << std::endl;
     return 1;
   }
   halfPowerBeamWidth_ = static_cast<float>(DEG2RAD*halfPwrBW);
@@ -2412,25 +2424,25 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // Handle HH case
   if (getTokens(fp, tmpvec, 2) == false || tmpvec[0] != "HH")
   {
-    SIM_ERROR << "NSMA HH pattern not found" << endl;
+    SIM_ERROR << "NSMA HH pattern not found" << std::endl;
     return 1;
   }
   int dataCount = 0;
   if (!isValidNumber(tmpvec[1], dataCount))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA HH data count" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA HH data count" << std::endl;
     return 1;
   }
   for (i = 0; i < dataCount; i++)
   {
     if (getTokens(fp, tmpvec, 2) == false)
     {
-      SIM_ERROR << "Error processing NSMA HH data, expected two tokens" << endl;
+      SIM_ERROR << "Error processing NSMA HH data, expected two tokens" << std::endl;
       return 1;
     }
-    if (readNmsaData(tmpvec, "HH", HHDataMap_, dataErrMsg) != 0)
+    if (readNsmaData(tmpvec, "HH", HHDataMap_, dataErrMsg) != 0)
     {
-      SIM_ERROR << dataErrMsg << endl;
+      SIM_ERROR << dataErrMsg << std::endl;
       return 1;
     }
   }
@@ -2447,24 +2459,24 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // Handle HV case
   if (getTokens(fp, tmpvec, 2) == false || tmpvec[0] != "HV")
   {
-    SIM_ERROR << "NSMA HV pattern not found" << endl;
+    SIM_ERROR << "NSMA HV pattern not found" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], dataCount))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA HV data count" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA HV data count" << std::endl;
     return 1;
   }
   for (i = 0; i < dataCount; i++)
   {
     if (getTokens(fp, tmpvec, 2) == false)
     {
-      SIM_ERROR << "Error processing NSMA HV data, expected two tokens" << endl;
+      SIM_ERROR << "Error processing NSMA HV data, expected two tokens" << std::endl;
       return 1;
     }
-    if (readNmsaData(tmpvec, "HV", HVDataMap_, dataErrMsg) != 0)
+    if (readNsmaData(tmpvec, "HV", HVDataMap_, dataErrMsg) != 0)
     {
-      SIM_ERROR << dataErrMsg << endl;
+      SIM_ERROR << dataErrMsg << std::endl;
       return 1;
     }
   }
@@ -2480,24 +2492,24 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // Handle VV case
   if (getTokens(fp, tmpvec, 2) == false || tmpvec[0] != "VV")
   {
-    SIM_ERROR << "NSMA VV pattern not found" << endl;
+    SIM_ERROR << "NSMA VV pattern not found" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], dataCount))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA VV data count" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA VV data count" << std::endl;
     return 1;
   }
   for (i = 0; i < dataCount; i++)
   {
     if (getTokens(fp, tmpvec, 2) == false)
     {
-      SIM_ERROR << "Error processing NSMA VV data, expected two tokens" << endl;
+      SIM_ERROR << "Error processing NSMA VV data, expected two tokens" << std::endl;
       return 1;
     }
-    if (readNmsaData(tmpvec, "VV", VVDataMap_, dataErrMsg) != 0)
+    if (readNsmaData(tmpvec, "VV", VVDataMap_, dataErrMsg) != 0)
     {
-      SIM_ERROR << dataErrMsg << endl;
+      SIM_ERROR << dataErrMsg << std::endl;
       return 1;
     }
   }
@@ -2513,24 +2525,24 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // Handle VH case
   if (getTokens(fp, tmpvec, 2) == false || tmpvec[0] != "VH")
   {
-    SIM_ERROR << "NSMA VH pattern not found" << endl;
+    SIM_ERROR << "NSMA VH pattern not found" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], dataCount))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA VH data count" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA VH data count" << std::endl;
     return 1;
   }
   for (i = 0; i < dataCount; i++)
   {
     if (getTokens(fp, tmpvec, 2) == false)
     {
-      SIM_ERROR << "Error processing NSMA VH data, expected two tokens" << endl;
+      SIM_ERROR << "Error processing NSMA VH data, expected two tokens" << std::endl;
       return 1;
     }
-    if (readNmsaData(tmpvec, "VH", VHDataMap_, dataErrMsg) != 0)
+    if (readNsmaData(tmpvec, "VH", VHDataMap_, dataErrMsg) != 0)
     {
-      SIM_ERROR << dataErrMsg << endl;
+      SIM_ERROR << dataErrMsg << std::endl;
       return 1;
     }
   }
@@ -2546,24 +2558,24 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // Handle ELHH case
   if (getTokens(fp, tmpvec, 2) == false || tmpvec[0] != "ELHH")
   {
-    SIM_ERROR << "NSMA ELHH pattern not found" << endl;
+    SIM_ERROR << "NSMA ELHH pattern not found" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], dataCount))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA ELHH data count" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA ELHH data count" << std::endl;
     return 1;
   }
   for (i = 0; i < dataCount; i++)
   {
     if (getTokens(fp, tmpvec, 2) == false)
     {
-      SIM_ERROR << "Error processing NSMA ELHH data, expected two tokens" << endl;
+      SIM_ERROR << "Error processing NSMA ELHH data, expected two tokens" << std::endl;
       return 1;
     }
-    if (readNmsaData(tmpvec, "ELHH", ELHHDataMap_, dataErrMsg) != 0)
+    if (readNsmaData(tmpvec, "ELHH", ELHHDataMap_, dataErrMsg) != 0)
     {
-      SIM_ERROR << dataErrMsg << endl;
+      SIM_ERROR << dataErrMsg << std::endl;
       return 1;
     }
   }
@@ -2571,24 +2583,24 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // Handle ELHV case
   if (getTokens(fp, tmpvec, 2) == false || tmpvec[0] != "ELHV")
   {
-    SIM_ERROR << "NSMA ELHV pattern not found" << endl;
+    SIM_ERROR << "NSMA ELHV pattern not found" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], dataCount))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA ELHV data count" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA ELHV data count" << std::endl;
     return 1;
   }
   for (i = 0; i < dataCount; i++)
   {
     if (getTokens(fp, tmpvec, 2) == false)
     {
-      SIM_ERROR << "Error processing NSMA ELHV data, expected two tokens" << endl;
+      SIM_ERROR << "Error processing NSMA ELHV data, expected two tokens" << std::endl;
       return 1;
     }
-    if (readNmsaData(tmpvec, "ELHV", ELHVDataMap_, dataErrMsg) != 0)
+    if (readNsmaData(tmpvec, "ELHV", ELHVDataMap_, dataErrMsg) != 0)
     {
-      SIM_ERROR << dataErrMsg << endl;
+      SIM_ERROR << dataErrMsg << std::endl;
       return 1;
     }
   }
@@ -2596,24 +2608,24 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // Handle ELVV case
   if (getTokens(fp, tmpvec, 2) == false || tmpvec[0] != "ELVV")
   {
-    SIM_ERROR << "NSMA ELVV pattern not found" << endl;
+    SIM_ERROR << "NSMA ELVV pattern not found" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], dataCount))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA ELVV data count" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA ELVV data count" << std::endl;
     return 1;
   }
   for (i = 0; i < dataCount; i++)
   {
     if (getTokens(fp, tmpvec, 2) == false)
     {
-      SIM_ERROR << "Error processing NSMA ELVV data, expected two tokens" << endl;
+      SIM_ERROR << "Error processing NSMA ELVV data, expected two tokens" << std::endl;
       return 1;
     }
-    if (readNmsaData(tmpvec, "ELVV", ELVVDataMap_, dataErrMsg) != 0)
+    if (readNsmaData(tmpvec, "ELVV", ELVVDataMap_, dataErrMsg) != 0)
     {
-      SIM_ERROR << dataErrMsg << endl;
+      SIM_ERROR << dataErrMsg << std::endl;
       return 1;
     }
   }
@@ -2621,24 +2633,24 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   // Handle ELVH case
   if (getTokens(fp, tmpvec, 2) == false || tmpvec[0] != "ELVH")
   {
-    SIM_ERROR << "NSMA ELVH pattern not found" << endl;
+    SIM_ERROR << "NSMA ELVH pattern not found" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], dataCount))
   {
-    SIM_ERROR << "Encountered invalid number for NSMA ELVH data count" << endl;
+    SIM_ERROR << "Encountered invalid number for NSMA ELVH data count" << std::endl;
     return 1;
   }
   for (i = 0; i < dataCount; i++)
   {
     if (getTokens(fp, tmpvec, 2) == false)
     {
-      SIM_ERROR << "Error processing NSMA ELVH data, expected two tokens" << endl;
+      SIM_ERROR << "Error processing NSMA ELVH data, expected two tokens" << std::endl;
       return 1;
     }
-    if (readNmsaData(tmpvec, "ELVH", ELVHDataMap_, dataErrMsg) != 0)
+    if (readNsmaData(tmpvec, "ELVH", ELVHDataMap_, dataErrMsg) != 0)
     {
-      SIM_ERROR << dataErrMsg << endl;
+      SIM_ERROR << dataErrMsg << std::endl;
       return 1;
     }
   }
@@ -2647,16 +2659,14 @@ int AntennaPatternNSMA::readPat_(istream& fp)
   return 0;
 }
 
-// ----------------------------------------------------------------------------
-
 int AntennaPatternNSMA::readPat(const std::string& inFileName)
 {
   int st=1;
   if (!inFileName.empty())
   {
     filename_.clear();
-    fstream inFile;
-    inFile.open(inFileName.c_str(), ios::in);
+    std::fstream inFile;
+    inFile.open(inFileName.c_str(), std::ios::in);
     if (inFile.is_open())
     {
       st = readPat_(inFile);
@@ -2671,7 +2681,6 @@ int AntennaPatternNSMA::readPat(const std::string& inFileName)
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
 /// AntennaPatternEZNEC methods
 
 AntennaPatternEZNEC::AntennaPatternEZNEC()
@@ -2684,8 +2693,6 @@ AntennaPatternEZNEC::AntennaPatternEZNEC()
   minHorzGain_(-SMALL_DB_VAL),
   maxHorzGain_(SMALL_DB_VAL)
 {}
-
-// ----------------------------------------------------------------------------
 
 float AntennaPatternEZNEC::gain(const AntennaGainParameters &params)
 {
@@ -2720,8 +2727,6 @@ float AntennaPatternEZNEC::gain(const AntennaGainParameters &params)
   return gain;
 }
 
-// ----------------------------------------------------------------------------
-
 void AntennaPatternEZNEC::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
   assert(min && max);
@@ -2749,9 +2754,7 @@ void AntennaPatternEZNEC::minMaxGain(float *min, float *max, const AntennaGainPa
   *max += params.refGain_;
 }
 
-// ----------------------------------------------------------------------------
-
-int AntennaPatternEZNEC::readPat_(istream& fp)
+int AntennaPatternEZNEC::readPat_(std::istream& fp)
 {
   assert(fp);
   std::string st;
@@ -2763,13 +2766,13 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   // EZNEC version
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "EZNEC EOF reached while searching for EZNEC" << endl;
+    SIM_ERROR << "EZNEC EOF reached while searching for EZNEC" << std::endl;
     return 1;
   }
 
   if (st.find("EZNEC") == std::string::npos)
   {
-    SIM_ERROR << "EZNEC file identifier not found" << endl;
+    SIM_ERROR << "EZNEC file identifier not found" << std::endl;
     return 1;
   }
 
@@ -2778,7 +2781,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   {
     if (!getStrippedLine(fp, st))
     {
-      SIM_ERROR << "EZNEC EOF reached while searching for Frequency" << endl;
+      SIM_ERROR << "EZNEC EOF reached while searching for Frequency" << std::endl;
       return 1;
     }
   } while (st.find("Frequency") == std::string::npos);
@@ -2796,7 +2799,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   {
     if (!isValidNumber(tmpvec[1], frequency_))
     {
-      SIM_ERROR << "Encountered invalid number for EZNEC frequency" << endl;
+      SIM_ERROR << "Encountered invalid number for EZNEC frequency" << std::endl;
       return 1;
     }
   }
@@ -2804,13 +2807,13 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   {
     if (!isValidNumber(tmpvec[2], frequency_))
     {
-      SIM_ERROR << "Encountered invalid number for EZNEC frequency" << endl;
+      SIM_ERROR << "Encountered invalid number for EZNEC frequency" << std::endl;
       return 1;
     }
   }
   else
   {
-    SIM_ERROR << "EZNEC Frequency line has incorrect # of tokens" << endl;
+    SIM_ERROR << "EZNEC Frequency line has incorrect # of tokens" << std::endl;
     return 1;
   }
 
@@ -2819,7 +2822,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   {
     if (!getStrippedLine(fp, st))
     {
-      SIM_ERROR << "EZNEC EOF reached while searching for Reference" << endl;
+      SIM_ERROR << "EZNEC EOF reached while searching for Reference" << std::endl;
       return 1;
     }
   } while (st.find("Reference") == std::string::npos);
@@ -2827,7 +2830,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   // verify incoming gain units are referenced to dBi
   if (stringCaseFind(st, "dBi") == std::string::npos)
   {
-    SIM_ERROR << "EZNEC antenna pattern gain values must be in dB." << endl;
+    SIM_ERROR << "EZNEC antenna pattern gain values must be in dB." << std::endl;
     return 1;
   }
 
@@ -2837,7 +2840,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   {
     if (!isValidNumber(tmpvec[1], reference_))
     {
-      SIM_ERROR << "Encountered invalid number for EZNEC reference" << endl;
+      SIM_ERROR << "Encountered invalid number for EZNEC reference" << std::endl;
       return 1;
     }
   }
@@ -2845,13 +2848,13 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   {
     if (!isValidNumber(tmpvec[2], reference_))
     {
-      SIM_ERROR << "Encountered invalid number for EZNEC reference" << endl;
+      SIM_ERROR << "Encountered invalid number for EZNEC reference" << std::endl;
       return 1;
     }
   }
   else
   {
-    SIM_ERROR << "EZNEC Reference line has incorrect # of tokens" << endl;
+    SIM_ERROR << "EZNEC Reference line has incorrect # of tokens" << std::endl;
     return 1;
   }
 
@@ -2860,8 +2863,8 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   {
     if (!getStrippedLine(fp, st))
     {
-      SIM_ERROR << "EZNEC EOF reached while searching for Azimuth Pattern" << endl;
-      SIM_ERROR << "Elevation patterns are not supported." << endl;
+      SIM_ERROR << "EZNEC EOF reached while searching for Azimuth Pattern" << std::endl;
+      SIM_ERROR << "Elevation patterns are not supported." << std::endl;
       return 1;
     }
   } while (st.find("Azimuth Pattern") == std::string::npos);
@@ -2882,7 +2885,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   stringTokenizer(tmpvec, st, delimiter);
   if (!isValidNumber((csv ? tmpvec[1] : tmpvec[5]), value))
   {
-    SIM_ERROR << "Encountered invalid number for EZNEC elevation" << endl;
+    SIM_ERROR << "Encountered invalid number for EZNEC elevation" << std::endl;
     return 1;
   }
   minElev = sdkMin(value, minElev);
@@ -2904,7 +2907,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   // "Deg","V dB","H dB","Tot dB"
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "EZNEC EOF reached while searching for data row header" << endl;
+    SIM_ERROR << "EZNEC EOF reached while searching for data row header" << std::endl;
     return 1;
   }
 
@@ -2914,7 +2917,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
     stringCaseFind(st, "H dB") == std::string::npos ||
     stringCaseFind(st, "Tot dB") == std::string::npos)
   {
-    SIM_ERROR << "Vert, Horz and Total gain is the only EZNEC far field format supported" << endl;
+    SIM_ERROR << "Vert, Horz and Total gain is the only EZNEC far field format supported" << std::endl;
     return 1;
   }
 
@@ -2938,7 +2941,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
       {
         if (!isValidNumber(tmpvec[1], value))
         {
-          SIM_ERROR << "Encountered invalid number for EZNEC elevation" << endl;
+          SIM_ERROR << "Encountered invalid number for EZNEC elevation" << std::endl;
           return 1;
         }
       }
@@ -2946,13 +2949,13 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
       {
         if (!isValidNumber(tmpvec[5], value))
         {
-          SIM_ERROR << "Encountered invalid number for EZNEC elevation" << endl;
+          SIM_ERROR << "Encountered invalid number for EZNEC elevation" << std::endl;
           return 1;
         }
       }
       else
       {
-        SIM_ERROR << "EZNEC Azimuth Pattern line has incorrect # of tokens" << endl;
+        SIM_ERROR << "EZNEC Azimuth Pattern line has incorrect # of tokens" << std::endl;
         return 1;
       }
       minElev = sdkMin(value, minElev);
@@ -2970,7 +2973,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
       // EZNEC Pro also saves out circular and linear too
       if (!isValidNumber(tmpvec[0], value))
       {
-        SIM_ERROR << "Encountered invalid number for EZNEC azimuth" << endl;
+        SIM_ERROR << "Encountered invalid number for EZNEC azimuth" << std::endl;
         return 1;
       }
       minAzim = sdkMin(value, minAzim);
@@ -2979,7 +2982,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
 
       if (!isValidNumber(tmpvec[1], gainVal))
       {
-        SIM_ERROR << "Encountered invalid number for EZNEC V gain" << endl;
+        SIM_ERROR << "Encountered invalid number for EZNEC V gain" << std::endl;
         return 1;
       }
       vVPol.push_back(gainVal);
@@ -2988,7 +2991,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
 
       if (!isValidNumber(tmpvec[2], gainVal))
       {
-        SIM_ERROR << "Encountered invalid number for EZNEC H gain" << endl;
+        SIM_ERROR << "Encountered invalid number for EZNEC H gain" << std::endl;
         return 1;
       }
       vHPol.push_back(gainVal);
@@ -2997,7 +3000,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
 
       if (!isValidNumber(tmpvec[3], gainVal))
       {
-        SIM_ERROR << "Encountered invalid number for EZNEC T gain" << endl;
+        SIM_ERROR << "Encountered invalid number for EZNEC T gain" << std::endl;
         return 1;
       }
       vTPol.push_back(gainVal);
@@ -3009,7 +3012,7 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   // verify data was processed
   if (vVPol.empty() || vHPol.empty() || vTPol.empty())
   {
-    SIM_ERROR << "EZNEC antenna pattern data was not processed." << endl;
+    SIM_ERROR << "EZNEC antenna pattern data was not processed." << std::endl;
     return 1;
   }
 
@@ -3037,8 +3040,6 @@ int AntennaPatternEZNEC::readPat_(istream& fp)
   return 0;
 }
 
-// ----------------------------------------------------------------------------
-
 int AntennaPatternEZNEC::readPat(const std::string& inFileName)
 {
   int st=1;
@@ -3051,8 +3052,8 @@ int AntennaPatternEZNEC::readPat(const std::string& inFileName)
     maxHorzGain_ = SMALL_DB_VAL;
     minGain_ = -SMALL_DB_VAL;
     maxGain_ = SMALL_DB_VAL;
-    fstream inFile;
-    inFile.open(inFileName.c_str(), ios::in);
+    std::fstream inFile;
+    inFile.open(inFileName.c_str(), std::ios::in);
     if (inFile.is_open())
     {
       st = readPat_(inFile);
@@ -3067,7 +3068,6 @@ int AntennaPatternEZNEC::readPat(const std::string& inFileName)
 }
 
 // ----------------------------------------------------------------------------
-// ----------------------------------------------------------------------------
 /// AntennaPatternXFDTD methods
 
 AntennaPatternXFDTD::AntennaPatternXFDTD()
@@ -3078,8 +3078,6 @@ AntennaPatternXFDTD::AntennaPatternXFDTD()
   minHorzGain_(-SMALL_DB_VAL),
   maxHorzGain_(SMALL_DB_VAL)
 {}
-
-// ----------------------------------------------------------------------------
 
 float AntennaPatternXFDTD::gain(const AntennaGainParameters &params)
 {
@@ -3113,8 +3111,6 @@ float AntennaPatternXFDTD::gain(const AntennaGainParameters &params)
   return gain;
 }
 
-// ----------------------------------------------------------------------------
-
 void AntennaPatternXFDTD::minMaxGain(float *min, float *max, const AntennaGainParameters &params)
 {
   assert(min && max);
@@ -3142,9 +3138,7 @@ void AntennaPatternXFDTD::minMaxGain(float *min, float *max, const AntennaGainPa
   *max += params.refGain_;
 }
 
-// ----------------------------------------------------------------------------
-
-int AntennaPatternXFDTD::readPat_(istream& fp)
+int AntennaPatternXFDTD::readPat_(std::istream& fp)
 {
   assert(fp);
   valid_ = false;
@@ -3202,67 +3196,71 @@ int AntennaPatternXFDTD::readPat_(istream& fp)
   // skip begin
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for begin parameters" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for begin parameters" << std::endl;
     return 1;
   }
 
   // skip format
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for format" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for format" << std::endl;
     return 1;
   }
 
   // phi_min
   if (getTokens(fp, tmpvec, 2) == false)
   {
-    SIM_ERROR << "XFDTD processing phi_min" << endl;
+    SIM_ERROR << "XFDTD processing phi_min" << std::endl;
     return 1;
   }
   float minAzim = 0;
   if (!isValidNumber(tmpvec[1], minAzim))
   {
-    SIM_ERROR << "Encountered invalid number for XFDTD minimum phi" << endl;
+    SIM_ERROR << "Encountered invalid number for XFDTD minimum phi" << std::endl;
     return 1;
   }
 
   // phi_max
   if (getTokens(fp, tmpvec, 2) == false)
   {
-    SIM_ERROR << "XFDTD processing phi_max" << endl;
+    SIM_ERROR << "XFDTD processing phi_max" << std::endl;
     return 1;
   }
   float maxAzim = 0;
   if (!isValidNumber(tmpvec[1], maxAzim))
   {
-    SIM_ERROR << "Encountered invalid number for XFDTD maximum phi" << endl;
+    SIM_ERROR << "Encountered invalid number for XFDTD maximum phi" << std::endl;
     return 1;
   }
 
   // phi_inc
   if (getTokens(fp, tmpvec, 2) == false)
   {
-    SIM_ERROR << "XFDTD processing phi_inc" << endl;
+    SIM_ERROR << "XFDTD processing phi_inc" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], value))
   {
-    SIM_ERROR << "Encountered invalid number for XFDTD phi increment" << endl;
+    SIM_ERROR << "Encountered invalid number for XFDTD phi increment" << std::endl;
     return 1;
   }
-
+  if (value == 0.f) // Avoid divide by zero below
+  {
+    SIM_ERROR << "Cannot use XFDTD phi increment of 0" << std::endl;
+    return 1;
+  }
   size_t azimCnt = static_cast<size_t>(rint((maxAzim - minAzim)/value));
 
   // theta_min
   if (getTokens(fp, tmpvec, 2) == false)
   {
-    SIM_ERROR << "XFDTD processing theta_min" << endl;
+    SIM_ERROR << "XFDTD processing theta_min" << std::endl;
     return 1;
   }
   float minElev = 0.f;
   if (!isValidNumber(tmpvec[1], minElev))
   {
-    SIM_ERROR << "Encountered invalid number for XFDTD minimum theta" << endl;
+    SIM_ERROR << "Encountered invalid number for XFDTD minimum theta" << std::endl;
     return 1;
   }
   minElev -= 90.f;
@@ -3270,13 +3268,13 @@ int AntennaPatternXFDTD::readPat_(istream& fp)
   // theta_max
   if (getTokens(fp, tmpvec, 2) == false)
   {
-    SIM_ERROR << "XFDTD processing theta_max" << endl;
+    SIM_ERROR << "XFDTD processing theta_max" << std::endl;
     return 1;
   }
   float maxElev = 0.f;
   if (!isValidNumber(tmpvec[1], maxElev))
   {
-    SIM_ERROR << "Encountered invalid number for XFDTD maximum theta" << endl;
+    SIM_ERROR << "Encountered invalid number for XFDTD maximum theta" << std::endl;
     return 1;
   }
   maxElev -= 90.f;
@@ -3284,43 +3282,47 @@ int AntennaPatternXFDTD::readPat_(istream& fp)
   // theta_inc
   if (getTokens(fp, tmpvec, 2) == false)
   {
-    SIM_ERROR << "XFDTD processing theta_inc" << endl;
+    SIM_ERROR << "XFDTD processing theta_inc" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], value))
   {
-    SIM_ERROR << "Encountered invalid number for XFDTD theta increment" << endl;
+    SIM_ERROR << "Encountered invalid number for XFDTD theta increment" << std::endl;
     return 1;
   }
-
+  if (value == 0.f) // Avoid divide by zero below
+  {
+    SIM_ERROR << "Cannot use XFDTD theta increment of 0" << std::endl;
+    return 1;
+  }
   size_t elevCnt = static_cast<size_t>(rint((maxElev - minElev)/value));
   elevCnt++;
 
   // skip complex
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for complex" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for complex" << std::endl;
     return 1;
   }
 
   // skip mag_phase
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for mag_phase" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for mag_phase" << std::endl;
     return 1;
   }
 
   // skip pattern
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for pattern" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for pattern" << std::endl;
     return 1;
   }
 
   // magnitude
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for magnitude" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for magnitude" << std::endl;
     return 1;
   }
   if (stringCaseFind(st, "dB") == std::string::npos)
@@ -3329,40 +3331,40 @@ int AntennaPatternXFDTD::readPat_(istream& fp)
   // maximum_gain
   if (getTokens(fp, tmpvec, 2) == false)
   {
-    SIM_ERROR << "XFDTD processing maximum_gain" << endl;
+    SIM_ERROR << "XFDTD processing maximum_gain" << std::endl;
     return 1;
   }
   if (!isValidNumber(tmpvec[1], reference_))
   {
-    SIM_ERROR << "Encountered invalid number for XFDTD maximum gain" << endl;
+    SIM_ERROR << "Encountered invalid number for XFDTD maximum gain" << std::endl;
     return 1;
   }
 
   // phase
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for phase" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for phase" << std::endl;
     return 1;
   }
 
   // skip direction
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for direction" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for direction" << std::endl;
     return 1;
   }
 
   // skip polarization
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for polarization" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for polarization" << std::endl;
     return 1;
   }
 
   // skip end marker
   if (!getStrippedLine(fp, st))
   {
-    SIM_ERROR << "XFDTD EOF reached while searching for end parameters" << endl;
+    SIM_ERROR << "XFDTD EOF reached while searching for end parameters" << std::endl;
     return 1;
   }
 
@@ -3395,7 +3397,7 @@ int AntennaPatternXFDTD::readPat_(istream& fp)
       }
       if (!isValidNumber(tmpvec[2], value))
       {
-        SIM_ERROR << "Encountered invalid number for XFDTD vertical gain" << endl;
+        SIM_ERROR << "Encountered invalid number for XFDTD vertical gain" << std::endl;
         return 1;
       }
       vVal = static_cast<float>((magLinear ? linear2dB(value) : value) - reference_);
@@ -3405,7 +3407,7 @@ int AntennaPatternXFDTD::readPat_(istream& fp)
 
       if (!isValidNumber(tmpvec[3], value))
       {
-        SIM_ERROR << "Encountered invalid number for XFDTD horizontal gain" << endl;
+        SIM_ERROR << "Encountered invalid number for XFDTD horizontal gain" << std::endl;
         return 1;
       }
       hVal = static_cast<float>((magLinear ? linear2dB(value) : value) - reference_);
@@ -3426,16 +3428,14 @@ int AntennaPatternXFDTD::readPat_(istream& fp)
   return 0;
 }
 
-// ----------------------------------------------------------------------------
-
 int AntennaPatternXFDTD::readPat(const std::string& inFileName)
 {
   int st=1;
   if (!inFileName.empty())
   {
     filename_.clear();
-    fstream inFile;
-    inFile.open(inFileName.c_str(), ios::in);
+    std::fstream inFile;
+    inFile.open(inFileName.c_str(), std::ios::in);
     if (inFile.is_open())
     {
       st = readPat_(inFile);
@@ -3447,4 +3447,6 @@ int AntennaPatternXFDTD::readPat(const std::string& inFileName)
     }
   }
   return st;
+}
+
 }

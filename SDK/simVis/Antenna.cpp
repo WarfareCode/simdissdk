@@ -19,9 +19,10 @@
  * disclose, or release this software.
  *
  */
+#include <limits>
 #include "osg/Geode"
 #include "osg/Geometry"
-#include "osgEarthSymbology/MeshConsolidator"
+#include "osgEarth/MeshConsolidator"
 
 #include "simCore/Calc/Angle.h"
 #include "simCore/EM/AntennaPattern.h"
@@ -237,8 +238,16 @@ void AntennaNode::updateLighting_(bool shaded)
 void AntennaNode::updateBlending_(bool blending)
 {
   osg::StateSet* stateSet = getOrCreateStateSet();
-  stateSet->setMode(GL_BLEND, 
-    (blending ? osg::StateAttribute::ON : osg::StateAttribute::OFF));
+  if (blending)
+  {
+    stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
+    stateSet->setRenderBinDetails(BIN_BEAM, BIN_TWO_PASS_ALPHA);
+  }
+  else
+  {
+    stateSet->setMode(GL_BLEND, osg::StateAttribute::OFF);
+    stateSet->setRenderBinDetails(BIN_OPAQUE_BEAM, BIN_GLOBAL_SIMSDK);
+  }
 }
 
 float AntennaNode::PatternGain(float azim, float elev, simCore::PolarityType polarity) const
@@ -623,7 +632,7 @@ void AntennaNode::render_()
   geode->addDrawable(antGeom);
 
   // optimize the geode:
-  osgEarth::Symbology::MeshConsolidator::run(*geode);
+  osgEarth::MeshConsolidator::run(*geode);
   addChild(geode);
   applyScale_();
 }

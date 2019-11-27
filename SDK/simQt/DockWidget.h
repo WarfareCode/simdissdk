@@ -43,6 +43,7 @@ namespace simQt {
 
 class SearchLineEdit;
 class BoundBooleanSetting;
+class BoundIntegerSetting;
 
 /**
  * DockWidget is a wrapper class around the QDockWidget, to provide a supplemented dock widget.  The
@@ -147,7 +148,8 @@ public:
   void setWidget(QWidget* widget);
 
   /**
-  * Get the dockable state of the dock widget, if false, docking is disabled
+  * Get the dockable state of the dock widget, if false, docking is disabled. This will always
+  * return false if all docking is disabled, regardless of the widget's internal dockable state.
   * @return bool The dockable state of the dock widget, if false, docking is disabled
   */
   bool isDockable() const;
@@ -192,6 +194,9 @@ public:
   /** Undocks the dock window */
   void undock();
 
+  /** Returns true if all docking is disabled via settings */
+  bool allDockingDisabled() const;
+
 public slots:
 
   /**
@@ -214,6 +219,9 @@ public slots:
 
   /** Set the point size of the title bar text, which also increases the window icon size proportionately */
   void setTitleBarTextSize(int pointSize);
+
+  /** Set the global settings ptr, which will apply any global settings if ptr is valid */
+  void setGlobalSettings(Settings* globalSettings);
 
 signals:
   /** Emitted after the dock widget is closed. */
@@ -289,6 +297,12 @@ private slots:
 
   /** Enables or disables dockability from the global flag */
   void setGlobalNotDockableFlag_(bool disallowDocking);
+
+  /** Set dock widget border thickness, in pixels */
+  void setBorderThickness_(int thickness);
+
+  /** Apply the appropriate global settings from the current globalSettings_ member */
+  void applyGlobalSettings_();
 
 private:
   /**
@@ -385,6 +399,9 @@ private:
 
   /** Global flag that can be used to turn off all docking at once. */
   simQt::BoundBooleanSetting* disableAllDocking_;
+
+  /** Setting to update border thickess */
+  simQt::BoundIntegerSetting* borderThickness_;
 };
 
 }

@@ -40,7 +40,8 @@ TimeWidget::TimeWidget(QWidget* parent)
   : QWidget(parent),
     scenarioReferenceYear_(1970),
     disabledLineEdit_(NULL),
-    timeEnabled_(true)
+    timeEnabled_(true),
+    labelToolTipSet_(false)
 {
   // Setup the format widgets to switch between
   addContainer_(new SecondsContainer(this), SLOT(setSeconds_()));
@@ -58,8 +59,8 @@ TimeWidget::TimeWidget(QWidget* parent)
   title_->setText("Time:");
   title_->setSizePolicy(QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred));
   title_->setContextMenuPolicy(Qt::CustomContextMenu);
-  Q_FOREACH(TimeFormatContainer* w, containers_)
-    connect(w, SIGNAL(customContextMenuRequested(const QPoint &)), this, SLOT(showRightMouseClickMenu_(const QPoint &)));
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    connect(*it, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showRightMouseClickMenu_(QPoint)));
 
   // Need a layout to make the widget fill the parent widget
   QHBoxLayout *layout = new QHBoxLayout();
@@ -79,8 +80,8 @@ TimeWidget::TimeWidget(QWidget* parent)
 
 TimeWidget::~TimeWidget()
 {
-  Q_FOREACH(TimeFormatContainer* w, containers_)
-    delete w;
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    delete *it;
   containers_.clear();
 
   delete colorCodeAction_;
@@ -119,6 +120,7 @@ QString TimeWidget::labelToolTip() const
 void TimeWidget::setLabelToolTip(QString value)
 {
   title_->setToolTip(value);
+  labelToolTipSet_ = !value.isEmpty();
 }
 
 bool TimeWidget::colorCodeText() const
@@ -128,8 +130,8 @@ bool TimeWidget::colorCodeText() const
 
 void TimeWidget::setColorCodeText(bool value)
 {
-  Q_FOREACH(TimeFormatContainer* w, containers_)
-    w->setColorCode(value);
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->setColorCode(value);
 }
 
 simCore::TimeStamp TimeWidget::timeStamp() const
@@ -145,8 +147,8 @@ void TimeWidget::setTimeStamp(const simCore::TimeStamp& value)
   bool emitSignal = (value != currentContainer_->timeStamp());
 
   // Keep all time format widgets in sync
-  Q_FOREACH(TimeFormatContainer* w, containers_)
-    w->setTimeStamp(value);
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->setTimeStamp(value);
 
   if (emitSignal)
     emit timeChanged(currentContainer_->timeStamp());
@@ -163,8 +165,8 @@ void TimeWidget::setTimeRange(int scenarioReferenceYear, const simCore::TimeStam
     timeRangeEnd_ = end;
 
     // Keep all time format widgets in sync
-    Q_FOREACH(TimeFormatContainer* w, containers_)
-      w->setTimeRange(scenarioReferenceYear, start, end);
+    for (auto it = containers_.begin(); it != containers_.end(); ++it)
+      (*it)->setTimeRange(scenarioReferenceYear, start, end);
 
     emit timeRangeChanged();
   }
@@ -178,15 +180,15 @@ void TimeWidget::getEnforceLimits(bool& limitBeforeStart, bool& limitAfterEnd) c
 void TimeWidget::setEnforceLimits(bool limitBeforeStart, bool limitAfterEnd)
 {
   // Keep all time format widgets in sync
-  Q_FOREACH(TimeFormatContainer* w, containers_)
-    w->setEnforceLimits(limitBeforeStart, limitAfterEnd);
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->setEnforceLimits(limitBeforeStart, limitAfterEnd);
 }
 
 void TimeWidget::showRightMouseClickMenu_(const QPoint &pos)
 {
   // Put a check mark next to the current format
-  Q_FOREACH(TimeFormatContainer* w, containers_)
-    w->action()->setChecked(currentContainer_->timeFormat() == w->timeFormat());
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->action()->setChecked(currentContainer_->timeFormat() == (*it)->timeFormat());
 
   colorCodeAction_->setChecked(currentContainer_->colorCode());
 
@@ -203,6 +205,17 @@ unsigned int TimeWidget::precision() const
   return currentContainer_->precision();
 }
 
+simCore::TimeZone TimeWidget::timeZone() const
+{
+  return currentContainer_->timeZone();
+}
+
+void TimeWidget::disableControlToolTips()
+{
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->disableToolTip();
+}
+
 /// Switch the display format to newFormat
 void TimeWidget::setTimeFormat(simCore::TimeFormat newFormat)
 {
@@ -210,20 +223,22 @@ void TimeWidget::setTimeFormat(simCore::TimeFormat newFormat)
   if (newFormat == simCore::TIMEFORMAT_DTG)
     newFormat = simCore::TIMEFORMAT_MONTHDAY;
 
-  Q_FOREACH(TimeFormatContainer* w, containers_)
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
   {
-    if (w->timeFormat() == newFormat)
+    if ((*it)->timeFormat() == newFormat)
     {
       layout()->removeWidget(currentContainer_->widget());
       currentContainer_->widget()->setHidden(true);
       // user might have changed the time before switching, so move time over to new widget
-      w->setTimeStamp(currentContainer_->timeStamp());
-      currentContainer_ = w;
+      (*it)->setTimeStamp(currentContainer_->timeStamp());
+      currentContainer_ = *it;
       if (timeEnabled_)
       {
         currentContainer_->widget()->setHidden(false);
         layout()->addWidget(currentContainer_->widget());
       }
+      if (!labelToolTipSet_)
+        title_->setToolTip(currentContainer_->toolTipText());
       break;
     }
   }
@@ -232,11 +247,19 @@ void TimeWidget::setTimeFormat(simCore::TimeFormat newFormat)
 void TimeWidget::setPrecision(unsigned int digits)
 {
   // save off the current time to force a redraw after setting the precision
-  simCore::TimeStamp currentTime = currentContainer_->timeStamp();
-  Q_FOREACH(TimeFormatContainer* w, containers_)
-  {
-    w->setPrecision(digits);
-  }
+  const simCore::TimeStamp& currentTime = currentContainer_->timeStamp();
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->setPrecision(digits);
+  currentContainer_->setTimeStamp(currentTime);
+}
+
+void TimeWidget::setTimeZone(simCore::TimeZone zone)
+{
+  // Some formats use time zone when calculating time stamp.
+  // Save off and reset to ensure time stays accurate and to force a redraw of the text
+  const simCore::TimeStamp& currentTime = currentContainer_->timeStamp();
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->setTimeZone(zone);
   currentContainer_->setTimeStamp(currentTime);
 }
 
@@ -287,7 +310,7 @@ simCore::TimeStamp TimeWidget::timeRangeEnd() const
 
 bool TimeWidget::timeEnabled() const
 {
-  return !timeEnabled_;
+  return timeEnabled_;
 }
 
 void TimeWidget::setTimeEnabled(bool value)
@@ -316,6 +339,11 @@ void TimeWidget::setTimeEnabled(bool value)
       disabledLineEdit_ = new QLineEdit(tr("--------------------------------------"), this);
       disabledLineEdit_->setEnabled(false);
       disabledLineEdit_->setMinimumWidth(175);
+      // Set horizontal size policy to match the time line edit. This avoids
+      // potential resize problems when swapping between the two line edits.
+      QSizePolicy policy = disabledLineEdit_->sizePolicy();
+      policy.setHorizontalPolicy(QSizePolicy::Preferred);
+      disabledLineEdit_->setSizePolicy(policy);
     }
     disabledLineEdit_->setVisible(true);
     layout()->addWidget(disabledLineEdit_);

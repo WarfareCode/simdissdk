@@ -23,12 +23,15 @@
 #define SIMDIS_VISUALIZATION_ANIMATED_LINE_H
 
 #include "osg/MatrixTransform"
-#include "osg/LineStipple"
-#include "osg/LineWidth"
 #include "osg/PrimitiveSet"
 #include "osgEarth/Revisioning"
 #include "simCore/Common/Common.h"
 #include "simCore/Calc/MultiFrameCoordinate.h"
+
+namespace osgEarth {
+  class LineDrawable;
+  class LineGroup;
+}
 
 namespace simVis
 {
@@ -69,6 +72,9 @@ namespace simVis
      * @param[in ] second Second Locator
      */
     void setEndPoints(const Locator* first, const Locator* second);
+
+    /** Retrieves the current resolved position of the start and end of the line, returning 0 on success */
+    int getEndPoints(simCore::MultiFrameCoordinate& coord1, simCore::MultiFrameCoordinate& coord2) const;
 
     /**
      * Sets the first stippling pattern for this line. The first color will
@@ -181,40 +187,34 @@ namespace simVis
     unsigned short           stipple1_;
     unsigned short           stipple2_;
     double                   shiftsPerSecond_;
-    osgEarth::SimpleMutable<osg::Vec4> color1_;
-    osgEarth::SimpleMutable<osg::Vec4> color2_;
-    osgEarth::SimpleMutable<osg::Vec4> colorOverride_;
+    osgEarth::Util::SimpleMutable<osg::Vec4> color1_;
+    osgEarth::Util::SimpleMutable<osg::Vec4> color2_;
+    osgEarth::Util::SimpleMutable<osg::Vec4> colorOverride_;
     bool useOverrideColor_;
-
-    osg::ref_ptr<osg::LineStipple> stippleAttr1_;
-    osg::ref_ptr<osg::LineStipple> stippleAttr2_;
-
-    osg::ref_ptr<osg::LineWidth> lineWidth_;
+    float lineWidth_;
 
     osg::ref_ptr<const Locator> firstLocator_;
-    osgEarth::Revision          firstLocatorRevision_;
+    osgEarth::Util::Revision firstLocatorRevision_;
 
     osg::ref_ptr<const Locator> secondLocator_;
-    osgEarth::Revision          secondLocatorRevision_;
+    osgEarth::Util::Revision secondLocatorRevision_;
 
-    osgEarth::SimpleMutable<simCore::MultiFrameCoordinate> firstCoord_;
+    osgEarth::Util::SimpleMutable<simCore::MultiFrameCoordinate> firstCoord_;
     /**
      * Second Coordinate might be a relative coordinate (X-East).  This could be
      * associated with a (moving) locator instead of a static point, so we cannot
      * resolve it until later.  Because of this, we use a Coordinate and not a MFC.
      */
-    osgEarth::SimpleMutable<simCore::Coordinate> secondCoord_;
+    osgEarth::Util::SimpleMutable<simCore::Coordinate> secondCoord_;
+    /** ... but we still save the most recently resolved MF coordinate, only set when drawing. */
+    osgEarth::Util::SimpleMutable<simCore::MultiFrameCoordinate> secondCoordMF_;
     /** Coordinate converter that is used to put secondCoord_ in a valid (Geo) frame */
     simCore::CoordinateConverter* coordinateConverter_;
 
-    // quick access to the VBO's
-    osg::ref_ptr<osg::Vec3Array>  verts_;
-    osg::ref_ptr<osg::DrawArrays> primset_;
-    osg::ref_ptr<osg::Vec4Array>  colors1_;
-    osg::ref_ptr<osg::Vec4Array>  colors2_;
-
     // access to the geode so we can properly dirty the geometries' bounds
-    osg::Geode* geode_;
+    osg::ref_ptr<osgEarth::LineGroup> geode_;
+    osg::ref_ptr<osgEarth::LineDrawable> line1_;
+    osg::ref_ptr<osgEarth::LineDrawable> line2_;
 
     // track time deltas for smooth animation
     double timeLastShift_;

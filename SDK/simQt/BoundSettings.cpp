@@ -292,8 +292,9 @@ int BoundIntegerSetting::populateCombo_(const Settings::MetaData& metaData, QCom
 
   // At this point we can clear out the values and add our own
   comboBox->clear();
-  Q_FOREACH(QString value, enumValues.values())
-    comboBox->addItem(value);
+  auto values = enumValues.values();
+  for (auto it = values.begin(); it != values.end(); ++it)
+    comboBox->addItem(*it);
   return 0;
 }
 
@@ -328,11 +329,23 @@ void BoundDoubleSetting::bindTo(QDoubleSpinBox* box, bool populateToolTip, bool 
         box->setToolTip(metaData.toolTip());
       if (populateLimits)
       {
+        double minVal = -std::numeric_limits<double>::max();
+        double maxVal = std::numeric_limits<double>::max();
         if (metaData.minValue().isValid())
-          box->setMinimum(metaData.minValue().toDouble());
+        {
+          minVal = metaData.minValue().toDouble();
+          box->setMinimum(minVal);
+        }
         if (metaData.maxValue().isValid())
-          box->setMaximum(metaData.maxValue().toDouble());
+        {
+          maxVal = metaData.maxValue().toDouble();
+          box->setMaximum(maxVal);
+        }
         box->setDecimals(metaData.numDecimals());
+
+        // If minVal and maxVal both have a valid value and aren't equal, set a reasonable step based on range and precision
+        if (minVal != -std::numeric_limits<double>::max() && maxVal != std::numeric_limits<double>::max())
+          box->setSingleStep(simCore::guessStepSize(maxVal - minVal, metaData.numDecimals()));
       }
     }
   }

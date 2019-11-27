@@ -29,6 +29,8 @@
 #include "simVis/Utils.h"
 #include "simVis/RocketBurnStorage.h"
 
+static const std::string BURN_TEXTURE_FILE = "p.rgb";
+
 namespace simCore {
 
 /** Template helper method to interpolate between two simVis::RocketBurnStorage::Update instances */
@@ -103,7 +105,7 @@ public:
   /** Removes the burns from storage when the entity is removed from data store */
   virtual void onRemoveEntity(simData::DataStore *source, simData::ObjectId removedId, simData::ObjectType ot)
   {
-    storage_.removeBurnsForPlatform_(removedId);
+    storage_.removeBurnsForPlatform(removedId);
   }
 
 private:
@@ -142,8 +144,13 @@ void RocketBurnStorage::addBurnData(simData::ObjectId platId, uint64_t burnId, d
     // lazy initialization of texture and other resources that are only needed if a rocketBurn is instantiated
     if (texture_ == NULL)
     {
-      const std::string imageFile = simVis::Registry::instance()->findModelFile("p.rgb");
-      texture_ = new osg::Texture2D(osgDB::readImageFile(imageFile));
+      const std::string imageFile = simVis::Registry::instance()->findModelFile(BURN_TEXTURE_FILE);
+      osg::ref_ptr<osg::Image> image;
+      if (imageFile.empty())
+        image = osgDB::readImageFile(BURN_TEXTURE_FILE); // Fall back on OSG
+      else
+        image = osgDB::readImageFile(imageFile);
+      texture_ = new osg::Texture2D(image.get());
       simVis::fixTextureForGlCoreProfile(texture_.get());
 
       dataStoreListener_.reset(new DataStoreListener(*this));
@@ -183,7 +190,7 @@ void RocketBurnStorage::update(double time)
   }
 }
 
-void RocketBurnStorage::removeBurnsForPlatform_(simData::ObjectId removedId)
+void RocketBurnStorage::removeBurnsForPlatform(simData::ObjectId removedId)
 {
   // find all burnIds that associate with the platform
   const std::pair<RocketBurnIdByPlatform::iterator, RocketBurnIdByPlatform::iterator> ranges = idsByPlatform_.equal_range(removedId);

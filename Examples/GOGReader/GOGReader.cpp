@@ -26,11 +26,12 @@
  * Demonstrates the loading and display of SIMDIS .gog format vector overlay data.
  */
 
+#include "osgEarth/Controls"
+#include "osgEarth/LabelNode"
+#include "osgEarth/MouseCoordsTool"
 #include "osgEarth/NodeUtils"
-#include "osgEarthAnnotation/PlaceNode"
-#include "osgEarthAnnotation/LabelNode"
-#include "osgEarthUtil/Controls"
-#include "osgEarthUtil/MouseCoordsTool"
+#include "osgEarth/optional"
+#include "osgEarth/PlaceNode"
 
 #include "simNotify/Notify.h"
 #include "simCore/Common/Version.h"
@@ -57,7 +58,6 @@ namespace ui = osgEarth::Util::Controls;
 using namespace osgEarth;
 using namespace osgEarth::Util;
 using namespace osgEarth::Util::Controls;
-using namespace osgEarth::Annotation;
 
 typedef std::shared_ptr<simVis::GOG::GogNodeInterface> GogNodeInterfacePtr;
 static std::vector<GogNodeInterfacePtr> s_overlayNodes;
@@ -122,10 +122,10 @@ public:
     dynamicScaleOn_(true),
     labelsOn_(true),
     border_(0),
-    centeredGogIndex_(-1),
     platform_(platform),
     altMode_(simVis::GOG::ALTITUDE_NONE)
   {
+    centeredGogIndex_.init(0);
     mouseDispatcher_.reset(new simUtil::MouseDispatcher);
     mouseDispatcher_->setViewManager(NULL);
     latLonElevListener_.reset(new LatLonElevListener());
@@ -150,7 +150,7 @@ public:
       // panning uncenters from GOG
       if (ea.getButtonMask() & osgGA::GUIEventAdapter::RIGHT_MOUSE_BUTTON)
       {
-        centeredGogIndex_ = -1;
+        centeredGogIndex_.clear();
         updateStatusAndLabel_();
       }
       // zooming updates camera distance label
@@ -174,7 +174,7 @@ private:
     {
     case 'c': // center on next GOG
     {
-      centeredGogIndex_++;
+      centeredGogIndex_ = centeredGogIndex_.get() + 1;
       if (centeredGogIndex_ >= s_overlayNodes.size())
         centeredGogIndex_ = 0;
       osg::Vec3d position;
@@ -186,14 +186,14 @@ private:
         referencePosition.x() = coord.lon() * simCore::RAD2DEG;
         referencePosition.y() = coord.lat() * simCore::RAD2DEG;
         referencePosition.z() = coord.alt();
-        s_overlayNodes[centeredGogIndex_]->getPosition(position, &referencePosition);
+        s_overlayNodes[centeredGogIndex_.get()]->getPosition(position, &referencePosition);
 
       }
       else
-        s_overlayNodes[centeredGogIndex_]->getPosition(position);
+        s_overlayNodes[centeredGogIndex_.get()]->getPosition(position);
 
       simVis::GOG::AltitudeMode curMode;
-      if (s_overlayNodes[centeredGogIndex_]->getAltitudeMode(curMode) == 0)
+      if (s_overlayNodes[centeredGogIndex_.get()]->getAltitudeMode(curMode) == 0)
         altMode_ = curMode;
 
       simVis::View* focusedView = viewer_->getMainView()->getFocusManager()->getFocusedView();
@@ -212,25 +212,25 @@ private:
 
     case 'a': // change altitude mode for centered GOG
     {
-      if (centeredGogIndex_ < 0 || centeredGogIndex_ >= s_overlayNodes.size())
+      if (!centeredGogIndex_.isSet() || centeredGogIndex_ >= s_overlayNodes.size())
         return false;
       if (altMode_ == simVis::GOG::ALTITUDE_EXTRUDE)
         altMode_ = simVis::GOG::ALTITUDE_NONE;
       else
         altMode_ = static_cast<simVis::GOG::AltitudeMode>(altMode_ + 1);
-      s_overlayNodes[centeredGogIndex_]->setAltitudeMode(altMode_);
+      s_overlayNodes[centeredGogIndex_.get()]->setAltitudeMode(altMode_);
       updateStatusAndLabel_();
       return true;
     }
 
     case 'f': // change fill state for centered GOG
     {
-      if (centeredGogIndex_ < 0 || centeredGogIndex_ >= s_overlayNodes.size())
+      if (!centeredGogIndex_.isSet() || centeredGogIndex_ >= s_overlayNodes.size())
         return false;
       bool filled = false;
       osg::Vec4f fillColor;
-      if (s_overlayNodes[centeredGogIndex_]->getFilledState(filled, fillColor) == 0)
-        s_overlayNodes[centeredGogIndex_]->setFilledState(!filled);
+      if (s_overlayNodes[centeredGogIndex_.get()]->getFilledState(filled, fillColor) == 0)
+        s_overlayNodes[centeredGogIndex_.get()]->setFilledState(!filled);
       return true;
     }
 
@@ -275,8 +275,8 @@ private:
 
     // get centered GOG name
     text += "Centered: ";
-    if (centeredGogIndex_ >= 0 && centeredGogIndex_ < s_overlayNodes.size())
-      text += s_overlayNodes[centeredGogIndex_]->osgNode()->getName() + "\n";
+    if (centeredGogIndex_.isSet() && centeredGogIndex_ < s_overlayNodes.size())
+      text += s_overlayNodes[centeredGogIndex_.get()]->osgNode()->getName() + "\n";
     else
       text += "None\n";
 
@@ -342,7 +342,7 @@ private:
   bool dynamicScaleOn_;
   bool labelsOn_;
   int border_;
-  int centeredGogIndex_;
+  osgEarth::optional<size_t> centeredGogIndex_;
   osg::ref_ptr<simVis::PlatformNode> platform_;
   simVis::GOG::AltitudeMode altMode_;
 };
@@ -521,11 +521,19 @@ int main(int argc, char** argv)
             0.0,
             ALTMODE_ABSOLUTE);
 
-          osg::ref_ptr<AnnotationNode> marker;
+          osg::ref_ptr<GeoPositionNode> marker;
           if (label.empty())
-            marker = new PlaceNode(scene->getMapNode(), location, pin.get(), label);
+          {
+            PlaceNode* place = new PlaceNode();
+            place->setIconImage(pin.get());
+            marker = place;
+            marker->setMapNode(scene->getMapNode());
+          }
           else
-            marker = new LabelNode(scene->getMapNode(), location, label);
+            marker = new LabelNode(label);
+
+          marker->setMapNode(scene->getMapNode());
+          marker->setPosition(location);
 
           scene->getScenario()->addChild(marker);
 
@@ -567,9 +575,9 @@ int main(int argc, char** argv)
   ui::VBox* vbox = new ui::VBox();
   vbox->setPadding(10);
   vbox->setBackColor(0, 0, 0, 0.6);
-  vbox->addControl(new ui::LabelControl(s_title, 20, osg::Vec4f(1, 1, 0, 1)));
-  vbox->addControl(new ui::LabelControl(s_help, 14, osg::Vec4f(.8, .8, .8, 1)));
-  ui::LabelControl* statusLabel = new ui::LabelControl("STATUS", 14, osg::Vec4f(.8, .8, .8, 1));
+  vbox->addControl(new ui::LabelControl(s_title, 20, simVis::Color::Yellow));
+  vbox->addControl(new ui::LabelControl(s_help, 14, simVis::Color::Silver));
+  ui::LabelControl* statusLabel = new ui::LabelControl("STATUS", 14, simVis::Color::Silver);
   vbox->addControl(statusLabel);
   mainView->addOverlayControl(vbox);
 
@@ -580,7 +588,7 @@ int main(int argc, char** argv)
       statusLabel,
       dataStore,
       showElevation,
-      attach ? platform : NULL);
+      attach ? platform.get() : NULL);
 
   mainView->getCamera()->addEventCallback(mouseHandler);
   viewer->run();

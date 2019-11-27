@@ -24,7 +24,7 @@
  * Demonstrates loading an osgEarth .earth file at runtime, showing how you
  * can swap terrain configurations on the fly.
  */
-#include "osgEarthUtil/Controls"
+#include "osgEarth/Controls"
 #include "simNotify/Notify.h"
 #include "simCore/Common/Version.h"
 #include "simCore/Common/HighPerformanceGraphics.h"
@@ -66,8 +66,8 @@ static Control* createHelp(LabelControl* elevationLabel)
   VBox* vbox = new VBox();
   vbox->setPadding(10);
   vbox->setBackColor(0, 0, 0, 0.6);
-  vbox->addControl(new LabelControl(s_title, 20, osg::Vec4f(1, 1, 0, 1)));
-  vbox->addControl(new LabelControl(s_help, 14, osg::Vec4f(.8, .8, .8, 1)));
+  vbox->addControl(new LabelControl(s_title, 20, simVis::Color::Yellow));
+  vbox->addControl(new LabelControl(s_help, 14, simVis::Color::Silver));
   vbox->addControl(elevationLabel);
   return vbox;
 }
@@ -292,7 +292,7 @@ int main(int argc, char** argv)
   mainView->tetherCamera(platformSim->platformNode(), vp, 0);
 
   // label for elevation readout
-  osg::ref_ptr<LabelControl> elevationLabel = new LabelControl("", 14, osg::Vec4f(.8, .8, .8, 1));
+  osg::ref_ptr<LabelControl> elevationLabel = new LabelControl("", 14, simVis::Color::Silver);
   std::shared_ptr<simUtil::MouseDispatcher> mouseDispatcher;
   mouseDispatcher.reset(new simUtil::MouseDispatcher);
 

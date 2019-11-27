@@ -114,6 +114,13 @@ public:
   virtual std::string serializeRules(const std::vector<PrefRule*>& rules) = 0;
 
   /**
+   * Serializes the rules of this preference rules manager into the given output stream
+   * @param os the given output stream
+   * @return 0 on total success, non-zero if there were any problems serializing the rules
+   */
+  virtual int serializeRules(std::ostream& os) = 0;
+
+  /**
    * Deserializes the rules passed in the istream
    * @param[in] rules  rules to deserialize
    * @return 0 on total success, non-zero if there were any problems loading rules. Note that non-zero return can still indicate partial success
@@ -173,6 +180,21 @@ public:
    * @return the Enable Rules state
    */
   virtual bool rulesEnabled() const = 0;
+
+  /**
+  * Set the enforcement state of preferred pref value changes. When pref values are enforced, this means that the pref will
+  * not be updated by normal processing of pref rules. This is useful for cases where certain pref changes (e.g. manual edits)
+  * should be flagged to take priority over pref rules. If enforcement is disabled, all pref rule value changes are allowed.
+  * @param enforce if true, enforces preferred pref values and prevents normal changes by pref rules
+  */
+  virtual void setEnforcePrefs(bool enforce) = 0;
+
+  /**
+  * Returns true if currently enforcing pref values, which prevents changes to pref values by normal processing of pref rules.
+  * @param true if pref values are being enforced, false otherwise
+  */
+  virtual bool isEnforcingPrefs() const = 0;
+
 };
 
 /** Null object implementation for PrefRulesManager */
@@ -182,6 +204,7 @@ class NullPrefRulesManager : public simData::PrefRulesManager
   virtual int loadRuleFiles(const std::vector<std::string>& , bool ) { return 1; }
   virtual int removeAllRules() { return 1; }
   virtual std::string serializeRules(const std::vector<simData::PrefRule*>& rules) { return ""; }
+  virtual int serializeRules(std::ostream& os) { return 1; }
   virtual int deserializeRules(std::istream& rules) { return 1; }
   virtual int addSerializedRule(std::vector<simData::PrefRule*>& rules, const std::string& serializedRule, int fileFormatVersion){ return 1; }
   virtual void listRules(std::vector<simData::PrefRule*>& prefRules) { }
@@ -192,6 +215,8 @@ class NullPrefRulesManager : public simData::PrefRulesManager
   virtual bool isPrefValueEnforced(simData::ObjectId id, const std::deque<int>& tagStack) const { return false; }
   virtual void setRulesEnabled(bool state) { }
   virtual bool rulesEnabled() const { return true; }
+  virtual void setEnforcePrefs(bool enforce) { }
+  virtual bool isEnforcingPrefs() const { return true; }
 };
 
 }

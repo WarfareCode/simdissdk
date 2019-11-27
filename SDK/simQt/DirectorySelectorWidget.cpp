@@ -46,7 +46,7 @@ DirectorySelectorWidget::DirectorySelectorWidget(QWidget* parent)
   connect(ui_->directoryText, SIGNAL(textEdited(const QString&)), this, SLOT(textEdited_()));
   connect(ui_->directoryText, SIGNAL(editingFinished()), this, SLOT(editingFinished_()));
 
-#if DEBUG
+#ifndef NDEBUG
   ui_->directoryText->setReadOnly(false);  // Only allows developers to type in a directory name; users must use the file browser
 #else
   ui_->directoryText->setReadOnly(true);  // Normal use - users must use the file browser
@@ -154,7 +154,7 @@ void DirectorySelectorWidget::setDirectory(const QString& dir)
 
 bool DirectorySelectorWidget::eventFilter(QObject* obj, QEvent* evt)
 {
-  if (obj == ui_->directoryText)
+  if (obj == ui_->directoryText && ui_->directoryText->isEnabled())
   {
     if (evt->type() == QEvent::MouseButtonDblClick)
     {

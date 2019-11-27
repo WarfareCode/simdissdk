@@ -24,8 +24,6 @@
 #include "osgEarth/VirtualProgram"
 #include "simVis/RFProp/GradientColorProvider.h"
 
-using namespace simRF;
-
 namespace {
 
 /** Fixed precision for floating point values written to shader GLSL code */
@@ -48,6 +46,8 @@ std::string printFloat(float f)
   return buf.str();
 }
 }
+
+namespace simRF {
 
 GradientColorProvider::GradientColorProvider()
  : discrete_(true)
@@ -102,6 +102,9 @@ std::string GradientColorProvider::buildShader_()
   buf << GLSL_DEFAULT_PRECISION_FLOAT << "\n";
   buf << "vec4 lossToColor(in float loss)\n";
   buf << "{\n";
+
+  // Special case, if the loss value is invalid/no-data
+  buf << "  if (loss < -32765.0) return vec4(0.0, 0.0, 0.0, 0.0);\n";
 
   // No colors? Always return white
   if (colors_.empty())
@@ -180,4 +183,6 @@ void GradientColorProvider::uninstall(osg::StateSet* stateset)
   osgEarth::VirtualProgram* vp = osgEarth::VirtualProgram::getOrCreate(stateset);
   vp->removeShader(LOSS_TO_COLOR_VERTEX);
   vp->removeShader(LOSS_TO_COLOR_FRAGMENT);
+}
+
 }

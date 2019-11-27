@@ -22,6 +22,7 @@
 #ifndef SIMDATA_MEMORYDATASLICE_INL_H
 #define SIMDATA_MEMORYDATASLICE_INL_H
 
+#include <algorithm>
 #include <limits>
 #include "simData/DataStore.h"
 #include "simData/MessageVisitor/Message.h"
@@ -626,6 +627,11 @@ namespace {
   void getPreference(DataStore *ds, ObjectId id, ProjectorPrefs** prefs, DataStore::Transaction* t)
   {
     *prefs = ds->mutable_projectorPrefs(id, t);
+  }
+
+  void getPreference(DataStore *ds, ObjectId id, CustomRenderingPrefs** prefs, DataStore::Transaction* t)
+  {
+    *prefs = ds->mutable_customRenderingPrefs(id, t);
   }
 }
 

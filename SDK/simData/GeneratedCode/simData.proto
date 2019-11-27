@@ -203,6 +203,20 @@ enum PolygonMode {
   FILL = 0x1B02;    ///< GL_FILL
 };
 
+/// Circle highlight shape selection
+enum CircleHilightShape {
+  /// Filled-in semitransparent animated with a rotation and slight color pulse
+  CH_PULSING_CIRCLE = 0;
+  /// Circle outline; no animation
+  CH_CIRCLE = 1;
+  /// Diamond outline; no animation
+  CH_DIAMOND = 2;
+  /// Square outline; no animation
+  CH_SQUARE = 3;
+  /// Square outline with line sides cut off, looks like reticle; no animation
+  CH_SQUARE_RETICLE = 4;
+};
+
 /// Coordinate system definition for scenario and platforms
 message CoordinateFrame {
   /// Coordinate system flag.  SIMDIS SDK stores all data internally as ECEF; this is only descriptive for input/output
@@ -438,6 +452,13 @@ message LabelPrefs {
   optional int32 altitudePrecision = 31 [default = 1];
   /// If set overrides the precision field and sets the precision for time
   optional int32 timePrecision = 32 [default = 0];
+
+  enum UseValue {
+    ACTUAL_VALUE = 0; ///< labels use actual data value
+    DISPLAY_VALUE = 1; ///< labels use display value, which may include adjustments like clamping and offsets
+  };
+  /// Indicates which value to use in labels
+  optional UseValue useValues = 37 [default = DISPLAY_VALUE];
 };
 
 /// a grid attached to an entity
@@ -664,8 +685,10 @@ message PlatformPrefs {
   /// Automatically use the platform's orientation clamp values at extremely low velocity.
   optional bool clampOrientationAtLowVelocity = 60 [default = false];
 
-  // Toggle surface clamping of the platform
+  // Keep platform clamp to the surface
   optional bool surfaceClamping = 61 [default = false];
+  /// Keep platform above the surface
+  optional bool aboveSurfaceClamping = 69 [default = false];
 
   /// Toggles lighting
   optional bool lighted = 16 [default = true];
@@ -709,10 +732,12 @@ message PlatformPrefs {
   /// Angular detail of RCS pattern in degrees
   optional double rcsDetail = 34 [default = 1.0];
 
-  /// Draws a rotating circle highlight about the model position; useful for drawing attention to platforms
+  /// Draws a rotating "circle" highlight about the model position; useful for drawing attention to platforms
   optional bool drawCircleHilight = 35 [default = false];
-  /// Color value for the circular highlight; see drawCircleHilight
+  /// Color value for the "circular" highlight; see drawCircleHilight
   optional fixed32 circleHilightColor = 36 [default = 0xFFFFFFFF];
+  /// Shape for "circle" highlight
+  optional CircleHilightShape circleHilightShape = 71 [default = CH_PULSING_CIRCLE];
 
   /// Position values are interpolated between data points
   optional bool interpolatePos = 37 [default = true];
@@ -780,6 +805,24 @@ message PlatformPrefs {
 
   /// The polygonStipple rendering option, a value between 1 and 9 corresponding to 9 SIMDIS stipple patterns
   optional uint32 polygonStipple = 59;
+
+  /// The color to use for visible horizon line of sight areas
+  optional fixed32 visibleLosColor = 64 [default = 0x00FF0080];
+
+  /// The color to use for obstructed horizon line of sight areas
+  optional fixed32 obstructedLosColor = 65 [default = 0xFF000080];
+
+  /// The range resolution to use for line of sight calculations, in meters
+  optional double losRangeResolution = 66 [default = 1000.0];
+
+  /// The azimuthal resolution to use for line of sight calculations, in degrees
+  optional double losAzimuthalResolution = 67 [default = 15.0];
+
+  /// The altitude offset applied to the Platform's altitude when calculating LOS, in meters
+  optional double losAltitudeOffset = 68 [default = 0.0];
+
+  /// Automatic animation of Degree-of-Freedom nodes is enabled or disabled
+  optional bool animateDofNodes = 70 [default = false];
 };
 
 /// timed update to platform prefs; commands override prefs
@@ -1143,6 +1186,67 @@ message LaserCommand {
 
 //////////////////////////////////////////////////////////////////////////////////////////
 
+/// (mostly) unchanging aspects of a Custom Rendering
+message CustomRenderingProperties {
+  /// ID assigned to the entity from the data store; unchangeable; might change during file conversion
+  optional uint64 id = 1;
+  /// ID of the Custom's host, if any
+  optional uint64 hostId = 2;
+  /// User-defined ID value, will not change during file conversion
+  optional uint64 originalId = 3;
+  /// User-defined source string
+  optional string source = 4;
+  /// The name of the renderer that should process this entity
+  optional string renderer = 5;
+};
+
+/// preferences for the display of a Custom Rendering
+message CustomRenderingPrefs {
+  /// Contains name, draw/active flags, label prefs, data limiting, and possibly other settings
+  optional CommonPrefs commonPrefs = 1;
+  /// How long, in seconds, to display a custom rendering after a data point
+  optional double persistence = 2 [default = 5.0];
+  /**
+   * The length of the history in seconds. The history is the smaller of secondsHistory and pointsHistory
+   * Not all renderers support this field.
+   */
+  optional double secondsHistory = 3 [default = 5.0];
+  /**
+   * How many data points before the current data point to display as a history.  Default to 0, which is no history.
+   * Not all renderers support this field.
+   */
+  optional uint32 pointsHistory = 4 [default = 0];
+  /// If true, show outline instead of the shape.  Not all renderers support this field.
+  optional bool outline = 5 [default = false];
+  /**
+   * A flag to determine if the history override color should be applied
+   * Not all renderers support this field.
+   */
+  optional bool useHistoryOverrideColor = 6 [default = false];
+  /**
+   * The history override color
+   * Not all renderers support this field.
+   */
+  optional fixed32 historyOverrideColor = 7 [default = 0x19E500FF];
+};
+
+/// common update to Custom Rendering data
+message CustomRenderingUpdate {
+  optional double time = 1;
+};
+
+/// timed update to Custom Rendering prefs; commands override prefs
+message CustomRenderingCommand {
+  /// The time at which the command should be executed
+  optional double time = 1;
+  /// The prefs message that will contain the command's settings
+  optional CustomRenderingPrefs updatePrefs = 2;
+  /// Indicates that the command will clear the values that are set in updatePrefs from the command set
+  optional bool isClearCommand = 3 [default = false];
+};
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
 /// Unchanging aspects of a projector
 message ProjectorProperties {
   /// ID assigned to the entity from the data store; unchangeable; might change during file conversion
@@ -1164,9 +1268,14 @@ message ProjectorPrefs {
   /// Determine if we want to show projector frustum
   optional bool showFrustum = 3 [default = false];
   /// Projector alpha for blending [0.0, 1.0]
-  optional float projectorAlpha = 4 [default = 0.1];
+  optional float projectorAlpha = 4 [default = 1.0];
   /// Determine if we should interpolate FOV
   optional bool interpolateProjectorFov = 5 [default = true];
+
+  /// Override the field of view display if true, using overrideFovValue and ignoring projector updates
+  optional bool overrideFov = 6 [default = false];
+  /// Field of view for projector in radians, if overrideFov is true (default is ~10 degrees)
+  optional double overrideFovAngle = 7 [default = 0.174533];
 };
 
 /// common update to projector data

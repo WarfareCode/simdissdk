@@ -68,6 +68,9 @@ public:
   void cycleTimeFormat();
   void toggleCockpit();
   void playPause();
+  void toggleTextDeclutter();
+  void toggleDeclutterTechnique();
+  void cycleCalloutLineStyle();
 
 private:
   void init_(osg::ArgumentParser& args);
@@ -86,6 +89,9 @@ private:
   simData::DataStore* dataStore_;
   simData::Interpolator* interpolator_;
   simUtil::TimeVariable* timeVariable_;
+
+  bool declutterOn_;
+  int colorIndex_;
 };
 
 }

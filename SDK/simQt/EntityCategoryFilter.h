@@ -34,6 +34,7 @@ namespace simQt {
 
 class CategoryFilterWidget;
 class CategoryFilterWidget2;
+class Settings;
 
 /**
  * Class to implement a filter based on entity category data, using the simQt::CategoryFilter.
@@ -61,13 +62,6 @@ public:
    * @param widgetType Enumeration to indicate if a widget should be created and what type
    */
   explicit EntityCategoryFilter(simData::DataStore* dataStore, WidgetType widgetType = NO_WIDGET);
-
-  /**
-   * Constructor.  Pass in a CategoryFilter object and a flag to indicate if a widget should be created or not.
-   * @param categoryFilter Category filter that serves as the initial state
-   * @param widgetType  Enumeration to indicate if a widget should be created and what type
-   */
-  explicit EntityCategoryFilter(const simData::CategoryFilter& categoryFilter, WidgetType widgetType = NO_WIDGET);
 
   /** Destructor */
   virtual ~EntityCategoryFilter();
@@ -103,6 +97,9 @@ public:
   /** Retrieves the current category filter. */
   const simData::CategoryFilter& categoryFilter() const;
 
+  /** Set the settings object and key prefix that gets used by the CategoryFilterWidget2 */
+  void setSettings(Settings* settings, const QString& settingsKeyPrefix);
+
 public slots:
   /**
    * Set a new CategoryFilter for this filter. Emits the general filterUpdated() and more specific categoryFilterChanged() signals
@@ -129,6 +126,10 @@ private:
   simData::CategoryFilter* categoryFilter_;
   /// type of widget to create on call to widget(), if any
   WidgetType widgetType_;
+  /// ptr to settings that gets passed to the category filter widget
+  Settings* settings_;
+  /// settings key prefix that gets passed to the category filter widget
+  QString settingsKeyPrefix_;
 };
 
 }

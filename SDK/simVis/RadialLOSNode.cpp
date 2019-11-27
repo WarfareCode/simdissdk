@@ -25,26 +25,22 @@
 #include "osgEarth/Terrain"
 #include "simNotify/Notify.h"
 #include "simVis/Constants.h"
-#include "simVis/osgEarthVersion.h"
-#include "simVis/PointSize.h"
 #include "simVis/Utils.h"
 #include "simVis/RadialLOSNode.h"
 
 #define LC "[RadialLOSNode] "
 
-using namespace simVis;
-
+namespace simVis {
 //----------------------------------------------------------------------------
 
 RadialLOSNode::RadialLOSNode(osgEarth::MapNode* mapNode)
-  : GeoPositionNode(mapNode),
+  : GeoPositionNode(),
     visibleColor_(0.0f, 1.0f, 0.0f, 0.5f),
     obstructedColor_(1.0f, 0.0f, 0.0f, 0.5f),
-    samplePointColor_(1.0f, 1.0f, 1.0f, 1.0f),
-    active_(false)
+    active_(false),
+    isValid_(true),
+    requireUpdateLOS_(true)
 {
-  callbackHook_ = new TerrainCallbackHook(this);
-
   geode_ = new osg::Geode();
 
   osg::StateSet* stateSet = geode_->getOrCreateStateSet();
@@ -55,11 +51,9 @@ RadialLOSNode::RadialLOSNode(osgEarth::MapNode* mapNode)
   drapeable_ = new osgEarth::DrapeableNode();
   getPositionAttitudeTransform()->addChild(drapeable_);
   drapeable_->addChild(geode_);
-#if SDK_OSGEARTH_VERSION_GREATER_THAN(1,7,0)
   drapeable_->setMapNode(mapNode);
-#endif
 
-  mapNode->getTerrain()->addTerrainCallback(callbackHook_.get());
+  setMapNode(mapNode);
 }
 
 RadialLOSNode::~RadialLOSNode()
@@ -71,19 +65,17 @@ void RadialLOSNode::setMapNode(osgEarth::MapNode* mapNode)
   osgEarth::MapNode* oldMap = getMapNode();
   if (mapNode == oldMap)
     return;
-
-  oldMap->getTerrain()->removeTerrainCallback(callbackHook_.get());
-  mapNode->getTerrain()->addTerrainCallback(callbackHook_.get());
+  if (oldMap && oldMap->getTerrain())
+    oldMap->getTerrain()->removeTerrainCallback(callbackHook_.get());
+  if (mapNode && mapNode->getTerrain())
+    mapNode->getTerrain()->addTerrainCallback(callbackHook_.get());
 
   GeoPositionNode::setMapNode(mapNode);
-#if SDK_OSGEARTH_VERSION_GREATER_THAN(1,7,0)
   drapeable_->setMapNode(mapNode);
-#endif
 
   // re-apply the position
   setCoordinate(coord_);
 }
-
 
 bool RadialLOSNode::setCoordinate(const simCore::Coordinate& coord)
 {
@@ -99,7 +91,7 @@ bool RadialLOSNode::setCoordinate(const simCore::Coordinate& coord)
   setPosition(point);
 
   // update the LOS model and recompute it:
-  if (los_.compute(getMapNode(), coord))
+  if (updateLOS_(getMapNode(), coord))
   {
     refreshGeometry_();
   }
@@ -110,10 +102,9 @@ bool RadialLOSNode::setCoordinate(const simCore::Coordinate& coord)
   return true;
 }
 
-
 void RadialLOSNode::setDataModel(const RadialLOS& los)
 {
-  if (!getMapNode())
+  if (!getMapNode() || !getMapNode()->getTerrain())
     return;
 
   RadialLOS newLOS = los;
@@ -123,36 +114,72 @@ void RadialLOSNode::setDataModel(const RadialLOS& los)
     refreshGeometry_();
     losPrevious_ = los_;
   }
+
+  // If the data model is using the scene graph for LOS computation,
+  // we need to listen for terrain changes and update the LOS dynamically.
+  if (los_.getUseSceneGraph())
+  {
+    if (callbackHook_.valid() == false)
+    {
+      callbackHook_ = new TerrainCallbackHook(this);
+      getMapNode()->getTerrain()->addTerrainCallback(callbackHook_.get());
+    }
+  }
 }
 
-void RadialLOSNode::setMaxRange(const Distance& value)
+void RadialLOSNode::setMaxRange(const osgEarth::Distance& value)
 {
   los_.setMaxRange(value);
-  los_.compute(getMapNode(), coord_);
+  updateLOS_(getMapNode(), coord_);
+  bound_ = osgEarth::GeoCircle(getPosition(), los_.getMaxRange().as(osgEarth::Units::METERS));
 }
 
-void RadialLOSNode::setCentralAzimuth(const Angle& value)
+void RadialLOSNode::setCentralAzimuth(const osgEarth::Angle& value)
 {
   los_.setCentralAzimuth(value);
-  los_.compute(getMapNode(), coord_);
+  updateLOS_(getMapNode(), coord_);
 }
 
-void RadialLOSNode::setFieldOfView(const Angle& value)
+void RadialLOSNode::setFieldOfView(const osgEarth::Angle& value)
 {
   los_.setFieldOfView(value);
-  los_.compute(getMapNode(), coord_);
+  updateLOS_(getMapNode(), coord_);
 }
 
-void RadialLOSNode::setRangeResolution(const Distance& value)
+void RadialLOSNode::setRangeResolution(const osgEarth::Distance& value)
 {
   los_.setRangeResolution(value);
-  los_.compute(getMapNode(), coord_);
+  updateLOS_(getMapNode(), coord_);
 }
 
-void RadialLOSNode::setAzimuthalResolution(const Angle& value)
+void RadialLOSNode::setAzimuthalResolution(const osgEarth::Angle& value)
 {
   los_.setAzimuthalResolution(value);
-  los_.compute(getMapNode(), coord_);
+  updateLOS_(getMapNode(), coord_);
+}
+
+bool RadialLOSNode::updateLOS_(osgEarth::MapNode* mapNode, const simCore::Coordinate& coord)
+{
+  if (!active_)
+  {
+    requireUpdateLOS_ = true;
+    return false;
+  }
+
+  requireUpdateLOS_ = false;
+
+  if (!los_.compute(mapNode, coord))
+  {
+    if (isValid_)
+    {
+      SIM_WARN << "Failed to compute LOS.  Consider adjusting range, azimuth angle and/or altitude.\n";
+    }
+    isValid_ = false;
+    return false;
+  }
+
+  isValid_ = true;
+  return true;
 }
 
 void RadialLOSNode::updateDataModel(const osgEarth::GeoExtent& extent,
@@ -160,11 +187,7 @@ void RadialLOSNode::updateDataModel(const osgEarth::GeoExtent& extent,
 {
   if (getMapNode())
   {
-#if SDK_OSGEARTH_MIN_VERSION_REQUIRED(1,8,0)
     osgEarth::GeoCircle circle = extent.computeBoundingGeoCircle();
-#else
-    const osgEarth::GeoCircle& circle = extent.getBoundingGeoCircle();
-#endif
     if (bound_.intersects(circle))
     {
       if (los_.update(getMapNode(), extent, patch))
@@ -175,7 +198,6 @@ void RadialLOSNode::updateDataModel(const osgEarth::GeoExtent& extent,
   }
 }
 
-
 void RadialLOSNode::setVisibleColor(const osg::Vec4& value)
 {
   if (value != visibleColor_)
@@ -184,7 +206,6 @@ void RadialLOSNode::setVisibleColor(const osg::Vec4& value)
     refreshGeometry_();
   }
 }
-
 
 void RadialLOSNode::setObstructedColor(const osg::Vec4& value)
 {
@@ -195,21 +216,13 @@ void RadialLOSNode::setObstructedColor(const osg::Vec4& value)
   }
 }
 
-
-void RadialLOSNode::setSamplePointColor(const osg::Vec4& value)
-{
-  if (value != samplePointColor_)
-  {
-    samplePointColor_ = value;
-    refreshGeometry_();
-  }
-}
-
 void RadialLOSNode::setActive(bool active)
 {
   if (active != active_)
   {
     active_ = active;
+    if (requireUpdateLOS_)
+      updateLOS_(getMapNode(), coord_);
     refreshGeometry_();
   }
 }
@@ -246,13 +259,11 @@ void RadialLOSNode::refreshGeometry_()
     return;
   }
 
-  //const RadialLOS::Radial& r0 = radials.front();
   unsigned int numVerts = 1u + radials.size() * samplesPerRadial;
 
   osg::Vec3Array*        verts  = NULL;
   osg::Vec4Array*        colors = NULL;
   osg::DrawElementsUInt* tris   = NULL;
-  osg::DrawElementsUInt* points = NULL;
 
   if (rebuildGeometry)
   {
@@ -262,7 +273,6 @@ void RadialLOSNode::refreshGeometry_()
     osg::StateSet* stateSet = new osg::StateSet();
     stateSet->setRenderBinDetails(0, BIN_TRAVERSAL_ORDER_SIMSDK);
     stateSet->setAttributeAndModes(new osg::Depth(osg::Depth::LEQUAL, 0.0, 1.0, false), osg::StateAttribute::ON);
-    PointSize::setValues(stateSet, 2.f, osg::StateAttribute::ON);
 
     // set up and pre-allocate the geometry arrays:
     osg::Geometry* geom = new osg::Geometry();
@@ -281,25 +291,6 @@ void RadialLOSNode::refreshGeometry_()
     geom->addPrimitiveSet(tris);
 
     geode_->addDrawable(geom);
-
-
-    // the points overlay geometry.
-    osg::Geometry* pointsGeom = new osg::Geometry();
-    pointsGeom->setStateSet(stateSet);
-    pointsGeom->setDataVariance(osg::Object::DYNAMIC);
-    pointsGeom->setUseVertexBufferObjects(true);
-
-    // shares the same vert array
-    pointsGeom->setVertexArray(verts);
-
-    osg::Vec4Array* pointsColors = new osg::Vec4Array(osg::Array::BIND_OVERALL, 1);
-    (*pointsColors)[0] = samplePointColor_;
-    pointsGeom->setColorArray(pointsColors);
-
-    points = new osg::DrawElementsUInt(GL_POINTS);
-    pointsGeom->addPrimitiveSet(points);
-
-    geode_->addDrawable(pointsGeom);
   }
   else
   {
@@ -314,12 +305,6 @@ void RadialLOSNode::refreshGeometry_()
     // prepare to update the triangle colors:
     colors = dynamic_cast<osg::Vec4Array*>(geom->getColorArray());
     colors->dirty();
-
-    // update the sample point color:
-    osg::Geometry* pointsGeom = geode_->getDrawable(1)->asGeometry();
-    osg::Vec4Array* samplePointColors = dynamic_cast<osg::Vec4Array*>(pointsGeom->getColorArray());
-    (*samplePointColors)[0] = samplePointColor_;
-    samplePointColors->dirty();
   }
 
   // go through the radials and generate verts and colors.
@@ -378,9 +363,6 @@ void RadialLOSNode::refreshGeometry_()
             tris->push_back(1 + (radialIndex     * samplesPerRadial) + (sampleIndex + 1));
           }
         }
-
-        // the point primset.
-        points->push_back(1 + (radialIndex * samplesPerRadial) + sampleIndex);
       }
 
       vertIndex++;
@@ -391,4 +373,6 @@ void RadialLOSNode::refreshGeometry_()
 void RadialLOSNode::onTileAdded_(const osgEarth::TileKey& key, osg::Node* tile)
 {
   updateDataModel(key.getExtent(), tile);
+}
+
 }

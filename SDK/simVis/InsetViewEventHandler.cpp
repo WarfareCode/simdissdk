@@ -19,19 +19,14 @@
  * disclose, or release this software.
  *
  */
-#include "osg/Geometry"
-#include "osg/Geode"
 #include "osg/MatrixTransform"
 #include "osg/Notify"
-#include "osg/LineStipple"
 #include "osgDB/ReadFile"
 #include "simNotify/Notify.h"
 #include "simVis/EarthManipulator.h"
 #include "simVis/Utils.h"
 #include "simVis/InsetViewEventHandler.h"
-
-using namespace simVis;
-
+#include "simVis/BoxGraphic.h"
 
 namespace
 {
@@ -39,36 +34,14 @@ namespace
   // inset view rectangle
   static osg::MatrixTransform* createRubberBand()
   {
-    osg::ref_ptr<osg::Vec3Array> verts = new osg::Vec3Array(4);
-    (*verts)[0].set(0, 0, 0);
-    (*verts)[1].set(0, 1, 0);
-    (*verts)[2].set(1, 1, 0);
-    (*verts)[3].set(1, 0, 0);
-
-    osg::ref_ptr<osg::Vec4Array> colors = new osg::Vec4Array(1);
-    (*colors)[0].set(1, 1, 1, 1);
-
-    osg::ref_ptr<osg::Geometry> geom = new osg::Geometry();
-    geom->setUseVertexBufferObjects(true);
-
-    geom->setVertexArray(verts.get());
-    geom->setColorArray(colors.get());
-    geom->addPrimitiveSet(new osg::DrawArrays(GL_LINE_LOOP, 0, 4));
-#ifdef OSG_GL1_AVAILABLE
-    // Line Stipple is only available in GL1 and needs to be implemented in shader for GL3
-    geom->getOrCreateStateSet()->setAttributeAndModes(new osg::LineStipple(6, 0x5555), 1);
-#endif
-
-    osg::ref_ptr<osg::Geode> geode = new osg::Geode();
-    geode->addDrawable(geom.get());
-    simVis::setLighting(geode->getOrCreateStateSet(),
-        osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
+    simVis::BoxGraphic* box = new simVis::BoxGraphic(0, 0, 1, 1, 1.0f, 0x5555);
+    box->setStippleFactor(6u);
 
     osg::MatrixTransform* xform = new osg::MatrixTransform();
-    xform->addChild(geode);
+    xform->addChild(box);
 
-    geom->getOrCreateStateSet()->setMode(GL_DEPTH_TEST, 0);
-    geode->setCullingActive(false);
+    box->getOrCreateStateSet()->setMode(GL_DEPTH_TEST, 0);
+    box->setCullingActive(false);
 
     return xform;
   }
@@ -86,7 +59,7 @@ namespace
   struct FocusDetector : public osgGA::GUIEventHandler
   {
     /** Constructor */
-    FocusDetector(FocusManager* focusMan, InsetViewEventHandler* handler)
+    FocusDetector(simVis::FocusManager* focusMan, simVis::InsetViewEventHandler* handler)
       : focusMan_(focusMan), handler_(handler) { }
 
     /// process events.
@@ -104,7 +77,7 @@ namespace
             focusMan_->focus(dynamic_cast<simVis::View*>(aa.asView()));
           }
         }
-        else if (mask & InsetViewEventHandler::ACTION_CLICK_SCROLL)
+        else if (mask & simVis::InsetViewEventHandler::ACTION_CLICK_SCROLL)
         {
           if (e == ea.PUSH || e == ea.SCROLL)
           {
@@ -112,7 +85,7 @@ namespace
           }
         }
 
-        if (mask & InsetViewEventHandler::ACTION_TAB)
+        if (mask & simVis::InsetViewEventHandler::ACTION_TAB)
         {
           if (e == ea.KEYDOWN && ea.getKey() == ea.KEY_Tab)
           {
@@ -130,16 +103,16 @@ namespace
     virtual const char* className() const { return "FocusDetector"; }
 
     /** Focus manager */
-    osg::observer_ptr<FocusManager>          focusMan_;
+    osg::observer_ptr<simVis::FocusManager>          focusMan_;
     /** Inset view event handler */
-    osg::observer_ptr<InsetViewEventHandler> handler_;
+    osg::observer_ptr<simVis::InsetViewEventHandler> handler_;
   };
 
 
   /**
    * ViewManager callback that notifies us of new insets.
    */
-  struct ViewListener : public ViewManager::Callback
+  struct ViewListener : public simVis::ViewManager::Callback
   {
     /** Constructor */
     explicit ViewListener(osgGA::GUIEventHandler* focusDetector) : focusDetector_(focusDetector) { }
@@ -170,6 +143,8 @@ namespace
 
 #undef  LC
 #define LC "[CreateInsetEventHandler] "
+
+namespace simVis {
 
 CreateInsetEventHandler::CreateInsetEventHandler(simVis::View* host)
   : enabled_(false),
@@ -373,21 +348,17 @@ simVis::View* InsetViewEventHandler::getView()
   return host_.get();
 }
 
+#ifdef USE_DEPRECATED_SIMDISSDK_API
 void InsetViewEventHandler::setAddInsetMode(bool add)
 {
-#ifdef USE_DEPRECATED_SIMDISSDK_API
   createInset_->setEnabled(add);
-#endif
 }
 
 bool InsetViewEventHandler::isAddInsetMode() const
 {
-#ifdef USE_DEPRECATED_SIMDISSDK_API
   return createInset_->isEnabled();
-#else
-  return false;
-#endif
 }
+#endif
 
 void InsetViewEventHandler::setFocusActions(int mask)
 {
@@ -410,4 +381,6 @@ bool InsetViewEventHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIA
     ensureViewListenerInstalled_();
 
   return handled;
+}
+
 }

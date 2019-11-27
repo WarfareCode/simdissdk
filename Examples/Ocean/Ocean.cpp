@@ -50,39 +50,124 @@
 #include "simVis/Scenario.h"
 #include "simVis/SceneManager.h"
 #include "simVis/Viewer.h"
+#include "simVis/Constants.h"
+#include "simVis/OverheadMode.h"
 #include "simUtil/ExampleResources.h"
 
-#include "osgEarthDrivers/tms/TMSOptions"
+#include "osg/Depth"
+
+#include "osgEarth/SimpleOceanLayer"
+#include "osgEarth/MBTiles"
+#include "osgEarth/Sky"
+#include "osgEarth/TMS"
+#include "osgEarth/Version"
+
 #ifdef HAVE_TRITON_NODEKIT
-#include "osgEarthTriton/TritonOptions"
-#include "osgEarthTriton/TritonNode"
+#include "osgEarthTriton/TritonLayer"
 #include "simUtil/TritonSettings.h"
-#else
-#include "osgEarthDrivers/ocean_triton/TritonOptions"
 #endif
-#include "osgEarthDrivers/ocean_simple/SimpleOceanOptions"
+
 #ifdef HAVE_SILVERLINING_NODEKIT
 #include "osgEarthSilverLining/SilverLiningNode"
 #include "simUtil/SilverLiningSettings.h"
 #endif
-#include "osgEarthUtil/Sky"
-#include "osgEarthUtil/Ocean"
 
-// Hawaii:
-#define LAT             19.698193
-#define LON           -156.20224
+// Hawaii near Kauai:
+#define LAT             21.937611
+#define LON           -159.793521
+#define ALT              0.0
 #define PLATFORM_SHIP "Ship"
 
 using namespace osgEarth::Util;
-using namespace osgEarth::Drivers;
 
+#if OSGEARTH_VERSION_LESS_THAN(3,0,0)
+using namespace osgEarth::Drivers;
+namespace osgEarth { namespace Triton { class TritonLayer; } }
+#endif
 
 static simCore::Coordinate s_shipPosOri(simCore::COORD_SYS_LLA,
-                                        simCore::Vec3(simCore::DEG2RAD*(LAT), simCore::DEG2RAD*(LON), 0),
+                                        simCore::Vec3(simCore::DEG2RAD*(LAT), simCore::DEG2RAD*(LON), ALT),
                                         simCore::Vec3(0.0, 0.0, 0.0));
 
 static simData::ObjectId     s_shipId;
 
+
+#ifdef HAVE_TRITON_NODEKIT
+// cull callback that adds buoyancy to a platform
+// using its offset transform - this is not really
+// appropriate in the long run since the offset xform
+// is used for other things, but it works for a quick demo
+class PlatformBuoyancyCallback : public osg::NodeCallback
+{
+public:
+  explicit PlatformBuoyancyCallback(osgEarth::Triton::TritonLayer* triton) :
+    triton_(triton),
+    enabled_(false),
+    reset_(false)
+  {
+    srs_ = osgEarth::SpatialReference::get("wgs84");
+    isect_ = new osgEarth::Triton::TritonIntersections();
+    isect_->addLocalPoint(osg::Vec3d(0, 0, 0));
+    triton_->addIntersections(isect_.get());
+  }
+
+  void setEnabled(bool enable)
+  {
+    if (enabled_ && !enable)
+    {
+      reset_ = true;
+    }
+    enabled_ = enable;
+  }
+
+  virtual ~PlatformBuoyancyCallback()
+  {
+    // removeIntersections is not currently exposed in the Triton Layer API
+    //osg::ref_ptr<osgEarth::Triton::TritonLayer> triton;
+    //if (triton_.lock(triton))
+    //  triton_->removeIntersections(isect_.get());
+  }
+
+  void operator()(osg::Node* node, osg::NodeVisitor* nv)
+  {
+    if (enabled_ || reset_)
+    {
+      simVis::PlatformNode* platform = dynamic_cast<simVis::PlatformNode*>(node);
+      if (platform)
+      {
+        osg::MatrixTransform* xform = dynamic_cast<osg::MatrixTransform*>(platform->getModel()->offsetNode());
+        if (reset_)
+        {
+          xform->setMatrix(osg::Matrix::identity());
+          reset_ = false;
+        }
+        else
+        {
+          simCore::Vec3 pos;
+          platform->getPosition(&pos, simCore::COORD_SYS_LLA);
+          osgEarth::GeoPoint anchor(srs_.get(), simCore::RAD2DEG*pos.lon(), simCore::RAD2DEG*pos.lat(), 0);
+          isect_->setAnchor(anchor);
+
+          xform->setMatrix(
+            osg::Matrix::translate(0, 0, isect_->getHeights()[0]) *
+            osg::Matrix::rotate(osg::Vec3d(0,0,1), isect_->getNormals()[0]) );
+        }
+      }
+    }
+
+    traverse(node, nv);
+  }
+
+  osg::ref_ptr<const osgEarth::SpatialReference> srs_;
+  osg::ref_ptr<osgEarth::Triton::TritonIntersections> isect_;
+  osg::observer_ptr<osgEarth::Triton::TritonLayer> triton_;
+  bool enabled_;
+  bool reset_;
+};
+#else
+// Provide a typedef for the callback since Triton isn't available
+typedef osg::NodeCallback PlatformBuoyancyCallback;
+#endif
 
 // An event handler to assist in testing Ocean
 struct MenuHandler : public osgGA::GUIEventHandler
@@ -126,6 +211,11 @@ struct MenuHandler : public osgGA::GUIEventHandler
         if (menuControl_)
           menuControl_->setVisible(!menuControl_->visible());
         break;
+
+      case 'a':
+          viewer_->setLogarithmicDepthBufferEnabled(
+              !viewer_->isLogarithmicDepthBufferEnabled());
+          break;
       }
     }
     return handled;
@@ -193,8 +283,8 @@ namespace
   class ApplyOpacity : public ControlEventHandler
   {
   public:
-    ApplyOpacity(OceanNode* ocean, LabelControl* pctLabel)
-      : ocean_(ocean),
+    ApplyOpacity(VisibleLayer* layer, LabelControl* pctLabel)
+      : layer_(layer),
         pctLabel_(pctLabel)
     {
     }
@@ -203,14 +293,14 @@ namespace
     {
       // Clamp between 0.f and 1.f
       value = simCore::sdkMax(0.f, simCore::sdkMin(1.f, value));
-      if (ocean_.valid())
-        ocean_->setAlpha(value);
+      if (layer_.valid())
+        layer_->setOpacity(value);
       if (pctLabel_.valid())
         pctLabel_->setText(Stringify() << static_cast<int>(value * 100.f) << "%");
     }
 
   private:
-    osg::observer_ptr<OceanNode> ocean_;
+    osg::observer_ptr<VisibleLayer> layer_;
     osg::observer_ptr<LabelControl> pctLabel_;
   };
 
@@ -218,7 +308,7 @@ namespace
   class ApplySeaLevel : public ControlEventHandler
   {
   public:
-    ApplySeaLevel(OceanNode* ocean, LabelControl* valueLabel)
+    ApplySeaLevel(SimpleOceanLayer* ocean, LabelControl* valueLabel)
       : ocean_(ocean),
         valueLabel_(valueLabel)
     {
@@ -233,7 +323,7 @@ namespace
     }
 
   private:
-    osg::observer_ptr<OceanNode> ocean_;
+    osg::observer_ptr<SimpleOceanLayer> ocean_;
     osg::observer_ptr<LabelControl> valueLabel_;
   };
 
@@ -248,12 +338,53 @@ namespace
     virtual void onValueChanged(Control* control, bool value)
     {
       if (sky_.valid())
-        sky_->setLighting(value);
+      {
+        if (value)
+          sky_->setLighting(osg::StateAttribute::OVERRIDE | osg::StateAttribute::ON);
+        else
+          sky_->setLighting(osg::StateAttribute::OVERRIDE | osg::StateAttribute::OFF);
+      }
     }
 
   private:
     osg::observer_ptr<SkyNode> sky_;
   };
+
+  /** Check or uncheck to toggle overhead mode */
+  class ToggleOverheadMode : public ControlEventHandler
+  {
+  public:
+    explicit ToggleOverheadMode(simVis::View* view)
+      : view_(view)
+    {
+    }
+    virtual void onValueChanged(Control* control, bool value)
+    {
+      if (view_.valid())
+        view_->enableOverheadMode(!view_->isOverheadEnabled());
+    }
+
+  private:
+    osg::observer_ptr<simVis::View> view_;
+  };
+
+#ifdef HAVE_TRITON_NODEKIT
+  /** Toggler for the Triton buoyancy simulation */
+  class ToggleBuoyancySimulation : public ControlEventHandler
+  {
+  public:
+    explicit ToggleBuoyancySimulation(PlatformBuoyancyCallback* cb)
+      : _cb(cb)
+    {
+    }
+    virtual void onValueChanged(Control* control, bool value)
+    {
+      _cb->setEnabled(value);
+    }
+  private:
+    osg::ref_ptr<PlatformBuoyancyCallback> _cb;
+  };
+#endif
 
 #ifdef HAVE_SILVERLINING_NODEKIT
   osg::ref_ptr<simUtil::SilverLiningSettingsAdapter> s_SlSettings = new simUtil::SilverLiningSettingsAdapter;
@@ -368,7 +499,9 @@ namespace
   };
 #endif
 
-  Control* createMenu(OceanNode* ocean, SkyNode* skyNode, bool isTriton, bool isSilverLining)
+  Control* createMenu(osgEarth::SimpleOceanLayer* simpleOceanLayer, osgEarth::VisibleLayer* tritonLayer,
+                      PlatformBuoyancyCallback* buoyancyCallback, SkyNode* skyNode, simVis::View* view,
+                      bool isTriton, bool isSilverLining)
   {
     static const float TITLE_SIZE = 16.f;
     static const float TEXT_SIZE = 12.f;
@@ -388,20 +521,31 @@ namespace
     grid->setControl(0, row, new LabelControl("Opacity", TEXT_SIZE, WHITE));
     LabelControl* opacityPctLabel = grid->setControl(2, row, new LabelControl("80%", TEXT_SIZE, WHITE));
     // Provide a little buffer on either side so we can get to 0% and 100%...
-    HSliderControl* opacitySlider = grid->setControl(1, row, new HSliderControl(-0.1f, 1.1f, 0.8f, new ApplyOpacity(ocean, opacityPctLabel)));
+    HSliderControl* opacitySlider;
+    if (simpleOceanLayer)
+      opacitySlider = grid->setControl(1, row, new HSliderControl(-0.1f, 1.1f, 0.8f, new ApplyOpacity(simpleOceanLayer, opacityPctLabel)));
+    else
+      opacitySlider = grid->setControl(1, row, new HSliderControl(-0.1f, 1.1f, 0.8f, new ApplyOpacity(tritonLayer, opacityPctLabel)));
     opacitySlider->setHorizFill(true, 250.0f);
 
     // Sea level
+    if (simpleOceanLayer)
+    {
     ++row;
     grid->setControl(0, row, new LabelControl("Sea Level", TEXT_SIZE, WHITE));
     LabelControl* seaLevelLabel = grid->setControl(2, row, new LabelControl("0 m", TEXT_SIZE, WHITE));
-    HSliderControl* seaLevelSlider = grid->setControl(1, row, new HSliderControl(-100.f, 100.f, 0.f, new ApplySeaLevel(ocean, seaLevelLabel)));
+    HSliderControl* seaLevelSlider = grid->setControl(1, row, new HSliderControl(-100.f, 100.f, 0.f, new ApplySeaLevel(simpleOceanLayer, seaLevelLabel)));
     seaLevelSlider->setHorizFill(true, 250.0f);
+    }
 
     // Sky lighting
     ++row;
     grid->setControl(0, row, new LabelControl("Lighting", TEXT_SIZE));
     grid->setControl(1, row, new CheckBoxControl(true, new ToggleLighting(skyNode)));
+
+    ++row;
+    grid->setControl(0, row, new LabelControl("Overhead mode", TEXT_SIZE));
+    grid->setControl(1, row, new CheckBoxControl(false, new ToggleOverheadMode(view)));
 
 #ifdef HAVE_TRITON_NODEKIT
     if (isTriton)
@@ -482,6 +626,12 @@ namespace
       slider->setHorizFill(true, 250.0f);
       slider->setValue(s_TritonSettings->godRaysFade()->value());
       grid->setControl(2, row, new LabelControl(slider, TEXT_SIZE, WHITE));
+
+      // Platform Buoyancy
+      ++row;
+      grid->setControl(0, row, new LabelControl("Platform Buoyancy", TEXT_SIZE, WHITE));
+      evtHandler = new ToggleBuoyancySimulation(buoyancyCallback);
+      grid->setControl(1, row, new CheckBoxControl(false, evtHandler));
     }
 #endif /* HAVE_TRITON_NODEKIT */
 
@@ -599,6 +749,7 @@ namespace
   /** Factory for a sky node */
   SkyNode* makeSky(simVis::SceneManager* scene, bool useSilverLining, const std::string& slUser = "", const std::string& slLicense = "", const std::string& resourcePath = "")
   {
+#ifdef HAVE_SILVERLINING_NODEKIT
     if (useSilverLining)
     {
       osgEarth::SilverLining::SilverLiningOptions skyOptions;
@@ -611,49 +762,48 @@ namespace
       skyOptions.drawClouds() = true;
       skyOptions.cloudsMaxAltitude() = 100000.0;
 
-#ifdef HAVE_SILVERLINING_NODEKIT
       s_SlSettings->lensFlare()->set(true);
 
       // Configure clouds with the SilverLining callback settings
       s_SlSettings->addValue(s_CloudManager.get());
-      return new SilverLining::SilverLiningNode(scene->getMapNode()->getMapSRS(), skyOptions, s_SlSettings.get());
-#else
-      return SkyNode::create(ConfigOptions(skyOptions), scene->getMapNode());
-#endif /* HAVE_SILVERLINING_NODEKIT */
+      return new SilverLining::SilverLiningNode(skyOptions, s_SlSettings.get());
     }
-    Config skyOptions;
-    skyOptions.set("driver", "simple");
-    return SkyNode::create(ConfigOptions(skyOptions), scene->getMapNode());
+    else
+    {
+      return SkyNode::create();
+    }
+#else
+    return SkyNode::create();
+#endif /* HAVE_SILVERLINING_NODEKIT */
   }
 
-  /** Factory an ocean node */
-  OceanNode* makeOcean(osgEarth::MapNode* mapNode, bool useTriton, const std::string& tritonUser = "", const std::string& tritonLicense = "", const std::string& resourcePath = "")
-  {
-    if (useTriton)
-    {
-      osgEarth::Triton::TritonOptions triton;
-      if (!tritonUser.empty())
-        triton.user() = tritonUser;
-      if (!tritonLicense.empty())
-        triton.licenseCode() = tritonLicense;
-      if (!resourcePath.empty())
-        triton.resourcePath() = resourcePath;
-
-      triton.useHeightMap() = false;
-      triton.maxAltitude() = 30000.0f;
-      triton.renderBinNumber() = simVis::BIN_OCEAN;
 #ifdef HAVE_TRITON_NODEKIT
-      return new Triton::TritonNode(mapNode, triton, s_TritonSettings.get());
-#else
-      return OceanNode::create(triton, scene->getMapNode());
+  osgEarth::Triton::TritonLayer* makeTriton(const std::string& tritonUser = "", const std::string& tritonLicense = "", const std::string& resourcePath = "")
+  {
+    osgEarth::Triton::TritonLayer* rv = new osgEarth::Triton::TritonLayer();
+    rv->setUserName(tritonUser);
+    rv->setLicenseCode(tritonLicense);
+    rv->setResourcePath(resourcePath);
+    rv->setUseHeightMap(false);
+    rv->setMaxAltitude(30000.0f);
+    rv->setRenderBinNumber(simVis::BIN_OCEAN);
+    rv->setOpacity(0.8f);
+    simVis::OverheadMode::configureOceanLayer(rv);
+    return rv;
+  }
 #endif
-    }
-    osgEarth::Drivers::SimpleOcean::SimpleOceanOptions ocean;
-    ocean.maxAltitude() = 30000.0f;
-    ocean.lowFeatherOffset() = 0.0f;
-    ocean.highFeatherOffset() = 1.0f;
-    ocean.renderBinNumber() = simVis::BIN_OCEAN;
-    return OceanNode::create(ocean, mapNode);
+
+  /** Factory an ocean node */
+  osgEarth::SimpleOceanLayer* makeSimpleOcean()
+  {
+    osgEarth::SimpleOceanLayer* ocean = new osgEarth::SimpleOceanLayer();
+    ocean->setUseBathymetry(false);
+    ocean->setMaxAltitude(30000.0f);
+    ocean->setOpacity(0.8f);
+    osg::StateSet* stateSet = ocean->getOrCreateStateSet();
+    stateSet->setRenderBinDetails(simVis::BIN_OCEAN, simVis::BIN_GLOBAL_SIMSDK);
+    stateSet->setDefine("SIMVIS_IGNORE_BATHYMETRY_GEN");
+    return ocean;
   }
 }
 
@@ -710,36 +860,26 @@ int main(int argc, char** argv)
 
   // worldwide imagery layer:
   {
-    TMSOptions options;
-    options.url() = EXAMPLE_GLOBAL_IMAGERY_LAYER_TMS;
-#if SDK_OSGEARTH_MIN_VERSION_REQUIRED(1,6,0)
-    map->addLayer(new ImageLayer("simdis.imagery", options));
-#else
-    map->addImageLayer(new ImageLayer("simdis.imagery", options));
-#endif
+    TMSImageLayer* layer = new TMSImageLayer();
+    layer->setName("simdis.imagery");
+    layer->setURL(EXAMPLE_GLOBAL_IMAGERY_LAYER_TMS);
+    map->addLayer(layer);
   }
 
   // If we are testing the bathymetry offset, only load a Kauai inset.
   if (bathymetryOffset != 0.0f)
   {
-    simVis::DBOptions options;
-    options.url() = simExamples::getSampleDataPath() + "/terrain/" + EXAMPLE_ELEVATION_LAYER_DB;
-#if SDK_OSGEARTH_MIN_VERSION_REQUIRED(1,6,0)
-    map->addLayer(new ElevationLayer("simdis.elevation.no.bathy", options));
-#else
-    map->addElevationLayer(new ElevationLayer("simdis.elevation.no.bathy", options));
-#endif
+    MBTilesElevationLayer* layer = new MBTilesElevationLayer();
+    layer->setName("simdis.elevation.no.bathy");
+    layer->setURL(simExamples::getSampleDataPath() + "/terrain/" + EXAMPLE_ELEVATION_LAYER_DB);
+    map->addLayer(layer);
   }
   else
   {
-    // Otherwise load the global elevation layer with bathymetry.
-    TMSOptions options;
-    options.url() = EXAMPLE_ELEVATION_LAYER_TMS;
-#if SDK_OSGEARTH_MIN_VERSION_REQUIRED(1,6,0)
-    map->addLayer(new ElevationLayer("simdis.elevation", options));
-#else
-    map->addElevationLayer(new ElevationLayer("simdis.elevation", options));
-#endif
+    TMSElevationLayer* layer = new TMSElevationLayer();
+    layer->setName("simdis.elevation");
+    layer->setURL(EXAMPLE_ELEVATION_LAYER_TMS);
+    map->addLayer(layer);
   }
 
   // start up a SIMDIS viewer
@@ -751,20 +891,38 @@ int main(int argc, char** argv)
   simData::MemoryDataStore dataStore;
   simVis::ScenarioDataStoreAdapter adapter(&dataStore, scene->getScenario());
 
-  // create out ship:
+  // create our ship:
   s_shipId = createShip(dataStore);
+  osg::ref_ptr<simVis::PlatformNode> shipNode = scene->getScenario()->find<simVis::PlatformNode>(s_shipId);
 
   // add a sky to the scene.
   osg::ref_ptr<SkyNode> sky = makeSky(scene.get(), useSilverLining, sluser, sllicense, slpath);
   sky->attach(viewer->getMainView());
-  sky->setDateTime(osgEarth::Util::DateTime(2014, 4, 22, 16.5));
-  sky->setMinimumAmbient(osg::Vec4f(0.5f, 0.5f, 0.5f, 1.f));
+  sky->setDateTime(osgEarth::DateTime(2014, 4, 22, 16.5));
+  sky->getSunLight()->setAmbient(simVis::Color::Gray);
   scene->setSkyNode(sky.get());
 
   // add an ocean surface to the scene.
-  osg::ref_ptr<OceanNode> ocean = makeOcean(scene->getMapNode(), useTriton, tritonuser, tritonlicense, tritonpath);
-  ocean->setAlpha(0.8f);
-  scene->setOceanNode(ocean.get());
+  osg::ref_ptr<osgEarth::SimpleOceanLayer> simpleOceanLayer;
+  osg::ref_ptr<osgEarth::VisibleLayer> tritonLayer;
+  osg::ref_ptr<PlatformBuoyancyCallback> buoyancyCallback;
+
+#ifdef HAVE_TRITON_NODEKIT
+  if (useTriton)
+  {
+    osgEarth::Triton::TritonLayer* triton = makeTriton(tritonuser, tritonlicense, tritonpath);
+    viewer->getSceneManager()->getMap()->addLayer(triton);
+    tritonLayer = triton;
+    buoyancyCallback = new PlatformBuoyancyCallback(triton);
+    shipNode->addCullCallback(buoyancyCallback.get());
+  }
+  else
+#endif
+  {
+    simpleOceanLayer = makeSimpleOcean();
+    if (simpleOceanLayer.valid())
+        viewer->getSceneManager()->getMap()->addLayer(simpleOceanLayer.get());
+  }
 
   // if we're using Triton, install a module to "sink" the MSL=0 terrain down, creating makeshift bathymetry
   if (bathymetryOffset != 0.0f)
@@ -776,12 +934,19 @@ int main(int argc, char** argv)
   }
 
   // zoom to the starting AOI:
-  osg::observer_ptr<simVis::PlatformNode> shipNode = scene->getScenario()->find<simVis::PlatformNode>(s_shipId);
   viewer->getMainView()->tetherCamera(shipNode.get());
   viewer->getMainView()->setFocalOffsets(80.0, -10.0, 2000.0);
 
   // install an on-screen menu
-  Control* menu = createMenu(ocean.get(), sky.get(), useTriton, useSilverLining);
+  Control* menu = createMenu(
+      simpleOceanLayer.get(),
+      tritonLayer.get(),
+      buoyancyCallback.get(),
+      sky.get(),
+      viewer->getMainView(),
+      useTriton,
+      useSilverLining);
+
   viewer->getMainView()->addOverlayControl(menu);
 
   // install the handler for the demo keys in the notify() above

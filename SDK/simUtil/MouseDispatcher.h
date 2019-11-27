@@ -28,12 +28,8 @@
 #include "osg/observer_ptr"
 #include "osg/ref_ptr"
 #include "simCore/Common/Common.h"
+#include "simVis/ViewManager.h"
 #include "simUtil/MouseManipulator.h"
-
-namespace simVis {
-  class ViewManager;
-  class AddEventHandlerToViews;
-}
 
 namespace simUtil {
 
@@ -54,6 +50,9 @@ public:
 
   /** Changes the view manager and sets up the callbacks required for intercepting the mouse */
   void setViewManager(simVis::ViewManager* viewManager);
+
+  /** Retrieves a pointer to the dispatcher event handler. */
+  osgGA::GUIEventHandler* eventHandler() const;
 
   /** Lower weight number means the manipulator will be serviced before others with higher weight numbers. */
   void addManipulator(int weight, MouseManipulatorPtr manipulator);
@@ -99,7 +98,28 @@ private:
   PriorityMap priorityMap_;
 
   /** Encapsulates the GUI Event Handler in OSG */
-  class EventHandler;
+  class EventHandler : public osgGA::GUIEventHandler
+  {
+  public:
+    /** Constructor */
+    explicit EventHandler(const MouseDispatcher& dispatch);
+    /** Handle events, return true if handled, false otherwise. */
+    virtual bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa, osg::Object* object, osg::NodeVisitor* nv);
+
+    /** Return the proper library name */
+    virtual const char* libraryName() const { return "simUtil"; }
+    /** Return the class name */
+    virtual const char* className() const { return "MouseDispatcher::EventHandler"; }
+
+  protected:
+    /** Derived from osg::Referenced */
+    virtual ~EventHandler();
+
+  private:
+    /** Reference back to the owner */
+    const MouseDispatcher& dispatch_;
+  };
+
   /** Encapsulation of a osgGA::GUIEventHandler */
   osg::ref_ptr<EventHandler> eventHandler_;
 

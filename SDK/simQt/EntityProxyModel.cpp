@@ -35,17 +35,13 @@ namespace simQt {
 
   EntityProxyModel::~EntityProxyModel()
   {
-    Q_FOREACH(EntityFilter* filter, entityFilters_)
-    {
-      delete filter;
-    }
+    for (auto it = entityFilters_.begin(); it != entityFilters_.end(); ++it)
+      delete *it;
     entityFilters_.clear();
   }
 
   void EntityProxyModel::setSourceModel(QAbstractItemModel *sourceModel)
   {
-    QSortFilterProxyModel::setSourceModel(sourceModel);
-
     if (model_ != NULL)
     {
       disconnect(model_, SIGNAL(rowsAboutToBeRemoved(const QModelIndex&, int, int)), this, SLOT(entitiesRemoved_(const QModelIndex&, int, int)));
@@ -53,8 +49,9 @@ namespace simQt {
       disconnect(model_, SIGNAL(modelReset()), this, SLOT(entitiesUpdated_()));
     }
     alwaysShow_ = 0;
-
+    // QSortFilterProxyModel::setSourceModel may make calls to EntityProxyModel::data, need to guarantee validity of model_
     model_ = dynamic_cast<AbstractEntityTreeModel*>(sourceModel);
+    QSortFilterProxyModel::setSourceModel(sourceModel);
 
     if (model_ != NULL)
     {
@@ -64,13 +61,17 @@ namespace simQt {
     }
   }
 
-  QVariant EntityProxyModel::data(const QModelIndex & index, int role) const
+  QVariant EntityProxyModel::data(const QModelIndex& index, int role) const
   {
     // Let the model handle the data call as normal
-    QVariant rv = QSortFilterProxyModel::data(index, role);
+    const QVariant rv = QSortFilterProxyModel::data(index, role);
 
-    QModelIndex sourceIndex = mapToSource(index);
-    QModelIndex showIndex = model_->index(alwaysShow_);
+    // if alwaysShow_ not set return early
+    if (alwaysShow_ == 0)
+      return rv;
+
+    const QModelIndex sourceIndex = mapToSource(index);
+    const QModelIndex showIndex = model_->index(alwaysShow_);
 
     // If the index in question is the always shown index,
     // handle the special cases for Qt::FontRole and Qt::ToolTipRole
@@ -84,7 +85,7 @@ namespace simQt {
       return font;
     }
 
-    else if (role == Qt::ToolTipRole)
+    if (role == Qt::ToolTipRole)
       return rv.toString().append(tr("\n\nThis entity was manually selected but does not pass current filter settings."));
 
     return rv;
@@ -103,9 +104,9 @@ namespace simQt {
   QList<QWidget*> EntityProxyModel::filterWidgets(QWidget* newWidgetParent) const
   {
     QList<QWidget*> rv;
-    Q_FOREACH(EntityFilter* filter, entityFilters_)
+    for (auto it = entityFilters_.begin(); it != entityFilters_.end(); ++it)
     {
-      QWidget* filterWidget = filter->widget(newWidgetParent);
+      QWidget* filterWidget = (*it)->widget(newWidgetParent);
       if (filterWidget != NULL) // only add the widget if not NULL
         rv.push_back(filterWidget);
     }
@@ -124,9 +125,9 @@ namespace simQt {
 
     // If item passes the filters, no need to set it to always show
     if (checkFilters_(id))
-      return;
-
-    alwaysShow_ = id;
+      alwaysShow_ = 0; // unset previous id
+    else
+      alwaysShow_ = id;
     invalidate();
   }
 
@@ -148,7 +149,18 @@ namespace simQt {
       return true;
 
     // check against all filters
-    return checkFilters_(id);
+    if (checkFilters_(id))
+      return true;
+
+    // didn't pass, check children
+    int numChildren = sourceModel()->rowCount(index0);
+    for (int i = 0; i < numChildren; ++i)
+    {
+      if (filterAcceptsRow(i, index0))
+        return true;
+    }
+
+    return false;
   }
 
   bool EntityProxyModel::lessThan(const QModelIndex &left, const QModelIndex &right) const
@@ -179,35 +191,29 @@ namespace simQt {
     // apply new filter, invalidate current one
     invalidateFilter();
     QMap<QString, QVariant> settings;
-    Q_FOREACH(EntityFilter* filter, entityFilters_)
-    {
-      filter->getFilterSettings(settings);
-    }
+    for (auto it = entityFilters_.begin(); it != entityFilters_.end(); ++it)
+      (*it)->getFilterSettings(settings);
     emit filterSettingsChanged(settings);
   }
 
   void EntityProxyModel::getFilterSettings(QMap<QString, QVariant>& settings) const
   {
-    Q_FOREACH(EntityFilter* filter, entityFilters_)
-    {
-      filter->getFilterSettings(settings);
-    }
+    for (auto it = entityFilters_.begin(); it != entityFilters_.end(); ++it)
+      (*it)->getFilterSettings(settings);
   }
 
   void EntityProxyModel::setFilterSettings(const QMap<QString, QVariant>& settings)
   {
-    Q_FOREACH(EntityFilter* filter, entityFilters_)
-    {
-      filter->setFilterSettings(settings);
-    }
+    for (auto it = entityFilters_.begin(); it != entityFilters_.end(); ++it)
+      (*it)->setFilterSettings(settings);
   }
 
   bool EntityProxyModel::checkFilters_(simData::ObjectId id) const
   {
-    Q_FOREACH(EntityFilter* filter, entityFilters_)
+    for (auto it = entityFilters_.begin(); it != entityFilters_.end(); ++it)
     {
       // only need one failure to fail
-      if (!filter->acceptEntity(id))
+      if (!(*it)->acceptEntity(id))
         return false;
     }
     return true;

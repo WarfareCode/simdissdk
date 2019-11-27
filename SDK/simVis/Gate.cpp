@@ -19,9 +19,9 @@
  * disclose, or release this software.
  *
  */
-#include "osg/Depth"
 #include "osg/Geode"
 #include "osgEarth/Horizon"
+#include "osgEarth/LineDrawable"
 #include "osgEarth/ObjectIndex"
 #include "osgEarth/Registry"
 #include "simCore/Calc/Angle.h"
@@ -40,12 +40,19 @@
 #include "simVis/OverheadMode.h"
 #include "simVis/Gate.h"
 
+/**
+ * Gate updates are currently disabled as SphericalVolume needs updates in order
+ * to correctly reposition outline geometry with new osgEarth::LineDrawable.
+ */
+#define GATE_IN_PLACE_UPDATES
+
 namespace simVis
 {
 
 GateVolume::GateVolume(simVis::Locator* locator, const simData::GatePrefs* prefs, const simData::GateUpdate* update)
   : LocatorNode(locator)
 {
+  setName("Gate Volume Locator");
   gateSV_ = createNode_(prefs, update);
   setNodeMask(DISPLAY_MASK_GATE);
   addChild(gateSV_);
@@ -65,10 +72,12 @@ GateVolume::GateVolume(simVis::Locator* locator, const simData::GatePrefs* prefs
       (isOpaque ? BIN_GLOBAL_SIMSDK : BIN_TWO_PASS_ALPHA));
   }
 
-  osg::Geometry* outlineGeometry = simVis::SVFactory::outlineGeometry(gateSV_.get());
-  if (outlineGeometry != NULL)
+  osg::Geode* outlineGeode = simVis::SVFactory::opaqueGeode(gateSV_.get());
+  if (outlineGeode != NULL)
   {
-    outlineGeometry->getOrCreateStateSet()->setRenderBinDetails(BIN_OPAQUE_GATE, BIN_GLOBAL_SIMSDK);
+    // SphericalVolume code only adds the opaque geode when it is adding a geometry or lineGroup
+    assert(outlineGeode->getNumDrawables() > 0);
+    outlineGeode->getOrCreateStateSet()->setRenderBinDetails(BIN_OPAQUE_GATE, BIN_GLOBAL_SIMSDK);
   }
 }
 
@@ -111,6 +120,7 @@ void GateVolume::performInPlaceUpdates(const simData::GateUpdate* a, const simDa
   if (a == NULL || b == NULL)
     return;
 
+#ifdef GATE_IN_PLACE_UPDATES
   // each update method calls dirtyBound on all gate volume geometries, so no need for that here
   if (PB_FIELD_CHANGED(a, b, minrange))
   {
@@ -128,6 +138,7 @@ void GateVolume::performInPlaceUpdates(const simData::GateUpdate* a, const simDa
   {
     SVFactory::updateVertAngle(gateSV_.get(), a->height(), b->height());
   }
+#endif
 }
 
 osg::MatrixTransform* GateVolume::createNode_(const simData::GatePrefs* prefs, const simData::GateUpdate* update)
@@ -213,27 +224,20 @@ osg::MatrixTransform* GateVolume::createNode_(const simData::GatePrefs* prefs, c
 GateCentroid::GateCentroid(simVis::Locator* locator)
   : LocatorNode(locator)
 {
+  setName("Centroid Locator");
   setActive(false);
-  geom_ = new osg::Geometry();
-  geom_->setName("simVis::GateCentroid");
-  geom_->setUseVertexBufferObjects(true);
-
-  osg::Vec4Array* c = new osg::Vec4Array(osg::Array::BIND_OVERALL, 1);
-  (*c)[0] = osg::Vec4f(1.0f, 1.0f, 1.0f, 1.0f); // always white
-  geom_->setColorArray(c);
-
-  osg::Vec3Array* v = new osg::Vec3Array(6);
-  geom_->setVertexArray(v);
-
-  osg::DrawElementsUShort* centroid = new osg::DrawElementsUShort(GL_LINES, 6);
-  for (unsigned int i = 0; i < 6; ++i)
-    centroid->setElement(i, i);
-  geom_->addPrimitiveSet(centroid);
+  geom_ = new osgEarth::LineDrawable(GL_LINES);
+  geom_->setName("simVis::GateCentroid Geometry");
+  geom_->setColor(simVis::Color::White);
+  geom_->setDataVariance(osg::Object::DYNAMIC);
+  geom_->allocate(6);
+  geom_->dirty();
 
   geom_->getOrCreateStateSet()->setRenderBinDetails(BIN_OPAQUE_GATE, BIN_GLOBAL_SIMSDK);
 
-  osg::Geode* geodeSolid = new osg::Geode();
-  geodeSolid->addDrawable(geom_);
+  osg::Geode* geodeSolid = new osgEarth::LineGroup();
+  geodeSolid->setName("Solid LineGroup");
+  geodeSolid->addChild(geom_);
   addChild(geodeSolid);
 }
 
@@ -256,13 +260,11 @@ void GateCentroid::setVisible(bool visible)
 // perform an in-place update to an existing centroid
 void GateCentroid::update(const simData::GateUpdate& update)
 {
-  osg::Vec3Array* verts = static_cast<osg::Vec3Array*>(geom_->getVertexArray());
-  updateCentroid_(verts, update);
-  geom_->dirtyBound();
+  updateCentroid_(update);
 }
 
 // calculate centroid verts from update
-void GateCentroid::updateCentroid_(osg::Vec3Array* verts, const simData::GateUpdate& update)
+void GateCentroid::updateCentroid_(const simData::GateUpdate& update)
 {
   // scale centroid relative to gate width & height
   const double sinWidth  = (update.width() >= M_PI_2) ? 1.0 : sin(update.width());
@@ -270,13 +272,12 @@ void GateCentroid::updateCentroid_(osg::Vec3Array* verts, const simData::GateUpd
   const double xSize = sinWidth * update.maxrange() / 8.0;
   const double ySize = (update.maxrange() - update.minrange()) / 8.0;
   const double zSize = sinHeight * update.maxrange() / 8.0;
-  (*verts)[0] = (osg::Vec3(-xSize, 0.0f, 0.0f));
-  (*verts)[1] = (osg::Vec3(xSize, 0.0f, 0.0f));
-  (*verts)[2] = (osg::Vec3(0.0f, -ySize, 0.0f));
-  (*verts)[3] = (osg::Vec3(0.0f, ySize, 0.0f));
-  (*verts)[4] = (osg::Vec3(0.0f, 0.0f, -zSize));
-  (*verts)[5] = (osg::Vec3(0.0f, 0.0f, zSize));
-  verts->dirty();
+  geom_->setVertex(0, osg::Vec3(-xSize, 0.0f, 0.0f));
+  geom_->setVertex(1, osg::Vec3(xSize, 0.0f, 0.0f));
+  geom_->setVertex(2, osg::Vec3(0.0f, -ySize, 0.0f));
+  geom_->setVertex(3, osg::Vec3(0.0f, ySize, 0.0f));
+  geom_->setVertex(4, osg::Vec3(0.0f, 0.0f, -zSize));
+  geom_->setVertex(5, osg::Vec3(0.0f, 0.0f, zSize));
 }
 
 // --------------------------------------------------------------------------
@@ -286,7 +287,6 @@ GateNode::GateNode(const simData::GateProperties& props, Locator* hostLocator, c
     hasLastUpdate_(false),
     hasLastPrefs_(false),
     host_(host),
-    contentCallback_(new NullEntityCallback()),
     objectIndexTag_(0)
 {
   setNodeMask(DISPLAY_MASK_NONE);
@@ -309,15 +309,25 @@ GateNode::GateNode(const simData::GateProperties& props, Locator* hostLocator, c
   // 5) the centroid visual must be parented by a different locatorNode than the gate visual
   //  so that centroid can be correctly drawn when the gate visual is coverage gate
 
-  // inherit from beam's locator, including its position offset, but stripping out all orientation
+  // gates can be hosted by platforms or beams
+  const BeamNode* beam = dynamic_cast<const BeamNode*>(host_.get());
+  if (beam != NULL && hostLocator)
+  {
+    // body and range gates are positioned relative to beam origin, but never relative to beam orientation.
+    // in some cases, the locator that beam provides via getLocator() (beamOrientationLocator_) strips out platform orientation;
+    // in those cases, it can't be used for BODY gates, which are relative to platform orientation.
+    // beam->getLocator()'s parent (beamOriginLocator_) always provides the the beam origin with platform orientation.
+    // gate locators here maintain or strip out platform orientation as required.
+    hostLocator = hostLocator->getParentLocator();
+  }
 
   // if the properties call for a body-relative beam, reconfigure locators to include platform orientation
   if (props.has_type() && props.type() == simData::GateProperties_GateType_BODY_RELATIVE)
   {
-    // for body beam, inherit from beam's locator, including its position offset, but stripping out only beam orientation offset (keeping platform orientation).
+    // for body beam, inherit from beam's position offset, and keep platform orientation.
     gateVolumeLocator_ = new ResolvedPositionOrientationLocator(hostLocator, Locator::COMP_ALL);
 
-    // for body beam, inherit from beam's locator, including its position offset, but stripping out only beam orientation offset (keeping platform orientation).
+    // for body beam, inherit from beam's position offset, and keep platform orientation.
     baseLocator_ = new ResolvedPositionOrientationLocator(hostLocator, Locator::COMP_ALL);
 
     // this locator sets the centroid position offset from the platform, using the gate orientation offsets
@@ -380,13 +390,13 @@ void GateNode::updateLabel_(const simData::GatePrefs& prefs)
 {
   if (hasLastUpdate_)
   {
-    std::string label = getEntityName(EntityNode::DISPLAY_NAME);
+    std::string label = getEntityName_(prefs.commonprefs(), EntityNode::DISPLAY_NAME, false);
     if (prefs.commonprefs().labelprefs().namelength() > 0)
       label = label.substr(0, prefs.commonprefs().labelprefs().namelength());
 
     std::string text;
     if (prefs.commonprefs().labelprefs().draw())
-      text = contentCallback_->createString(prefs, lastUpdateFromDS_, prefs.commonprefs().labelprefs().displayfields());
+      text = labelContentCallback().createString(prefs, lastUpdateFromDS_, prefs.commonprefs().labelprefs().displayfields());
 
     if (!text.empty())
     {
@@ -399,32 +409,37 @@ void GateNode::updateLabel_(const simData::GatePrefs& prefs)
   }
 }
 
-void GateNode::setLabelContentCallback(LabelContentCallback* cb)
+std::string GateNode::popupText() const
 {
-  if (cb == NULL)
-    contentCallback_ = new NullEntityCallback();
-  else
-    contentCallback_ = cb;
-}
+  if (hasLastPrefs_ && hasLastUpdate_)
+  {
+    std::string prefix;
+    // if alias is defined show both in the popup to match SIMDIS 9's behavior.  SIMDIS-2241
+    if (!lastPrefsFromDS_.commonprefs().alias().empty())
+    {
+      if (lastPrefsFromDS_.commonprefs().usealias())
+        prefix = getEntityName(EntityNode::REAL_NAME);
+      else
+        prefix = getEntityName(EntityNode::ALIAS_NAME);
+      prefix += "\n";
+    }
+    return prefix + labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().hoverdisplayfields());
+  }
 
-LabelContentCallback* GateNode::labelContentCallback() const
-{
-  return contentCallback_.get();
+  return "";
 }
 
 std::string GateNode::hookText() const
 {
   if (hasLastPrefs_ && hasLastUpdate_)
-    return contentCallback_->createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().hookdisplayfields());
-
+    return labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().hookdisplayfields());
   return "";
 }
 
 std::string GateNode::legendText() const
 {
   if (hasLastPrefs_ && hasLastUpdate_)
-    return contentCallback_->createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().legenddisplayfields());
-
+    return labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().legenddisplayfields());
   return "";
 }
 
@@ -485,21 +500,8 @@ const std::string GateNode::getEntityName(EntityNode::NameType nameType, bool al
 {
   // if assert fails, check whether prefs are initialized correctly when entity is created
   assert(hasLastPrefs_);
-  switch (nameType)
-  {
-  case EntityNode::REAL_NAME:
-    return lastPrefsApplied_.commonprefs().name();
-  case EntityNode::ALIAS_NAME:
-    return lastPrefsApplied_.commonprefs().alias();
-  case EntityNode::DISPLAY_NAME:
-    if (lastPrefsApplied_.commonprefs().usealias())
-    {
-      if (!lastPrefsApplied_.commonprefs().alias().empty() || allowBlankAlias)
-        return lastPrefsApplied_.commonprefs().alias();
-    }
-    return lastPrefsApplied_.commonprefs().name();
-  }
-  return "";
+  return getEntityName_(lastPrefsApplied_.commonprefs(), nameType, allowBlankAlias);
+
 }
 
 bool GateNode::updateFromDataStore(const simData::DataSliceBase* updateSliceBase, bool force)
@@ -779,6 +781,7 @@ void GateNode::updateLocator_(const simData::GateUpdate* newUpdate, const simDat
     PB_FIELD_CHANGED(&lastUpdateApplied_, newUpdate, azimuth) ||
     PB_FIELD_CHANGED(&lastUpdateApplied_, newUpdate, elevation))) ||
     (newPrefs && (
+    PB_FIELD_CHANGED(&lastPrefsApplied_, newPrefs, gatedrawmode) ||
     PB_FIELD_CHANGED(&lastPrefsApplied_, newPrefs, gateazimuthoffset) ||
     PB_FIELD_CHANGED(&lastPrefsApplied_, newPrefs, gateelevationoffset) ||
     PB_FIELD_CHANGED(&lastPrefsApplied_, newPrefs, gaterolloffset)));
@@ -853,10 +856,18 @@ bool GateNode::changeRequiresRebuild_(const simData::GateUpdate* newUpdate, cons
 
   if (newUpdate != NULL)
   {
+#ifdef GATE_IN_PLACE_UPDATES
     // changing a gate minrange to/from 0.0 requires a rebuild due to simplified shape
     if (PB_FIELD_CHANGED(&lastUpdateApplied_, newUpdate, minrange) &&
       (newUpdate->minrange() == 0.0 || lastUpdateApplied_.minrange() == 0.0))
       return true;
+#else
+    if (PB_FIELD_CHANGED(&lastUpdateApplied_, newUpdate, minrange) ||
+      PB_FIELD_CHANGED(&lastUpdateApplied_, newUpdate, maxrange) ||
+      PB_FIELD_CHANGED(&lastUpdateApplied_, newUpdate, width) ||
+      PB_FIELD_CHANGED(&lastUpdateApplied_, newUpdate, height))
+      return true;
+#endif
 
     // changes to coverage gates require rebuild (instead of in-place updates)
     const simData::GatePrefs* activePrefs = newPrefs ? newPrefs : &lastPrefsApplied_;

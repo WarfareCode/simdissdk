@@ -85,12 +85,11 @@ private:
   SegmentedSpinBox::SegmentedSpinBox(QWidget* parent)
     : QSpinBox(parent),
       completeLine_(NULL),
-      initialTime_(1970, 0),
+      lastEditedTime_(1970, 0),
       colorCode_(true),
       segmentedEventFilter_(NULL),
       timer_(new QTimer(this)),
-      applyInterval_(1000),
-      setSinceFocus_(true)
+      applyInterval_(500)
   {
     setSizePolicy(QSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed));
     // the method sizeHint is suppose to calculate the correct default minimum width, but something is not right.
@@ -118,7 +117,27 @@ private:
     // If the text string does not change then return the given time to prevent a truncated time
     if (timeString_ == completeLine_->text())
       return timeStamp_;
-    return completeLine_->timeStamp();
+
+    const simCore::TimeStamp& time = completeLine_->timeStamp();
+
+    // Due to precision the time can be slightly out of range, so range check if necessary
+    bool startLimit;
+    bool endLimit;
+    completeLine_->getEnforceLimits(startLimit, endLimit);
+    if (!startLimit && !endLimit)
+      return time;
+
+    simCore::TimeStamp startTime;
+    simCore::TimeStamp endTime;
+    int referencerYear;
+    completeLine_->timeRange(referencerYear, startTime, endTime);
+
+    if (startLimit && (time < startTime))
+      return startTime;
+    if (endLimit && (time > endTime))
+      return endTime;
+
+    return time;
   }
 
   void SegmentedSpinBox::setTimeStamp(const simCore::TimeStamp& value)
@@ -128,6 +147,7 @@ private:
     lineEdit()->setText(completeLine_->text());
     // The text may truncate the value, so keep a copy so that the exact value can be returned if the text does not change
     timeStamp_ = value;
+    lastEditedTime_ = completeLine_->timeStamp();
     timeString_ = completeLine_->text();
   }
 
@@ -248,27 +268,35 @@ private:
     // If apply was queued and something else triggers an apply first, don't bother applying again
     timer_->stop();
 
-    simCore::TimeStamp currentTime = completeLine_->timeStamp();
-    simCore::TimeStamp clampedTime = completeLine_->clampTime(currentTime);
+    const simCore::TimeStamp& currentTime = completeLine_->timeStamp();
+    const simCore::TimeStamp& clampedTime = completeLine_->clampTime(currentTime);
     if (currentTime != clampedTime)
     {
       // Range Limit the value, since the user can type in a value out of range
       completeLine_->setTimeStamp(clampedTime);
     }
 
-    int cursorPosition = lineEdit()->cursorPosition();
+    const int selectionStart = lineEdit()->selectionStart();
+    const int selectionLength = lineEdit()->selectedText().length();
+    const int cursorPosition = lineEdit()->cursorPosition();
     lineEdit()->setText(completeLine_->text());
     lineEdit()->setCursorPosition(simCore::sdkMin(cursorPosition, lineEdit()->text().length()));
+    // If there was a selection, restore it after timestamp is updated
+    if (selectionStart != -1)
+    {
+      const int newSelectionStart = simCore::sdkMin(selectionStart, lineEdit()->text().length() - 1);
+      if (newSelectionStart != -1)
+        lineEdit()->setSelection(newSelectionStart, simCore::sdkMin(selectionLength, lineEdit()->text().length() - newSelectionStart));
+    }
 
-    if (initialTime_ != completeLine_->timeStamp())
+    if (lastEditedTime_ != completeLine_->timeStamp())
     {
       completeLine_->valueChanged();
       // If we have focus assume the change was user initiated
-      if (setSinceFocus_ == false)
+      if (hasFocus())
         completeLine_->valueEdited();
+      lastEditedTime_ = completeLine_->timeStamp();
     }
-
-    setSinceFocus_ = true;
   }
 
   void SegmentedSpinBox::queueApplyTimestamp_() const
@@ -293,15 +321,13 @@ private:
 
   void SegmentedSpinBox::focusOutEvent(QFocusEvent* e)
   {
-    if (!setSinceFocus_)
-      applyTimestamp_();
+    applyTimestamp_();
     QSpinBox::focusOutEvent(e);
   }
 
   void SegmentedSpinBox::focusInEvent(QFocusEvent* e)
   {
-    initialTime_ = completeLine_->timeStamp();
-    setSinceFocus_ = false;
+    lastEditedTime_ = completeLine_->timeStamp();
     QSpinBox::focusInEvent(e);
   }
 

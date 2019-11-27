@@ -11,19 +11,15 @@ set(PROJECT_SRC
     src/QSNodeID96.cpp
     src/QSPosXYExtents.cpp
     src/SQLiteDataBaseReadUtil.cpp
-    src/Utils/Raster/RasterCommon.cpp
 )
 
 set(PROJECT_HEADERS
     include/DBTileSource.h
     include/QSCommon.h
-    include/QSCommonGeo.h
-    include/QSCommonIntTypes.h
     include/QSError.h
     include/QSNodeID96.h
     include/QSPosXYExtents.h
     include/SQLiteDataBaseReadUtil.h
-    include/Utils/Raster/RasterCommon.h
     include/swapbytes.h
 )
 
@@ -41,6 +37,9 @@ if(SDK_BIG_ENDIAN)
     target_compile_definitions(osgdb_osgearth_db PRIVATE SIM_BIG_ENDIAN)
 else()
     target_compile_definitions(osgdb_osgearth_db PRIVATE SIM_LITTLE_ENDIAN)
+endif()
+if(NOT WIN32)
+    target_compile_definitions(osgdb_osgearth_db PRIVATE Linux)
 endif()
 
 set_target_properties(osgdb_osgearth_db PROPERTIES

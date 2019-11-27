@@ -19,10 +19,9 @@
  * disclose, or release this software.
  *
  */
-#include "osgEarthUtil/Controls"
-#include "osgEarthSymbology/Color"
-#include "osgEarthAnnotation/LabelNode"
-
+#include "osgEarth/Controls"
+#include "osgEarth/Color"
+#include "osgEarth/LabelNode"
 #include "osgEarth/ScreenSpaceLayout"
 
 #include "simCore/Calc/MathConstants.h"
@@ -34,8 +33,6 @@
 #include "simUtil/ExampleControls.h"
 
 using namespace osgEarth;
-using namespace osgEarth::Annotation;
-using namespace osgEarth::Symbology;
 using namespace osgEarth::Util::Controls;
 
 namespace
@@ -249,7 +246,7 @@ namespace
     NewPlatformListener(Container* container, simVis::View* view, PlatformListData* data)
       : container_(container), view_(view), data_(data) { }
 
-    void onAddEntity(simData::DataStore *ds, simData::ObjectId newId, simData::ObjectType ot)
+    virtual void onAddEntity(simData::DataStore *ds, simData::ObjectId newId, simData::ObjectType ot)
     {
       if (ot != simData::PLATFORM)
         return;
@@ -297,7 +294,7 @@ namespace
   {
     explicit ControlPrefsNotification(ControlPrefsListener* listener) : listener_(listener) { }
 
-    void onPrefsChange(simData::DataStore &ds, simData::ObjectId id)
+    virtual void onPrefsChange(simData::DataStore &ds, simData::ObjectId id)
     {
       if (ds.objectType(id) == simData::PLATFORM)
         listener_->notifyPrefsChange(ds, id);
@@ -324,7 +321,7 @@ namespace
 
       this->addControl(grid);
 
-      LabelControl* instr = new LabelControl("Clear tether", 14, osg::Vec4(1, 1, 0, 1));
+      LabelControl* instr = new LabelControl("Clear tether", 14, simVis::Color::Yellow);
       instr->setActiveColor(Color::Blue);
       instr->addEventHandler(new ClearTether(view, &data_));
       this->addControl(instr);
@@ -376,7 +373,7 @@ namespace
       simData::DataStore* dataStore)
       : container_(container), view_(view), data_(data), antennaPattern_(antennaPattern), dataStore_(dataStore) { }
 
-    void onAddEntity(simData::DataStore *ds, simData::ObjectId newId, simData::ObjectType ot)
+    virtual void onAddEntity(simData::DataStore *ds, simData::ObjectId newId, simData::ObjectType ot)
     {
       if (ot != simData::BEAM)
         return;

@@ -36,8 +36,8 @@ namespace
 QDataStream &operator<<(QDataStream &out, const QList<QKeySequence> &keys)
 {
   out << keys.count();
-  Q_FOREACH(QKeySequence key, keys)
-    out << key;
+  for (auto it = keys.begin(); it != keys.end(); ++it)
+    out << *it;
   return out;
 }
 
@@ -230,8 +230,9 @@ public:
     // Build the map of description string to hotkeys
     QMap<QString, HotKeys> data;
     settings.beginGroup(groupName);
-    Q_FOREACH(QString actionDesc, settings.allKeys())
-      data.insert(actionDesc, settings.value(actionDesc).value<HotKeys>());
+    auto allKeys = settings.allKeys();
+    for (auto it = allKeys.begin(); it != allKeys.end(); ++it)
+      data.insert(*it, settings.value(*it).value<HotKeys>());
     settings.endGroup();
     // Restore it
     return MementoImpl::restoreNonDestructive_(reg, data);
@@ -266,16 +267,18 @@ private:
   static int restoreDestructive_(ActionRegistry& registry, const QMap<QString, HotKeys>& keys)
   {
     // Clear out the list of unknowns in the incoming registry, before anything happens.
-    Q_FOREACH(UnknownAction* unknown, registry.unknownActions_)
-      delete unknown;
+    for (auto it = registry.unknownActions_.begin(); it != registry.unknownActions_.end(); ++it)
+      delete *it;
     registry.unknownActions_.clear();
+    registry.unknownActionsByKey_.clear();
 
     // Restore hotkeys for all actions that are in the registry; iterate by ActionRegistry's
     // list to avoid dereferencing actions that are no longer valid, and to allow us to
     // unset hotkeys that are no longer valid
     QSet<QString> visitedDescs;
-    Q_FOREACH(Action* regAction, registry.actionsByDesc_)
+    for (auto it = registry.actionsByDesc_.begin(); it != registry.actionsByDesc_.end(); ++it)
     {
+      Action* regAction = *it;
       // Set the list of hotkeys; if item is not found it defaults to empty
       HotKeys hotkeys = keys.value(regAction->description(), HotKeys());
       if (hotkeys != regAction->hotkeys())
@@ -302,8 +305,10 @@ private:
         }
         else
         {
-          Q_FOREACH(QKeySequence keySequence, i.value())
-            registry.addHotKey(i.key(), keySequence);
+          // addHotKey() will take care of unknownActionsByKey_ map
+          auto keySeqList = i.value();
+          for (auto it = keySeqList.begin(); it != keySeqList.end(); ++it)
+            registry.addHotKey(i.key(), *it);
         }
       }
     }
@@ -311,7 +316,7 @@ private:
     return 0;
   }
 
-  /** Restores a map of string/hotkey to the registry provided: destructive, does not removing existing items */
+  /** Restores a map of string/hotkey to the registry provided: non-destructive, does not remove existing items */
   static int restoreNonDestructive_(ActionRegistry& registry, const QMap<QString, HotKeys>& keys)
   {
     // Simply override each value for each item in the list
@@ -325,15 +330,21 @@ private:
         // The action does not exist; add a new one (will show up as Unknown)
         if (i.value().empty())
         {
-          // Store an empty unknown value so that end users can clear out values
-          UnknownAction* unknown = new UnknownAction;
-          unknown->description = i.key();
-          registry.unknownActions_[i.key()] = unknown;
+          // Only add if key is unique to unknownActions_
+          if (!registry.unknownActions_.contains(i.key()))
+          {
+            // Store an empty unknown value so that end users can clear out values
+            UnknownAction* unknown = new UnknownAction;
+            unknown->description = i.key();
+            registry.unknownActions_[i.key()] = unknown;
+          }
         }
         else
         {
-          Q_FOREACH(QKeySequence sequence, i.value())
-            rv += (registry.addHotKey(i.key(), sequence) == 0 ? 0 : 1);
+          // addHotKey will handle unknownActionsByKey_
+          auto keySeqList = i.value();
+          for (auto it = keySeqList.begin(); it != keySeqList.end(); ++it)
+            rv += (registry.addHotKey(i.key(), *it) == 0 ? 0 : 1);
         }
       }
       else
@@ -362,10 +373,10 @@ ActionRegistry::ActionRegistry(QWidget* mainWindow)
 
 ActionRegistry::~ActionRegistry()
 {
-  Q_FOREACH(Action* action, actionsByDesc_)
-    delete action;
-  Q_FOREACH(UnknownAction* action, unknownActions_)
-    delete action;
+  for (auto it = actionsByDesc_.begin(); it != actionsByDesc_.end(); ++it)
+    delete *it;
+  for (auto it = unknownActions_.begin(); it != unknownActions_.end(); ++it)
+    delete *it;
 
   delete toolTipUpdater_;
   toolTipUpdater_ = NULL;
@@ -442,22 +453,26 @@ int ActionRegistry::execute(const QString &actionDesc)
 
 void ActionRegistry::assertActionsByKeyValid_() const
 {
-#ifdef DEBUG
+#ifndef NDEBUG
   // Make sure that each action in actionsByKey_ has the entry in the list
-  Q_FOREACH(const QKeySequence keySequence, actionsByKey_.keys())
+  auto keys = actionsByKey_.keys();
+  for (auto it = keys.begin(); it != keys.end(); ++it)
   {
-    const Action* action = actionsByKey_.value(keySequence);
-    assert(action != NULL && action->hotkeys().contains(keySequence));
+    const Action* action = actionsByKey_.value(*it);
+    assert(action != NULL && action->hotkeys().contains(*it));
   }
 
   // Loop through the hotkeys in all known actions and make sure there's an entry and it's us
-  Q_FOREACH(const Action* action, actionsByDesc_.values())
+  auto actions = actionsByDesc_.values();
+  for (auto it = actions.begin(); it != actions.end(); ++it)
   {
+    const Action* action = *it;
     assert(action != NULL);
-    Q_FOREACH(const QKeySequence k, action->hotkeys())
+    auto hotkeys = action->hotkeys();
+    for (auto hotkeyIt = hotkeys.begin(); hotkeyIt != hotkeys.end(); ++hotkeyIt)
     {
-      assert(actionsByKey_.contains(k));
-      assert(actionsByKey_.value(k) == action);
+      assert(actionsByKey_.contains(*hotkeyIt));
+      assert(actionsByKey_.value(*hotkeyIt) == action);
     }
   }
 #endif
@@ -485,12 +500,12 @@ int ActionRegistry::removeAction(const QString& desc)
       removeKeys.push_back(i.key());
   }
   // Now remove the keys we know about
-  Q_FOREACH(const QKeySequence key, removeKeys)
+  for (auto it = removeKeys.begin(); it != removeKeys.end(); ++it)
   {
     // Remove it from our normal bindings list
-    actionsByKey_.remove(key);
+    actionsByKey_.remove(*it);
     // Save it to the unknown list
-    addHotKey(desc, key);
+    addHotKey(desc, *it);
   }
 
   // Make sure the action is not in the actions-by-keys.  Failure means that we have an inconsistency
@@ -506,8 +521,8 @@ int ActionRegistry::removeAction(const QString& desc)
       aliasNames.push_back(i.key());
   }
 
-  Q_FOREACH(const QString aliasName, aliasNames)
-    aliases_.remove(aliasName);
+  for (auto it = aliasNames.begin(); it != aliasNames.end(); ++it)
+    aliases_.remove(*it);
 
   // Remove it from the main window's action list
   if (mainWindow_)
@@ -528,6 +543,8 @@ int ActionRegistry::removeUnknownAction(const QString& desc)
   if (it == unknownActions_.end())
     return 1;
 
+  for (auto i = (*it)->hotkeys.begin(); i != (*it)->hotkeys.end(); ++i)
+    unknownActionsByKey_.remove(*i);
   unknownActions_.erase(it);
   return 0;
 }
@@ -562,8 +579,8 @@ QList<Action*> ActionRegistry::actions() const
 {
   assertActionsByKeyValid_();
   QList<Action*> actions;
-  Q_FOREACH(Action* a, actionsByDesc_)
-    actions.push_back(a);
+  for (auto it = actionsByDesc_.begin(); it != actionsByDesc_.end(); ++it)
+    actions.push_back(*it);
   return actions;
 }
 
@@ -600,6 +617,30 @@ int ActionRegistry::addHotKey(const QString& actionDesc, QKeySequence hotkey)
     return setHotKeys(action, newKeys);
   }
 
+  // Find the action by hot key; it needs to remove that hot key
+  action = findAction(hotkey);
+  // If it exists, remove the hot key
+  if (action)
+  {
+    const int whichKey = action->hotkeys().indexOf(hotkey);
+    // Assertion failure means findAction() failed or hotkeys() isn't in sync
+    assert(whichKey >= 0);
+    if (whichKey >= 0)
+      removeHotKey(action, whichKey);
+  }
+
+  // If that hot key is in use in the unknowns list, update that too
+  auto keyIter = unknownActionsByKey_.find(hotkey);
+  if (keyIter != unknownActionsByKey_.end())
+  {
+    auto unkIter = unknownActions_.find(keyIter.value());
+    // Out of sync error
+    assert(unkIter != unknownActions_.end());
+    if (unkIter != unknownActions_.end())
+      unkIter.value()->hotkeys.removeAll(hotkey);
+    unknownActionsByKey_.erase(keyIter);
+  }
+
   // Save as an unknown action, store hotkey for later
   QMap<QString, UnknownAction*>::const_iterator i = unknownActions_.find(actionDesc);
   UnknownAction* unknown = NULL;
@@ -613,6 +654,9 @@ int ActionRegistry::addHotKey(const QString& actionDesc, QKeySequence hotkey)
     unknown = *i;
   unknown->hotkeys += hotkey;
 
+  // Register the unknown key
+  unknownActionsByKey_[hotkey] = actionDesc;
+
   // Internal consistency should be rock solid here
   assertActionsByKeyValid_();
   return 0;
@@ -625,21 +669,37 @@ int ActionRegistry::setHotKeys(Action* action, const QList<QKeySequence>& hotkey
   const QList<QKeySequence> uniqueHotkeys = makeUnique_(hotkeys);
 
   // Forget the old hotkeys in the action requested (they are going to be replaced)
-  Q_FOREACH(QKeySequence key, action->hotkeys())
+  auto actionHotkeys = action->hotkeys();
+  for (auto it = actionHotkeys.begin(); it != actionHotkeys.end(); ++it)
   {
     // Forget the hotkey, but don't remove it from the QAction (doing so causes recursion and is unnecessary)
-    removeBinding_(action, key, false);
+    removeBinding_(action, *it, false);
   }
 
   // Remove the hotkey from other actions
-  Q_FOREACH(QKeySequence key, uniqueHotkeys)
+  for (auto it = uniqueHotkeys.begin(); it != uniqueHotkeys.end(); ++it)
   {
+    QKeySequence key = *it;
     // We do not need to remove the binding for our own action (no-op)
     Action* oldAction = findAction(key);
     if (oldAction != NULL && action != oldAction)
       removeBinding_(oldAction, key, true);
     // Store association of binding to new action (unconditionally)
     actionsByKey_[key] = action;
+
+    // Make sure to remove it from registered list of unknown actions, which requires updating that list
+    auto i = unknownActionsByKey_.find(key);
+    if (i != unknownActionsByKey_.end())
+    {
+      auto acIter = unknownActions_.find(i.value());
+      // Assertion failure means there's code that makes these two lists out of sync
+      assert(acIter != unknownActions_.end());
+      if (acIter != unknownActions_.end())
+      {
+        acIter.value()->hotkeys.removeAll(key);
+      }
+      unknownActionsByKey_.erase(i);
+    }
   }
 
   // Update the actual QAction
@@ -670,6 +730,10 @@ QList<QKeySequence> ActionRegistry::takeUnknown_(const QString &actionDesc)
     delete i.value();
     unknownActions_.erase(i);
   }
+
+  // Remove each hot key from the unknownActionsByKey_ list
+  for (auto j = rv.begin(); j != rv.end(); ++j)
+    unknownActionsByKey_.remove(*j);
   return rv;
 }
 
@@ -678,15 +742,15 @@ void ActionRegistry::combineAndSetKeys_(Action* action, const QList<QKeySequence
   QList<QKeySequence> allKeys;
   // Only permit a key to be set during initialization if it's not already used (don't override)
   // Also, unknown keys take priority simply because they're from the user, instead of initial defaults
-  Q_FOREACH(QKeySequence key, unknownKeys)
+  for (auto it = unknownKeys.begin(); it != unknownKeys.end(); ++it)
   {
-    if (!actionsByKey_.contains(key))
-      allKeys.push_back(key);
+    if (!actionsByKey_.contains(*it))
+      allKeys.push_back(*it);
   }
-  Q_FOREACH(QKeySequence key, originalKeys)
+  for (auto it = originalKeys.begin(); it != originalKeys.end(); ++it)
   {
-    if (!actionsByKey_.contains(key))
-      allKeys.push_back(key);
+    if (!actionsByKey_.contains(*it))
+      allKeys.push_back(*it);
   }
   // Update the hotkeys
   setHotKeys(action, allKeys);
@@ -749,12 +813,35 @@ int ActionRegistry::deserialize(const QString& filename, const QString &groupNam
 QList<QKeySequence> ActionRegistry::makeUnique_(const QList<QKeySequence>& keys) const
 {
   QList<QKeySequence> rv;
-  Q_FOREACH(QKeySequence key, keys)
+  for (auto it = keys.begin(); it != keys.end(); ++it)
   {
-    if (!rv.contains(key))
-      rv.push_back(key);
+    if (!rv.contains(*it))
+      rv.push_back(*it);
   }
   return rv;
+}
+
+ActionRegistry::AssignmentStatus ActionRegistry::getKeySequenceAssignment(const QKeySequence& hotKey, QString& actionName) const
+{
+  // Search known hot keys first
+  auto actionIter = actionsByKey_.find(hotKey);
+  if (actionIter != actionsByKey_.end())
+  {
+    actionName = actionIter.value()->description();
+    return ASSIGNED_TO_ACTION;
+  }
+
+  // Search unknown hot keys
+  auto unkIter = unknownActionsByKey_.find(hotKey);
+  if (unkIter != unknownActionsByKey_.end())
+  {
+    actionName = unkIter.value();
+    return ASSIGNED_TO_UNKNOWN;
+  }
+
+  // Not found
+  actionName.clear();
+  return UNASSIGNED;
 }
 
 }

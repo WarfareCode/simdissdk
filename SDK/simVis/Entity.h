@@ -25,6 +25,7 @@
 #include <vector>
 #include "osg/Group"
 #include "osg/observer_ptr"
+#include "osgEarth/ElevationPool"
 #include "simCore/Calc/Coordinate.h"
 #include "simData/ObjectId.h"
 
@@ -35,11 +36,16 @@ namespace simCore {
   class Coordinate;
 }
 
-namespace simData { class DataSliceBase; }
+namespace simData {
+  class CommonPrefs;
+  class DataSliceBase;
+}
 
 namespace simVis
 {
+  class LabelContentCallback;
   class Locator;
+  class ProjectorNode;
 
   /**
    * Pure interface class for a node that you can call EntityNode::attach with
@@ -74,8 +80,13 @@ namespace simVis
     /** Set the map node for querying terrain height for clamping */
     void setMapNode(const osgEarth::MapNode* map);
 
+    /** Set whether to use the most accurate altitude sampling method when clamping.  Using the most accurate method can be prohibitively expensive if there are many clamped entities. */
+    void setUseMaxElevPrec(bool useMaxElevPrec);
+
   private:
     osg::observer_ptr<const osgEarth::MapNode> mapNode_;
+    osg::ref_ptr<osgEarth::ElevationEnvelope> envelope_;
+    bool useMaxElevPrec_;
   };
 
   /**
@@ -127,9 +138,18 @@ namespace simVis
     */
     virtual const std::string getEntityName(NameType nameType, bool allowBlankAlias = false) const = 0;
 
+    /**
+    * Sets a custom callback that will be used to generate the string that goes in the label.
+    * @param callback Callback that will generate content; if NULL will only display entity name/alias
+    */
+    void setLabelContentCallback(LabelContentCallback* callback);
+    /// Returns current content callback; guaranteed non-NULL
+    LabelContentCallback& labelContentCallback() const;
+
+    /// Returns the pop up text based on the label content callback, update and preference
+    virtual std::string popupText() const = 0;
     /// Returns the hook text based on the label content callback, update and preference
     virtual std::string hookText() const = 0;
-
     /// Returns the legend text based on the label content callback, update and preference
     virtual std::string legendText() const = 0;
 
@@ -270,14 +290,30 @@ namespace simVis
     */
     virtual double range() const = 0;
 
+    /** Accept textures from a projector. */
+    virtual void acceptProjector(ProjectorNode* projector);
+
+    /** Stop accepting textures from a projector. */
+    virtual void removeProjector(ProjectorNode* projector);
+
     /** Return the proper library name */
     virtual const char* libraryName() const { return "simVis"; }
-
     /** Return the class name */
     virtual const char* className() const { return "EntityNode"; }
 
   protected:
     virtual ~EntityNode();
+
+    /**
+    * Returns the entity name. Can be used to get the actual name always or the
+    * actual/alias depending on the commonprefs.usealias flag.
+    * @param common The preference that contain the name and alias
+    * @param nameType  enum option to always return real/alias name or name based on
+    *            the commonprefs usealias flag.
+    * @param allowBlankAlias If true DISPLAY_NAME will return blank if usealias is true and alias is blank
+    * @return actual/alias entity name string
+    */
+    std::string getEntityName_(const simData::CommonPrefs& common, EntityNode::NameType nameType, bool allowBlankAlias) const;
 
   private:
     /** Copy constructor, not implemented or available. */
@@ -285,6 +321,7 @@ namespace simVis
 
     simData::ObjectType type_;
     osg::ref_ptr<Locator> locator_;
+    osg::ref_ptr<LabelContentCallback> contentCallback_;
   };
 
 } // namespace simVis

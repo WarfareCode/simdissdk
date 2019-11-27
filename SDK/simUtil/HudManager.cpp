@@ -19,6 +19,7 @@
  * disclose, or release this software.
  *
  */
+#include <limits>
 #include "osg/Image"
 #include "osgDB/FileUtils"
 
@@ -151,6 +152,8 @@ void HudTextAdapter::update_()
     {
       osgText = new osgText::Text();
       osgText->setDataVariance(osg::Object::DYNAMIC);
+      // Without this, text goes into a depth sorted bin, and might draw on top of things it shouldn't
+      osgText->getOrCreateStateSet()->setRenderBinToInherit();
       osgTextVector_.push_back(osgText);
       addDrawable(osgText.get());
 
@@ -158,15 +161,27 @@ void HudTextAdapter::update_()
       // Set a minimum font size so that large text doesn't invoke magnification filtering
       if (requestedFontSize_ > 32)
         osgText->setFontResolution(static_cast<unsigned int>(requestedFontSize_), static_cast<unsigned int>(requestedFontSize_));
-      osgText->setCharacterSize(requestedFontSize_);
+      osgText->setCharacterSize(simVis::osgFontSize(requestedFontSize_));
       osgText->setPosition(osg::Vec3(0.0f, 0.0f, 0.0f));
       osgText->setColor(color_);
       osgText->setEnableDepthWrites(false); // No depth buffering needed
-      // Set up the Halo
-      osgText->setBackdropType(backdrop_);
-      osgText->setBackdropOffset(backdropOffset_);
-      osgText->setBackdropColor(osg::Vec4(0.f, 0.f, 0.f, 1.f));
-      osgText->setBackdropImplementation(osgText::Text::DELAYED_DEPTH_WRITES);
+      osgText->setBoundingBoxMargin(2.f);
+
+      if (backgroundColor_.a() == 0.f)
+      {
+        // Set up the Halo if there is no background
+        osgText->setBackdropType(backdrop_);
+        osgText->setBackdropOffset(backdropOffset_);
+        osgText->setBackdropColor(simVis::Color::Black);
+        osgText->setBackdropImplementation(osgText::Text::DELAYED_DEPTH_WRITES);
+      }
+      else
+      {
+        // Else set up the background color
+        osgText->setBackdropType(osgText::Text::NONE);
+        osgText->setBoundingBoxColor(backgroundColor_);
+        osgText->setDrawMode(osgText::TextBase::FILLEDBOUNDINGBOX | osgText::TextBase::TEXT);
+      }
       initializeText_(osgText.get());
     }
     else
@@ -181,7 +196,7 @@ void HudTextAdapter::update_()
 
       if (requestedFontSize_ != currentFontSize_)
       {
-        osgText->setCharacterSize(requestedFontSize_);
+        osgText->setCharacterSize(simVis::osgFontSize(requestedFontSize_));
         // Set a minimum font size so that large text doesn't invoke magnification filtering
         if (requestedFontSize_ > 32)
           osgText->setFontResolution(static_cast<unsigned int>(requestedFontSize_), static_cast<unsigned int>(requestedFontSize_));
@@ -199,6 +214,17 @@ void HudTextAdapter::update_()
         osgText->setBackdropType(backdropType);
       if (!simCore::areEqual(osgText->getBackdropHorizontalOffset(), backdropOffset_))
         osgText->setBackdropOffset(backdropOffset_);
+
+      // Set up the halo by turning on TEXT and off FILLEDBOUNDINGBOX
+      if (backgroundColor_.a() == 0.f)
+        osgText->setDrawMode(osgText::TextBase::TEXT);
+      else
+      {
+        // Turn on the bounding box, which disables Halo
+        osgText->setBackdropType(osgText::Text::NONE);
+        osgText->setBoundingBoxColor(backgroundColor_);
+        osgText->setDrawMode(osgText::TextBase::FILLEDBOUNDINGBOX | osgText::TextBase::TEXT);
+      }
     }
 
     osgText->setText(tokens[ii]);
@@ -357,6 +383,20 @@ void HudTextAdapter::setColor(const osg::Vec4& color)
   if (color != color_)
   {
     color_ = color;
+    update_();
+  }
+}
+
+osg::Vec4 HudTextAdapter::backgroundColor() const
+{
+  return backgroundColor_;
+}
+
+void HudTextAdapter::setBackgroundColor(const osg::Vec4& color)
+{
+  if (backgroundColor_ != color)
+  {
+    backgroundColor_ = color;
     update_();
   }
 }
@@ -890,7 +930,7 @@ void HudImage::update_()
 
   // Set up the Texture2D
   osg::ref_ptr<osg::Texture2D> tex2d = new osg::Texture2D(image_);
-  tex2d->setResizeNonPowerOfTwoHint(true);
+  tex2d->setResizeNonPowerOfTwoHint(false);
   tex2d->setFilter(osg::Texture::MIN_FILTER, osg::Texture::LINEAR);
   tex2d->setFilter(osg::Texture::MAG_FILTER, osg::Texture::LINEAR);
   simVis::fixTextureForGlCoreProfile(tex2d.get());

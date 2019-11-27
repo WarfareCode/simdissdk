@@ -22,6 +22,7 @@
 #include "osg/ArgumentParser"
 #include "osgGA/GUIEventHandler"
 #include "osgViewer/ViewerEventHandlers"
+#include "osgEarth/ScreenSpaceLayout"
 #include "simCore/Time/ClockImpl.h"
 #include "simCore/Time/Utils.h"
 #include "simData/DataStoreProxy.h"
@@ -60,12 +61,15 @@ static const std::string HELP_TEXT =
   "c : Cycle centered platform\n"
   "C : Toggle overhead clamping\n"
   "d : Toggle dynamic scale\n"
+  "D : Toggle label declutter on/off\n"
   "l : Toggle Logarithmic Depth Buffer\n"
   "n : Toggle labels\n"
   "o : Cycle time format\n"
   "O : Toggle overhead mode\n"
   "p : Play/pause\n"
   "s : Cycle OSG statistics\n"
+  "t : Toggle declutter technique\n"
+  "T : Cycle callout line style\n"
   "w : Toggle compass\n"
   "z : Toggle cockpit mode (if centered)\n"
   ;
@@ -94,29 +98,38 @@ public:
           return true;
         }
         break;
-      case osgGA::GUIEventAdapter::KEY_C: // lowercase
+      case 'c': // lowercase
         app_.centerNext();
         return true;
-      case osgGA::GUIEventAdapter::KEY_D:
+      case 'd':
         app_.toggleDynamicScale();
         return true;
-      case osgGA::GUIEventAdapter::KEY_N:
+      case 'n':
         app_.toggleLabels();
         return true;
-      case osgGA::GUIEventAdapter::KEY_W:
+      case 'w':
         app_.toggleCompass();
         return true;
-      case osgGA::GUIEventAdapter::KEY_L:
+      case 'l':
         app_.toggleLogDb();
         return true;
-      case osgGA::GUIEventAdapter::KEY_O: // lowercase
+      case 'o': // lowercase
         app_.cycleTimeFormat();
         return true;
-      case osgGA::GUIEventAdapter::KEY_Z:
+      case 'z':
         app_.toggleCockpit();
         return true;
-      case osgGA::GUIEventAdapter::KEY_P:
+      case 'p':
         app_.playPause();
+        return true;
+      case 'D':
+        app_.toggleTextDeclutter();
+        return true;
+      case 't':
+        app_.toggleDeclutterTechnique();
+        return true;
+      case 'T':
+        app_.cycleCalloutLineStyle();
         return true;
       }
     }
@@ -134,7 +147,9 @@ ViewerApp::ViewerApp(osg::ArgumentParser& args)
     textReplacer_(new simCore::TextReplacer),
     dataStore_(NULL),
     interpolator_(NULL),
-    timeVariable_(NULL)
+    timeVariable_(NULL),
+    declutterOn_(false),
+    colorIndex_(0)
 {
   init_(args);
 }
@@ -148,7 +163,8 @@ ViewerApp::~ViewerApp()
 void ViewerApp::init_(osg::ArgumentParser& args)
 {
   // Set up OSG features if supported
-  osg::DisplaySettings::instance()->setNumMultiSamples(4);
+  if (args.read("--multisample"))
+    osg::DisplaySettings::instance()->setNumMultiSamples(4);
 
   // First we need a map.
   osg::ref_ptr<osgEarth::Map> map = simExamples::createDefaultExampleMap();
@@ -427,8 +443,8 @@ ui::Control* ViewerApp::createHelp_() const
   ui::VBox* vbox = new ui::VBox();
   vbox->setPadding(10);
   vbox->setBackColor(0, 0, 0, 0.6);
-  vbox->addControl(new ui::LabelControl(TITLE, 20, osg::Vec4f(1, 1, 0, 1)));
-  vbox->addControl(new ui::LabelControl(HELP_TEXT, 14, osg::Vec4f(.8, .8, .8, 1)));
+  vbox->addControl(new ui::LabelControl(TITLE, 20.f, simVis::Color::Yellow));
+  vbox->addControl(new ui::LabelControl(HELP_TEXT, 14, simVis::Color::Silver));
   // Move it down just a bit
   vbox->setPosition(10, 10);
   return vbox;
@@ -460,6 +476,63 @@ int ViewerApp::loadGog_(const std::string& filename)
     return 0;
   }
   return 1;
+}
+
+void ViewerApp::toggleTextDeclutter()
+{
+  declutterOn_ = !declutterOn_;
+  osgEarth::ScreenSpaceLayout::setDeclutteringEnabled(declutterOn_);
+  std::cout << "Decluttering " << (declutterOn_ ? "enabled" : "disabled") << "\n";
+}
+
+void ViewerApp::toggleDeclutterTechnique()
+{
+  auto opts = osgEarth::ScreenSpaceLayout::getOptions();
+  if (opts.technique().get() == osgEarth::ScreenSpaceLayoutOptions::TECHNIQUE_LABELS)
+  {
+    opts.technique() = osgEarth::ScreenSpaceLayoutOptions::TECHNIQUE_CALLOUTS;
+    std::cout << "Decluttering technique set to Callouts.\n";
+    // Note that you can set debug of callouts with environment variable OSGEARTH_DECLUTTER_DEBUG=1
+  }
+  else
+  {
+    opts.technique() = osgEarth::ScreenSpaceLayoutOptions::TECHNIQUE_LABELS;
+    std::cout << "Decluttering technique set to Labels.\n";
+  }
+  osgEarth::ScreenSpaceLayout::setOptions(opts);
+}
+
+void ViewerApp::cycleCalloutLineStyle()
+{
+  // Cycle the color index
+  if (++colorIndex_ > 4)
+    colorIndex_ = 0;
+
+  auto opts = osgEarth::ScreenSpaceLayout::getOptions();
+  switch (colorIndex_)
+  {
+  case 0:
+    opts.leaderLineColor() = osgEarth::Color::White;
+    std::cout << "Setting color to white.\n";
+    break;
+  case 1:
+    opts.leaderLineColor() = osgEarth::Color::Yellow;
+    std::cout << "Setting color to yellow.\n";
+    break;
+  case 2:
+    opts.leaderLineColor() = osgEarth::Color::Red;
+    std::cout << "Setting color to red.\n";
+    break;
+  case 3:
+    opts.leaderLineColor() = osgEarth::Color::Lime;
+    std::cout << "Setting color to lime.\n";
+    break;
+  case 4:
+    opts.leaderLineColor() = osgEarth::Color::Magenta;
+    std::cout << "Setting color to magenta.\n";
+    break;
+  }
+  osgEarth::ScreenSpaceLayout::setOptions(opts);
 }
 
 }

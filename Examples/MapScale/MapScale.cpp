@@ -24,7 +24,7 @@
  * MapScale shows how to associate a map scale with a view and an inset.
  */
 
-#include "osgEarthUtil/Controls"
+#include "osgEarth/Controls"
 #include "simCore/Common/Version.h"
 #include "simCore/Common/HighPerformanceGraphics.h"
 #include "simCore/Calc/Units.h"
@@ -143,8 +143,8 @@ static ui::Control* createHelp(simUtil::MapScale* mapScale)
   ui::VBox* vbox = new ui::VBox();
   vbox->setPadding(10);
   vbox->setBackColor(0, 0, 0, 0.6);
-  vbox->addControl(new ui::LabelControl(s_title, 20, osg::Vec4f(1, 1, 0, 1)));
-  vbox->addControl(new ui::LabelControl(s_help, 14, osg::Vec4f(.8, .8, .8, 1)));
+  vbox->addControl(new ui::LabelControl(s_title, 20, simVis::Color::Yellow));
+  vbox->addControl(new ui::LabelControl(s_help, 14, simVis::Color::Silver));
 
   ui::Grid* grid = new ui::Grid;
   grid->setMargin(0);

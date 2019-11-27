@@ -21,6 +21,9 @@
  */
 #include <QtCore/QtPlugin>
 #include "ColorButtonPlugin.h"
+#ifdef HAVE_OSG
+#include "ColorGradientWidgetPlugin.h"
+#endif
 #include "ColorWidgetPlugin.h"
 #include "CategoryDataBreadcrumbsPlugin.h"
 #include "CategoryFilterWidgetPlugin.h"
@@ -38,6 +41,7 @@
 #include "SearchLineEditPlugin.h"
 #include "TimeWidgetPlugin.h"
 #include "TimeButtonsPlugin.h"
+#include "UnitsSelectorComboBoxPlugin.h"
 #include "simQtDesignerPlugins.h"
 
 simQtDesignerPlugins::simQtDesignerPlugins(QObject* parent) : QObject(parent)
@@ -47,6 +51,9 @@ simQtDesignerPlugins::simQtDesignerPlugins(QObject* parent) : QObject(parent)
   widgetFactories_.append(new CategoryFilterWidgetPlugin(this));
   widgetFactories_.append(new CategoryFilterWidget2Plugin(this));
   widgetFactories_.append(new ColorButtonPlugin(this));
+#ifdef HAVE_OSG
+  widgetFactories_.append(new ColorGradientWidgetPlugin(this));
+#endif
   widgetFactories_.append(new ColorWidgetPlugin(this));
   widgetFactories_.append(new DataTableComboBoxPlugin(this));
   widgetFactories_.append(new DirectorySelectorWidgetPlugin(this));
@@ -61,6 +68,7 @@ simQtDesignerPlugins::simQtDesignerPlugins(QObject* parent) : QObject(parent)
   widgetFactories_.append(new SearchLineEditPlugin(this));
   widgetFactories_.append(new TimeButtonsPlugin(this));
   widgetFactories_.append(new TimeWidgetPlugin(this));
+  widgetFactories_.append(new UnitsSelectorComboBoxPlugin(this));
 }
 
 QList<QDesignerCustomWidgetInterface*> simQtDesignerPlugins::customWidgets() const

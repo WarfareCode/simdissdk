@@ -19,8 +19,8 @@
  * disclose, or release this software.
  *
  */
-#include "osgEarthUtil/Controls"
-#include "osgEarthUtil/Sky"
+#include "osgEarth/Controls"
+#include "osgEarth/Sky"
 #include "osgEarthDrivers/sky_simple/SimpleSkyOptions"
 #include "osgEarthDrivers/sky_gl/GLSkyOptions"
 
@@ -94,8 +94,9 @@ struct AppData
   void applyAmbient()
   {
     float mag = ambient->getValue();
+
     if (sceneManager->getSkyNode() != NULL)
-      sceneManager->getSkyNode()->setMinimumAmbient(osg::Vec4f(mag, mag, mag, 1.f));
+      sceneManager->getSkyNode()->getSunLight()->setAmbient(osg::Vec4f(mag, mag, mag, 1.f));
   }
 
   /** Changes the current sky model */
@@ -181,20 +182,20 @@ private:
   }
 
   /** Given a Config, creates a Sky node */
-  osgEarth::Util::SkyNode* createSky_(const osgEarth::Config& options)
+  osgEarth::SkyNode* createSky_(const osgEarth::Config& options)
   {
-    return osgEarth::Util::SkyNode::create(ConfigOptions(options), sceneManager->getMapNode());
+    return osgEarth::SkyNode::create(ConfigOptions(options));
   }
 
   /** Given a Config, creates and attaches a sky node */
-  void setSky_(osgEarth::Util::SkyNode* sky)
+  void setSky_(osgEarth::SkyNode* sky)
   {
     sceneManager->setSkyNode(sky);
     // Calling setSceneManager forces the sky to reattach
     mainView->setSceneManager(sceneManager.get());
     // Assign a date/time to the sky to initialize it
     if (sky)
-      sky->setDateTime(osgEarth::Util::DateTime(2014, 4, 22, 16.5));
+      sky->setDateTime(osgEarth::DateTime(2014, 4, 22, 16.5));
   }
 
   /** Current value for the Sky Model */
@@ -232,7 +233,7 @@ Control* createUi(AppData& app)
   VBox* vbox = new VBox;
   vbox->setPadding(10);
   vbox->setBackColor(0, 0, 0, 0.4);
-  vbox->addControl(new LabelControl("Sky Model Example", 20, osg::Vec4f(1, 1, 0, 1)));
+  vbox->addControl(new LabelControl("Sky Model Example", 20.f, simVis::Color::Yellow));
 
   osg::ref_ptr<Grid> grid = vbox->addControl(new Grid());
   unsigned int row = 0;
@@ -248,7 +249,7 @@ Control* createUi(AppData& app)
   grid->setControl(col, row, new LabelControl("Model"));
   app.skyModelSlider = grid->setControl(col + 1, row, new HSliderControl(0.0f, 3.0f, static_cast<float>(INITIAL_SKY_MODEL), new ApplySkyModel(app)));
   app.skyModelSlider->setHorizFill(true, 250.0);
-  app.skyModelText = grid->setControl(col + 2, row, new LabelControl("Sky Model", osg::Vec4f(1.f, 1.f, 1.f, 1.f)));
+  app.skyModelText = grid->setControl(col + 2, row, new LabelControl("Sky Model", simVis::Color::White));
 
   return vbox;
 }

@@ -9,13 +9,20 @@ project(SimQt_UnitTests)
 
 set(SimQtTestsSourceList
     ActionRegistryTest.cpp
-    QColorTest.cpp
+    GradientTest.cpp
     SettingsTest.cpp
     PersistentLoggerTest.cpp
+    SegmentedTextsTest.cpp
 )
 if(TARGET simData)
     list(APPEND SimQtTestsSourceList
         RangeToRegExpTest.cpp
+    )
+endif()
+if(TARGET simVis)
+    # QColorTest requires QtConversion.h, which requires osg/Vec4
+    list(APPEND SimQtTestsSourceList
+        QColorTest.cpp
     )
 endif()
 
@@ -36,9 +43,13 @@ set_target_properties(SimQtTests PROPERTIES
 VSI_QT_USE_MODULES(SimQtTests LINK_PRIVATE Widgets)
 
 add_test(NAME ActionRegistryTest COMMAND SimQtTests ActionRegistryTest)
-add_test(NAME QColorTest COMMAND SimQtTests QColorTest)
 add_test(NAME SettingsTest COMMAND SimQtTests SettingsTest)
 add_test(NAME PersistentLoggerTest COMMAND SimQtTests PersistentLoggerTest)
+add_test(NAME GradientTest COMMAND SimQtTests GradientTest)
+add_test(NAME SegmentedTextsTest COMMAND SimQtTests SegmentedTextsTest)
 if(TARGET simData)
     add_test(NAME RangeToRegExpTest COMMAND SimQtTests RangeToRegExpTest)
+endif()
+if(TARGET simVis)
+    add_test(NAME QColorTest COMMAND SimQtTests QColorTest)
 endif()

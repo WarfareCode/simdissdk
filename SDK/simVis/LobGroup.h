@@ -22,17 +22,20 @@
 #ifndef SIMVIS_LOB_GROUP_H
 #define SIMVIS_LOB_GROUP_H
 
-#include "simData/DataTable.h"
+#include "simData/DataTypes.h"
 #include "simVis/Entity.h"
 #include "simVis/Constants.h"
 
 namespace simCore { class CoordinateConverter; }
+namespace simData {
+  class DataStore;
+  class DataTable;
+}
 
 namespace simVis
 {
 class AnimatedLineNode;
 class EntityLabelNode;
-class LabelContentCallback;
 class LocalGridNode;
 
 /**
@@ -72,14 +75,8 @@ public:
   */
   void setPrefs(const simData::LobGroupPrefs &prefs);
 
-  /**
-  * Sets a custom callback that will be used to generate the string that goes in the label.
-  * @param callback Callback that will generate content; if NULL will only display platform name/alias
-  */
-  void setLabelContentCallback(LabelContentCallback* callback);
-
-  /// Returns current content callback
-  LabelContentCallback* labelContentCallback() const;
+  /** Retrieves the currently visible end points */
+  void getVisibleEndPoints(std::vector<osg::Vec3d>& ecefVec) const;
 
 public: // EntityNode interface
   /**
@@ -100,9 +97,10 @@ public: // EntityNode interface
   */
   virtual const std::string getEntityName(EntityNode::NameType nameType, bool allowBlankAlias = false) const;
 
+  /// Returns the pop up text based on the label content callback, update and preference
+  virtual std::string popupText() const;
   /// Returns the hook text based on the label content callback, update and preference
   virtual std::string hookText() const;
-
   /// Returns the legend text based on the label content callback, update and preference
   virtual std::string legendText() const;
 
@@ -156,7 +154,6 @@ public: // EntityNode interface
 
 private: // types
   class Cache;
-  class InternalTableObserver;
 
 private: // methods
   /** Copy constructor, not implemented or available. */
@@ -171,10 +168,6 @@ private: // methods
   void applyPlatformCoordClamping_(simCore::Coordinate& platformCoord);
   /// apply clamping to this endpoint coordinate. Assumes coord is XEAST
   void applyEndpointCoordClamping_(simCore::Coordinate& endpointCoord);
-  /// initialize the data table id for the internal draw style data table. returns 0 on success, non-zero otherwise
-  int initializeTableId_();
-  /// update drawing for changes
-  void refresh_(const simData::LobGroupUpdate* newUpdate, const simData::LobGroupPrefs* newPrefs);
 
   /// get the value for the specified colume from the specified data table, at the specified time. Returns 0 on success, non-zero on failure
   template <class T>
@@ -209,8 +202,6 @@ private: // data
   simData::DataStore &ds_;
   /// Host platform ID
   simData::ObjectId hostId_;
-  /// cache the table id for the data table with draw style history
-  simData::TableId drawStyleTableId_;
 
   /// Cache of lines drawn
   Cache *lineCache_;
@@ -219,12 +210,11 @@ private: // data
 
   /// The actual label for displaying
   osg::ref_ptr<EntityLabelNode> label_;
-  /// The callback to create the label contents
-  osg::ref_ptr<LabelContentCallback> contentCallback_;
-  /// observer for when the internal draw style data table is added/removed
-  simData::DataTableManager::ManagerObserverPtr internalTableObserver_;
   /// Cache state to optimize call
   bool lastFlashingState_;
+
+  /// Tag used for picking
+  unsigned int objectIndexTag_;
 };
 
 }

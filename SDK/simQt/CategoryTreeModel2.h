@@ -44,6 +44,7 @@ namespace simQt {
 class AsyncCategoryCounter;
 class CategoryProxyModel;
 struct CategoryCountResults;
+class Settings;
 
 /**
 * Container class that keeps track of a set of pointers.  The container is indexed to
@@ -70,8 +71,6 @@ public:
   int size() const;
   /** Adds an item into the container.  Must be a unique item. */
   void push_back(T* item);
-  /** Removes all items from container; does not delete memory. */
-  void clear();
   /** Convenience method to delete each item, then clear(). */
   void deleteAll();
 
@@ -94,13 +93,16 @@ public:
   void setDataStore(simData::DataStore* dataStore);
   /** Retrieves the category filter.  Only call this if the Data Store has been set. */
   const simData::CategoryFilter& categoryFilter() const;
+  /** Sets the settings and the key prefix for saving and loading the locked states */
+  void setSettings(Settings* settings, const QString& settingsKeyPrefix);
 
   /** Enumeration of user roles supported by data() */
   enum {
     ROLE_SORT_STRING = Qt::UserRole,
     ROLE_EXCLUDE,
     ROLE_CATEGORY_NAME,
-    ROLE_REGEXP_STRING
+    ROLE_REGEXP_STRING,
+    ROLE_LOCKED_STATE
   };
 
   // QAbstractItemModel overrides
@@ -139,6 +141,11 @@ private:
   void clearTree_();
   /** Retrieve the CategoryItem representing the name provided. */
   CategoryItem* findNameTree_(int nameInt) const;
+  /**
+  * Update the locked state of the specified category if its name appears in the lockedCategories list.
+  * This method should only be called on data that is updating, since it doesn't emit its own signal for a data change
+  */
+  void updateLockedState_(const QStringList& lockedCategories, CategoryItem& category);
 
   /** Quick-search vector of category tree items */
   simQt::IndexedPointerContainer<CategoryItem> categories_;
@@ -156,6 +163,11 @@ private:
 
   /** Font used for the Category Name tree items */
   QFont* categoryFont_;
+
+  /** Ptr to settings for storing locked states */
+  Settings* settings_;
+  /** Key for accessing the setting */
+  QString settingsKey_;
 };
 
 /**
@@ -243,6 +255,8 @@ public:
   void setDataStore(simData::DataStore* dataStore);
   /** Retrieves the category filter.  Only call this if the Data Store has been set. */
   const simData::CategoryFilter& categoryFilter() const;
+  /** Sets the settings and the key prefix for saving and loading the locked states */
+  void setSettings(Settings* settings, const QString& settingsKeyPrefix);
 
   /** Returns true if the entity count should be shown next to values. */
   bool showEntityCount() const;
@@ -264,8 +278,6 @@ signals:
   void filterEdited(const simData::CategoryFilter& filter);
 
 private slots:
-  /** Expand the given index from the model if filtering */
-  void expandDueToModel_(const QModelIndex& parentIndex, int to, int from);
   /** Expand the given index from the proxy if filtering */
   void expandDueToProxy_(const QModelIndex& parentIndex, int to, int from);
   /** Conditionally expand tree after filter edited. */
@@ -282,8 +294,16 @@ private slots:
   void setRegularExpression_();
   /** Clears the regular expression on the item saved from showContextMenu_ */
   void clearRegularExpression_();
+  /** Locks the current category saved from the showContextMenu_ */
+  void toggleLockCategory_();
+  /** Expands all unlocked categories */
+  void expandUnlockedCategories_();
+  /** Start a recount of the category values if countDirty_ is true */
+  void recountCategories_();
 
 private:
+  class DataStoreListener;
+
   /** The tree */
   QTreeView* treeView_;
   /** Hold the category data */
@@ -300,6 +320,12 @@ private:
   QAction* setRegExpAction_;
   /** Action used for clearing regular expressions */
   QAction* clearRegExpAction_;
+  /** Action used for toggling the lock state of a category */
+  QAction* toggleLockCategoryAction_;
+  /** Listener for datastore entity events */
+  std::shared_ptr<DataStoreListener> dsListener_;
+  /** If true then the category counts need to be redone */
+  bool countDirty_;
 };
 
 }

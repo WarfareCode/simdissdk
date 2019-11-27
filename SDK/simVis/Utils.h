@@ -29,21 +29,22 @@
 #include "simData/DataStore.h"
 #include "simData/DataTypes.h"
 
-#include "osg/NodeCallback"
-#include "osg/Geometry"
-#include "osg/Quat"
-#include "osg/Matrix"
 #include "osg/BoundingBox"
+#include "osg/Geometry"
+#include "osg/Matrix"
+#include "osg/NodeCallback"
+#include "osg/Quat"
+#include "osg/Transform"
 #include "osgGA/GUIEventHandler"
 #include "osgText/Text"
 
+#include "osgEarth/Color"
 #include "osgEarth/GeoData"
 #include "osgEarth/MapNode"
 #include "osgEarth/SpatialReference"
 #include "osgEarth/Units"
 #include "osgEarth/Registry"
 #include "osgEarth/ShaderFactory"
-#include "osgEarthSymbology/Color"
 
 // MACROS to test for changes in protobuf properties.
 
@@ -92,6 +93,8 @@
     PB_BOTH_HAVE_SUBFIELD((a), (b), first, second) && \
     (a)->first().second() != (b)->first().second() ) )
 
+namespace osgEarth { class LineDrawable; }
+
 namespace osgViewer {
   class StatsHandler;
   class View;
@@ -101,10 +104,12 @@ namespace simVis
 {
   class PlatformModelNode;
 
+#ifdef USE_DEPRECATED_SIMDISSDK_API
   /**
    * Whether to use the REX terrain engine.
    */
-  SDKVIS_EXPORT bool useRexEngine();
+  SDK_DEPRECATE(SDKVIS_EXPORT bool useRexEngine(), "Method will be removed in a future SDK release.");
+#endif
 
   /**
    * Enable or disable lighting on a state set. We must set both the
@@ -155,6 +160,25 @@ namespace simVis
     /// osg::Referenced-derived
     virtual ~NodeUpdateCallback() {}
   };
+
+  /**
+   * Utility template method to find the first Update Callback of the given type.
+   * @param node Node to search the update callback chain of
+   * @return First update callback that is of type T, or NULL if none is found.
+   */
+  template <typename T>
+  T* findUpdateCallbackOfType(osg::Node* node)
+  {
+    osg::Callback* callback = node->getUpdateCallback();
+    while (callback)
+    {
+      T* asType = dynamic_cast<T*>(callback);
+      if (asType)
+        return asType;
+      callback = callback->getNestedCallback();
+    }
+    return NULL;
+  }
 
   /// convert a simCore::Coordinate to a GeoPoint, if possible
   SDKVIS_EXPORT bool convertCoordToGeoPoint(
@@ -228,7 +252,7 @@ namespace simVis
   * @return string  full path of file
   * @deprecated Use simVis::Registry::findFontFile() instead.
   */
-  SDKVIS_EXPORT std::string findFontFile(const std::string& fontFile);
+  SDK_DEPRECATE(SDKVIS_EXPORT std::string findFontFile(const std::string& fontFile), "Method will be removed in future SDK release.");
 #endif
 
   /**
@@ -422,8 +446,12 @@ namespace simVis
   class SDKVIS_EXPORT VectorScaling
   {
   public:
-    /** Generates scene points between start and end (inclusive), using numPointsPerLine */
-    static void generatePoints(osg::Vec3Array& vertices, const osg::Vec3& start, const osg::Vec3& end, int numPointsPerLine);
+    /** Generates scene points between start and end (inclusive) to fill a VertexArray's vertex allocation, setting all vertices to new values */
+    static void generatePoints(osg::Vec3Array& vertices, const osg::Vec3& start, const osg::Vec3& end);
+
+    /** Generates scene points between start and end (inclusive) to fill a LineDrawable's vertex allocation, setting all vertices in the LineDrawable to new values */
+    static void generatePoints(osgEarth::LineDrawable& line, const osg::Vec3& start, const osg::Vec3& end);
+
     /** Returns true if one of the prefs has changed that impacts vector scaling (requiring line rebuild) */
     static bool fieldsChanged(const simData::PlatformPrefs& lastPrefs, const simData::PlatformPrefs& newPrefs);
     /** Returns the line length of the platform node's vector, based on axis scale and model size */
@@ -635,6 +663,81 @@ namespace simVis
 
   private:
     StatsTimer statsTimer_;
+  };
+
+  /** Simple visitor that removes the provided Mode from all statesets. */
+  class SDKVIS_EXPORT RemoveModeVisitor : public osg::NodeVisitor
+  {
+  public:
+    /** Remove the mode provided from nodes visited */
+    explicit RemoveModeVisitor(GLenum mode);
+
+    /** Override apply(osg::Node&) to remove from all statesets */
+    virtual void apply(osg::Node& node);
+
+  private:
+    GLenum mode_;
+  };
+
+  /**
+   * In OpenGL 3.2, various geometry draw modes that were previously deprecated were finally
+   * removed.  A core profile implementation does not have the capability to render these
+   * deprecated draw modes.  This visitor is responsible for detecting any geometry with
+   * deprecated draw modes and convert them into triangle strips, which are not deprecated.
+   * This is more efficient than using osgUtil::TriStripVisitor directly because it is only
+   * executed on geometry that actually contains deprecated modes, rather than all geometry.
+   *
+   * The deprecated modes that this class handles are GL_POLYGON, GL_QUADS, and GL_QUAD_STRIPS.
+   *
+   * Usage:
+   *   FixDeprecatedDrawModes visitor;
+   *   node->accept(visitor);
+   */
+  class SDKVIS_EXPORT FixDeprecatedDrawModes : public osg::NodeVisitor
+  {
+  public:
+    /** Default constructor */
+    FixDeprecatedDrawModes();
+
+    /** Override apply() to detect GL3-incompatible draw modes on primitive sets */
+    virtual void apply(osg::Geometry& geom);
+  };
+
+  /** Turns a DOF transform's animation on or off. */
+  class SDKVIS_EXPORT EnableDOFTransform : public osg::NodeVisitor
+  {
+  public:
+    explicit EnableDOFTransform(bool enabled);
+    virtual void apply(osg::Node& node);
+
+  private:
+    bool enabled_;
+  };
+
+  /**
+   * Utility class that is intended to do a transform to screen coordinates, backing out MVPW.
+   * This is similar to osg::AutoTransform but does not attempt to maintain an aspect ratio,
+   * instead preferring to back out to pixel scale in both the X and the Y axes.
+   */
+  class SDKVIS_EXPORT PixelScaleHudTransform : public osg::Transform
+  {
+  public:
+    PixelScaleHudTransform();
+    PixelScaleHudTransform(const PixelScaleHudTransform& rhs, const osg::CopyOp& copyop = osg::CopyOp::SHALLOW_COPY);
+    META_Node(simVis, PixelScaleHudTransform);
+
+    /** Override osg::Transform method. */
+    virtual bool computeLocalToWorldMatrix(osg::Matrix& matrix, osg::NodeVisitor* nv) const;
+    /** Override osg::Transform method. */
+    virtual bool computeWorldToLocalMatrix(osg::Matrix& matrix, osg::NodeVisitor* nv) const;
+
+  private:
+    /** Computes the inverse of the MVPW and saves it */
+    osg::Matrixd computeMatrix_(osg::NodeVisitor* nv) const;
+
+  private:
+    /** Model-View Projection Window matrix, inverted for performance.  Mutable for caching. */
+    mutable osg::Matrixd invertedMvpw_;
   };
 
 } // namespace simVis

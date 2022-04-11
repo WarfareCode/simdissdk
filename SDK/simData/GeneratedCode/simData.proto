@@ -1,3 +1,4 @@
+syntax = "proto2";
 package simData;
 
 /**
@@ -217,6 +218,42 @@ enum CircleHilightShape {
   CH_SQUARE_RETICLE = 4;
 };
 
+/// Algorithm selection for Dynamic Scale
+enum DynamicScaleAlgorithm {
+
+  /**
+   * Traditional SIMDIS Dynamic Scaling algorithm.  When objects are far away, they are
+   * scaled to a relatively consistent size based on the maximum X Y or Z dimension of
+   * the model.  Therefore a large ship might appear the same size as a small biplane.
+   * This algorithm reverts to normal scaling when zoomed in closely to the entry.  The
+   * scaling is impacted by the static scale, dynamic scale scalar, and the dynamic
+   * scale offset.
+   */
+  DSA_CONSISTENT_SIZING = 0;
+
+  /**
+   * Directly map up the model's dimensions to pixels on the screen.  This means larger
+   * models will be larger on the screen, and smaller models will be smaller on the screen.
+   * Combined with image icons, this makes an image icon appear as the same dimension as
+   * the source image, which DSA_CONSISTENT_SIZING cannot not guarantee.  As a result,
+   * zooming into an entity will not change its size, even as you get close to the object.
+   * Scaling is impacted by static scale and the dynamic scale scalar only.  Dynamic scale
+   * offset does not affect the displayed icon size with this algorithm.
+   */
+  DSA_METERS_TO_PIXELS = 1;
+}
+
+/// Animated Line bending preference
+enum AnimatedLineBend {
+
+  /** Automatic line bending. Lines are straight unless they would intersect the earth, in which case they bend. */
+  ALB_AUTO = 0;
+  /** Lines are always straight. */
+  ALB_STRAIGHT = 1;
+  /** Lines always bend. */
+  ALB_BEND = 2;
+}
+
 /// Coordinate system definition for scenario and platforms
 message CoordinateFrame {
   /// Coordinate system flag.  SIMDIS SDK stores all data internally as ECEF; this is only descriptive for input/output
@@ -251,6 +288,42 @@ message CoordinateFrame {
   optional TangentPlaneOffsets tangentPlaneOffset = 8;
 };
 
+/// preferences for the display of platform time ticks
+message TimeTickPrefs {
+  enum DrawStyle {
+    NONE = 0;  ///< Do not draw time ticks
+    POINT = 1; ///< draw ticks as points
+    LINE = 2;  ///< draw ticks as lines
+  };
+  /// Indicates how to render time ticks
+  optional DrawStyle drawStyle = 1 [default = NONE];
+
+  /// default color is translucent white
+  optional fixed32 color = 2 [default = 0xFFFFFF99];
+  /// time tick interval in seconds
+  optional double interval = 3 [default = 10.0];
+  /// defines interval to draw the tick larger, draws at multiple of the tick interval; 0 means no large ticks
+  optional uint32 largeIntervalFactor = 4 [default = 6];
+
+  /// defines interval to draw a label on the tick, draws at a multiple of the tick interval; 0 means no labels
+  optional uint32 labelIntervalFactor = 5 [default = 6];
+  /// Font name to use for the labels
+  optional string labelFontName = 6 [default = "arial.ttf"];
+  /// Size of the text in the given font for time tick labels
+  optional fixed32 labelFontPointSize = 7 [default = 12];
+  /// Label color; if 0, then use the "color" field
+  optional fixed32 labelColor = 13 [default = 0x00000000];
+
+  /// tick line length in meters
+  optional double lineLength = 8 [default = 40];
+  /// defines how big to draw the large line tick or the point tick, draws large tick as a multiple of lineLength and large point tick as a multiple of lineWidth
+  optional uint32 largeSizeFactor = 9 [default = 2];
+  /// format for the time shown in the label text
+  optional ElapsedTimeFormat labelTimeFormat = 10 [default = ELAPSED_HOURS];
+  /// line and point width for drawing the time ticks
+  optional double lineWidth = 11 [default = 2];
+};
+
 /// preferences for the display of platform tracks
 message TrackPrefs {
    /// off-white, the default color to use for track history. Track color history at time is defined in a data table, simData::INTERNAL_TRACK_HISTORY_TABLE, in column simData::INTERNAL_TRACK_HISTORY_COLOR_COLUMN
@@ -277,6 +350,7 @@ message TrackPrefs {
   };
 
   optional Mode trackDrawMode = 11 [default = POINT];
+  optional TimeTickPrefs timeTicks = 12;
 };
 
 /// define the text outline style
@@ -566,6 +640,11 @@ message CommonPrefs {
 
   /// Control Legend display; this may get replaced by more detailed control of legends
   optional bool includeInLegend = 13 [default = false];
+
+  // 14 is deprecated acceptProjectorId field; instead, use acceptProjectorIds
+
+  /// Current accepted projector IDs; may contain up to 4 projector IDs
+  repeated uint64 acceptProjectorIds = 15;
 };
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -685,7 +764,7 @@ message PlatformPrefs {
   /// Automatically use the platform's orientation clamp values at extremely low velocity.
   optional bool clampOrientationAtLowVelocity = 60 [default = false];
 
-  // Keep platform clamp to the surface
+  /// Keep platform clamp to the surface
   optional bool surfaceClamping = 61 [default = false];
   /// Keep platform above the surface
   optional bool aboveSurfaceClamping = 69 [default = false];
@@ -754,13 +833,16 @@ message PlatformPrefs {
   optional bool dynamicScale = 41 [default = false];
   optional double dynamicScaleOffset = 42 [default = 0.0];
   optional double dynamicScaleScalar = 43 [default = 1.0];
+  optional DynamicScaleAlgorithm dynamicScaleAlgorithm = 74 [default = DSA_METERS_TO_PIXELS];
 
   /// Toggle velocity vector
   optional bool drawVelocityVec = 44 [default = false];
+  /// Color for the velocity vector line
+  optional fixed32 velVecColor = 72 [default = 0xFF8000FF];
+
   /// Toggle between static length and length based on time
   optional bool velVecUseStaticLength = 45 [default = true];
-
-  /// Sets the length of the velocity vector, in velVecSlUnits
+  /// Sets the length of the velocity vector, in velVecStaticLenUnits
   optional double velVecStaticLen = 46 [default = 0.5];
   /// Velocity vector length's distance units
   optional DistanceUnits velVecStaticLenUnits = 47 [default = UNITS_NAUTICAL_MILES];
@@ -823,6 +905,9 @@ message PlatformPrefs {
 
   /// Automatic animation of Degree-of-Freedom nodes is enabled or disabled
   optional bool animateDofNodes = 70 [default = false];
+
+  /// Toggles whether the platform data should be interpreted as Earth-Fixed or Inertial
+  optional bool eciDataMode = 73 [default = false];
 };
 
 /// timed update to platform prefs; commands override prefs
@@ -1228,6 +1313,11 @@ message CustomRenderingPrefs {
    * Not all renderers support this field.
    */
   optional fixed32 historyOverrideColor = 7 [default = 0x19E500FF];
+  /// If true, show center axis inside the shape. Shape color must be semitransparent.  Not all renderers support this field.
+  optional bool centerAxis = 8 [default = false];
+  /// If true, show a lighted shape.  Not all renderers support this field
+  optional bool showLighted = 9 [default = false];
+
 };
 
 /// common update to Custom Rendering data
@@ -1276,12 +1366,19 @@ message ProjectorPrefs {
   optional bool overrideFov = 6 [default = false];
   /// Field of view for projector in radians, if overrideFov is true (default is ~10 degrees)
   optional double overrideFovAngle = 7 [default = 0.174533];
+
+  /// Determine if the projector should use shadow mapping
+  optional bool shadowMapping = 8 [default = false];
+  /// Maximum distance from projector at which to draw projected image (<=0 means no limiting)
+  optional float maxDrawRange = 9 [default = 0.0];
+  /// Whether to project on backfacing geometry as well as front
+  optional bool doubleSided = 10 [default = false];
 };
 
 /// common update to projector data
 message ProjectorUpdate {
   optional double time = 1;
-  // Projector field of view: radians
+  /// Projector field of view: radians
   optional double fov = 2;
 };
 
@@ -1343,6 +1440,9 @@ message LobGroupPrefs {
   optional bool useRangeOverride = 11 [default = false];
   /// Value to use for range (m) when overriding
   optional double rangeOverrideValue = 12 [default = 1000.0];
+
+  /// Line bending preference
+  optional AnimatedLineBend bending = 13 [default = ALB_AUTO];
 };
 
 /// update data point for line of bearing (LOB) group

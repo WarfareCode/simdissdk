@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,13 +24,10 @@
 #define SIMVIS_DBFORMAT_H
 
 #include <string>
-#include "osgEarth/ImageLayer"
-#include "osgEarth/ElevationLayer"
+#include "osgEarth/TileSourceImageLayer"
+#include "osgEarth/TileSourceElevationLayer"
 #include "osgEarth/URI"
 #include "simCore/Common/Common.h"
-#include "simCore/Common/Export.h"
-#include "simCore/Time/TimeClass.h"
-#include "simVis/DBOptions.h"
 
 namespace simVis
 {
@@ -43,7 +41,8 @@ public: // serialization
   class SDKVIS_EXPORT Options : public osgEarth::ImageLayer::Options {
   public:
     META_LayerOptions(simVis, Options, osgEarth::ImageLayer::Options);
-    OE_OPTION(simVis::DBOptions, driver);
+    OE_OPTION(osgEarth::URI, url);
+    OE_OPTION(unsigned int, deepestLevel);
     virtual osgEarth::Config getConfig() const;
   private:
     void fromConfig(const osgEarth::Config&);
@@ -58,8 +57,8 @@ public:
   const osgEarth::URI& getURL() const;
 
   /// Maximum level to use in DB file
-  void setDeepestLevel(const unsigned int& value);
-  const unsigned int& getDeepestLevel() const;
+  void setDeepestLevel(unsigned int value);
+  unsigned int getDeepestLevel() const;
 
 public: // Layer
 
@@ -74,11 +73,12 @@ protected: // Layer
   /// Called by constructors
   virtual void init();
 
-  /// Create and return the underlying TileSource
-  virtual osgEarth::TileSource* createTileSource();
-
   /// Destructor
-  virtual ~DBImageLayer() { }
+  virtual ~DBImageLayer();
+
+private:
+  /// DBContext instance, a struct that maintains per-DB parameters and persistent data
+  void* context_;
 };
 
 /**
@@ -90,7 +90,8 @@ public: // serialization
   class SDKVIS_EXPORT Options : public osgEarth::ElevationLayer::Options {
   public:
     META_LayerOptions(simVis, Options, osgEarth::ElevationLayer::Options);
-    OE_OPTION(simVis::DBOptions, driver);
+    OE_OPTION(osgEarth::URI, url);
+    OE_OPTION(unsigned int, deepestLevel);
     virtual osgEarth::Config getConfig() const;
   private:
     void fromConfig(const osgEarth::Config&);
@@ -104,8 +105,8 @@ public:
   const osgEarth::URI& getURL() const;
 
   /// Maximum level to use in DB file
-  void setDeepestLevel(const unsigned int& value);
-  const unsigned int& getDeepestLevel() const;
+  void setDeepestLevel(unsigned int value);
+  unsigned int getDeepestLevel() const;
 
 public: // Layer
 
@@ -117,14 +118,15 @@ public: // Layer
 
 protected: // Layer
 
-    /// Called by constructors
+  /// Called by constructors
   virtual void init();
 
-  /// Create and return the underlying TileSource
-  virtual osgEarth::TileSource* createTileSource();
-
   /// Destructor
-  virtual ~DBElevationLayer() { }
+  virtual ~DBElevationLayer();
+
+private:
+  /// DBContext instance, a struct that maintains per-DB parameters and persistent data
+  void* context_;
 };
 
 }

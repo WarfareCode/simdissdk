@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -59,6 +60,7 @@
 /// paths to models
 #include "simUtil/ExampleResources.h"
 
+#include "osgDB/ReadFile"
 #include "osgEarth/LatLongFormatter"
 #include "osgEarth/MGRSFormatter"
 #include "osgEarth/StringUtils"
@@ -68,7 +70,13 @@
 
 using namespace osgEarth;
 using namespace osgEarth::Util;
+
+#ifdef HAVE_IMGUI
+#include "BaseGui.h"
+#include "OsgImGuiHandler.h"
+#else
 using namespace osgEarth::Util::Controls;
+#endif
 
 namespace
 {
@@ -125,6 +133,35 @@ static const std::string s_help =
   " O : toggle overhead mode\n"
   " C : toggle overhead clamping\n";
 
+#ifdef HAVE_IMGUI
+struct ControlPanel : public GUI::BaseGui
+{
+public:
+  ControlPanel()
+    : GUI::BaseGui(s_title)
+  {
+  }
+
+  void setText(const std::string& text)
+  {
+    text_ = text;
+  }
+
+  void draw(osg::RenderInfo& ri) override
+  {
+    ImGui::SetNextWindowPos(ImVec2(15, 15));
+    ImGui::SetNextWindowBgAlpha(.6f);
+    ImGui::Begin(name(), 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::TextUnformatted(s_help.c_str());
+    if (!text_.empty())
+      ImGui::TextColored(ImVec4(0.f, 1.f, 0.f, 1.f), text_.c_str());
+    ImGui::End();
+  }
+
+private:
+  std::string text_;
+};
+#else
 /// keep a handle, for toggling
 static osg::ref_ptr<Control>      s_helpControl;
 static osg::ref_ptr<LabelControl> s_action;
@@ -141,6 +178,7 @@ static Control* createHelp()
   s_helpControl = vbox;
   return vbox;
 }
+#endif
 
 //----------------------------------------------------------------------------
 /// event handler for keyboard commands to alter symbology at runtime
@@ -158,7 +196,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
   )
   : scenario_(scenario),
     view_(view),
-    tetherNode_(NULL),
+    tetherNode_(nullptr),
     labelPos_(0),
     beamMode_(0),
     platformId_(platformId),
@@ -179,6 +217,23 @@ struct MenuHandler : public osgGA::GUIEventHandler
                                    0xff0000ff;   // White to red
   }
 
+#ifdef HAVE_IMGUI
+  void setImGuiControlPanel(ControlPanel* controlPanel)
+  {
+    controlPanel_ = controlPanel;
+  }
+#endif
+
+  void setText(const std::string& text)
+  {
+#ifdef HAVE_IMGUI
+    if (controlPanel_)
+      controlPanel_->setText(text);
+#else
+    s_action->setText(text);
+#endif
+  }
+
   /// callback to process user input
   bool handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa)
   {
@@ -192,25 +247,25 @@ struct MenuHandler : public osgGA::GUIEventHandler
     {
       case '!': // rotate|pan
         view_->setNavigationMode(simVis::NAVMODE_ROTATEPAN);
-        s_action->setText("Switched to NAVMODE_ROTATEPAN");
+        setText("Switched to NAVMODE_ROTATEPAN");
         handled = true;
         break;
 
       case '@': // globe spin
         view_->setNavigationMode(simVis::NAVMODE_GLOBESPIN);
-        s_action->setText("Switched to NAVMODE_GLOBESPIN");
+        setText("Switched to NAVMODE_GLOBESPIN");
         handled = true;
         break;
 
       case '#': // zoom in|out
         view_->setNavigationMode(simVis::NAVMODE_ZOOM);
-        s_action->setText("Switched to NAVMODE_ZOOM");
+        setText("Switched to NAVMODE_ZOOM");
         handled = true;
         break;
 
       case '$': // center view
         view_->setNavigationMode(simVis::NAVMODE_CENTERVIEW);
-        s_action->setText("Switched to NAVMODE_CENTERVIEW");
+        setText("Switched to NAVMODE_CENTERVIEW");
         handled = true;
         break;
 
@@ -232,7 +287,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         localgrid->set_followpitch(false);
         localgrid->set_followroll(true);
 
-        s_action->setText(
+        setText(
           localgrid->gridtype() == simData::LocalGridPrefs_Type_CARTESIAN   ? "CARTESIAN" :
           localgrid->gridtype() == simData::LocalGridPrefs_Type_POLAR       ? "POLAR" :
           localgrid->gridtype() == simData::LocalGridPrefs_Type_RANGE_RINGS ? "RANGE RINGS" :
@@ -250,7 +305,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         double scale = prefs->scale() * 5;
         if (scale > 5000.0) scale = 1.0;
         prefs->set_scale(scale);
-        s_action->setText(Stringify() << "Set scale factor to " << scale);
+        setText(Stringify() << "Set scale factor to " << scale);
         xaction.complete(&prefs);
         handled = true;
       }
@@ -261,7 +316,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::DataStore::Transaction xaction;
         simData::PlatformPrefs* prefs = dataStore_->mutable_platformPrefs(platformId_, &xaction);
         prefs->set_dynamicscale(!prefs->dynamicscale());
-        s_action->setText(Stringify() << "Set dynamic scale to " << SAYBOOL(prefs->dynamicscale()));
+        setText(Stringify() << "Set dynamic scale to " << SAYBOOL(prefs->dynamicscale()));
         xaction.complete(&prefs);
         handled = true;
       }
@@ -273,7 +328,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::PlatformPrefs* prefs = dataStore_->mutable_platformPrefs(platformId_, &xaction);
         prefs->set_drawsunvec(!prefs->drawsunvec());
         prefs->set_drawmoonvec(!prefs->drawmoonvec());
-        s_action->setText(Stringify() << "Set ephemeris vectors to " << SAYBOOL(prefs->drawsunvec()));
+        setText(Stringify() << "Set ephemeris vectors to " << SAYBOOL(prefs->drawsunvec()));
         xaction.complete(&prefs);
         handled = true;
       }
@@ -284,7 +339,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::DataStore::Transaction xaction;
         simData::BeamPrefs* prefs = dataStore_->mutable_beamPrefs(beamId_, &xaction);
         prefs->set_shaded(!prefs->shaded());
-        s_action->setText(Stringify() << "Set beam lighting to " << SAYBOOL(prefs->shaded()));
+        setText(Stringify() << "Set beam lighting to " << SAYBOOL(prefs->shaded()));
         xaction.complete(&prefs);
         handled = true;
       }
@@ -295,7 +350,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::DataStore::Transaction xaction;
         simData::BeamPrefs* prefs = dataStore_->mutable_beamPrefs(beamId_, &xaction);
         prefs->set_blended(!prefs->blended());
-        s_action->setText(Stringify() << "Set beam blending to " << SAYBOOL(prefs->blended()));
+        setText(Stringify() << "Set beam blending to " << SAYBOOL(prefs->blended()));
         xaction.complete(&prefs);
         handled = true;
       }
@@ -312,7 +367,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
           oldMode == simData::BeamPrefs::SOLID ? simData::BeamPrefs::WIRE_ON_SOLID :
                                                  simData::BeamPrefs::WIRE);
 
-        s_action->setText(Stringify() << "Set beam draw mode to " << (
+        setText(Stringify() << "Set beam draw mode to " << (
           prefs->beamdrawmode() == simData::BeamPrefs::WIRE  ? "WIRE" :
           prefs->beamdrawmode() == simData::BeamPrefs::SOLID ? "SOLID" :
                                                            "WIRE_ON_SOLID"));
@@ -330,7 +385,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         //capRes = 1 + (capRes+1)%10;
         capRes = 1 + (capRes+1)%30;
         prefs->set_capresolution(capRes);
-        s_action->setText(Stringify() << "Set beam cap resolution to " << capRes);
+        setText(Stringify() << "Set beam cap resolution to " << capRes);
         xaction.complete(&prefs);
         handled = true;
       }
@@ -343,7 +398,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         unsigned coneRes = prefs->coneresolution();
         coneRes = 4 + ((coneRes-4)+1)%36;
         prefs->set_coneresolution(coneRes);
-        s_action->setText(Stringify() << "Set beam cone resolution to " << coneRes);
+        setText(Stringify() << "Set beam cone resolution to " << coneRes);
         xaction.complete(&prefs);
         handled = true;
       }
@@ -356,7 +411,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         float scale = prefs->beamscale() * 2.f;
         if (scale > 16.0f) scale = 1.0f;
         prefs->set_beamscale(scale);
-        s_action->setText(Stringify() << "Set beam scale to " << scale);
+        setText(Stringify() << "Set beam scale to " << scale);
         xaction.complete(&prefs);
         handled = true;
       }
@@ -367,7 +422,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::DataStore::Transaction xaction;
         simData::BeamPrefs* prefs = dataStore_->mutable_beamPrefs(beamId_, &xaction);
         prefs->set_useoffseticon(!prefs->useoffseticon());
-        s_action->setText(Stringify() << "Set beam auto-offset to " << SAYBOOL(prefs->useoffseticon()));
+        setText(Stringify() << "Set beam auto-offset to " << SAYBOOL(prefs->useoffseticon()));
         xaction.complete(&prefs);
         handled = true;
       }
@@ -378,7 +433,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::DataStore::Transaction xaction;
         simData::GatePrefs* prefs = dataStore_->mutable_gatePrefs(gateId_, &xaction);
         prefs->set_drawcentroid(!prefs->drawcentroid());
-        s_action->setText(Stringify() << "Set draw gate centroid to " << SAYBOOL(prefs->drawcentroid()));
+        setText(Stringify() << "Set draw gate centroid to " << SAYBOOL(prefs->drawcentroid()));
         xaction.complete(&prefs);
         handled = true;
       }
@@ -396,7 +451,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
           old == simData::GatePrefs::ALPHA    ? simData::GatePrefs::WIRE :
           /*old == simData::GatePrefs::WIRE   ? */ simData::GatePrefs::CENTROID);
 
-        s_action->setText(Stringify() << "Set gate fill pattern to " << (
+        setText(Stringify() << "Set gate fill pattern to " << (
           prefs->fillpattern() == simData::GatePrefs::CENTROID ? "CENTROID" :
           prefs->fillpattern() == simData::GatePrefs::STIPPLE  ? "STIPPLE"  :
           prefs->fillpattern() == simData::GatePrefs::ALPHA    ? "APLHA"    :
@@ -413,9 +468,9 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::PlatformPrefs* prefs = dataStore_->mutable_platformPrefs(platformId_, &xaction);
         prefs->set_drawcirclehilight(!prefs->drawcirclehilight());
         if (prefs->drawcirclehilight())
-          s_action->setText("Turned Highlight: On");
+          setText("Turned Highlight: On");
         else
-          s_action->setText("Turned Highlight: Off");
+          setText("Turned Highlight: Off");
         xaction.complete(&prefs);
         handled = true;
       }
@@ -429,7 +484,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         std::stringstream ss;
         ss << "Highlight RGBA: 0x" << std::hex << std::setfill('0') << std::setw(8) <<
           prefs->circlehilightcolor();
-        s_action->setText(ss.str());
+        setText(ss.str());
         xaction.complete(&prefs);
         handled = true;
       }
@@ -442,12 +497,12 @@ struct MenuHandler : public osgGA::GUIEventHandler
         if (prefs->icon() == EXAMPLE_AIRPLANE_ICON)
         {
           prefs->set_icon(EXAMPLE_IMAGE_ICON);
-          s_action->setText("Switched to image icon");
+          setText("Switched to image icon");
         }
         else
         {
           prefs->set_icon(EXAMPLE_AIRPLANE_ICON);
-          s_action->setText("Switched to 3D model");
+          setText("Switched to 3D model");
         }
         xaction.complete(&prefs);
         handled = true;
@@ -466,7 +521,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
           old == simData::IR_3D_NORTH ? simData::IR_3D_YAW :
           /*old == simData::IR_3D_YAW ? */  simData::IR_2D_UP);
 
-        s_action->setText(Stringify() << "Set icon rotate mode to " << (
+        setText(Stringify() << "Set icon rotate mode to " << (
           prefs->rotateicons() == simData::IR_2D_UP    ? "2D_UP (Billboard Pointing Up)" :
           prefs->rotateicons() == simData::IR_2D_YAW   ? "2D_YAW (Billboard with Yaw)" :
           prefs->rotateicons() == simData::IR_3D_YPR   ? "3D_YPR (Follow Platform)"   :
@@ -581,7 +636,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         else if (type == simData::BDT_OUTLINE)
           type = simData::BDT_SHADOW_BOTTOM_RIGHT;
 
-        s_action->setText(Stringify() << "Set backdrop type to\n" << (
+        setText(Stringify() << "Set backdrop type to\n" << (
           type == simData::BDT_SHADOW_BOTTOM_RIGHT ?  "SHADOW_BOTTOM_RIGHT" :
           type == simData::BDT_SHADOW_CENTER_RIGHT ?  "SHADOW_CENTER_RIGHT" :
           type == simData::BDT_SHADOW_TOP_RIGHT ?     "SHADOW_TOP_RIGHT" :
@@ -618,7 +673,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         else if (implementation == simData::BDI_DELAYED_DEPTH_WRITES)
           implementation = simData::BDI_POLYGON_OFFSET;
 
-        s_action->setText(Stringify() << "Set backdrop implementation to\n" << (
+        setText(Stringify() << "Set backdrop implementation to\n" << (
           implementation == simData::BDI_POLYGON_OFFSET ?  "POLYGON_OFFSET" :
           implementation == simData::BDI_NO_DEPTH_BUFFER ? "NO_DEPTH_BUFFER" :
           implementation == simData::BDI_DEPTH_RANGE ?     "DEPTH_RANGE" :
@@ -637,13 +692,13 @@ struct MenuHandler : public osgGA::GUIEventHandler
         {
           // save the current tether for restoration
           tetherNode_ = view_->getCameraTether();
-          view_->tetherCamera(NULL);
-          s_action->setText(Stringify() << "Tether OFF");
+          view_->tetherCamera(nullptr);
+          setText(Stringify() << "Tether OFF");
         }
         else
         {
           view_->tetherCamera(tetherNode_.get());
-          s_action->setText(Stringify() << "Tether ON");
+          setText(Stringify() << "Tether ON");
         }
 
         handled = true;
@@ -655,7 +710,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::DataStore::Transaction xaction;
         simData::LaserPrefs* prefs = dataStore_->mutable_laserPrefs(laserId_, &xaction);
         prefs->mutable_commonprefs()->set_draw(!prefs->commonprefs().draw());
-        s_action->setText(Stringify() << "Set laser to " << SAYBOOL(prefs->commonprefs().draw()));
+        setText(Stringify() << "Set laser to " << SAYBOOL(prefs->commonprefs().draw()));
         xaction.complete(&prefs);
       }
       break;
@@ -667,7 +722,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         unsigned color = prefs->commonprefs().color();
         unsigned new_color = cycleColorRgba(color);
         prefs->mutable_commonprefs()->set_color(new_color);
-        s_action->setText("Changed laser color");
+        setText("Changed laser color");
         xaction.complete(&prefs);
         handled = true;
       }
@@ -678,7 +733,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::DataStore::Transaction xaction;
         simData::PlatformPrefs* prefs = dataStore_->mutable_platformPrefs(platformId_, &xaction);
         prefs->set_drawvelocityvec(!prefs->drawvelocityvec());
-        s_action->setText(Stringify() << "Set velocity vector to " << SAYBOOL(prefs->drawvelocityvec()));
+        setText(Stringify() << "Set velocity vector to " << SAYBOOL(prefs->drawvelocityvec()));
         xaction.complete(&prefs);
         handled = true;
       }
@@ -689,18 +744,20 @@ struct MenuHandler : public osgGA::GUIEventHandler
         simData::DataStore::Transaction xaction;
         simData::PlatformPrefs* prefs = dataStore_->mutable_platformPrefs(platformId_, &xaction);
         prefs->set_drawbodyaxis(!prefs->drawbodyaxis());
-        s_action->setText(Stringify() << "Set body axis to " << SAYBOOL(prefs->drawbodyaxis()));
+        setText(Stringify() << "Set body axis to " << SAYBOOL(prefs->drawbodyaxis()));
         xaction.complete(&prefs);
         handled = true;
       }
       break;
 
+#ifndef HAVE_IMGUI
       case '?' : // toggle help
       {
         s_helpControl->setVisible(!s_helpControl->visible());
         handled = true;
       }
       break;
+#endif
     }
 
     return handled;
@@ -717,7 +774,11 @@ protected: // data
 
   simData::ObjectId platformId_, beamId_, gateId_, laserId_;
 
-  simData::DataStore *dataStore_;
+  simData::DataStore* dataStore_;
+
+#ifdef HAVE_IMGUI
+  ControlPanel* controlPanel_ = nullptr;
+#endif
 };
 
 //----------------------------------------------------------------------------
@@ -895,8 +956,8 @@ struct MyPopupCallback : public simVis::PopupContentCallback
 
     return osgEarth::Stringify()
       << std::fixed
-      << "Lat: " << llf.format(pos.y(), 2) << '\n'
-      << "Lon: " << llf.format(pos.x(), 2) << '\n'
+      << "Lat: " << llf.format(osgEarth::Angle(pos.y(), srs_->getUnits()), 2) << '\n'
+      << "Lon: " << llf.format(osgEarth::Angle(pos.x(), srs_->getUnits()), 2) << '\n'
       << std::setprecision(altP) << "Alt: " << pos.z() << "m" << '\n'
       << "MGRS: " << mgrs.format(pos);
   }
@@ -1003,24 +1064,28 @@ int main(int argc, char **argv)
   /// set the camera to look at the platform
   viewer->getMainView()->setFocalOffsets(0, -45, 4e5);
 
+  MenuHandler* menuHandler = new MenuHandler(scene->getScenario(), viewer->getMainView(), &dataStore, platformId,
+    beamId, gateId, laserId);
   /// handle key press events
-  viewer->addEventHandler(
-    new MenuHandler(
-      scene->getScenario(),
-      viewer->getMainView(),
-      &dataStore,
-      platformId,
-      beamId,
-      gateId,
-      laserId));
+  viewer->addEventHandler(menuHandler);
 
   /// hovering the mouse over the platform should trigger a popup
   osg::ref_ptr<simVis::PopupHandler> popupHandler = new simVis::PopupHandler(scene.get());
   popupHandler->setContentCallback(new MyPopupCallback(map->getProfile()->getSRS()));
   viewer->addEventHandler(popupHandler.get());
 
+#ifdef HAVE_IMGUI
+  ControlPanel* controlPanel = new ControlPanel();
+  menuHandler->setImGuiControlPanel(controlPanel);
+  // Pass in existing realize operation as parent op, parent op will be called first
+  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
+  GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
+  viewer->getMainView()->getEventHandlers().push_front(gui);
+  gui->add(controlPanel);
+#else
   /// show the instructions overlay
   viewer->getMainView()->addOverlayControl(createHelp());
+#endif
 
   /// add some stock OSG handlers
   viewer->installDebugHandlers();

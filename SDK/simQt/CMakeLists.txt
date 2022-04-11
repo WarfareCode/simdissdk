@@ -15,9 +15,11 @@ set(SIMQT_HEADERS_TO_MOC
     ${SIMQT_INC}BoundSettings.h
     ${SIMQT_INC}ColorButton.h
     ${SIMQT_INC}ColorWidget.h
+    ${SIMQT_INC}ColorWidgetDelegate.h
     ${SIMQT_INC}ConsoleDataModel.h
     ${SIMQT_INC}ConsoleLogger.h
     ${SIMQT_INC}DirectorySelectorWidget.h
+    ${SIMQT_INC}DndTreeView.h
     ${SIMQT_INC}DockWidget.h
     ${SIMQT_INC}FileDescriptorReplacement.h
     ${SIMQT_INC}FileSelectorWidget.h
@@ -45,7 +47,6 @@ set(SIMQT_HEADERS_TO_MOC
     ${SIMQT_INC}UnitsComboBox.h
 )
 set(SIMQT_HEADERS
-    ${SIMQT_INC}ColorGradient.h
     ${SIMQT_INC}ConsoleChannel.h
     ${SIMQT_INC}FileDialog.h
     ${SIMQT_INC}FileUtilities.h
@@ -56,6 +57,7 @@ set(SIMQT_HEADERS
     ${SIMQT_INC}Settings.h
     ${SIMQT_INC}SettingsGroup.h
     ${SIMQT_INC}StartupLayoutManager.h
+    ${SIMQT_INC}ValueMerge.h
     ${SIMQT_INC}WeightedMenuManager.h
     ${SIMQT_INC}WidgetSettings.h
 )
@@ -67,7 +69,6 @@ if(TARGET simData)
         ${SIMQT_INC}CategoryFilterCounter.h
         ${SIMQT_INC}CategoryFilterWidget.h
         ${SIMQT_INC}CategoryTreeModel.h
-        ${SIMQT_INC}CategoryTreeModel2.h
         ${SIMQT_INC}DataTableComboBox.h
         ${SIMQT_INC}DataTableModel.h
         ${SIMQT_INC}EntityCategoryFilter.h
@@ -94,7 +95,6 @@ if(TARGET simVis)
     list(APPEND SIMQT_HEADERS_TO_MOC
         ${SIMQT_INC}CenterEntity.h
         ${SIMQT_INC}EntityLineEdit.h
-        ${SIMQT_INC}IncrementalCompileSettings.h
         ${SIMQT_INC}MapDataModel.h
         ${SIMQT_INC}TimestampedLayerManager.h
         ${SIMQT_INC}ViewManagerDataModel.h
@@ -119,6 +119,8 @@ if(OSG_FOUND)
         ${SIMQT_INC}ColorGradientWidget.h
     )
     list(APPEND SIMQT_HEADERS
+        ${SIMQT_INC}ColorGradient.h
+        ${SIMQT_INC}MergeValues.h
         ${SIMQT_INC}QtConversion.h
     )
 endif()
@@ -129,10 +131,6 @@ list(APPEND SIMQT_HEADERS
 
 
 source_group(Headers FILES ${SIMQT_HEADERS})
-set(SIMQT_ALL_HEADER
-    ${SIMQT_INC}../simQt.h
-)
-source_group("" FILES ${SIMQT_ALL_HEADER})
 
 # .cpp files
 set(SIMQT_SOURCES
@@ -140,12 +138,13 @@ set(SIMQT_SOURCES
     ${SIMQT_SRC}ActionItemModel.cpp
     ${SIMQT_SRC}BoundSettings.cpp
     ${SIMQT_SRC}ColorButton.cpp
-    ${SIMQT_SRC}ColorGradient.cpp
     ${SIMQT_SRC}ColorWidget.cpp
+    ${SIMQT_SRC}ColorWidgetDelegate.cpp
     ${SIMQT_SRC}ConsoleChannel.cpp
     ${SIMQT_SRC}ConsoleDataModel.cpp
     ${SIMQT_SRC}ConsoleLogger.cpp
     ${SIMQT_SRC}DirectorySelectorWidget.cpp
+    ${SIMQT_SRC}DndTreeView.cpp
     ${SIMQT_SRC}DockWidget.cpp
     ${SIMQT_SRC}FileDescriptorReplacement.cpp
     ${SIMQT_SRC}FileDialog.cpp
@@ -178,6 +177,7 @@ set(SIMQT_SOURCES
     ${SIMQT_SRC}Toast.cpp
     ${SIMQT_SRC}UnitsComboBox.cpp
     ${SIMQT_SRC}UnitContext.cpp
+    ${SIMQT_SRC}ValueMerge.cpp
     ${SIMQT_SRC}WeightedMenuManager.cpp
     ${SIMQT_SRC}WidgetSettings.cpp
 )
@@ -189,7 +189,6 @@ if(TARGET simData)
         ${SIMQT_SRC}CategoryFilterCounter.cpp
         ${SIMQT_SRC}CategoryFilterWidget.cpp
         ${SIMQT_SRC}CategoryTreeModel.cpp
-        ${SIMQT_SRC}CategoryTreeModel2.cpp
         ${SIMQT_SRC}DataTableComboBox.cpp
         ${SIMQT_SRC}DataTableModel.cpp
         ${SIMQT_SRC}EntityCategoryFilter.cpp
@@ -213,7 +212,6 @@ if(TARGET simVis)
         ${SIMQT_SRC}CenterEntity.cpp
         ${SIMQT_SRC}EntityLineEdit.cpp
         ${SIMQT_SRC}FillItemModelWithNodeVisitor.cpp
-        ${SIMQT_SRC}IncrementalCompileSettings.cpp
         ${SIMQT_SRC}MapDataModel.cpp
         ${SIMQT_SRC}TimestampedLayerManager.cpp
         ${SIMQT_SRC}ViewManagerDataModel.cpp
@@ -232,17 +230,19 @@ if(TARGET simVis)
         set_source_files_properties(CenterEntity.cpp PROPERTIES COMPILE_FLAGS -wd4996)
     else()
         set_source_files_properties(CenterEntity.cpp PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
+        set_source_files_properties(Gl3FormatGuesser.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
     endif()
 endif()
 
 if(OSG_FOUND)
     list(APPEND SIMQT_SOURCES
+        ${SIMQT_SRC}ColorGradient.cpp
         ${SIMQT_SRC}ColorGradientWidget.cpp
         ${SIMQT_SRC}QtConversion.cpp
     )
 endif()
 
-source_group(Sources FILES ${SIMQT_SOURCES})
+source_group("Source Files" FILES ${SIMQT_SOURCES})
 
 # .ui files
 set(SIMQT_FORMS
@@ -269,7 +269,6 @@ set(SIMQT_RESOURCES
 source_group(Qt FILES ${SIMQT_FORMS} ${SIMQT_RESOURCES})
 
 # Wrap files into generated versions
-VSI_INCLUDE_QT_USE_FILE()
 VSI_QT_WRAP_CPP(Q_HEADERS ${SIMQT_HEADERS_TO_MOC})
 VSI_QT_WRAP_UI(Q_FORMS ${SIMQT_FORMS})
 VSI_QT_ADD_RESOURCES(Q_RESOURCES ${SIMQT_RESOURCES})
@@ -277,7 +276,7 @@ VSI_QT_ADD_RESOURCES(Q_RESOURCES ${SIMQT_RESOURCES})
 source_group("Generated Files" FILES ${Q_HEADERS} ${Q_FORMS} ${Q_RESOURCES})
 
 set(SIMQT_PROJECT_FILES
-    ${SIMQT_HEADERS} ${SIMQT_ALL_HEADER} ${SIMQT_SOURCES} ${SIMQT_FORMS} ${SIMQT_RESOURCES}
+    ${SIMQT_HEADERS} ${SIMQT_SOURCES} ${SIMQT_FORMS} ${SIMQT_RESOURCES}
     ${Q_HEADERS} ${Q_FORMS} ${Q_RESOURCES}
 )
 
@@ -290,7 +289,7 @@ endif()
 add_library(simQt ${STATIC_OR_SHARED} ${SIMQT_PROJECT_FILES})
 set_target_properties(simQt PROPERTIES
     FOLDER "SIMDIS SDK"
-    PROJECT_LABEL "SIMDIS SDK - Qt"
+    PROJECT_LABEL "simQt"
 )
 ApplySDKVersion(simQt)
 target_include_directories(simQt
@@ -347,6 +346,9 @@ endif()
 if(TARGET simVis)
     target_compile_definitions(simQt PRIVATE HAVE_SIMVIS)
     target_link_libraries(simQt PRIVATE simVis)
+    if(TARGET simUtil)
+        target_link_libraries(simQt PRIVATE simUtil)
+    endif()
 endif()
 
 if(TARGET OSGQT)
@@ -358,7 +360,7 @@ endif()
 if(INSTALL_SIMDIS_SDK_LIBRARIES)
     # Configure the simQtConfig.cmake file; its dependencies are dynamic
     set(SIMQT_DEPENDS)
-    foreach(TGT IN ITEMS simNotify simCore simData simVis)
+    foreach(TGT IN ITEMS simNotify simCore simData simVis simUtil)
         if(TARGET ${TGT})
             set(SIMQT_DEPENDS "${SIMQT_DEPENDS}\nfind_dependency(${TGT})")
         endif()
@@ -376,10 +378,5 @@ if(INSTALL_HEADERS)
     # Setup header file installation
     install(FILES ${SIMQT_HEADERS}
         DESTINATION include/simQt
-    )
-
-    # simQt.h
-    install(FILES ${SIMQT_ALL_HEADER}
-        DESTINATION include
     )
 endif()

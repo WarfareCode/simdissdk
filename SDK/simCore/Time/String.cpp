@@ -13,15 +13,17 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
-#include <sstream>
-#include <iomanip>
 #include <cassert>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Math.h"
 #include "simCore/String/Tokenizer.h"
@@ -235,6 +237,11 @@ int HoursTimeFormatter::fromString(const std::string& timeString, simCore::Secon
 
 void HoursTimeFormatter::toStream(std::ostream& os, simCore::Seconds seconds, unsigned short precision)
 {
+  toStream(os, seconds, precision, false);
+}
+
+void HoursTimeFormatter::toStream(std::ostream& os, simCore::Seconds seconds, unsigned short precision, bool showLeadingZero)
+{
   const bool isNegative = (seconds < 0);
   seconds = fabs(seconds.rounded(precision));
   // Rely on static_cast<> to floor the value
@@ -242,7 +249,10 @@ void HoursTimeFormatter::toStream(std::ostream& os, simCore::Seconds seconds, un
   seconds -= hours * SECPERHOUR;
   if (isNegative)
     os << "-";
-  os << hours << ':' << std::setfill('0') << std::setw(2);
+  if (showLeadingZero)
+    os << std::setfill('0') << std::setw(2) << hours << ":" << std::setw(2);
+  else
+    os << hours << ':' << std::setfill('0') << std::setw(2);
   // Add the minutes value and seconds value
   MinutesTimeFormatter::toStream(os, seconds, precision);
 }
@@ -601,7 +611,7 @@ bool DtgTimeFormatter::canConvert(const std::string& timeString) const
 int DtgTimeFormatter::fromString(const std::string& timeString, simCore::TimeStamp& timeStamp, int referenceYear) const
 {
   // presume failure
-  timeStamp = simCore::TimeStamp();
+  timeStamp = simCore::MIN_TIME_STAMP;
 
   std::vector<std::string> timesZoneMonth;
   // Tokenize the string into 3 components (times, time zone, month)
@@ -644,31 +654,367 @@ int DtgTimeFormatter::fromString(const std::string& timeString, simCore::TimeSta
 
 ///////////////////////////////////////////////////////////////////////
 
-TimeFormatterRegistry::TimeFormatterRegistry(bool wrappedFormatters)
+std::string Iso8601TimeFormatter::toString(const simCore::TimeStamp& timeStamp, int referenceYear, unsigned short precision) const
+{
+  // note that referenceYear arg is always ignored
+  const int realYear = timeStamp.referenceYear();
+  const simCore::TimeStamp roundedStamp(realYear, timeStamp.secondsSinceRefYear(realYear).rounded(precision));
+
+  unsigned int day = 0;
+  unsigned int hour = 0;
+  unsigned int min = 0;
+  unsigned int sec = 0;
+  roundedStamp.getTimeComponents(day, hour, min, sec);
+
+  int month = 0; // Between 0-11
+  int monthDay = 0; // Between 1-31
+  try
+  {
+    simCore::getMonthAndDayOfMonth(month, monthDay, realYear, day);
+  }
+  catch (const simCore::TimeException& te)
+  {
+    SIM_ERROR << "Time exception: " << te.what() << std::endl;
+    // Should not occur with the massaged simCore::TimeStamp input.
+    assert(false);
+    month = 0;
+    monthDay = 1;
+  }
+
+  std::stringstream ss;
+  ss << realYear << '-' <<
+        std::setw(2) << std::setfill('0') << (month+1) << '-' <<
+        std::setw(2) << std::setfill('0') << monthDay;
+
+  // output yyyy-mm-dd format when data allows
+  const Seconds& seconds = roundedStamp.secondsSinceRefYear();
+  const int nanosecs = seconds.getFractionLong();
+  if (hour == 0 && min == 0 && sec == 0 && nanosecs == 0)
+    return ss.str();
+
+  ss << 'T' << std::setw(2) << std::setfill('0') << hour << ':' <<
+        std::setw(2) << std::setfill('0') << min << ':';
+  if (precision == 0)
+    ss << std::setw(2) << std::setfill('0') << sec;
+  else
+  {
+    ss.precision(precision);
+    ss.setf(std::ios::fixed);
+    ss << std::setw(3+precision) << std::setfill('0') << (sec + seconds.getFraction());
+  }
+  ss << 'Z';
+  return ss.str();
+}
+
+/** Simple class to encapsulate the calculation of time zone offsets from UTC to local. */
+class LocalTimeCalculator
+{
+public:
+  /** Calculate the current offset from UTC to local time. Calculated only once, in constructor. */
+  LocalTimeCalculator()
+    : secondsOffset_(0)
+  {
+    const auto& systemTime = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+
+    // Note that localtime and gmtime can return the same pointer and are not thread safe; need a copy
+    std::tm* localPtr = std::localtime(&systemTime);
+    if (localPtr)
+    {
+      std::tm local = *localPtr;
+      std::tm* utcPtr = std::gmtime(&systemTime);
+      if (utcPtr)
+        secondsOffset_ = static_cast<int>(simCore::getTimeStructDifferenceInSeconds(local, *utcPtr));
+    }
+  }
+
+  /** Retrieve the seconds offset, e.g. -5 * 3600 for New York standard time. */
+  int secondsOffset() const
+  {
+    return secondsOffset_;
+  }
+
+private:
+  int secondsOffset_;
+};
+
+/** Helper struct to parse ISO 8601 time strings into component parts. */
+struct Iso8601Components
+{
+  int year = 0;
+  int month = 1;
+  int day = 1;
+  int hour = 0;
+  int minute = 0;
+  double second = 0.;
+  std::string timeZone = "Z";
+  bool valid = false;
+
+  /** Default constructor */
+  Iso8601Components()
+  {
+  }
+
+  /** Construct and immediately parse the time. */
+  explicit Iso8601Components(const std::string& iso8601Time)
+  {
+    parse(iso8601Time);
+  }
+
+  /** Given an ISO 8601 time format string, parses string into component values and returns 0 on correct string format. */
+  int parse(const std::string& fullString)
+  {
+    const std::string& cleanString = simCore::StringUtils::trim(simCore::removeQuotes(fullString));
+    if (cleanString.empty())
+      return false;
+
+    // Reset all values to default
+    *this = Iso8601Components();
+
+    std::vector<std::string> daytime;
+    // Tokenize the string into 2 components (ymd, time).
+    // Note, cannot use simCore::stringTokenizer() because there may be more than one valid "T".
+    const size_t firstTPos = cleanString.find('T');
+    if (firstTPos == std::string::npos)
+      daytime.push_back(cleanString);
+    else
+    {
+      daytime.push_back(cleanString.substr(0, firstTPos));
+      daytime.push_back(cleanString.substr(firstTPos + 1));
+    }
+
+    // Check for YYYY format.  Note, we do not support negative years
+    const std::string& dateString = daytime[0];
+    if (dateString.size() == 4 && isValidNumber(dateString, year))
+    {
+      // Cannot have a time, if given just a year.  We also limit the years between certain values.
+      valid = (hasValidDate_() && (daytime.size() == 1));
+      return valid ? 0 : 1;
+    }
+
+    // Check for YYYY-MM format.  Note that YYYYMM is not accepted as a format in ISO 8601,
+    // and month based values with times are not accepted either.
+    if (dateString.size() == 7 && dateString == cleanString && dateString[4] == '-' &&
+      isValidNumber(dateString.substr(0, 4), year) && isValidNumber(dateString.substr(5), month))
+    {
+      // Cannot have a time, if given just a year and a month
+      valid = (hasValidDate_() && (daytime.size() == 1));
+      return valid ? 0 : 1;
+    }
+
+    // All other formats from here out do support a time value, but it's not required.
+
+    // Check for YYYYMMDD format.  This is "basic format", whereas dash separators is extended format.
+    const bool basicYmdFormat = dateString.size() == 8 &&
+      isValidNumber(dateString.substr(0, 4), year) &&
+      isValidNumber(dateString.substr(4, 2), month) &&
+      isValidNumber(dateString.substr(6, 2), day) &&
+      hasValidDate_();
+    const bool extendedYmdFormat = dateString.size() == 10 && dateString[4] == '-' && dateString[7] == '-' &&
+      isValidNumber(dateString.substr(0, 4), year) &&
+      isValidNumber(dateString.substr(5, 2), month) &&
+      isValidNumber(dateString.substr(8, 2), day) &&
+      hasValidDate_();
+    // Must have one of those two formats
+    if (!basicYmdFormat && !extendedYmdFormat)
+      return 1;
+
+    // Extract time data
+    if (daytime.size() == 2)
+    {
+      if (parseTimePart_(daytime[1]) != 0)
+        return 1;
+    }
+    valid = true;
+    return 0;
+  }
+
+  /** Returns the time zone offset value given the currently configured timeZone string, e.g. UTC-05 would return -5*3600 */
+  int timeOffsetSeconds() const
+  {
+    if (timeZone.empty())
+      return 0;
+
+    // Special case for Juliet (local) time.  Use currently configured system local time to convert.
+    if (timeZone == "J")
+    {
+      // Making this a static const inside this scope should prevent it from being instantiated unnecessarily
+      static const LocalTimeCalculator ltc;
+      return ltc.secondsOffset();
+    }
+
+    // Detect other time zones
+    if (timeZone.size() == 1 && timeZone[0] >= 'A' && timeZone[0] < 'Z')
+    {
+      const int timeZoneInt = timeZone[0] - 'A';
+      if (timeZoneInt < 0 || timeZoneInt > 25)
+      {
+        // Shouldn't be possible due to if statement above
+        assert(0);
+        return 0;
+      }
+
+      // Time zone offsets for each letter, from https://militarybenefits.info/military-time/
+      static const std::vector<int> ZONE_OFFSETS = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 10, 11, 12, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, 0 };
+      return 3600 * ZONE_OFFSETS[timeZoneInt];
+    }
+
+    // We can also support +/- times, with suffixes of HH, HH:MM, and HHMM
+    unsigned int tzHour = 0;
+    unsigned int tzMin = 0;
+    if (timeZone[0] != '+' && timeZone[0] != '-')
+      return 0;
+    // Can be in HH, HH:MM, or HHMM format
+    if (timeZone.size() == 3 && simCore::isValidNumber(timeZone.substr(1), tzHour))
+    {
+      if (tzHour > 24)
+        return 0;
+    }
+    if (timeZone.size() == 5 && simCore::isValidNumber(timeZone.substr(1, 2), tzHour) && simCore::isValidNumber(timeZone.substr(3), tzMin))
+    {
+      if (tzHour > 24 || tzMin > 60)
+        return 0;
+    }
+    if (timeZone.size() == 6 && simCore::isValidNumber(timeZone.substr(1, 2), tzHour) && simCore::isValidNumber(timeZone.substr(4), tzMin))
+    {
+      if (tzHour > 24 || tzMin > 60)
+        return 0;
+    }
+
+    // Convert the hours and minutes into seconds, and negate if needed
+    const int tzSecTotal = static_cast<int>(tzHour * 3600 + tzMin * 60);
+    return timeZone[0] == '-' ? -tzSecTotal : tzSecTotal;
+  }
+
+  /** Converts the data structure into a simCore::TimeStamp */
+  simCore::TimeStamp toStamp() const
+  {
+    if (!valid)
+      return simCore::MIN_TIME_STAMP;
+    // getYearDay expects month [0, 11]
+    const int yearDay = getYearDay(month - 1, day, year);
+    return simCore::TimeStamp(year, yearDay * 86400. + hour * 3600. + minute * 60. + second - simCore::Seconds(timeOffsetSeconds(), 0));
+  }
+
+private:
+  /** Return true if the date is within acceptable range. */
+  bool hasValidDate_() const
+  {
+    return simCore::isValidDMY(day, month, year) &&
+      year >= simCore::MIN_TIME_YEAR && year <= simCore::MAX_TIME_YEAR &&
+      hour >= 0 && hour <= 24 &&
+      minute >= 0 && minute <= 60 &&
+      second >= 0. && second <= 60.;
+  }
+
+  /** Returns true if timeZone is a valid time zone string that we can parse */
+  bool hasValidTimeZone_() const
+  {
+    // Empty time zone is not supported
+    if (timeZone.empty())
+      return false;
+    // We can support A-Z time, including Juliet (local) time
+    if (timeZone.size() == 1 && timeZone[0] >= 'A' && timeZone[0] <= 'Z')
+      return true;
+
+    // We can also support +/- times, with suffixes of HH, HH:MM, and HHMM
+    unsigned int tzHour = 0;
+    unsigned int tzMin = 0;
+    if (timeZone[0] != '+' && timeZone[0] != '-')
+      return false;
+    // Can be in HH, HH:MM, or HHMM format
+    if (timeZone.size() == 3 && simCore::isValidNumber(timeZone.substr(1), tzHour))
+      return tzHour <= 24;
+    if (timeZone.size() == 5 && simCore::isValidNumber(timeZone.substr(1, 2), tzHour) && simCore::isValidNumber(timeZone.substr(3), tzMin))
+      return tzHour <= 24 && tzMin <= 60;
+    if (timeZone.size() == 6 && simCore::isValidNumber(timeZone.substr(1, 2), tzHour) && simCore::isValidNumber(timeZone.substr(4), tzMin))
+      return tzHour <= 24 && tzMin <= 60;
+    return false;
+  }
+
+  /** Parse function for time values (after the "T") */
+  int parseTimePart_(const std::string& timeString)
+  {
+    // Hours, minutes, and seconds are all required, and are 0-prefixed, so minimum length is 6
+    if (timeString.size() < 6)
+      return 1;
+
+    // Zone/offset also cannot come before the hours, minutes, seconds
+    const size_t zoneStart = timeString.find_first_not_of(":1234567890.");
+    if (zoneStart != std::string::npos && zoneStart < 6)
+      return 1;
+    const std::string& timePart = timeString.substr(0, zoneStart);
+    // Time part cannot end in a decimal, even if that is a valid double value
+    if (timePart[timePart.size() - 1] == '.')
+      return 1;
+
+    // Time zone is not optional
+    if (zoneStart == std::string::npos)
+      return 1;
+    timeZone = timeString.substr(zoneStart);
+    // Validate the time zone
+    if (!hasValidTimeZone_())
+      return 1;
+
+    // There may be separators between time values, but not necessarily
+    const bool basicHmsFormat = timePart.size() >= 6 &&
+      isValidNumber(timePart.substr(0, 2), hour) &&
+      isValidNumber(timePart.substr(2, 2), minute) &&
+      isValidNumber(timePart.substr(4), second) &&
+      hasValidDate_();
+    const bool extendedHmsFormat = timePart.size() >= 8 && timePart[2] == ':' && timePart[5] == ':' &&
+      isValidNumber(timePart.substr(0, 2), hour) &&
+      isValidNumber(timePart.substr(3, 2), minute) &&
+      isValidNumber(timePart.substr(6), second) &&
+      hasValidDate_();
+    return (basicHmsFormat || extendedHmsFormat) ? 0 : 1;
+  }
+};
+
+bool Iso8601TimeFormatter::canConvert(const std::string& timeString) const
+{
+  Iso8601Components comps(timeString);
+  return comps.valid;
+}
+
+// will convert YYYY and YYYY-MM
+int Iso8601TimeFormatter::fromString(const std::string& timeString, simCore::TimeStamp& timeStamp, int referenceYear) const
+{
+  Iso8601Components comps(timeString);
+  timeStamp = comps.toStamp();
+  return comps.valid ? 0 : 1;
+}
+
+///////////////////////////////////////////////////////////////////////
+
+TimeFormatterRegistry::TimeFormatterRegistry(bool wrappedFormatters, bool addDefaults)
   : nullFormatter_(new NullTimeFormatter),
     lastUsedFormatter_(nullFormatter_)
 {
-  knownFormatters_[TIMEFORMAT_SECONDS] = TimeFormatterPtr(new SecondsTimeFormatter);
-  if (wrappedFormatters)
+  if (addDefaults)
   {
-    knownFormatters_[TIMEFORMAT_MINUTES] = TimeFormatterPtr(new MinutesWrappedTimeFormatter);
-    knownFormatters_[TIMEFORMAT_HOURS] = TimeFormatterPtr(new HoursWrappedTimeFormatter);
-  }
-  else
-  {
-    knownFormatters_[TIMEFORMAT_MINUTES] = TimeFormatterPtr(new MinutesTimeFormatter);
-    knownFormatters_[TIMEFORMAT_HOURS] = TimeFormatterPtr(new HoursTimeFormatter);
-  }
-  knownFormatters_[TIMEFORMAT_ORDINAL] = TimeFormatterPtr(new OrdinalTimeFormatter);
-  knownFormatters_[TIMEFORMAT_MONTHDAY] = TimeFormatterPtr(new MonthDayTimeFormatter);
-  knownFormatters_[TIMEFORMAT_DTG] = TimeFormatterPtr(new DtgTimeFormatter);
+    knownFormatters_[TIMEFORMAT_SECONDS] = TimeFormatterPtr(new SecondsTimeFormatter);
+    if (wrappedFormatters)
+    {
+      knownFormatters_[TIMEFORMAT_MINUTES] = TimeFormatterPtr(new MinutesWrappedTimeFormatter);
+      knownFormatters_[TIMEFORMAT_HOURS] = TimeFormatterPtr(new HoursWrappedTimeFormatter);
+    }
+    else
+    {
+      knownFormatters_[TIMEFORMAT_MINUTES] = TimeFormatterPtr(new MinutesTimeFormatter);
+      knownFormatters_[TIMEFORMAT_HOURS] = TimeFormatterPtr(new HoursTimeFormatter);
+    }
+    knownFormatters_[TIMEFORMAT_ORDINAL] = TimeFormatterPtr(new OrdinalTimeFormatter);
+    knownFormatters_[TIMEFORMAT_MONTHDAY] = TimeFormatterPtr(new MonthDayTimeFormatter);
+    knownFormatters_[TIMEFORMAT_DTG] = TimeFormatterPtr(new DtgTimeFormatter);
+    knownFormatters_[TIMEFORMAT_ISO8601] = TimeFormatterPtr(new Iso8601TimeFormatter);
 
-  registerCustomFormatter(TimeFormatterPtr(new Deprecated::DDD_HHMMSS_Formatter));
-  registerCustomFormatter(TimeFormatterPtr(new Deprecated::DDD_HHMMSS_YYYY_Formatter));
-  registerCustomFormatter(TimeFormatterPtr(new Deprecated::MD_MON_YYYY_HHMMSS_Formatter));
-  registerCustomFormatter(TimeFormatterPtr(new Deprecated::MON_MD_HHMMSS_YYYY_Formatter));
-  registerCustomFormatter(TimeFormatterPtr(new Deprecated::WKD_MON_MD_HHMMSS_Formatter));
-  registerCustomFormatter(TimeFormatterPtr(new Deprecated::WKD_MON_MD_HHMMSS_YYYY_Formatter));
+    registerCustomFormatter(TimeFormatterPtr(new Deprecated::DDD_HHMMSS_Formatter));
+    registerCustomFormatter(TimeFormatterPtr(new Deprecated::DDD_HHMMSS_YYYY_Formatter));
+    registerCustomFormatter(TimeFormatterPtr(new Deprecated::MD_MON_YYYY_HHMMSS_Formatter));
+    registerCustomFormatter(TimeFormatterPtr(new Deprecated::MON_MD_HHMMSS_YYYY_Formatter));
+    registerCustomFormatter(TimeFormatterPtr(new Deprecated::WKD_MON_MD_HHMMSS_Formatter));
+    registerCustomFormatter(TimeFormatterPtr(new Deprecated::WKD_MON_MD_HHMMSS_YYYY_Formatter));
+  }
 }
 
 TimeFormatterRegistry::~TimeFormatterRegistry()
@@ -677,14 +1023,14 @@ TimeFormatterRegistry::~TimeFormatterRegistry()
 
 void TimeFormatterRegistry::registerCustomFormatter(TimeFormatterPtr formatter)
 {
-  if (formatter != NULL)
+  if (formatter != nullptr)
     foreignFormatters_.push_back(formatter);
 }
 
 const TimeFormatter& TimeFormatterRegistry::formatter(simCore::TimeFormat format) const
 {
   std::map<int, TimeFormatterPtr>::const_iterator i = knownFormatters_.find(format);
-  if (i != knownFormatters_.end() && i->second != NULL)
+  if (i != knownFormatters_.end() && i->second != nullptr)
     return *i->second;
   return *nullFormatter_;
 }

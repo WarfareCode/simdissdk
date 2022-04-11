@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -49,11 +50,11 @@ public:
   virtual bool update(const simData::DataSliceBase* updateSlice, bool force = false)
   {
     // Break out if the node isn't currently valid
-    if (node_ == NULL)
+    if (node_ == nullptr)
       return false;
 
     // Create the geometry if it hasn't been created yet
-    if (transform_ == NULL)
+    if (transform_ == nullptr)
     {
       simVis::LocatorNode* locatorNode = node_->locatorNode();
       locatorNode->removeChildren(0, locatorNode->getNumChildren());
@@ -83,11 +84,11 @@ public:
 
     // Adjust the coordinates of the locator to match that of the host
     const simVis::EntityNode* host = node_->host();
-    if (host != NULL)
+    if (host != nullptr)
     {
       simCore::Coordinate coord;
       host->getLocator()->getCoordinate(&coord);
-      node_->getLocator()->setCoordinate(coord);
+      node_->getLocator()->setCoordinate(coord, host->getLocator()->getTime());
       node_->dirtyBound();
     }
 
@@ -168,7 +169,7 @@ public:
 
     // Pick out the node from the scene (created by the ScenarioDataStoreAdapter automatically)
     simVis::CustomRenderingNode* node = manager_->find<simVis::CustomRenderingNode>(newId);
-    if (node != NULL)
+    if (node != nullptr)
     {
       // A real render engine would need to account for multiple Custom Render nodes here,
       // either by creating a separate updater per entity, or configuring the updater to

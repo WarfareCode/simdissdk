@@ -13,14 +13,15 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
-#include "simCore.h"
-#include "simData.h"
+#include "simCore/Common/SDKAssert.h"
+#include "simData/DataStoreHelpers.h"
 #include "simUtil/DataStoreTestHelper.h"
 
 namespace {
@@ -123,7 +124,7 @@ int validateGateColor(simData::DataStore* ds, simData::ObjectId id, double time,
     ds->update(time);
   simData::DataStore::Transaction t;
   const simData::GatePrefs *prefs = ds->gatePrefs(id, &t);
-  if (prefs == NULL)
+  if (prefs == nullptr)
     return 1;
 
   if (prefs->commonprefs().color() != color)
@@ -136,7 +137,7 @@ int addGateColor(simData::DataStore* ds, simData::ObjectId id, double time, uint
 {
   simData::DataStore::Transaction t;
   simData::GateCommand *command = ds->addGateCommand(id, &t);
-  if (command == NULL)
+  if (command == nullptr)
     return 1;
 
   command->set_time(time);
@@ -152,7 +153,7 @@ int addGateOverrideColor(simData::DataStore* ds, simData::ObjectId id, double ti
 {
   simData::DataStore::Transaction t;
   simData::GateCommand *command = ds->addGateCommand(id, &t);
-  if (command == NULL)
+  if (command == nullptr)
     return 1;
 
   command->set_time(time);
@@ -249,7 +250,7 @@ int validateBeamColor(simData::DataStore* ds, simData::ObjectId id, double time,
     ds->update(time);
   simData::DataStore::Transaction t;
   const simData::BeamPrefs *prefs = ds->beamPrefs(id, &t);
-  if (prefs == NULL)
+  if (prefs == nullptr)
     return 1;
 
   if (prefs->commonprefs().color() != color)
@@ -262,7 +263,7 @@ int addBeamColor(simData::DataStore* ds, simData::ObjectId id, double time, uint
 {
   simData::DataStore::Transaction t;
   simData::BeamCommand *command = ds->addBeamCommand(id, &t);
-  if (command == NULL)
+  if (command == nullptr)
     return 1;
 
   command->set_time(time);
@@ -278,7 +279,7 @@ int addBeamOverrideColor(simData::DataStore* ds, simData::ObjectId id, double ti
 {
   simData::DataStore::Transaction t;
   simData::BeamCommand *command = ds->addBeamCommand(id, &t);
-  if (command == NULL)
+  if (command == nullptr)
     return 1;
 
   command->set_time(time);
@@ -365,7 +366,7 @@ int validatePlatformColor(simData::DataStore* ds, simData::ObjectId id, double t
     ds->update(time);
   simData::DataStore::Transaction t;
   const simData::PlatformPrefs *prefs = ds->platformPrefs(id, &t);
-  if (prefs == NULL)
+  if (prefs == nullptr)
     return 1;
 
   if (prefs->commonprefs().color() != color)
@@ -378,7 +379,7 @@ int addPlatformColor(simData::DataStore* ds, simData::ObjectId id, double time, 
 {
   simData::DataStore::Transaction t;
   simData::PlatformCommand *command = ds->addPlatformCommand(id, &t);
-  if (command == NULL)
+  if (command == nullptr)
     return 1;
 
   command->set_time(time);
@@ -394,7 +395,7 @@ int addPlatformOverrideColor(simData::DataStore* ds, simData::ObjectId id, doubl
 {
   simData::DataStore::Transaction t;
   simData::PlatformCommand *command = ds->addPlatformCommand(id, &t);
-  if (command == NULL)
+  if (command == nullptr)
     return 1;
 
   command->set_time(time);
@@ -468,6 +469,156 @@ int testPlatformCommand()
   return rv;
 }
 
+int validateAcceptProjectorIds(const simData::DataStore* ds, simData::ObjectId id, const std::vector<simData::ObjectId>& expectedValues)
+{
+  int rv = 0;
+  rv += SDK_ASSERT(ds != nullptr);
+  simData::DataStore::Transaction txn;
+  auto* prefs = ds->commonPrefs(id, &txn);
+  rv += SDK_ASSERT(prefs != nullptr);
+  const auto& actualValues = simData::DataStoreHelpers::vecFromRepeated(prefs->acceptprojectorids());
+  rv += SDK_ASSERT(actualValues == expectedValues);
+  return rv;
+}
+
+int testAcceptProjectorsPrefs()
+{
+  int rv = 0;
+
+  simUtil::DataStoreTestHelper testHelper;
+  simData::DataStore* ds = testHelper.dataStore();
+  // insert platform
+  simData::DataStore::Transaction t;
+  uint64_t platId1 = testHelper.addPlatform();
+  ds->update(0.1);
+
+  // Confirm initial state
+  rv += validateAcceptProjectorIds(ds, platId1, { });
+
+  // Add one projector ID
+  simData::PlatformPrefs* newPlatPrefs = ds->mutable_platformPrefs(platId1, &t);
+  newPlatPrefs->mutable_commonprefs()->add_acceptprojectorids(4);
+  t.commit();
+
+  // Confirm new value
+  rv += validateAcceptProjectorIds(ds, platId1, { 4 });
+
+  // Add a few commands
+  simData::PlatformCommand* cmd;
+  // "5,6" at time 5
+  cmd = ds->addPlatformCommand(platId1, &t);
+  cmd->set_time(5.0);
+  simData::DataStoreHelpers::vecToRepeated(cmd->mutable_updateprefs()->mutable_commonprefs()->mutable_acceptprojectorids(), { 5, 6 });
+  t.complete(&cmd);
+  // "6,15" at time 15
+  cmd = ds->addPlatformCommand(platId1, &t);
+  cmd->set_time(15.0);
+  simData::DataStoreHelpers::vecToRepeated(cmd->mutable_updateprefs()->mutable_commonprefs()->mutable_acceptprojectorids(), { 6, 15 });
+  t.complete(&cmd);
+  // "10" only, at time 10
+  cmd = ds->addPlatformCommand(platId1, &t);
+  cmd->set_time(10.0);
+  simData::DataStoreHelpers::vecToRepeated(cmd->mutable_updateprefs()->mutable_commonprefs()->mutable_acceptprojectorids(), { 10 });
+  t.complete(&cmd);
+
+  // Since time hasn't updated, we shouldn't have any changes -- nothing prior to time 5
+  rv += validateAcceptProjectorIds(ds, platId1, { 4 });
+  ds->update(1.);
+  rv += validateAcceptProjectorIds(ds, platId1, { 4 });
+
+  // Check time 5
+  ds->update(5.);
+  rv += validateAcceptProjectorIds(ds, platId1, { 5, 6 });
+  // Check time 10
+  ds->update(10.);
+  rv += validateAcceptProjectorIds(ds, platId1, { 10 });
+  // Check time 15
+  ds->update(15.);
+  rv += validateAcceptProjectorIds(ds, platId1, { 6, 15 });
+  // Back to time 2, no commands before this, so we should have same value
+  ds->update(2.);
+  rv += validateAcceptProjectorIds(ds, platId1, { 6, 15 });
+
+  // Clear out the projector IDs and confirm
+  newPlatPrefs = ds->mutable_platformPrefs(platId1, &t);
+  newPlatPrefs->mutable_commonprefs()->clear_acceptprojectorids();
+  t.commit();
+  rv += validateAcceptProjectorIds(ds, platId1, { });
+
+  return rv;
+}
+
+int testAcceptProjectorsCommands()
+{
+  // Intended to duplicate a failure seen in SIMDIS where a 3 commands sent over in
+  // serial resulted in the command structure to have 3 different values, instead of one.
+  int rv = 0;
+
+  simUtil::DataStoreTestHelper testHelper;
+  simData::DataStore* ds = testHelper.dataStore();
+  // insert platform
+  simData::DataStore::Transaction t;
+  uint64_t platId1 = testHelper.addPlatform();
+  ds->update(2.5);
+
+  // Confirm initial state
+  rv += validateAcceptProjectorIds(ds, platId1, { });
+
+  // Add a projector ID at time 2.5
+  auto* platCommand = ds->addPlatformCommand(platId1, &t);
+  platCommand->set_time(2.5);
+  rv += SDK_ASSERT(platCommand->updateprefs().commonprefs().acceptprojectorids_size() == 0);
+  platCommand->mutable_updateprefs()->mutable_commonprefs()->add_acceptprojectorids(4);
+  rv += SDK_ASSERT(platCommand->updateprefs().commonprefs().acceptprojectorids_size() == 1);
+  t.commit();
+
+  // Validate command slice state
+  const auto* commandSlice = ds->platformCommandSlice(platId1);
+  rv += SDK_ASSERT(commandSlice->numItems() == 1);
+  rv += SDK_ASSERT(commandSlice->firstTime() == 2.5);
+  rv += SDK_ASSERT(commandSlice->current() == nullptr);
+  ds->update(2.5);
+  rv += SDK_ASSERT(commandSlice->current() != nullptr);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids_size() == 1);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids().at(0) == 4);
+
+  // Change the command to point to 0
+  platCommand = ds->addPlatformCommand(platId1, &t);
+  platCommand->set_time(2.5);
+  rv += SDK_ASSERT(platCommand->updateprefs().commonprefs().acceptprojectorids_size() == 0);
+  platCommand->mutable_updateprefs()->mutable_commonprefs()->add_acceptprojectorids(0);
+  rv += SDK_ASSERT(platCommand->updateprefs().commonprefs().acceptprojectorids_size() == 1);
+  t.commit();
+  ds->update(2.5);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids_size() == 1);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids().at(0) == 0);
+
+  // Change the command to point to 4 and 5
+  platCommand = ds->addPlatformCommand(platId1, &t);
+  platCommand->set_time(2.5);
+  rv += SDK_ASSERT(platCommand->updateprefs().commonprefs().acceptprojectorids_size() == 0);
+  platCommand->mutable_updateprefs()->mutable_commonprefs()->add_acceptprojectorids(4);
+  platCommand->mutable_updateprefs()->mutable_commonprefs()->add_acceptprojectorids(5);
+  rv += SDK_ASSERT(platCommand->updateprefs().commonprefs().acceptprojectorids_size() == 2);
+  t.commit();
+  ds->update(2.5);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids_size() == 2);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids().at(0) == 4);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids().at(1) == 5);
+
+  // Change the command to point to 0
+  platCommand = ds->addPlatformCommand(platId1, &t);
+  platCommand->set_time(2.5);
+  rv += SDK_ASSERT(platCommand->updateprefs().commonprefs().acceptprojectorids_size() == 0);
+  platCommand->mutable_updateprefs()->mutable_commonprefs()->add_acceptprojectorids(0);
+  rv += SDK_ASSERT(platCommand->updateprefs().commonprefs().acceptprojectorids_size() == 1);
+  t.commit();
+  ds->update(2.5);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids_size() == 1);
+  rv += SDK_ASSERT(commandSlice->current()->updateprefs().commonprefs().acceptprojectorids().at(0) == 0);
+  return rv;
+}
+
 }
 
 int TestCommands(int argc, char* argv[])
@@ -477,6 +628,8 @@ int TestCommands(int argc, char* argv[])
   rv += testGateCommand();
   rv += testBeamCommand();
   rv += testPlatformCommand();
+  rv += testAcceptProjectorsPrefs();
+  rv += testAcceptProjectorsCommands();
 
   return rv;
 }

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -32,8 +33,8 @@ namespace SdkQThreadExample{
 MyMainWindow::MyMainWindow(simVis::ViewManager* viewMan, simData::DataStore& dataStore)
   : viewManager_(viewMan),
     dataStore_(dataStore),
-    reader_(NULL),
-    generatorDialog_(NULL)
+    reader_(nullptr),
+    generatorDialog_(nullptr)
 {
   // disable the default ESC-to-quit event:
   viewManager_->getViewer()->setKeyEventSetsDone(0);
@@ -82,18 +83,18 @@ void MyMainWindow::paintEvent(QPaintEvent* e)
   redrawTimer_.start();
 
   // Update the GUI at the slow rate of the paintEvent instead of at the data rate
-  if ((reader_ != NULL) && (generatorDialog_ != NULL))
+  if ((reader_ != nullptr) && (generatorDialog_ != nullptr))
     generatorDialog_->updateNumberProcessed(reader_->numberProcessed());
 }
 
 void MyMainWindow::showGenerateDialog()
 {
-  if (reader_ == NULL)
+  if (reader_ == nullptr)
   {
     reader_ = new Reader(dataStore_);
   }
 
-  if (generatorDialog_ == NULL)
+  if (generatorDialog_ == nullptr)
   {
     generatorDialog_ = new Gui(this);
     // When the user click the Start button signal the reader to start

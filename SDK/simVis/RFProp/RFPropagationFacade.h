@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,24 +23,27 @@
 #ifndef SIMVIS_RFPROP_RFPROPAGATIONFACADE_H
 #define SIMVIS_RFPROP_RFPROPAGATIONFACADE_H
 
-#include <vector>
+#include <map>
+#include <memory>
 #include <string>
+#include <vector>
 #include "osg/ref_ptr"
 #include "simCore/Common/Export.h"
-#include "simData/ObjectId.h"
 #include "simVis/RFProp/CompositeColorProvider.h"
-#include "simVis/RFProp/ProfileDataProvider.h"
-#include "simVis/RFProp/Profile.h"
+#include "simVis/RFProp/CompositeProfileProvider.h"
 #include "simVis/RFProp/ProfileManager.h"
 #include "simVis/RFProp/PODProfileDataProvider.h"
 
-namespace osgEarth { class Map; }
-namespace simCore { class TimeStamp; }
-namespace simVis { class LocatorNode; }
+namespace simCore
+{
+  class TimeStamp;
+  class DatumConvert;
+}
 
 namespace simRF
 {
-class CompositeProfileProvider;
+class FallbackDataHelper;
+class Profile;
 
 /** Facade to the simRF module, managing RF data for a single beam. */
 class SDKVIS_EXPORT RFPropagationFacade
@@ -47,11 +51,10 @@ class SDKVIS_EXPORT RFPropagationFacade
 public:
   /**
    * Construct an RF Propagation beam handler for the specified beam
-   * @param beamId Beam to configure
-   * @param parent node to which the visual display's locator is attached; if NULL, no display will be created
-   * @param map from the scene manager for creating the locator
+   * @param parent node to which the visual display's locator is attached; if nullptr, no display will be created
+   * @param datumConvert converter for MSL heights
    */
-  RFPropagationFacade(simData::ObjectId beamId, osg::Group* parent, osgEarth::Map* map);
+  RFPropagationFacade(osg::Group* parent, std::shared_ptr<simCore::DatumConvert> datumConvert);
   virtual ~RFPropagationFacade();
 
   /**
@@ -191,34 +194,25 @@ public:
   int setHeight(double height);
 
   /**
-   * Returns the height in meters; the routine assumes the valid() returns true
+   * Returns the height in meters; the routine assumes that valid() returns true
    * @return The height in meters
    */
   double height() const;
 
  /**
    * Controls display of RF propagation data thickness.
-   * This option controls the 3D display thickness in meters and is only available when
+   * This option controls the 3D display thickness and is only available when
    * the propagation Draw Space is set to 3D, 3D Points, or 3D Texture.
-   * @param thickness 3D display thickness of the propagation data, in meters
+   * @param thickness 3D display thickness of the propagation data, in # height steps
    * @return 0 on success, !0 on error
    */
-  int setThickness(double thickness);
+  int setThickness(unsigned int thickness);
 
   /**
-   * Sets the display thickness in number of slots.  This call can fail if no profiles are loaded.
-   * The actual height is calculated based on the height of a slot in the current profile.  See
-   * also setThickness(double).
-   * @param numSlots Number of slots of height to visualize; minimum value of 1
-   * @return 0 on success; non-zero on failure, e.g. no profiles loaded
+   * Returns the thickness in # height steps; this routine assumes that valid() returns true
+   * @return The thickness, in # height steps
    */
-  int setThicknessBySlots(int numSlots);
-
-  /**
-   * Returns the thickness in meters; the routine assumes the valid() returns true
-   * @return The thickness in meters
-   */
-  double thickness() const;
+  unsigned int thickness() const;
 
   /**
    * Controls the number of bearing slices to display
@@ -264,7 +258,6 @@ public:
 
   /**
    * Controls the type of propagation data in which threshold setting will be applied.
-   * For now, this call will update the color provider gradient colors with default values based on the type
    * @param type Type of threshold test to perform on propagation data
    * @return 0 on success, !0 on error
    */
@@ -282,13 +275,13 @@ public:
    * @param value Threshold value above or below of which data is drawn
    * @return 0 on success, !0 on error
    */
-  int setThresholdValue(int value);
+  int setThresholdValue(float value);
 
   /**
    * Returns the threshold value; the routine assumes the valid() returns true
    * @return The Threshold value
    */
-  int threshold() const;
+  float threshold() const;
 
   /**
    * Controls the above threshold color
@@ -337,6 +330,9 @@ public:
    * @return Probability of detection [0, 100]
    */
   double getPOD(double azimRad, double gndRngMeters, double hgtMeters) const;
+
+  /** Sets the helper to use for Loss calculations. Takes ownership of the helper. */
+  void setLossDataHelper(std::unique_ptr<FallbackDataHelper> helper);
 
   /**
    * Return the propagation loss for a given beam with RF Prop parameters
@@ -410,11 +406,36 @@ public:
 
 public:
   /**
-  * Gets the composite provider for the specified azimuth the antenna height that will be used for the display
+  * Gets the composite provider for the specified azimuth
   * @param azimRad Azimuth angle referenced to True North in radians
-  * @return the composite provider , or NULL if no provider exists at the specified azimuth
+  * @return the composite provider, or nullptr if no provider exists at the specified azimuth
   */
   const simRF::CompositeProfileProvider* getProfileProvider(double azimRad) const;
+
+  /**
+  * Gets the ProfileDataProvider for the specified parameters
+  * @param type  the type of provider requested
+  * @param azimRad  Azimuth angle referenced to True North in radians
+  * @param gndRngMeters  range value in meters for data that is requested
+  * @param hgtMeters  height value in meters for data that is requested
+  * @param msg  warning message that is returned on failure
+  * @return the ProfileDataProvider, or nullptr if no provider matches requested parameters
+  */
+  const simRF::ProfileDataProvider* getProfileDataProvider(
+    ProfileDataProvider::ThresholdType type,
+    double azimRad, double gndRngMeters, double hgtMeters, std::string& msg) const;
+
+  /**
+  * Gets the ProfileDataProvider for the specified parameters
+  * @param type  the type of provider requested
+  * @param azimRad  Azimuth angle referenced to True North in radians
+  * @param gndRngMeters  range value in meters for data that is requested
+  * @param msg  warning message that is returned on failure
+  * @return the ProfileDataProvider, or nullptr if no provider matches requested parameters
+  */
+  const simRF::ProfileDataProvider* getProfileDataProvider(
+    ProfileDataProvider::ThresholdType type,
+    double azimRad, double gndRngMeters, std::string& msg) const;
 
   /**
   * Sets the antenna height that will be used for the display
@@ -441,6 +462,12 @@ public:
   float maxHeight() const;
 
   /**
+  * Gets the number of height steps in the data
+  * @return number of steps
+  */
+  unsigned int heightSteps() const;
+
+  /**
    * Gets the active bearing
    * @return current active bearing in radians
    */
@@ -459,6 +486,12 @@ public:
   void setElevation(double elevation);
 
   /**
+   * Set whether the data are specified for spherical or WGS84 earth
+   * @param sphericalEarth  true if data is spherical earth data, false if WGS84
+   */
+  void setSphericalEarth(bool sphericalEarth);
+
+  /**
   * Gets the number of profiles available in the profile manager
   * @return number of profiles
   */
@@ -466,7 +499,7 @@ public:
 
   /**
   * Gets the profiles at the specified index
-  * @return requested profile, or NULL if the index was not valid
+  * @return requested profile, or nullptr if the index was not valid
   */
   const simRF::Profile* getProfile(unsigned int index) const;
 
@@ -484,31 +517,25 @@ public:
   bool isDepthBufferEnabled() const;
 
 private:
-  /// set some reasonable defaults in our default color maps
-  void initializeDefaultColors_();
-  /// update the gradient color map based on threshold type
-  void setGradientByThresholdType_(simRF::ProfileDataProvider::ThresholdType type);
-
-  /// The beam id for which this display is specified
-  simData::ObjectId id_;
+  /// initialize the color providers and set some reasonable defaults in their color maps
+  void initializeColorProviders_();
+  /// update the color provider based on threshold type
+  void setColorProviderByThresholdType_(simRF::ProfileDataProvider::ThresholdType type);
 
   /// antenna height used to create rf propagation data
   float antennaHeightMeters_;
 
-  /// indicates whether RF Parameters have been set
-  bool rfParamsSet_;
-
   /// profile manager manages all the profiles that hold the rf prop data
   osg::ref_ptr<simRF::ProfileManager> profileManager_;
 
-  /// locator node to which display is attached, and which attaches display to scene graph
-  osg::ref_ptr<simVis::LocatorNode> locator_;
+  /// DataHelper to fall back on for Loss calculations
+  std::unique_ptr<simRF::FallbackDataHelper> lossDataHelper_;
 
-  /// parent node in the scene graph of our locator
+  /// parent node in the scene graph of our profileManager
   osg::observer_ptr<osg::Group> parent_;
 
   /// color provider to manager which color
-  osg::ref_ptr<simRF::CompositeColorProvider> colorProvider_;
+  osg::ref_ptr<simRF::CompositeColorProvider> currentColorProvider_;
 
   /// map of filesets loaded, keyed by the timestamp for which they were specified
   std::map<simCore::TimeStamp, std::vector<std::string> > arepsFilesetTimeMap_;
@@ -519,11 +546,11 @@ private:
   /// shared ptr to the RF RADAR Parameters
   RadarParametersPtr radarParameters_;
 
-  /// color maps by threshold type
-  std::map<simRF::ProfileDataProvider::ThresholdType, simRF::GradientColorProvider::ColorMap> colorMaps_;
+  /// color providers by threshold type
+  std::map<simRF::ProfileDataProvider::ThresholdType, osg::ref_ptr<simRF::CompositeColorProvider> > colorProviderMap_;
 
-  /// default color map
-  simRF::GradientColorProvider::ColorMap defaultColors_;
+  /// default color provider
+  osg::ref_ptr<simRF::CompositeColorProvider> defaultColorProvider_;
 };
 
 }

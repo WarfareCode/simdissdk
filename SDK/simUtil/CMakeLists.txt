@@ -9,6 +9,11 @@ set(SHADER_FILES
     MapScale.glsl
     TerrainToggleEffect.vert.glsl
     TerrainToggleEffect.frag.glsl
+    VelocityParticleLayer.compute.dir.frag.glsl
+    VelocityParticleLayer.compute.pos.frag.glsl
+    VelocityParticleLayer.compute.vert.glsl
+    VelocityParticleLayer.part.frag.glsl
+    VelocityParticleLayer.part.vert.glsl
 )
 
 set(UTIL_INC)
@@ -18,7 +23,6 @@ set(UTIL_HEADERS
     ${UTIL_INC}Capabilities.h
     ${UTIL_INC}DataStoreTestHelper.h
     ${UTIL_INC}DatumConvert.h
-    ${UTIL_INC}DbConfigurationFile.h
     ${UTIL_INC}DefaultDataStoreValues.h
     ${UTIL_INC}ExampleControls.h
     ${UTIL_INC}ExampleResources.h
@@ -46,6 +50,7 @@ set(UTIL_HEADERS
     ${UTIL_INC}StatusText.h
     ${UTIL_INC}TerrainToggleEffect.h
     ${UTIL_INC}UnitTypeConverter.h
+    ${UTIL_INC}VelocityParticleLayer.h
     ${UTIL_INC}ViewpointMonitor.h
     ${UTIL_INC}ViewpointPositions.h
 )
@@ -54,7 +59,6 @@ set(UTIL_SOURCES
     ${UTIL_SRC}Capabilities.cpp
     ${UTIL_SRC}DataStoreTestHelper.cpp
     ${UTIL_SRC}DatumConvert.cpp
-    ${UTIL_SRC}DbConfigurationFile.cpp
     ${UTIL_SRC}DefaultDataStoreValues.cpp
     ${UTIL_SRC}ExampleControls.cpp
     ${UTIL_SRC}ExampleResources.cpp
@@ -80,15 +84,18 @@ set(UTIL_SOURCES
     ${UTIL_SRC}StatusText.cpp
     ${UTIL_SRC}TerrainToggleEffect.cpp
     ${UTIL_SRC}UnitTypeConverter.cpp
+    ${UTIL_SRC}VelocityParticleLayer.cpp
     ${UTIL_SRC}ViewpointMonitor.cpp
     ${UTIL_SRC}ViewpointPositions.cpp
 )
+
+if(SIM_HAVE_DB_SUPPORT)
+    list(APPEND UTIL_HEADERS ${UTIL_INC}DbConfigurationFile.h)
+    list(APPEND UTIL_SOURCES ${UTIL_SRC}DbConfigurationFile.cpp)
+endif()
+
 set(UTIL_GENERATED_HEADERS)
 set(UTIL_GENERATED_SOURCES)
-
-set(UTIL_ALL_HEADER
-    ${UTIL_INC}../simUtil.h
-)
 
 # Append TritonSettings if we have the osgEarth Triton nodekit
 if(OSGEARTH_TRITON_SUPPORT STREQUAL "NODEKIT" AND TARGET OSGEARTH_TRITON)
@@ -114,13 +121,12 @@ configure_shaders(Shaders.cpp.in Shaders.cpp ${SHADER_FILES})
 source_group(Shaders FILES ${UTIL_SHADER_FILES})
 
 source_group(Headers FILES ${UTIL_HEADERS})
-source_group(Sources FILES ${UTIL_SOURCES})
-source_group("" FILES ${UTIL_ALL_HEADER})
+source_group("Source Files" FILES ${UTIL_SOURCES})
 
 # ----------------------------------------------------------------------
 
 set(UTIL_PROJECT_FILES
-    ${UTIL_HEADERS} ${UTIL_SOURCES} ${UTIL_ALL_HEADER} ${UTIL_SHADER_FILES}
+    ${UTIL_HEADERS} ${UTIL_SOURCES} ${UTIL_SHADER_FILES}
 )
 
 # Fix the library for static or shared
@@ -132,7 +138,7 @@ endif()
 add_library(simUtil ${STATIC_OR_SHARED} ${UTIL_PROJECT_FILES})
 set_target_properties(simUtil PROPERTIES
     FOLDER "SIMDIS SDK"
-    PROJECT_LABEL "SIMDIS SDK - Util"
+    PROJECT_LABEL "simUtil"
 )
 ApplySDKVersion(simUtil)
 target_include_directories(simUtil PUBLIC
@@ -158,6 +164,9 @@ endif()
 if(OSGEARTH_SILVERLINING_SUPPORT STREQUAL "NODEKIT" AND TARGET OSGEARTH_SILVERLINING)
     target_link_libraries(simUtil PRIVATE OSGEARTH_SILVERLINING)
 endif()
+if(SIM_HAVE_DB_SUPPORT)
+    target_compile_definitions(simUtil PRIVATE SIM_HAVE_DB_SUPPORT)
+endif()
 
 if(INSTALL_SIMDIS_SDK_SHADERS)
     if(NOT SIMDIS_SDK_SHADERS_INSTALL_DIR)
@@ -177,7 +186,4 @@ if(INSTALL_HEADERS)
     # Setup header file installation
     install(FILES ${UTIL_HEADERS}
         DESTINATION include/simUtil)
-
-    install(FILES ${UTIL_ALL_HEADER}
-        DESTINATION include)
 endif()

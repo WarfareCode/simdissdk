@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -60,7 +61,7 @@ public:
    *   receive no text from stdout unless teeToOriginalDest is true.
    * @param parent QObject parent for automatic deletion
    */
-  FileDescriptorReplacement(int whichFd, bool teeToOriginalDest, QObject* parent=NULL);
+  FileDescriptorReplacement(int whichFd, bool teeToOriginalDest, QObject* parent=nullptr);
   /** Replaces the descriptor so regular output will continue */
   virtual ~FileDescriptorReplacement();
 
@@ -70,7 +71,7 @@ public:
    *   a signal.  The console will receive no text from stdout unless teeToStdOut is true.
    * @param parent QObject parent for automatic deletion
    */
-  static FileDescriptorReplacement* replaceStdout(bool teeToStdOut, QObject* parent = NULL);
+  static FileDescriptorReplacement* replaceStdout(bool teeToStdOut, QObject* parent = nullptr);
 
   /**
    * Factory method to replace stderr.  Useful because STDERR_FILENO is not universally defined.
@@ -78,7 +79,7 @@ public:
    *   a signal.  The console will receive no text from stderr unless teeToStdErr is true.
    * @param parent QObject parent for automatic deletion
    */
-  static FileDescriptorReplacement* replaceStderr(bool teeToStdErr, QObject* parent = NULL);
+  static FileDescriptorReplacement* replaceStderr(bool teeToStdErr, QObject* parent = nullptr);
 
 signals:
   /** Text has been read on the specified file descriptor */

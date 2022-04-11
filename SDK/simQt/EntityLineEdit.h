@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -77,8 +78,10 @@ signals:
   void closedGui();
 
 private slots:
-  /** Gets the selection from EntityTreeComposite; EntityTreeComposite is in single select mode so QList will only have one entry*/
-  void setSelected_(QList<uint64_t> ids);
+  /** Sets the selection from EntityTreeComposite; EntityTreeComposite is in single select mode so QList will only have one entry*/
+  void setSelected_(const QList<uint64_t>& ids);
+  /** Accept the changes and emit closedGui */
+  void accept_();
 
 private:
   EntityTreeModel* entityTreeModel_;
@@ -101,7 +104,7 @@ class SDKQT_EXPORT EntityLineEdit : public QWidget
 
 public:
   /** Constructor */
-  EntityLineEdit(QWidget* parent, simQt::EntityTreeModel* entityTreeModel = NULL, simData::ObjectType type = simData::ALL);
+  EntityLineEdit(QWidget* parent, simQt::EntityTreeModel* entityTreeModel = nullptr, simData::ObjectType type = simData::ALL);
   virtual ~EntityLineEdit();
 
   /** Returns the Unique ID of the currently selected Entity; returns zero if none */
@@ -109,7 +112,7 @@ public:
   /** Returns the name of the currently selected Entity; returns "" if none */
   QString selectedName() const;
   /** The model that holds all the entity information filtered by type */
-  void setModel(simQt::EntityTreeModel* model, simData::ObjectType type = simData::ALL, simCore::Clock* clock = NULL);
+  void setModel(simQt::EntityTreeModel* model, simData::ObjectType type = simData::ALL, simCore::Clock* clock = nullptr);
 
   // Options for customizing the widget
 
@@ -163,11 +166,11 @@ private slots:
   /** Called when the user clicks the button for showing the Entity Tree Composite dialog */
   void showEntityDialog_();
   /** Called when the user selects an options from the QCompleter popup menu */
-  void wasActived_(const QModelIndex & index);
+  void wasActivated_(const QModelIndex& index);
   /** Called with the user finished editing the name and the name can be verified */
   void editingFinished_();
   /** Called with the user edits the name */
-  void textEdited_(const QString & text);
+  void textEdited_(const QString& text);
   /** Emit reapply() if the user pressed enter on an existing valid entity */
   void checkForReapply_();
 

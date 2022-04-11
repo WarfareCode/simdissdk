@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -33,7 +34,7 @@ namespace
 
 /** Returns true when testString conversion to type T worked as expectedValid dictates. */
 template <typename T>
-bool validateValueNoCompare(const std::string& testString, bool expectedValid, T* convertedValue=NULL, bool allowPlusSign=true)
+bool validateValueNoCompare(const std::string& testString, bool expectedValid, T* convertedValue=nullptr, bool allowPlusSign=true)
 {
   bool rv = true; // Return value defaults to good
 
@@ -53,7 +54,7 @@ bool validateValueNoCompare(const std::string& testString, bool expectedValid, T
     std::cerr << "isValidNumber<" << typeid(T).name() << "> failed with input: " << testString << std::endl;
     rv = false;
   }
-  if (convertedValue != NULL)
+  if (convertedValue != nullptr)
     *convertedValue = val;
   return rv;
 }

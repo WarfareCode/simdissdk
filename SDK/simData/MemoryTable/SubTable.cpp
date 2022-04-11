@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -90,7 +91,7 @@ private:
   TableStatus setCellValue_(TableColumnId columnId, T& value)
   {
     DataColumn* column = subTable_.findColumn_(columnId);
-    if (column == NULL)
+    if (column == nullptr)
       return TableStatus::Error("Column does not exist in subtable.");
     if (!insertRow_)
       return column->replace(isFreshBin_, rowIndex_, value);
@@ -143,12 +144,12 @@ private:
 
   SubTable* initializeNewTable_(const std::vector<DataColumn*>& startingColumns)
   {
-    return new SubTable(*subTable_.timeContainer_, startingColumns, timeStamp_);
+    return new SubTable(*subTable_.timeContainer_, startingColumns, timeStamp_, subTable_.tableId_);
   }
 
   void notifyObserver_(SubTable* newTable, const std::vector<DataColumn*>& startingColumns)
   {
-    if (splitObserver_.get() == NULL)
+    if (splitObserver_.get() == nullptr)
     {
       // Indicates we have a memory leak because no one is available
       // to take ownership of the newly created subtable.
@@ -269,15 +270,17 @@ void SubTable::IteratorData::fillRow(TableRow& row) const
 
 /////////////////////////////////////////////////////////////////
 
-SubTable::SubTable(TimeContainer* newTimeContainer)
-  : timeContainer_(newTimeContainer)
+SubTable::SubTable(TimeContainer* newTimeContainer, TableId tableId)
+  : timeContainer_(newTimeContainer),
+  tableId_(tableId)
 {
   // Assertion failure means the caller gave us a bad time container to use
-  assert(timeContainer_ != NULL && timeContainer_->size() == 0);
+  assert(timeContainer_ != nullptr && timeContainer_->size() == 0);
 }
 
-SubTable::SubTable(const TimeContainer& copyTimes, const std::vector<DataColumn*>& withColumns, double withoutTimeStamp)
-  : timeContainer_(copyTimes.clone())
+SubTable::SubTable(const TimeContainer& copyTimes, const std::vector<DataColumn*>& withColumns, double withoutTimeStamp, TableId tableId)
+  : timeContainer_(copyTimes.clone()),
+  tableId_(tableId)
 {
   TimeContainer::Iterator removeIter = timeContainer_->find(withoutTimeStamp);
   // Assertion failure means this is used for more than just split, or that split
@@ -324,9 +327,9 @@ TableStatus SubTable::addColumn(const std::string& columnName, TableColumnId col
 {
   if (!empty())
     return TableStatus::Error("Attempting to add column to a non-empty subtable, violates NULL-less state.");
-  DataColumn* newColumn = new DataColumn(timeContainer_, columnName, columnId, storageType, unitType);
+  DataColumn* newColumn = new DataColumn(timeContainer_, columnName, tableId_, columnId, storageType, unitType);
   columns_.push_back(newColumn);
-  if (newCol != NULL) *newCol = newColumn;
+  if (newCol != nullptr) *newCol = newColumn;
 
   // Assertion failure means reuse of IDs
   assert(columnMap_.find(columnId) == columnMap_.end());
@@ -381,27 +384,72 @@ TableStatus SubTable::removeColumn_(TableColumnId columnId)
   return TableStatus::Error("Invalid column ID to remove from subtable.");
 }
 
-simData::DelayedFlushContainerPtr SubTable::flush()
+simData::DelayedFlushContainerPtr SubTable::flush(TableColumnId id, SplitObserverPtr splitObserver)
 {
   DelayedFlushContainerComposite* deq = new DelayedFlushContainerComposite();
-  deq->push_back(timeContainer_->flush());
+  // Simple case: Flushing all columns or flushing the only column in the sub table.  No need to split
+  if (id == -1 || (columns_.size() == 1 && columns_.front()->columnId() == id))
+  {
+    deq->push_back(timeContainer_->flush());
+    for (std::vector<DataColumn*>::const_iterator i = columns_.begin(); i != columns_.end(); ++i)
+      deq->push_back((*i)->flush());
+
+    return DelayedFlushContainerPtr(deq);
+  }
+
+  // Complex case: Flushing one column among many
+  if (splitObserver.get() == nullptr)
+  {
+    // Split observer is required when flushing a single column.
+    // Without it, no one will take ownership of the new sub table
+    assert(0);
+    return DelayedFlushContainerPtr(deq);
+  }
+
+  DataColumn* removedCol = nullptr;
   for (std::vector<DataColumn*>::const_iterator i = columns_.begin(); i != columns_.end(); ++i)
-    deq->push_back((*i)->flush());
+  {
+    if ((*i)->columnId() == id)
+    {
+      deq->push_back((*i)->flush());
+      removedCol = *i;
+      break;
+    }
+  }
+
+  // Didn't find the column in this sub table.  Nothing to do, return
+  if (removedCol == nullptr)
+    return DelayedFlushContainerPtr(deq);
+
+  // Split off the flushed column to a new subtable
+  TimeContainer* newContainer = timeContainer_->clone();
+  newContainer->flush();
+  SubTable* newTable = new SubTable(newContainer, tableId_);
+  newTable->takeColumn_(removedCol);
+  removeColumn_(id);
+  std::vector<TableColumnId> idVec;
+  idVec.push_back(id);
+  splitObserver->notifySplit(this, newTable, idVec);
   return DelayedFlushContainerPtr(deq);
+}
+
+void SubTable::flush(double startTime, double endTime)
+{
+  timeContainer_->flush(columns_, startTime, endTime);
 }
 
 DataColumn* SubTable::findColumn_(TableColumnId columnId) const
 {
   std::map<TableColumnId, DataColumn*>::const_iterator i = columnMap_.find(columnId);
   if (i == columnMap_.end())
-    return NULL;
+    return nullptr;
   return i->second;
 }
 
 TableStatus SubTable::interpolate(TableColumnId columnId, double time, double& value, const TableColumn::Interpolator* interpolator) const
 {
   TableColumn* column = findColumn_(columnId);
-  if (column == NULL)
+  if (column == nullptr)
     return TableStatus::Error("Invalid column index.");
   return column->interpolate(value, time, interpolator);
 }
@@ -440,6 +488,16 @@ void SubTable::fillRow_(const TimeContainer::IteratorData& timeIdxData, TableRow
 void SubTable::limitData(size_t maxPoints, double latestInvalidTime, DataTable* table, const std::vector<DataTable::TableObserverPtr>& observers)
 {
   timeContainer_->limitData(maxPoints, latestInvalidTime, columns_, table, observers);
+}
+
+void SubTable::takeColumn_(DataColumn* column)
+{
+  columns_.push_back(column);
+  // Assertion failure means vector had duplicate column IDs
+  assert(columnMap_.find((column)->columnId()) == columnMap_.end());
+  columnMap_[(column)->columnId()] = column;
+  // Fix time container ownership so column points to our container and not old owner
+  column->replaceTimeContainer(timeContainer_);
 }
 
 } }

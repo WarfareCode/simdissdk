@@ -1,24 +1,25 @@
-// -*- mode: c++ -*-
+/* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #ifndef SIMQT_MRULIST_H
 #define SIMQT_MRULIST_H
 
@@ -50,7 +51,7 @@ class SDKQT_EXPORT MruList : public QObject
   Q_OBJECT;
 public:
   /** Constructor */
-  explicit MruList(int maxFiles, QObject* parent=NULL);
+  explicit MruList(int maxFiles, QObject* parent=nullptr);
   virtual ~MruList();
 
   /** Retrieves the maximum number of entries in this list */
@@ -67,7 +68,7 @@ public:
    * Inserts the MRU list and optional separators into the menu provided.  Separators
    * added will hide automatically.
    * @param menu Menu into which to add our MRU
-   * @param beforeAction Insert MRU before this action; if NULL, MRU is appended to list
+   * @param beforeAction Insert MRU before this action; if nullptr, MRU is appended to list
    * @param separatorBefore If true, include a menu separator before the MRU.  Note that the
    *   separator is hidden automatically when the MRU is empty.
    * @param separatorAfter If true, include a menu separator after the MRU.  Note that the

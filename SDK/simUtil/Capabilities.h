@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -84,6 +85,8 @@ private:
   void recordUsabilityConcern_(Usability severity, const std::string& concern);
   /** Extracts the OpenGL version from the GL_VERSION string */
   double extractGlVersion_(const std::string& glVersionString) const;
+  /** Checks for usability concerns wrt vendor-specific OpenGL support */
+  void checkVendorOpenGlSupport_(const std::string& vendor, const std::string& glVersionString);
 
   /** Converts boolean to string */
   std::string toString_(bool val) const;

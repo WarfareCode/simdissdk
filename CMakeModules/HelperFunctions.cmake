@@ -121,10 +121,6 @@ macro(VSI_QT_ADD_RESOURCES DEST)
     SOURCE_GROUP("Qt\\Generated Files" FILES ${${DEST}})
 endmacro()
 
-macro(VSI_INCLUDE_QT_USE_FILE)
-    # Noop; only for Qt4 support
-endmacro()
-
 macro(VSI_QT_USE_MODULES TARGET LINK_TYPE)
     set(_CM_LINK_TYPE)
     if("${LINK_TYPE}" STREQUAL "LINK_PUBLIC")
@@ -286,7 +282,7 @@ endfunction()
 # field is set.
 function(vsi_install_executable TARGET COMPONENT)
     set(DESTINATION ${INSTALLSETTINGS_RUNTIME_DIR})
-    if(ARGV2)
+    if(${ARGC} GREATER 2)
         set(DESTINATION ${ARGV2})
     endif()
 
@@ -310,7 +306,7 @@ endfunction()
 # install using that value for the install(TARGETS EXPORT) signature.
 function(vsi_install_shared_library TARGET COMPONENT)
     set(DESTINATION ${INSTALLSETTINGS_SHARED_LIBRARY_DIR})
-    if(ARGV2)
+    if(${ARGC} GREATER 2)
         set(DESTINATION ${ARGV2})
     endif()
 
@@ -341,7 +337,7 @@ endfunction()
 # DESTINATION field is set.  Sets RPATH as needed on the target.
 function(vsi_install_plugin TARGET COMPONENT)
     set(DESTINATION ${INSTALLSETTINGS_PLUGIN_DIR})
-    if(ARGV2)
+    if(${ARGC} GREATER 2)
         set(DESTINATION ${ARGV2})
     endif()
     vsi_install_shared_library(${TARGET} ${COMPONENT} ${DESTINATION})
@@ -355,12 +351,15 @@ endfunction()
 # IMPORTED_LOCATION property of TARGET.
 function(vsi_install_imported_shared_library TARGET COMPONENT)
     set(DESTINATION ${INSTALLSETTINGS_SHARED_LIBRARY_DIR})
-    if(ARGV2)
+    if(${ARGC} GREATER 2)
         set(DESTINATION ${ARGV2})
     endif()
 
     # Pull out the imported location
     get_target_property(LOCATION_RELEASE ${TARGET} IMPORTED_LOCATION)
+    if(NOT LOCATION_RELEASE)
+        get_target_property(LOCATION_RELEASE ${TARGET} IMPORTED_LOCATION_RELEASE)
+    endif()
     get_symlinks(${LOCATION_RELEASE} LOCATION_RELEASE)
     install(PROGRAMS ${LOCATION_RELEASE}
         DESTINATION "${DESTINATION}"
@@ -387,7 +386,7 @@ endfunction()
 # install(TARGETS EXPORT) signature.
 function(vsi_install_static_library TARGET COMPONENT)
     set(DESTINATION ${INSTALLSETTINGS_LIBRARY_DIR})
-    if(ARGV2)
+    if(${ARGC} GREATER 2)
         set(DESTINATION ${ARGV2})
     endif()
 
@@ -432,6 +431,23 @@ function(vsi_install_target TARGET COMPONENT)
     endif()
 endfunction()
 
+# vsi_write_basic_package_config_file(TARGET DEPS)
+#
+# Given a library TARGET that is being exported, generates a <TARGET>Config.cmake
+# file in the build directory for use in vsi_install_export().  This is particularly
+# useful in cases where the dependencies of the target are variable and cannot
+# be easily hardcoded into a <TARGET>Config.cmake.
+function(vsi_write_basic_package_config_file TARGET DEPS)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}Config.cmake"
+        "include(CMakeFindDependencyMacro)\n"
+        "set(DEPS \"${DEPS}\")\n"
+        "foreach(DEP IN LISTS DEPS)\n"
+        "    find_dependency(\${DEP})\n"
+        "endforeach()\n"
+        "include(\"\${CMAKE_CURRENT_LIST_DIR}/${TARGET}Targets.cmake\")\n"
+    )
+endfunction()
+
 # vsi_install_export(TARGET VERSION COMPATIBILITY)
 #
 # Given a library TARGET that is being exported, installs a generated <TARGET>Targets.cmake
@@ -459,6 +475,11 @@ function(vsi_install_export TARGET VERSION COMPATIBILITY)
     get_target_property(TARGET_TYPE ${TARGET} TYPE)
     if(UNIX AND TARGET_TYPE STREQUAL "SHARED_LIBRARY")
         vsi_set_rpath(${TARGET} ${INSTALLSETTINGS_SHARED_LIBRARY_DIR})
+    endif()
+
+    # CMake prior to 3.19 did not support VERSION as whitelisted property on INTERFACE targets
+    if(NOT TARGET_TYPE STREQUAL "INTERFACE_LIBRARY" OR NOT CMAKE_VERSION VERSION_LESS "3.19")
+        set_target_properties(${TARGET} PROPERTIES VERSION "${VERSION}")
     endif()
 
     # Create the ConfigVersion.cmake file for the target
@@ -503,7 +524,10 @@ endfunction()
 macro(vsi_require_target)
     foreach(target ${ARGN})
         if(NOT TARGET ${target})
-            if(VERBOSE)
+            if(WARN_SKIPPED_TARGETS)
+                get_filename_component(_DIR "${CMAKE_CURRENT_LIST_DIR}" NAME)
+                message(WARNING "Skipping ${_DIR}, missing target ${target}")
+            elseif(VERBOSE)
                 get_filename_component(_DIR "${CMAKE_CURRENT_LIST_DIR}" NAME)
                 message(STATUS "Skipping ${_DIR}, missing target ${target}")
             endif()

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -21,7 +22,7 @@
  */
 #include "simData/CategoryData/CategoryFilter.h"
 #include "simQt/CategoryFilterWidget.h"
-#include "simQt/CategoryTreeModel2.h"
+#include "simQt/CategoryTreeModel.h"
 #include "simQt/RegExpImpl.h"
 #include "simQt/EntityCategoryFilter.h"
 
@@ -29,21 +30,22 @@ namespace simQt {
 
 EntityCategoryFilter::EntityCategoryFilter(simData::DataStore* dataStore, WidgetType widgetType)
   : EntityFilter(),
-    categoryFilter_(new simData::CategoryFilter(dataStore, true)),
+    dataStore_(dataStore),
+    categoryFilter_(new simData::CategoryFilter(dataStore_, true)),
     widgetType_(widgetType),
-    settings_(NULL)
+    settings_(nullptr)
 {
 }
 
 EntityCategoryFilter::~EntityCategoryFilter()
 {
   delete categoryFilter_;
-  categoryFilter_ = NULL;
+  categoryFilter_ = nullptr;
 }
 
 bool EntityCategoryFilter::acceptEntity(simData::ObjectId id) const
 {
-  return categoryFilter_->match(id);
+  return !dataStore_ || categoryFilter_->match(*dataStore_, id);
 }
 
 QWidget* EntityCategoryFilter::widget(QWidget* newWidgetParent) const
@@ -55,24 +57,16 @@ QWidget* EntityCategoryFilter::widget(QWidget* newWidgetParent) const
     break;
   case SHOW_WIDGET:
   {
-    CategoryFilterWidget2* rv = new CategoryFilterWidget2(newWidgetParent);
+    CategoryFilterWidget* rv = new CategoryFilterWidget(newWidgetParent);
     rv->setDataStore(categoryFilter_->getDataStore());
     rv->setFilter(*categoryFilter_);
     rv->setSettings(settings_, settingsKeyPrefix_);
     bindToWidget(rv);
     return rv;
   }
-  case SHOW_LEGACY_WIDGET:
-  {
-    CategoryFilterWidget* rv = new CategoryFilterWidget(newWidgetParent);
-    rv->setProviders(categoryFilter_->getDataStore());
-    rv->setFilter(*categoryFilter_);
-    bindToWidget(rv);
-    return rv;
-  }
   }
 
-  return NULL;
+  return nullptr;
 }
 
 void EntityCategoryFilter::getFilterSettings(QMap<QString, QVariant>& settings) const
@@ -100,20 +94,13 @@ void EntityCategoryFilter::setFilterSettings(const QMap<QString, QVariant>& sett
   }
 }
 
-void EntityCategoryFilter::bindToWidget(CategoryFilterWidget2* widget) const
+void EntityCategoryFilter::bindToWidget(CategoryFilterWidget* widget) const
 {
   // Whenever the filter updates in the GUI, update our internal filter,
   // which then in turn emits filterUpdated().
   connect(widget, SIGNAL(filterEdited(simData::CategoryFilter)), this, SLOT(setCategoryFilterFromGui_(simData::CategoryFilter)));
 
   // When internal filter gets changed, make the widget reflect those values.
-  connect(this, SIGNAL(categoryFilterChanged(simData::CategoryFilter)), widget, SLOT(setFilter(simData::CategoryFilter)));
-}
-
-void EntityCategoryFilter::bindToWidget(CategoryFilterWidget* widget) const
-{
-  // connect to the signals/slots between the gui and the filter so changes to one will update the other
-  connect(widget, SIGNAL(categoryFilterChanged(const simData::CategoryFilter&)), this, SLOT(setCategoryFilterFromGui_(const simData::CategoryFilter&)));
   connect(this, SIGNAL(categoryFilterChanged(simData::CategoryFilter)), widget, SLOT(setFilter(simData::CategoryFilter)));
 }
 

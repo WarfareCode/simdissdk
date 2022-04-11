@@ -1,42 +1,46 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling and Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <cassert>
 #include <iostream>
 #include <limits>
 #include "osg/Depth"
 #include "osg/PolygonOffset"
-#include "osgEarth/Units"
+#include "osgDB/ReadFile"
+#include "osgEarth/AltitudeSymbol"
+#include "osgEarth/FeatureNode"
+#include "osgEarth/GeoPositionNode"
+#include "osgEarth/ImageOverlay"
+#include "osgEarth/LabelNode"
+#include "osgEarth/LineSymbol"
+#include "osgEarth/LocalGeometryNode"
+#include "osgEarth/ObjectIndex"
+#include "osgEarth/PlaceNode"
+#include "osgEarth/PolygonSymbol"
+#include "osgEarth/Registry"
+#include "osgEarth/RenderSymbol"
 #include "osgEarth/Style"
 #include "osgEarth/TextSymbol"
-#include "osgEarth/PolygonSymbol"
-#include "osgEarth/LineSymbol"
-#include "osgEarth/AltitudeSymbol"
-#include "osgEarth/RenderSymbol"
-#include "osgEarth/LabelNode"
-#include "osgEarth/PlaceNode"
-#include "osgEarth/GeoPositionNode"
-#include "osgEarth/LocalGeometryNode"
-#include "osgEarth/FeatureNode"
+#include "osgEarth/Units"
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/CoordinateConverter.h"
@@ -44,23 +48,17 @@
 #include "simCore/String/Format.h"
 #include "simCore/String/Utils.h"
 #include "simCore/String/ValidNumber.h"
-#include "simVis/Types.h"
+#include "simCore/Time/String.h"
 #include "simVis/Constants.h"
-#include "simVis/Registry.h"
+#include "simVis/OverrideColor.h"
 #include "simVis/OverheadMode.h"
+#include "simVis/Registry.h"
+#include "simVis/Types.h"
 #include "simVis/Utils.h"
-#include "simVis/GOG/GOG.h"
 #include "simVis/GOG/GOGNode.h"
-#include "simVis/GOG/Arc.h"
-#include "simVis/GOG/Circle.h"
-#include "simVis/GOG/Ellipse.h"
-#include "simVis/GOG/Ellipsoid.h"
-#include "simVis/GOG/Line.h"
-#include "simVis/GOG/LineSegs.h"
+#include "simVis/GOG/LoaderUtils.h"
 #include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Parser.h"
-#include "simVis/GOG/Points.h"
-#include "simVis/GOG/Polygon.h"
 #include "simVis/GOG/GogNodeInterface.h"
 
 #ifndef GL_CLIP_DISTANCE0
@@ -81,7 +79,7 @@ namespace {
     if (!node || (!referencePosition && !node->getPosition().isValid()))
       return 1;
     // use reference point if it's valid, otherwise use the node's position
-    osgEarth::GeoPoint refPosition = referencePosition != NULL ? *referencePosition : node->getPosition();
+    osgEarth::GeoPoint refPosition = referencePosition != nullptr ? *referencePosition : node->getPosition();
 
     osg::Vec3d centerPoint;
 
@@ -99,8 +97,8 @@ namespace {
       centerPoint = node->getBound().center();
 
     simCore::Coordinate llaCoord;
-    // apply the offset to the ref position if using the local offset or if the map node is NULL which indicates this is a hosted node (relative to ref position)
-    if (useLocalOffset || node->getMapNode() == NULL)
+    // apply the offset to the ref position if using the local offset or if the map node is nullptr which indicates this is a hosted node (relative to ref position)
+    if (useLocalOffset || node->getMapNode() == nullptr)
     {
       // if the offsets are non-zero, apply the offsets to our reference position
       simCore::CoordinateConverter converter;
@@ -118,9 +116,65 @@ namespace {
     position = osg::Vec3d(llaCoord.lon()*simCore::RAD2DEG, llaCoord.lat()*simCore::RAD2DEG, llaCoord.alt());
     return 0;
   }
+
+  /// Apply the orientation offsets from the specified shape to the local rotation of the specified node
+  void applyOrientationOffsetsToNode_(const simCore::GOG::GogShape& shape, osgEarth::LocalGeometryNode* node)
+  {
+    if (node == nullptr)
+      return;
+
+    double yawOffset = 0.;
+    shape.getYawOffset(yawOffset);
+    osg::Quat yaw(yawOffset, -osg::Vec3(0, 0, 1));
+    double pitchOffset = 0.;
+    shape.getPitchOffset(pitchOffset);
+    osg::Quat pitch(pitchOffset, osg::Vec3(1, 0, 0));
+    double rollOffset = 0.;
+      shape.getRollOffset(rollOffset);
+    osg::Quat roll(rollOffset, osg::Vec3(0, 1, 0));
+    node->setLocalRotation(roll * pitch * yaw);
+  }
 }
 
 namespace simVis { namespace GOG {
+
+class TimeBoundsCallback : public osg::NodeCallback
+{
+public:
+  explicit TimeBoundsCallback(GogNodeInterface* parent)
+    : Callback(),
+      parent_(parent)
+  {
+  }
+
+  void operator()(osg::Node* node, osg::NodeVisitor* nv) override
+  {
+    int refYear;
+    double seconds;
+    // Defined in simVis/Scenario.cpp
+    bool hasTime = nv->getUserValue("simVis.ScenarioManager.RefYear", refYear);
+    hasTime = hasTime && nv->getUserValue("simVis.ScenarioManager.Seconds", seconds);
+
+    // Only attempt time culling if we have a valid time to compare to
+    if (hasTime && refYear >= 1970 && parent_ && parent_->shapeObject())
+    {
+      simCore::TimeStamp currTime(refYear, seconds);
+      simCore::TimeStamp start;
+      bool validStart = (parent_->shapeObject()->getStartTime(start) == 0);
+      simCore::TimeStamp end;
+      bool validEnd = (parent_->shapeObject()->getEndTime(end) == 0);
+      if ((validStart && currTime < start) || (validEnd && currTime > end))
+      {
+        // Returning without traversing here will cause the GOG node not to be drawn
+        return;
+      }
+    }
+    traverse(node, nv);
+  }
+
+private:
+  GogNodeInterface* parent_;
+};
 
 GogNodeInterface::GogNodeInterface(osg::Node* osgNode, const simVis::GOG::GogMetaData& metaData)
   : osgNode_(osgNode),
@@ -140,14 +194,179 @@ GogNodeInterface::GogNodeInterface(osg::Node* osgNode, const simVis::GOG::GogMet
     defaultFont_("arial.ttf"),
     defaultTextSize_(15),
     defaultTextColor_(simVis::Color::Red),
-    rangeUnits_(simCore::Units::YARDS)
+    rangeUnits_(simCore::Units::YARDS),
+    opacity_(1.f),
+    timeCallback_(new TimeBoundsCallback(this)),
+    objectIndexTag_(0)
 {
   if (osgNode_.valid())
   {
     osgNode_->setNodeMask(simVis::DISPLAY_MASK_GOG);
 
+    // Initialize the override color
+    simVis::OverrideColor::setCombineMode(osgNode_->getOrCreateStateSet(), simVis::OverrideColor::MULTIPLY_COLOR);
+    simVis::OverrideColor::setColor(osgNode_->getOrCreateStateSet(), osg::Vec4f(1.f, 1.f, 1.f, 1.f));
+
     // flatten in overhead mode by default - subclass might change this
     simVis::OverheadMode::enableGeometryFlattening(true, osgNode_.get());
+
+    osgNode_->addCullCallback(timeCallback_);
+
+    // Add a tag for picking
+    objectIndexTag_ = osgEarth::Registry::objectIndex()->tagNode(osgNode_.get(), osgNode_.get());
+  }
+}
+
+GogNodeInterface::~GogNodeInterface()
+{
+  if (osgNode_.valid())
+    osgNode_->removeCullCallback(timeCallback_);
+}
+
+simCore::GOG::GogShape* GogNodeInterface::shapeObject() const
+{
+  return shape_.get();
+}
+
+void GogNodeInterface::setShapeObject(simCore::GOG::GogShapePtr shape)
+{
+  if (!shape)
+    return;
+
+  // update meta data with the shape type
+  metaData_.shape = LoaderUtils::convertToVisShapeType(shape->shapeType());
+  metaData_.lineNumber = shape->lineNumber();
+
+  // now update style
+
+  // for performance reasons, cache all style updates, apply once when done
+  beginStyleUpdates_();
+
+  std::string name;
+  // always set the name, use default if not set
+  shape->getName(name);
+  osgNode_->setName(name);
+
+  bool draw = true;
+  // always set draw, use default if not set
+  shape->getIsDrawn(draw);
+  setDrawState(draw);
+
+  double altitudeOffset = 0.;
+  if (shape->getAltitudeOffset(altitudeOffset) == 0)
+    setAltOffset(altitudeOffset);
+
+  simCore::GOG::AltitudeMode altMode = simCore::GOG::AltitudeMode::NONE;
+  if (shape->getAltitudeMode(altMode) == 0)
+    setAltitudeMode(LoaderUtils::convertToVisAltitudeMode(altMode));
+
+  double extrudeHeight = 0.;
+  if (shape->getExtrudeHeight(extrudeHeight) == 0)
+    setExtrudedHeight(extrudeHeight);
+
+  const simCore::GOG::OutlinedShape* outlined = dynamic_cast<const simCore::GOG::OutlinedShape*>(shape.get());
+  if (outlined != nullptr)
+  {
+    bool outlinedState = true;
+    // always set outlined, use default if not set in shape
+    outlined->getIsOutlined(outlinedState);
+    setOutlineState(outlinedState);
+  }
+
+  const simCore::GOG::FillableShape* fillable = dynamic_cast<const simCore::GOG::FillableShape*>(shape.get());
+  if (fillable != nullptr)
+  {
+    int lineWidth = 0;
+    if (fillable->getLineWidth(lineWidth) == 0)
+      setLineWidth(lineWidth);
+
+    simCore::GOG::Color lineColor;
+    fillable->getLineColor(lineColor);
+    setLineColor(LoaderUtils::convertToOsgColor(lineColor));
+
+    simCore::GOG::LineStyle style = simCore::GOG::LineStyle::SOLID;
+    if (fillable->getLineStyle(style) == 0)
+      setLineStyle(LoaderUtils::convertToVisLineStyle(style));
+
+    bool filled = false;
+    fillable->getIsFilled(filled);
+    // always set filled state, use default if not set in shape
+    setFilledState(filled);
+
+    // always set a fill color
+    simCore::GOG::Color fillColor;
+    // if fill color is not set, then try to get line color, which will be default if not set
+    if (fillable->getFillColor(fillColor) != 0)
+      fillable->getLineColor(fillColor);
+    setFillColor(LoaderUtils::convertToOsgColor(fillColor));
+  }
+
+  const simCore::GOG::PointBasedShape* lined = dynamic_cast<const simCore::GOG::PointBasedShape*>(shape.get());
+  if (lined != nullptr)
+  {
+    simCore::GOG::TessellationStyle tessellation = simCore::GOG::TessellationStyle::NONE;
+    lined->getTessellation(tessellation);
+    // always set tessellation to initialize fields in style, defaults to off
+    setTessellation(LoaderUtils::convertToVisTessellation(tessellation));
+  }
+
+  // Depth buffer must be set after tessellation if tessellation is set
+  bool depthBuffer = false;
+  // always set depth buffer, use default if not set
+  shape->getIsDepthBufferActive(depthBuffer);
+  setDepthBuffer(depthBuffer);
+
+  const simCore::GOG::Points* points = dynamic_cast<const simCore::GOG::Points*>(shape.get());
+  if (points)
+  {
+    int pointSize = 1;
+    if (points->getPointSize(pointSize) == 0)
+      setPointSize(pointSize);
+    simCore::GOG::Color color;
+    if (points->getColor(color) == 0)
+      setLineColor(LoaderUtils::convertToOsgColor(color));
+  }
+
+  const simCore::GOG::Annotation* anno = dynamic_cast<const simCore::GOG::Annotation*>(shape.get());
+  if (anno != nullptr)
+  {
+    // always set annotation fields, uses default values if not set in the shape
+    std::string font;
+    int textSize = 12;
+    simCore::GOG::Color textColor;
+    anno->getFontName(font);
+    anno->getTextSize(textSize);
+     anno->getTextColor(textColor);
+    setFont(font, textSize, LoaderUtils::convertToOsgColor(textColor));
+    simCore::GOG::OutlineThickness thickness = simCore::GOG::OutlineThickness::NONE;
+    simCore::GOG::Color outlineColor;
+    anno->getOutlineThickness(thickness);
+    anno->getOutlineColor(outlineColor);
+    setTextOutline(LoaderUtils::convertToOsgColor(outlineColor), LoaderUtils::convertToVisOutlineThickness(thickness));
+    double priority = 0.;
+    anno->getPriority(priority);
+    setDeclutterPriority(static_cast<int>(priority));
+  }
+
+  // apply backface culling here
+  applyBackfaceCulling();
+
+  endStyleUpdates_();
+  setStyle_(style_);
+  shape_ = shape;
+
+  // set orientation offsets, only for relative shapes, after shape is defined
+  if (shape->isRelative())
+  {
+    double yawOffset = 0.;
+    if (shape->getYawOffset(yawOffset) == 0)
+      setYawOffset(yawOffset);
+    double pitchOffset = 0.;
+    if (shape->getPitchOffset(pitchOffset) == 0)
+      setPitchOffset(pitchOffset);
+    double rollOffset = 0.;
+    if (shape->getRollOffset(rollOffset) == 0)
+      setRollOffset(rollOffset);
   }
 }
 
@@ -186,8 +405,8 @@ void GogNodeInterface::applyToStyle(const ParsedShape& parent, const UnitsState&
   // for performance reasons, cache all style updates, apply once when done
   beginStyleUpdates_();
 
-  metaData_.allowSetExplicitly(false);  ///< setFields will incorrectly respond to defaults here, so cache the correct value and restore it at the end
-
+  metaData_.allowSetExplicitly(false);  // setFields will incorrectly respond to defaults here, so cache the correct value and restore it at the end
+  metaData_.altitudeUnits_ = units.altitudeUnits_; // need to cache altitude units here, since some altitude values can be changed
   const std::string& key = parent.shape();
   const simVis::GOG::GogShape gogShape = metaData_.shape;
   bool is3dShape = (gogShape == GOG_SPHERE || gogShape == GOG_ELLIPSOID || gogShape == GOG_HEMISPHERE ||
@@ -197,7 +416,7 @@ void GogNodeInterface::applyToStyle(const ParsedShape& parent, const UnitsState&
   bool isExtruded = simCore::stringIsTrueToken(parent.stringValue(GOG_EXTRUDE)) && !is3dShape;
 
   // do we need a PolygonSymbol?
-  bool isFillable = isExtruded || key == "poly" || key == "polygon" || key == "ellipse" || key == "circle" || key == "arc" || is3dShape;
+  bool isFillable = isExtruded || key == "poly" || key == "polygon" || key == "ellipse" || key == "circle" || key == "arc" || key == "orbit" || is3dShape;
   bool isFilled   = isFillable && simCore::stringIsTrueToken(parent.stringValue(GOG_FILLED));
 
   // do we need a LineSymbol?
@@ -216,7 +435,6 @@ void GogNodeInterface::applyToStyle(const ParsedShape& parent, const UnitsState&
   // LINE attributes
   if (isLined)
   {
-
     if (parent.hasValue(GOG_OUTLINE))
       setOutlineState(isOutlined);
     else
@@ -375,8 +593,65 @@ simVis::GOG::GogShape GogNodeInterface::shape() const
   return metaData_.shape;
 }
 
+void GogNodeInterface::setFollowYaw(bool follow)
+{
+  if (shape_)
+    shape_->setFollowYaw(follow);
+}
+
+void GogNodeInterface::setFollowPitch(bool follow)
+{
+  if (shape_)
+    shape_->setFollowPitch(follow);
+}
+
+void GogNodeInterface::setFollowRoll(bool follow)
+{
+  if (shape_)
+    shape_->setFollowRoll(follow);
+}
+
+void GogNodeInterface::setYawOffset(double offsetRad)
+{
+  if (!shape_)
+    return;
+  shape_->setYawOffset(offsetRad);
+  if (shape_->isRelative())
+    applyOrientationOffsets_();
+}
+
+void GogNodeInterface::setPitchOffset(double offsetRad)
+{
+  if (!shape_)
+    return;
+  shape_->setPitchOffset(offsetRad);
+  if (shape_->isRelative())
+    applyOrientationOffsets_();
+}
+
+void GogNodeInterface::setRollOffset(double offsetRad)
+{
+  if (!shape_)
+    return;
+  shape_->setRollOffset(offsetRad);
+  if (shape_->isRelative())
+    applyOrientationOffsets_();
+}
+
+size_t GogNodeInterface::lineNumber() const
+{
+  return metaData_.lineNumber;
+}
+
 void GogNodeInterface::serializeToStream(std::ostream& gogOutputStream)
 {
+  // prefer shape if it's set
+  if (shape_)
+  {
+    shape_->serializeToStream(gogOutputStream);
+    return;
+  }
+
   std::string metaData = metaData_.metadata;
   simVis::GOG::GogShape shape = metaData_.shape;
 
@@ -462,8 +737,15 @@ void GogNodeInterface::serializeToStream(std::ostream& gogOutputStream)
   // altoffset
   double altOffset = 0.0;
   if (getAltOffset(altOffset) == 0 && metaData_.isSetExplicitly(GOG_THREE_D_OFFSET_ALT_SET))
+  {
+    // if not serializing geometry, which always uses meters, convert to the stored altitude units
+    if (!serializeGeometry)
+    {
+      simCore::Units curUnits(simCore::Units::METERS);
+      altOffset = curUnits.convertTo(metaData_.altitudeUnits_, altOffset);
+    }
     gogOutputStream << "3d offsetalt " << altOffset << "\n";
-
+  }
   // font
   int fontSize;
   std::string fontFile;
@@ -534,6 +816,18 @@ void GogNodeInterface::serializeToStream(std::ostream& gogOutputStream)
   else if (metaData_.isSetExplicitly(GOG_TESSELLATE_SET))
     gogOutputStream << "tessellate false\n";
 
+  // altitude mode
+  simVis::GOG::AltitudeMode altMode;
+  if (getAltitudeMode(altMode) == 0)
+  {
+    if (altMode == simVis::GOG::ALTITUDE_NONE && metaData_.isSetExplicitly(GOG_ALTITUDE_MODE_SET))
+      gogOutputStream << "altitudemode none\n";
+    else if (altMode == simVis::GOG::ALTITUDE_GROUND_RELATIVE)
+      gogOutputStream << "altitudemode relativetoground\n";
+    else if (altMode == simVis::GOG::ALTITUDE_GROUND_CLAMPED)
+      gogOutputStream << "altitudemode clamptoground\n";
+    // simVis::GOG::ALTITUDE_EXTRUDE is covered by the extrude keyword
+  }
   // Follow data is not currently serialized out
 }
 
@@ -582,7 +876,6 @@ int GogNodeInterface::getExtruded(bool& extruded) const
 {
   switch (metaData_.shape)
   {
-  case simVis::GOG::GOG_POINTS:
   case simVis::GOG::GOG_POLYGON:
   case simVis::GOG::GOG_CIRCLE:
   case simVis::GOG::GOG_ELLIPSE:
@@ -619,6 +912,12 @@ int GogNodeInterface::getFilledState(bool& state, osg::Vec4f& color) const
 }
 
 int GogNodeInterface::getFont(std::string& fontFile, int& fontSize, osg::Vec4f& fontColor) const
+{
+  // only applies to label nodes
+  return 1;
+}
+
+int GogNodeInterface::getDeclutterPriority(int& priority) const
 {
   // only applies to label nodes
   return 1;
@@ -672,12 +971,33 @@ int GogNodeInterface::getTextOutline(osg::Vec4f& outlineColor, simData::TextOutl
   return 1;
 }
 
+int GogNodeInterface::getOpacity(float& opacity) const
+{
+  opacity = opacity_;
+  return 0;
+}
+
 void GogNodeInterface::setAltitudeMode(AltitudeMode altMode)
 {
+  // not all shapes support extrude
+  if (altMode == ALTITUDE_EXTRUDE)
+  {
+    switch (metaData_.shape)
+    {
+    case simVis::GOG::GOG_POINTS:
+    case simVis::GOG::GOG_CYLINDER:
+      return;
+    default:
+      break;
+    }
+  }
+  metaData_.setExplicitly(GOG_ALTITUDE_MODE_SET);
   if (altMode_ == altMode)
     return;
   altMode_ = altMode;
   adjustAltitude_();
+  if (shape_)
+    shape_->setAltitudeMode(LoaderUtils::convertToCoreAltitudeMode(altMode));
 }
 
 void GogNodeInterface::setAltOffset(double altOffsetMeters)
@@ -687,6 +1007,8 @@ void GogNodeInterface::setAltOffset(double altOffsetMeters)
   metaData_.setExplicitly(GOG_THREE_D_OFFSET_ALT_SET);
   altOffset_ = altOffsetMeters;
   adjustAltitude_();
+  if (shape_)
+    shape_->setAltitudeOffset(altOffsetMeters);
 }
 
 void GogNodeInterface::setDepthBuffer(bool depthBuffer)
@@ -701,10 +1023,14 @@ void GogNodeInterface::setDepthBuffer(bool depthBuffer)
   if (depthBufferOverride_ != DEPTHBUFFER_IGNORE_OVERRIDE)
     return;
   style_.getOrCreate<osgEarth::RenderSymbol>()->depthTest() = depthBuffer;
-  if (!depthBuffer) // unset the clip pane if depth buffer turned off
+  if (!depthBuffer)
+  {
+    // use the clip plane if depth buffer off
     style_.getOrCreate<osgEarth::RenderSymbol>()->clipPlane() = simVis::CLIPPLANE_VISIBLE_HORIZON;
+  }
   else
   {
+     // unset the clip pane if depth buffer turned on
     style_.getOrCreate<osgEarth::RenderSymbol>()->clipPlane().unset();
     // Explicitly remove all clip planes settings from child nodes
     if (osgNode_.valid())
@@ -715,6 +1041,9 @@ void GogNodeInterface::setDepthBuffer(bool depthBuffer)
   }
 
   setStyle_(style_);
+
+  if (shape_)
+    shape_->setDepthBufferActive(depthBuffer);
 }
 
 void GogNodeInterface::setDepthBufferOverrideState(DepthBufferOverride state)
@@ -736,7 +1065,7 @@ void GogNodeInterface::setDepthBufferOverrideState(DepthBufferOverride state)
   }
 
   style_.getOrCreate<osgEarth::RenderSymbol>()->depthTest() = depthBuffer;
-  if (!depthBuffer) // unset the clip pane if depth buffer turned off
+  if (!depthBuffer) // set the clip pane if depth buffer turned off
     style_.getOrCreate<osgEarth::RenderSymbol>()->clipPlane() = simVis::CLIPPLANE_VISIBLE_HORIZON;
   setStyle_(style_);
 }
@@ -749,6 +1078,8 @@ int GogNodeInterface::setDrawState(bool draw)
     return 1;
   osg::Node::NodeMask mask = (draw ? simVis::DISPLAY_MASK_GOG : simVis::DISPLAY_MASK_NONE);
   osgNode_->setNodeMask(mask);
+  if (shape_)
+    shape_->setDrawn(draw);
   fireDrawChanged_();
   return 0;
 }
@@ -792,6 +1123,9 @@ void GogNodeInterface::setExtrude(bool extrude)
     bool cacheFilled = filled_;
     setFilledState(extrude && filled_);
     filled_ = cacheFilled;
+    simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+    if (fillable)
+      fillable->setFilled(filled_);
   }
 
   // Force backface culling off for extruded shapes, and on for flat shapes so we can see their backsides.
@@ -830,7 +1164,8 @@ void GogNodeInterface::setExtrude(bool extrude)
   // Polygon symbol must be invisible if not filled
   if (extruded_ && !filled_)
     assert(style_.getSymbol<osgEarth::PolygonSymbol>()->fill()->color()[3] == 0.);
-
+  if (extruded_ && shape_)
+    shape_->setAltitudeMode(simCore::GOG::AltitudeMode::EXTRUDE);
 }
 
 void GogNodeInterface::setExtrudedHeight(double extrudeHeightM)
@@ -838,6 +1173,8 @@ void GogNodeInterface::setExtrudedHeight(double extrudeHeightM)
   extrudedHeight_ = extrudeHeightM;
   // update extrusion to apply the new height
   setExtrude(extruded_);
+  if (shape_)
+    shape_->setExtrudeHeight(extrudeHeightM);
 }
 
 void GogNodeInterface::setFilledState(bool state)
@@ -847,6 +1184,10 @@ void GogNodeInterface::setFilledState(bool state)
 
   // shape is fillable, and set to be filled
   filled_ = state;
+
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setFilled(state);
 
   // some shapes can only be filled if they are extruded
   if (filled_ && fillOnlyWhenExtruded_(metaData_.shape) && !extruded_)
@@ -879,6 +1220,10 @@ void GogNodeInterface::setFillColor(const osg::Vec4f& color)
 
   metaData_.setExplicitly(GOG_FILL_COLOR_SET);
 
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setFillColor(LoaderUtils::convertToCoreColor(color));
+
   // if not filled, just return
   if (!filled_)
     return;
@@ -899,6 +1244,11 @@ void GogNodeInterface::setFont(const std::string& fontName, int fontSize, const 
   // NOP only applies to label nodes
 }
 
+void GogNodeInterface::setDeclutterPriority(int priority)
+{
+  // NOP only applies to label nodes
+}
+
 void GogNodeInterface::setLineColor(const osg::Vec4f& color)
 {
   // only applies to certain shapes
@@ -908,6 +1258,11 @@ void GogNodeInterface::setLineColor(const osg::Vec4f& color)
   metaData_.setExplicitly(GOG_LINE_COLOR_SET);
 
   lineColor_ = color;
+
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setLineColor(LoaderUtils::convertToCoreColor(color));
+
   // if not currently outlined, just return
   if (!outlined_)
     return;
@@ -941,6 +1296,10 @@ void GogNodeInterface::setOutlineState(bool outlineState)
     style_.getOrCreate<osgEarth::LineSymbol>()->stroke()->color() = newColor;
 
   setStyle_(style_);
+
+  simCore::GOG::OutlinedShape* outlined = dynamic_cast<simCore::GOG::OutlinedShape*>(shape_.get());
+  if (outlined)
+    outlined->setOutlined(outlined_);
 }
 
 void GogNodeInterface::setLineStyle(Utils::LineStyle style)
@@ -956,6 +1315,10 @@ void GogNodeInterface::setLineStyle(Utils::LineStyle style)
   osgEarth::LineSymbol* lineSymbol = style_.getOrCreate<osgEarth::LineSymbol>();
   lineSymbol->stroke()->stipple() = lineStyle;
   setStyle_(style_);
+
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setLineStyle(LoaderUtils::convertToCoreLineStyle(style));
 }
 
 void GogNodeInterface::setLineWidth(int lineWidth)
@@ -969,6 +1332,10 @@ void GogNodeInterface::setLineWidth(int lineWidth)
   osgEarth::LineSymbol* lineSymbol = style_.getOrCreate<osgEarth::LineSymbol>();
   lineSymbol->stroke()->width() = static_cast<float>(lineWidth);
   setStyle_(style_);
+
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setLineWidth(lineWidth);
 }
 
 void GogNodeInterface::setPointSize(int pointSize)
@@ -980,6 +1347,10 @@ void GogNodeInterface::setPointSize(int pointSize)
 
   style_.getOrCreate<osgEarth::PointSymbol>()->size() = static_cast<float>(pointSize);
   setStyle_(style_);
+
+  simCore::GOG::Points* points = dynamic_cast<simCore::GOG::Points*>(shape_.get());
+  if (points)
+    points->setPointSize(pointSize);
 }
 
 void GogNodeInterface::setTessellation(TessellationStyle style)
@@ -990,6 +1361,15 @@ void GogNodeInterface::setTessellation(TessellationStyle style)
 void GogNodeInterface::setTextOutline(const osg::Vec4f& outlineColor, simData::TextOutline outlineThickness)
 {
   // NOP only applies to label nodes
+}
+
+void GogNodeInterface::setOpacity(float opacity)
+{
+  if (opacity == opacity_)
+    return;
+  opacity_ = opacity;
+  if (osgNode_.valid())
+    simVis::OverrideColor::setColor(osgNode_->getOrCreateStateSet(), osg::Vec4f(1.f, 1.f, 1.f, opacity_));
 }
 
 void GogNodeInterface::addGogNodeListener(GogNodeListenerPtr listener)
@@ -1006,6 +1386,11 @@ void GogNodeInterface::removeGogNodeListener(GogNodeListenerPtr listener)
   std::vector<GogNodeListenerPtr>::iterator i = std::find(listeners_.begin(), listeners_.end(), listener);
   if (i != listeners_.end())
     listeners_.erase(i);
+}
+
+unsigned int GogNodeInterface::objectIndexTag() const
+{
+  return objectIndexTag_;
 }
 
 void GogNodeInterface::fireDrawChanged_() const
@@ -1059,7 +1444,7 @@ void GogNodeInterface::setGeoPositionAltitude_(osgEarth::GeoPositionNode& node, 
 
 void GogNodeInterface::initializeFromGeoPositionNode_(const osgEarth::GeoPositionNode& node)
 {
-  hasMapNode_ = (node.getMapNode() != NULL);
+  hasMapNode_ = (node.getMapNode() != nullptr);
   // use node position if there is a map node
   if (hasMapNode_)
     altitude_ = node.getPosition().alt();
@@ -1077,7 +1462,7 @@ bool GogNodeInterface::hasValidAltitudeMode() const
 
   // check for an AltitudeSymbol
   const osgEarth::AltitudeSymbol* alt = style_.getSymbol<osgEarth::AltitudeSymbol>();
-  if (alt == NULL)
+  if (alt == nullptr)
     return false;
 
   // check for altitude mode ALTITUDE_NONE
@@ -1103,6 +1488,11 @@ void GogNodeInterface::applyBackfaceCulling()
   // extrudes to a filled polygon instead of a 3D shape).
 
   bool isClosed3dShape = (shape() == GOG_SPHERE || shape() == GOG_ELLIPSOID || shape() == GOG_CYLINDER || shape() == GOG_LATLONALTBOX || shape() == GOG_CONE);
+
+  // Semitransparent hemispheres without depth buffer need backface culling on else odd artifacts show through
+  if (shape() == GOG_HEMISPHERE && fillColor_.a() < 1.0 && !depthBuffer_)
+    isClosed3dShape = true;
+
   const bool isLine = (shape() == GOG_LINE || shape() == GOG_LINESEGS);
   if (isClosed3dShape || (extruded_ && !isLine))
     style_.getOrCreateSymbol<osgEarth::RenderSymbol>()->backfaceCulling() = true;
@@ -1160,6 +1550,7 @@ bool GogNodeInterface::isFillable_(simVis::GOG::GogShape shape) const
   case simVis::GOG::GOG_POINTS:
   case simVis::GOG::GOG_POLYGON:
   case simVis::GOG::GOG_CONE:
+  case simVis::GOG::GOG_ORBIT:
     return true;
   default:
     break;
@@ -1180,6 +1571,7 @@ bool GogNodeInterface::isLined_(simVis::GOG::GogShape shape) const
   case simVis::GOG::GOG_LINESEGS:
   case simVis::GOG::GOG_POINTS:
   case simVis::GOG::GOG_POLYGON:
+  case simVis::GOG::GOG_ORBIT:
     return true;
   default:
     break;
@@ -1282,6 +1674,10 @@ void AnnotationNodeInterface::setStyle_(const osgEarth::Style& style)
     annotationNode_->setStyle(style);
 }
 
+void AnnotationNodeInterface::applyOrientationOffsets_()
+{
+  // no-op
+}
 
 ///////////////////////////////////////////////////////////////////
 
@@ -1289,20 +1685,14 @@ FeatureNodeInterface::FeatureNodeInterface(osgEarth::FeatureNode* featureNode, c
   : GogNodeInterface(featureNode, metaData),
     featureNode_(featureNode)
 {
-  if (featureNode_.valid() && featureNode_->getFeature())
-  {
-    style_ = *(featureNode_->getFeature()->style());
-    hasMapNode_ = true; // feature nodes always have a map node
-  }
-  initializeFillColor_();
-  initializeLineColor_();
+  init_();
+}
 
-  // initialize our original altitudes
-  osgEarth::Geometry* geometry = featureNode_->getFeature()->getGeometry();
-  for (size_t i = 0; i < geometry->size(); ++i)
-  {
-    originalAltitude_.push_back((*geometry)[i].z());
-  }
+FeatureNodeInterface::FeatureNodeInterface(osg::Group* node, osgEarth::FeatureNode* featureNode, const simVis::GOG::GogMetaData& metaData)
+  : GogNodeInterface(node, metaData),
+    featureNode_(featureNode)
+{
+  init_();
 }
 
 int FeatureNodeInterface::getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition) const
@@ -1396,8 +1786,9 @@ int FeatureNodeInterface::getTessellation(TessellationStyle& tessellation) const
 
 void FeatureNodeInterface::setAltOffset(double altOffsetMeters)
 {
-  if (altOffsetMeters == altOffset_)
+  if (altOffsetMeters == altOffset_ || !featureNode_.valid())
     return;
+
   osgEarth::Geometry* geometry = featureNode_->getFeature()->getGeometry();
   if (!geometry)
     return;
@@ -1414,6 +1805,9 @@ void FeatureNodeInterface::setAltOffset(double altOffsetMeters)
     (*geometry)[i].z() = originalAltitude_.at(i) + altOffsetMeters;
   }
   featureNode_->dirty();
+
+  if (shape_)
+    shape_->setAltitudeOffset(altOffsetMeters);
 }
 
 void FeatureNodeInterface::setExtrude(bool extrude)
@@ -1471,10 +1865,10 @@ void FeatureNodeInterface::setTessellation(TessellationStyle style)
 
     // adjust tessellation based on feature dimension
     const osgEarth::Feature* feature = featureNode_->getFeature();
-    if (feature != NULL)
+    if (feature != nullptr)
     {
       const osgEarth::SpatialReference* srs = feature->getSRS();
-      if (srs != NULL)
+      if (srs != nullptr)
       {
         osg::BoundingSphered boundS;
         if (feature->getWorldBound(srs->getGeocentricSRS(), boundS))
@@ -1484,7 +1878,15 @@ void FeatureNodeInterface::setTessellation(TessellationStyle style)
         }
       }
     }
-    ls->tessellationSize() = tessellationSpacingM; // in meters
+    ls->tessellationSize()->set(tessellationSpacingM, osgEarth::Units::METERS); // in meters
+    // force non-zero crease angle for extruded tesselated line, we want to only draw posts at actual vertices
+    ls->creaseAngle() = 1.0f;
+
+#if OSGEARTH_SOVERSION > 102
+    // Set the GeometryCompilerOptions to the default value so that the default max granularity is used.
+    osgEarth::GeometryCompilerOptions options;
+    featureNode_->setGeometryCompilerOptions(options);
+#endif
   }
   else
   {
@@ -1492,13 +1894,27 @@ void FeatureNodeInterface::setTessellation(TessellationStyle style)
     ls->tessellation() = 0;
     // make sure the tessellation size is unset
     ls->tessellationSize().unset();
+    ls->creaseAngle() = 0.0f;
+
+#if OSGEARTH_SOVERSION > 102
+    // Set the max granularity to 360 to disable the usage of the MeshSubdivider in osgEarth so that geometry that spans large geospatial distances
+    // are not subdivided to attempt to conform to the earth when tesselation is disabled in simdis.
+    osgEarth::GeometryCompilerOptions options = featureNode_->getGeometryCompilerOptions();
+    options.maxGranularity() = 360.0;
+    featureNode_->setGeometryCompilerOptions(options);
+#endif
   }
 
   setStyle_(style_);
+
+  simCore::GOG::PointBasedShape* pointBased = dynamic_cast<simCore::GOG::PointBasedShape*>(shape_.get());
+  if (pointBased)
+    pointBased->setTesssellation(LoaderUtils::convertToCoreTessellation(style));
 }
 
 void FeatureNodeInterface::setAltitudeMode(AltitudeMode altMode)
 {
+  metaData_.setExplicitly(GOG_ALTITUDE_MODE_SET);
   if (altMode_ == altMode)
     return;
   altMode_ = altMode;
@@ -1521,12 +1937,10 @@ void FeatureNodeInterface::setAltitudeMode(AltitudeMode altMode)
   case ALTITUDE_GROUND_CLAMPED:
     style_.getOrCreate<osgEarth::AltitudeSymbol>()->clamping() = osgEarth::AltitudeSymbol::CLAMP_TO_TERRAIN;
     style_.getOrCreate<osgEarth::AltitudeSymbol>()->technique() = osgEarth::AltitudeSymbol::TECHNIQUE_SCENE;
-    style_.getOrCreate<osgEarth::RenderSymbol>()->depthOffset()->automatic() = true;
     break;
   case ALTITUDE_GROUND_RELATIVE:
     style_.getOrCreate<osgEarth::AltitudeSymbol>()->clamping() = osgEarth::AltitudeSymbol::CLAMP_RELATIVE_TO_TERRAIN;
     style_.getOrCreate<osgEarth::AltitudeSymbol>()->technique() = osgEarth::AltitudeSymbol::TECHNIQUE_SCENE;
-    style_.getOrCreate<osgEarth::RenderSymbol>()->depthOffset()->automatic() = true;
     break;
   case ALTITUDE_EXTRUDE:
     // Shouldn't get here; failure in setExtrude()
@@ -1535,6 +1949,9 @@ void FeatureNodeInterface::setAltitudeMode(AltitudeMode altMode)
     break;
   }
   setStyle_(style_);
+
+  if (shape_)
+    shape_->setAltitudeMode(LoaderUtils::convertToCoreAltitudeMode(altMode));
 }
 
 void FeatureNodeInterface::adjustAltitude_()
@@ -1575,6 +1992,27 @@ void FeatureNodeInterface::setStyle_(const osgEarth::Style& style)
   }
 }
 
+void FeatureNodeInterface::init_()
+{
+  if (featureNode_.valid() && featureNode_->getFeature())
+  {
+    style_ = *(featureNode_->getFeature()->style());
+    hasMapNode_ = true; // feature nodes always have a map node
+    // initialize our original altitudes
+    const osgEarth::Geometry* geometry = featureNode_->getFeature()->getGeometry();
+    for (size_t i = 0; i < geometry->size(); ++i)
+    {
+      originalAltitude_.push_back((*geometry)[i].z());
+    }
+  }
+  initializeFillColor_();
+  initializeLineColor_();
+}
+
+void FeatureNodeInterface::applyOrientationOffsets_()
+{
+  // no-op, this class does not implement relative shapes
+}
 
 ///////////////////////////////////////////////////////////////////
 
@@ -1646,9 +2084,16 @@ void LocalGeometryNodeInterface::setStyle_(const osgEarth::Style& style)
     localNode_->setStyle(style_);
 }
 
+void LocalGeometryNodeInterface::applyOrientationOffsets_()
+{
+  if (!shapeObject() || !shapeObject()->isRelative())
+    return;
+  applyOrientationOffsetsToNode_(*shapeObject(), localNode_.get());
+}
+
 ///////////////////////////////////////////////////////////////////
 
-LabelNodeInterface::LabelNodeInterface(osgEarth::LabelNode* labelNode, const simVis::GOG::GogMetaData& metaData)
+LabelNodeInterface::LabelNodeInterface(osgEarth::GeoPositionNode* labelNode, const simVis::GOG::GogMetaData& metaData)
   : GogNodeInterface(labelNode, metaData),
     labelNode_(labelNode),
     outlineThickness_(simData::TO_THIN)
@@ -1666,24 +2111,6 @@ LabelNodeInterface::LabelNodeInterface(osgEarth::LabelNode* labelNode, const sim
   simVis::OverheadMode::enableGeometryFlattening(false, labelNode);
 }
 
-LabelNodeInterface::LabelNodeInterface(osgEarth::PlaceNode* placeNode, const simVis::GOG::GogMetaData& metaData)
-  : GogNodeInterface(placeNode, metaData),
-    labelNode_(placeNode),
-    outlineThickness_(simData::TO_THIN)
-{
-  if (labelNode_.valid())
-  {
-    style_ = labelNode_->getStyle();
-    initializeFromGeoPositionNode_(*placeNode);
-    initializeAltitudeSymbol_();
-  }
-  initializeFillColor_();
-  initializeLineColor_();
-
-  // override - places should not be flattened in overhead mode.
-  simVis::OverheadMode::enableGeometryFlattening(false, placeNode);
-}
-
 int LabelNodeInterface::getFont(std::string& fontFile, int& fontSize, osg::Vec4f& fontColor) const
 {
   if (!style_.has<osgEarth::TextSymbol>())
@@ -1691,8 +2118,19 @@ int LabelNodeInterface::getFont(std::string& fontFile, int& fontSize, osg::Vec4f
   const osgEarth::TextSymbol* ts = style_.getSymbol<osgEarth::TextSymbol>();
   if (ts->font()->size() > 0)
     fontFile = *(ts->font());
-  fontSize = static_cast<int>(simVis::simdisFontSize(static_cast<float>(ts->size()->eval())));
+  fontSize = static_cast<int>(simCore::round(simVis::simdisFontSize(static_cast<float>(ts->size()->eval()))));
   fontColor = ts->fill()->color();
+  return 0;
+}
+
+int LabelNodeInterface::getDeclutterPriority(int& priority) const
+{
+  priority = -1;
+  if (!style_.has<osgEarth::TextSymbol>())
+    return 1;
+  const osgEarth::TextSymbol* ts = style_.getSymbol<osgEarth::TextSymbol>();
+  if (ts->declutter().get())
+    priority = ts->priority().get().eval();
   return 0;
 }
 
@@ -1703,10 +2141,6 @@ int LabelNodeInterface::getPosition(osg::Vec3d& position, osgEarth::GeoPoint* re
 
 int LabelNodeInterface::getTextOutline(osg::Vec4f& outlineColor, simData::TextOutline& outlineThickness) const
 {
-  if (!style_.has<osgEarth::TextSymbol>())
-    return 1;
-  const osgEarth::TextSymbol* ts = style_.getSymbol<osgEarth::TextSymbol>();
-
   outlineColor = outlineColor_;
   outlineThickness = outlineThickness_;
   return 0;
@@ -1734,6 +2168,36 @@ void LabelNodeInterface::setFont(const std::string& fontName, int fontSize, cons
   ts->size() = simVis::osgFontSize(static_cast<float>(fontSize));
   ts->fill()->color() = colorVec;
   setStyle_(style_);
+
+  simCore::GOG::Annotation* anno = dynamic_cast<simCore::GOG::Annotation*>(shape_.get());
+  if (anno)
+  {
+    anno->setFontName(fontName);
+    anno->setTextSize(fontSize);
+    anno->setTextColor(LoaderUtils::convertToCoreColor(color));
+  }
+}
+
+void LabelNodeInterface::setDeclutterPriority(int priority)
+{
+  osgEarth::TextSymbol* ts = style_.getOrCreate<osgEarth::TextSymbol>();
+  if (!ts)
+    return;
+  if (priority < 0)
+  {
+    ts->declutter() = false;
+    ts->priority().clear();
+  }
+  else
+  {
+    ts->declutter() = true;
+    ts->priority() = priority;
+  }
+  setStyle_(style_);
+
+  simCore::GOG::Annotation* anno = dynamic_cast<simCore::GOG::Annotation*>(shape_.get());
+  if (anno)
+    anno->setPriority(priority);
 }
 
 void LabelNodeInterface::setTextOutline(const osg::Vec4f& outlineColor, simData::TextOutline outlineThickness)
@@ -1758,6 +2222,13 @@ void LabelNodeInterface::setTextOutline(const osg::Vec4f& outlineColor, simData:
   ts->haloBackdropType() = (outlineThickness == simData::TO_NONE ? osgText::Text::NONE : osgText::Text::OUTLINE);
 
   setStyle_(style_);
+
+  simCore::GOG::Annotation* anno = dynamic_cast<simCore::GOG::Annotation*>(shape_.get());
+  if (anno)
+  {
+    anno->setOutlineColor(LoaderUtils::convertToCoreColor(outlineColor));
+    anno->setOutlineThickness(LoaderUtils::convertToCoreOutlineThickness(outlineThickness));
+  }
 }
 
 void LabelNodeInterface::adjustAltitude_()
@@ -1784,6 +2255,11 @@ void LabelNodeInterface::setStyle_(const osgEarth::Style& style)
     return;
   if (labelNode_.valid())
     labelNode_->setStyle(style_);
+}
+
+void LabelNodeInterface::applyOrientationOffsets_()
+{
+  // no-op, labels don't respect orientation offsets
 }
 
 //////////////////////////////////////////////
@@ -1870,9 +2346,9 @@ void CylinderNodeInterface::setStyle_(const osgEarth::Style& style)
   if (!filled_ && style_.has<osgEarth::LineSymbol>())
     sideStyle.getOrCreate<osgEarth::PolygonSymbol>()->fill()->color() = style_.getSymbol<osgEarth::LineSymbol>()->stroke()->color();
 
-  // If we are filled, then side's backface culling should be unset; if unfilled, then it should be set false
+  // If we are filled, then side's backface culling should be true; if unfilled, then it should be set false
   if (filled_)
-    sideStyle.getOrCreate<osgEarth::RenderSymbol>()->backfaceCulling().unset();
+    sideStyle.getOrCreate<osgEarth::RenderSymbol>()->backfaceCulling() = true;
   else
     sideStyle.getOrCreate<osgEarth::RenderSymbol>()->backfaceCulling() = false;
   sideNode_->setStyle(sideStyle);
@@ -1881,6 +2357,15 @@ void CylinderNodeInterface::setStyle_(const osgEarth::Style& style)
   style_.remove<osgEarth::ExtrusionSymbol>();
   topCapNode_->setStyle(style_);
   bottomCapNode_->setStyle(style_);
+}
+
+void CylinderNodeInterface::applyOrientationOffsets_()
+{
+  if (!shapeObject() || !shapeObject()->isRelative())
+    return;
+  applyOrientationOffsetsToNode_(*shapeObject(), topCapNode_.get());
+  applyOrientationOffsetsToNode_(*shapeObject(), bottomCapNode_.get());
+  applyOrientationOffsetsToNode_(*shapeObject(), sideNode_.get());
 }
 
 //////////////////////////////////////////////
@@ -1932,6 +2417,10 @@ void ArcNodeInterface::setFilledState(bool state)
   fillNode_->setNodeMask(state ? simVis::DISPLAY_MASK_GOG : simVis::DISPLAY_MASK_NONE);
   // the arc's fill node has some problems keeping up with elevation data, so just reset the position when changing fill state to jog its memory
   fillNode_->setPosition(fillNode_->getPosition());
+
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setFilled(state);
 }
 
 void ArcNodeInterface::serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const
@@ -1971,6 +2460,14 @@ void ArcNodeInterface::setStyle_(const osgEarth::Style& style)
   fillNode_->setStyle(fillStyle);
 }
 
+void ArcNodeInterface::applyOrientationOffsets_()
+{
+  if (!shapeObject() || !shapeObject()->isRelative())
+    return;
+  applyOrientationOffsetsToNode_(*shapeObject(), shapeNode_.get());
+  applyOrientationOffsetsToNode_(*shapeObject(), fillNode_.get());
+}
+
 SphericalNodeInterface::SphericalNodeInterface(osgEarth::LocalGeometryNode* localNode, const simVis::GOG::GogMetaData& metaData)
   : LocalGeometryNodeInterface(localNode, metaData)
 {
@@ -1996,6 +2493,9 @@ void SphericalNodeInterface::setFillColor(const osg::Vec4f& color)
   fillColor_ = color;
   if (filled_) // update color if filled
     setColor_(color);
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setFillColor(LoaderUtils::convertToCoreColor(color));
 }
 
 void SphericalNodeInterface::setFilledState(bool state)
@@ -2007,6 +2507,10 @@ void SphericalNodeInterface::setFilledState(bool state)
     setColor_(fillColor_);
   else // update color with line color, since no longer filled
     setColor_(lineColor_);
+
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setFilled(state);
 }
 
 void SphericalNodeInterface::setLineColor(const osg::Vec4f& color)
@@ -2015,6 +2519,10 @@ void SphericalNodeInterface::setLineColor(const osg::Vec4f& color)
   lineColor_ = color;
   if (!filled_) // update color if not filled
     setColor_(color);
+
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setLineColor(LoaderUtils::convertToCoreColor(color));
 }
 
 void SphericalNodeInterface::setColor_(const osg::Vec4f& color)
@@ -2022,7 +2530,7 @@ void SphericalNodeInterface::setColor_(const osg::Vec4f& color)
   // need to dig down into the LocalGeometryNode to get the underlying Geometry object to set its color array
   // NOTE: this assumes a specific implementation for spherical nodes. May fail if that implementation changes
   osg::Group* group = localNode_->getPositionAttitudeTransform();
-  osg::Node* node = group->getNumChildren() > 0 ? group->getChild(0) : NULL;
+  osg::Node* node = group->getNumChildren() > 0 ? group->getChild(0) : nullptr;
   if (!node)
     return;
   osg::Geode* geode = node->asGeode();
@@ -2049,7 +2557,7 @@ void SphericalNodeInterface::setStyle_(const osgEarth::Style& style)
 
   // Find the internal node
   osg::Group* group = localNode_->getPositionAttitudeTransform();
-  osg::Node* node = group->getNumChildren() > 0 ? group->getChild(0) : NULL;
+  osg::Node* node = group->getNumChildren() > 0 ? group->getChild(0) : nullptr;
   if (!node)
     return;
 
@@ -2119,7 +2627,7 @@ void ConeNodeInterface::setFillColor(const osg::Vec4f& color)
 
   // Set the color on the cone body
   osg::Group* group = localNode_->getPositionAttitudeTransform();
-  osg::Node* node = group->getNumChildren() > 0 ? group->getChild(0) : NULL;
+  osg::Node* node = group->getNumChildren() > 0 ? group->getChild(0) : nullptr;
   if (!node)
     return;
   osg::Geometry* geometry = node->asGeometry();
@@ -2132,7 +2640,7 @@ void ConeNodeInterface::setFillColor(const osg::Vec4f& color)
   geometry->setColorArray(colorArray);
 
   // Set the color on the cone cap
-  osg::Node* capNode = group->getNumChildren() > 1 ? group->getChild(1) : NULL;
+  osg::Node* capNode = group->getNumChildren() > 1 ? group->getChild(1) : nullptr;
   if (!capNode)
     return;
   osg::Geometry* capGeometry = capNode->asGeometry();
@@ -2141,6 +2649,148 @@ void ConeNodeInterface::setFillColor(const osg::Vec4f& color)
 
   // Update the color array
   capGeometry->setColorArray(colorArray);
+
+  simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
+  if (fillable)
+    fillable->setFillColor(LoaderUtils::convertToCoreColor(color));
+}
+
+ImageOverlayInterface::ImageOverlayInterface(osgEarth::ImageOverlay* imageNode, const simVis::GOG::GogMetaData& metaData)
+  : GogNodeInterface(imageNode, metaData),
+    imageNode_(imageNode)
+{
+  // Turn off the color shader, since it doesn't work for image overlay
+  simVis::OverrideColor::setCombineMode(imageNode_->getOrCreateStateSet(), simVis::OverrideColor::OFF);
+}
+
+int ImageOverlayInterface::getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition) const
+{
+  osg::Vec3d centerPoint = imageNode_->getBound().center();
+
+  const simCore::Coordinate ecefCoord(simCore::COORD_SYS_ECEF, simCore::Vec3(centerPoint.x(), centerPoint.y(), centerPoint.z()));
+  simCore::CoordinateConverter converter;
+  simCore::Coordinate llaCoord;
+  converter.convert(ecefCoord, llaCoord, simCore::COORD_SYS_LLA);
+  position = osg::Vec3d(llaCoord.lon()*simCore::RAD2DEG, llaCoord.lat()*simCore::RAD2DEG, llaCoord.alt());
+
+  return 0;
+}
+
+void ImageOverlayInterface::setOpacity(float opacity)
+{
+  // Sets GogNodeInterface::opacity_, which updates GOG Tool GUI
+  GogNodeInterface::setOpacity(opacity);
+  // Updates the actual image on-screen
+  if (imageNode_.valid())
+    imageNode_->setAlpha(opacity);
+  // Updates the internal shape copy, simCore::GOG::ImageOverlay, used for serialization
+  simCore::GOG::ImageOverlay* simCoreOverlay = dynamic_cast<simCore::GOG::ImageOverlay*>(shape_.get());
+  if (simCoreOverlay)
+    simCoreOverlay->setOpacity(opacity);
+}
+
+void ImageOverlayInterface::adjustAltitude_()
+{
+  // no-op
+}
+
+void ImageOverlayInterface::serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const
+{
+  // no-op since this is not officially supported in GOG format, the geometry will be part of the meta-data
+}
+
+void ImageOverlayInterface::setStyle_(const osgEarth::Style& style)
+{
+  // no-op, can't update style
+}
+
+void ImageOverlayInterface::applyOrientationOffsets_()
+{
+  // no-op, this class does not implement relative shapes
+}
+
+LatLonAltBoxInterface::LatLonAltBoxInterface(osg::Group* node, osgEarth::FeatureNode* topNode, osgEarth::FeatureNode* bottomNode, const simVis::GOG::GogMetaData& metaData)
+  : FeatureNodeInterface(node, topNode, metaData),
+    bottomNode_(bottomNode)
+{
+  if (featureNode_.valid())
+    initAltitudes_(*featureNode_.get(), originalAltitude_);
+  if (bottomNode_.valid())
+    initAltitudes_(*bottomNode_.get(), bottomAltitude_);
+}
+
+void LatLonAltBoxInterface::setAltOffset(double altOffsetMeters)
+{
+  if (altOffsetMeters == altOffset_)
+    return;
+
+  metaData_.setExplicitly(GOG_THREE_D_OFFSET_ALT_SET);
+  altOffset_ = altOffsetMeters;
+
+  if (featureNode_.valid())
+    applyAltOffsets_(*featureNode_.get(), originalAltitude_);
+  if (bottomNode_.valid())
+    applyAltOffsets_(*bottomNode_.get(), bottomAltitude_);
+
+  if (shape_)
+    shape_->setAltitudeOffset(altOffsetMeters);
+}
+
+void LatLonAltBoxInterface::serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const
+{
+  // no-op, LatLonAltBox corners are stored in the meta data
+}
+
+void LatLonAltBoxInterface::serializeKeyword_(std::ostream& gogOutputStream) const
+{
+  // nothing to do, LLA box includes the keyword in their metadata as part of the corner LLAs
+}
+
+void LatLonAltBoxInterface::setStyle_(const osgEarth::Style& style)
+{
+  // make sure backface culling is always on
+  style_.getOrCreateSymbol<osgEarth::RenderSymbol>()->backfaceCulling() = true;
+
+  FeatureNodeInterface::setStyle_(style);
+  if (&style != &style_)
+    style_ = style;
+  if (!deferringStyleUpdates_() && bottomNode_.valid())
+  {
+    bottomNode_->setStyle(style_);
+    bottomNode_->getFeature()->style() = style_;
+    bottomNode_->dirty();
+  }
+}
+
+void LatLonAltBoxInterface::initAltitudes_(osgEarth::FeatureNode& node, std::vector<double>& altitudes) const
+{
+  altitudes.clear();
+  // use GeometryIterator to get all the points, since it works on MultiGeometries
+  osgEarth::GeometryIterator iter(node.getFeature()->getGeometry(), false);
+  while (iter.hasMore())
+  {
+    osgEarth::Geometry* part = iter.next();
+    for (size_t i = 0; i < part->size(); ++i)
+      altitudes.push_back((*part)[i].z());
+  }
+}
+
+void LatLonAltBoxInterface::applyAltOffsets_(osgEarth::FeatureNode& node, const std::vector<double>& altitudes) const
+{
+  osgEarth::Geometry* geometry = node.getFeature()->getGeometry();
+  if (!geometry)
+    return;
+
+  // now apply the altitude offset to all of our position points, use the GeometryIterator which works on MultiGeometries
+  osgEarth::GeometryIterator iter(geometry, false);
+  size_t altIndex = 0;
+  while (iter.hasMore())
+  {
+    osgEarth::Geometry* part = iter.next();
+    for (size_t i = 0; i < part->size() && altIndex < altitudes.size(); ++i, ++altIndex)
+      (*part)[i].z() = altitudes.at(altIndex) + altOffset_;
+  }
+  node.dirty();
 }
 
 } }

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -26,9 +27,11 @@
 #include "osg/Geometry"
 #include "osgText/Text"
 
+#include "osgEarth/Color"
+#include "osgEarth/GLUtils"
+#include "osgEarth/PointDrawable"
 #include "osgEarth/Registry"
 #include "osgEarth/ShaderGenerator"
-#include "osgEarth/Color"
 
 #include "simCore/Calc/Math.h"
 #include "simNotify/Notify.h"
@@ -38,12 +41,12 @@
 #include "simVis/Constants.h"
 #include "simVis/Locator.h"
 #include "simVis/Platform.h"
-#include "simVis/PointSize.h"
 #include "simVis/Registry.h"
 #include "simVis/Types.h"
 #include "simVis/Utils.h"
 #include "simVis/LocalGrid.h"
 
+#undef LC
 #define LC "[LocalGrid] "
 
 namespace simVis
@@ -286,16 +289,15 @@ private:
 };
 
 /// Geometry for off-axis sectors in Polar and SpeedRing grid types.
-class RadialPoints : public osg::Geometry
+class RadialPoints : public osg::Group
 {
 public:
   RadialPoints(const osg::Vec4f& color, float sectorAngleDeg, unsigned int numRings)
     : sectorAngleDeg_(sectorAngleDeg),
-    numRings_(numRings)
+      numRings_(numRings),
+      points_(new osgEarth::PointDrawable)
   {
     setName("simVis::LocalGridNode::RadialPoints");
-    setUseVertexBufferObjects(true);
-    setUseDisplayList(false);
 
     // determine how many vertices we'll actually use
     unsigned int vertexCount = 0;
@@ -309,26 +311,15 @@ public:
       {
         if (osg::equivalent(static_cast<float>(fmod(static_cast<float>(i), RADIAL_VERTEX_FACTOR)), 0.f)) // don't overdraw the rings
           continue;
-        vertexCount++;
+        ++vertexCount;
       }
     }
-    osg::ref_ptr<osg::Vec3Array> vertexArray = new osg::Vec3Array(osg::Array::BIND_PER_VERTEX, vertexCount);
-    setVertexArray(vertexArray.get());
-
-    osg::ref_ptr<osg::Vec4Array> colorArray = new osg::Vec4Array(osg::Array::BIND_OVERALL, 1);
-    (*colorArray)[0] = color;
-    setColorArray(colorArray.get());
-
-    addPrimitiveSet(new osg::DrawArrays(GL_POINTS, 0, vertexArray->size()));
+    points_->allocate(vertexCount);
+    points_->setColor(color);
+    addChild(points_);
   }
   void update(double sizeM)
   {
-    osg::ref_ptr<osg::Vec3Array> vertexArray = dynamic_cast<osg::Vec3Array*>(getVertexArray());
-    if (!vertexArray)
-    {
-      assert(0);
-      return;
-    }
     const float spacingM = sizeM / osg::maximum(1u, numRings_);
     const float radialVertexSpacing = spacingM / RADIAL_VERTEX_FACTOR;
     size_t index = 0;
@@ -346,16 +337,17 @@ public:
         if (osg::equivalent(static_cast<float>(fmod(static_cast<float>(i), RADIAL_VERTEX_FACTOR)), 0.f)) // don't overdraw the rings
           continue;
         // if assert fails, re-check algorithm for determining vertexCount in constructor
-        assert(index < vertexArray->getNumElements());
-        (*vertexArray)[index] = osg::Vec3(x * radialVertexSpacing * i, y * radialVertexSpacing * i, 0.f);
-        index++;
+        assert(index < points_->size());
+        points_->setVertex(index, osg::Vec3f(x * radialVertexSpacing * i, y * radialVertexSpacing * i, 0.f));
+        ++index;
       }
     }
-    vertexArray->dirty();
+    points_->dirty();
   }
 private:
   float sectorAngleDeg_;
   unsigned int numRings_;
+  osgEarth::PointDrawable* points_;
 };
 
 /// Geometry for range rings in Polar, RangeRing and SpeedRing grid types.
@@ -458,17 +450,16 @@ void LocalGridNode::rebuild_(const simData::LocalGridPrefs& prefs)
 
   if (!graphicsGroup_)
   {
-    graphicsGroup_ = new osg::Geode();
-    graphicsGroup_->setName("simVis::LocalGridNode::GraphicsGeode");
-    osg::StateSet* ss = graphicsGroup_->getOrCreateStateSet();
-    PointSize::setValues(ss, 1.5f, osg::StateAttribute::ON);
+    graphicsGroup_ = new osg::Group();
+    graphicsGroup_->setName("simVis::LocalGridNode::GraphicsGroup");
+    osgEarth::GLUtils::setPointSize(graphicsGroup_->getOrCreateStateSet(), 2.f, osg::StateAttribute::ON);
     addChild(graphicsGroup_.get());
   }
 
   if (!labelGroup_)
   {
-    labelGroup_ = new osg::Geode();
-    labelGroup_->setName("simVis::LocalGridNode::LabelGeode");
+    labelGroup_ = new osg::Group();
+    labelGroup_->setName("simVis::LocalGridNode::LabelGroup");
     addChild(labelGroup_.get());
   }
 
@@ -672,7 +663,7 @@ void LocalGridNode::syncWithLocator()
 }
 
 // creates a Cartesian grid.
-void LocalGridNode::createCartesian_(const simData::LocalGridPrefs& prefs, osg::Geode* geomGroup, osg::Geode* labelGroup) const
+void LocalGridNode::createCartesian_(const simData::LocalGridPrefs& prefs, osg::Group* geomGroup, osg::Group* labelGroup) const
 {
   const osgEarth::Units& sizeUnits = simVis::convertUnitsToOsgEarth(prefs.sizeunits());
   // Note that size is halved; it's provided in diameter, and we need it as radius
@@ -704,7 +695,7 @@ void LocalGridNode::createCartesian_(const simData::LocalGridPrefs& prefs, osg::
       sub1->update(osg::Vec3(x, y0, 0.f), osg::Vec3(x, y0 + span, 0.f));
       sub1->setName("simVis::LocalGridNode::GridSubDivision1");
       sub1->setColor(subColor);
-      geomGroup->addDrawable(sub1);
+      geomGroup->addChild(sub1);
     }
     {
       const float y = y0 + subSpacing * s;
@@ -712,7 +703,7 @@ void LocalGridNode::createCartesian_(const simData::LocalGridPrefs& prefs, osg::
       sub2->update(osg::Vec3(x0, y, 0.f), osg::Vec3(x0 + span, y, 0.f));
       sub2->setName("simVis::LocalGridNode::GridSubDivision2");
       sub2->setColor(subColor);
-      geomGroup->addDrawable(sub2);
+      geomGroup->addChild(sub2);
     }
   }
 
@@ -725,14 +716,14 @@ void LocalGridNode::createCartesian_(const simData::LocalGridPrefs& prefs, osg::
       div1->update(osg::Vec3(x, y0, 0.f), osg::Vec3(x, y0 + span, 0.f));
       div1->setName("simVis::LocalGridNode::GridDivision1");
       div1->setColor(color);
-      geomGroup->addDrawable(div1);
+      geomGroup->addChild(div1);
     }
     // x-label:
     if (x < 0 && prefs.gridlabeldraw())
     {
       CartesianGridLabel* label = new CartesianGridLabel(prefs, -x);
       label->setPosition(osg::Vec3(-x, 0.f, 0.f));
-      labelGroup->addDrawable(label);
+      labelGroup->addChild(label);
     }
 
     const float y = y0 + divSpacing * p;
@@ -741,20 +732,20 @@ void LocalGridNode::createCartesian_(const simData::LocalGridPrefs& prefs, osg::
       div2->update(osg::Vec3(x0, y, 0.f), osg::Vec3(x0 + span, y, 0.f));
       div2->setName("simVis::LocalGridNode::GridDivision2");
       div2->setColor(color);
-      geomGroup->addDrawable(div2);
+      geomGroup->addChild(div2);
     }
     // y-label
     if (y > 0 && prefs.gridlabeldraw())
     {
       CartesianGridLabel* label = new CartesianGridLabel(prefs, y);
       label->setPosition(osg::Vec3(0.f, y, 0.f));
-      labelGroup->addDrawable(label);
+      labelGroup->addChild(label);
     }
   }
 }
 
 // creates a range-rings local grid with optional polar radials.
-void LocalGridNode::createRangeRings_(const simData::LocalGridPrefs& prefs, osg::Geode* geomGroup, osg::Geode* labelGroup, bool includePolarRadials) const
+void LocalGridNode::createRangeRings_(const simData::LocalGridPrefs& prefs, osg::Group* geomGroup, osg::Group* labelGroup, bool includePolarRadials) const
 {
   const osgEarth::Units& sizeUnits = simVis::convertUnitsToOsgEarth(prefs.sizeunits());
   // Note that size is halved; it's provided in diameter, and we need it as radius
@@ -784,14 +775,14 @@ void LocalGridNode::createRangeRings_(const simData::LocalGridPrefs& prefs, osg:
 
     RangeRing* rangeRing = new RangeRing(i);
     rangeRing->setColor(isMajorRing ? color : subColor);
-    geomGroup->addDrawable(rangeRing);
+    geomGroup->addChild(rangeRing);
     rangeRing->update(prefs, sizeM);
 
     // label:
     if (isMajorRing && prefs.gridlabeldraw())
     {
       RingLabel* label = new RingLabel(prefs, i, true);
-      labelGroup->addDrawable(label);
+      labelGroup->addChild(label);
       label->update(prefs, sizeM);
 
       // add minor axis label as clone
@@ -806,26 +797,26 @@ void LocalGridNode::createRangeRings_(const simData::LocalGridPrefs& prefs, osg:
   {
     Axis* majorAxis = new Axis(true);
     majorAxis->setColor(color);
-    geomGroup->addDrawable(majorAxis);
+    geomGroup->addChild(majorAxis);
     majorAxis->update(sizeM);
 
     Axis* minorAxis = new Axis(false);
     minorAxis->setColor(color);
-    geomGroup->addDrawable(minorAxis);
+    geomGroup->addChild(minorAxis);
     minorAxis->update(sizeM);
 
     const float sectorAngle = prefs.gridsettings().sectorangle();
     if (sectorAngle > 0.0f)
     {
       RadialPoints* points = new RadialPoints(subColor, sectorAngle, numRings);
-      geomGroup->addDrawable(points);
+      geomGroup->addChild(points);
       points->update(sizeM);
     }
   }
 }
 
 // creates a speed-rings local grid with optional polar radials.
-void LocalGridNode::createSpeedRings_(const simData::LocalGridPrefs& prefs, osg::Geode* graphicsGroup, osg::Geode* labelGroup, bool drawSpeedLine) const
+void LocalGridNode::createSpeedRings_(const simData::LocalGridPrefs& prefs, osg::Group* graphicsGroup, osg::Group* labelGroup, bool drawSpeedLine) const
 {
   const osg::Vec4f& color = simVis::Color(prefs.gridcolor(), simVis::Color::RGBA);
   const osg::Vec4f& subColor = simVis::Color(color * 0.5f, 1.0f);
@@ -836,8 +827,9 @@ void LocalGridNode::createSpeedRings_(const simData::LocalGridPrefs& prefs, osg:
   if (drawSpeedLine)
   {
     SpeedLine* speedLine = new SpeedLine();
+    speedLine->setDataVariance(osg::Object::DYNAMIC);
     speedLine->setColor(color);
-    graphicsGroup->addDrawable(speedLine);
+    graphicsGroup->addChild(speedLine);
 
     if (!prefs.gridlabeldraw())
       return;
@@ -845,18 +837,21 @@ void LocalGridNode::createSpeedRings_(const simData::LocalGridPrefs& prefs, osg:
   else
   {
     Axis* majorAxis = new Axis(true);
+    majorAxis->setDataVariance(osg::Object::DYNAMIC);
     majorAxis->setColor(color);
-    graphicsGroup->addDrawable(majorAxis);
+    graphicsGroup->addChild(majorAxis);
     Axis* minorAxis = new Axis(false);
+    minorAxis->setDataVariance(osg::Object::DYNAMIC);
     minorAxis->setColor(color);
-    graphicsGroup->addDrawable(minorAxis);
+    graphicsGroup->addChild(minorAxis);
 
     const float sectorAngle = prefs.gridsettings().sectorangle();
     // draw polar radials for speed rings
     if (sectorAngle > 0.0f)
     {
       RadialPoints* points = new RadialPoints(subColor, sectorAngle, numRings);
-      graphicsGroup->addDrawable(points);
+      points->setDataVariance(osg::Object::DYNAMIC);
+      graphicsGroup->addChild(points);
     }
   }
 
@@ -866,14 +861,16 @@ void LocalGridNode::createSpeedRings_(const simData::LocalGridPrefs& prefs, osg:
     if (!drawSpeedLine)
     {
       RangeRing* speedRing = new RangeRing(i);
+      speedRing->setDataVariance(osg::Object::DYNAMIC);
       speedRing->setColor(isMajorRing ? color : subColor);
-      graphicsGroup->addDrawable(speedRing);
+      graphicsGroup->addChild(speedRing);
     }
     // labels are only added to major rings
     if (isMajorRing && prefs.gridlabeldraw())
     {
       RingLabel* label = new RingLabel(prefs, i, true);
-      labelGroup->addDrawable(label);
+      label->setDataVariance(osg::Object::DYNAMIC); // Need Dynamic so text display updates
+      labelGroup->addChild(label);
 
       if (!drawSpeedLine)
       {
@@ -933,7 +930,7 @@ void LocalGridNode::updateSpeedRings_(const simData::LocalGridPrefs& prefs, doub
 
 int LocalGridNode::processSpeedParams_(const simData::LocalGridPrefs& prefs, double& sizeM, double& timeRadiusSeconds)
 {
-  const Locator* hostLocator = (host_.valid() ? host_->getLocator() : NULL);
+  const Locator* hostLocator = (host_.valid() ? host_->getLocator() : nullptr);
   if (!hostLocator)
     return -1;
   const PlatformNode* hostPlatform = dynamic_cast<const PlatformNode*>(host_.get());

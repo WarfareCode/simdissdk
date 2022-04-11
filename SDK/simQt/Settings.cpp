@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -181,6 +182,12 @@ Settings::MetaData Settings::MetaData::makeFont(const QVariant& defaultValue,
                                                 const QString& tooltip, Settings::DataLevel inLevel)
 {
   return Settings::MetaData(FONT, defaultValue, tooltip, inLevel, QVariant(), QVariant());
+}
+
+Settings::MetaData Settings::MetaData::makeQFont(const QVariant& defaultValue,
+                                       const QString& tooltip, Settings::DataLevel inLevel)
+{
+  return Settings::MetaData(QFONT, defaultValue, tooltip, inLevel, QVariant(), QVariant());
 }
 
 Settings::MetaData Settings::MetaData::makeHex(const QVariant& defaultValue,

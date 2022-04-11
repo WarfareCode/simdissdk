@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -42,9 +43,13 @@
 #include "simUtil/ExampleResources.h"
 #include "simUtil/PlatformSimulator.h"
 
+#ifdef HAVE_IMGUI
+#include "BaseGui.h"
+#include "OsgImGuiHandler.h"
+#else
 #include "osgEarth/Controls"
 namespace ui = osgEarth::Util::Controls;
-
+#endif
 #define LC "[PlatformAzimElevViewTest] "
 
 //----------------------------------------------------------------------------
@@ -54,18 +59,90 @@ struct AppData
   osg::ref_ptr<simVis::PlatformAzimElevViewTool> azimElevView;
 
   simData::MemoryDataStore dataStore;
-  osg::ref_ptr<simVis::View>     view;
-  osg::ref_ptr<simVis::SceneManager>    scene;
+  osg::ref_ptr<simVis::View> view;
+  osg::ref_ptr<simVis::SceneManager> scene;
   osg::ref_ptr<simVis::ScenarioManager> scenario;
-  simData::ObjectId        platformId;
+  simData::ObjectId platformId;
+#ifndef HAVE_IMGUI
   osg::ref_ptr<ui::HSliderControl>      rangeSlider;
   osg::ref_ptr<ui::CheckBoxControl>     toggleCheck;
   osg::ref_ptr<ui::HSliderControl>      elevLabelAngle;
+#endif
   osg::ref_ptr<osg::Uniform>            scaleUniform;
 
   AppData() { }
 };
 
+#ifdef HAVE_IMGUI
+// ImGui has this annoying habit of putting text associated with GUI elements like sliders and check boxes on
+// the right side of the GUI elements instead of on the left. Helper macro puts a label on the left instead,
+// while adding a row to a two column table started using ImGui::BeginTable(), which emulates a QFormLayout.
+#define IMGUI_ADD_ROW(func, label, ...) ImGui::TableNextColumn(); ImGui::Text(label); ImGui::TableNextColumn(); ImGui::SetNextItemWidth(200); func("##" label, __VA_ARGS__)
+
+class ControlPanel : public GUI::BaseGui
+{
+public:
+  explicit ControlPanel(AppData& app)
+    : GUI::BaseGui("Platform Azim/Elev View Example"),
+    app_(app)
+  {
+  }
+
+  void draw(osg::RenderInfo& ri) override
+  {
+    ImGui::SetNextWindowPos(ImVec2(15, 15));
+    ImGui::SetNextWindowBgAlpha(.6f);
+    ImGui::Begin(name(), 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+
+    if (ImGui::BeginTable("Table", 2))
+    {
+      // On/off
+      bool on = on_;
+      IMGUI_ADD_ROW(ImGui::Checkbox, "On/Off", &on_);
+      if (on != on_)
+      {
+        if (on_)
+        {
+          app_.scenario->addTool(app_.azimElevView.get());
+          app_.view->tetherCamera(app_.scenario->find<simVis::PlatformNode>(app_.platformId));
+          app_.view->setFocalOffsets(0.0, -90.0, app_.azimElevView->getRange() * 7.0);
+          app_.view->enableOverheadMode(true);
+          app_.view->enableOrthographic(true);
+        }
+        else
+        {
+          app_.scenario->removeTool(app_.azimElevView.get());
+          app_.view->setFocalOffsets(0.0, -35.0, app_.azimElevView->getRange() * 7.0);
+          app_.view->enableOverheadMode(false);
+          app_.view->enableOrthographic(false);
+        }
+      }
+
+      // Range
+      float range = range_;
+      IMGUI_ADD_ROW(ImGui::SliderFloat, "Range", &range_, 40000.f, 225000.f, "%.0f", ImGuiSliderFlags_AlwaysClamp);
+      if (range != range_)
+        app_.azimElevView->setRange(range_);
+
+      // Angle
+      float angle = angle_;
+      IMGUI_ADD_ROW(ImGui::SliderFloat, "Label Angle", &angle_, 0.f, osg::PI * 2.f, "%.3f", ImGuiSliderFlags_AlwaysClamp);
+      if (angle != angle_)
+        app_.azimElevView->setElevLabelAngle(angle_);
+
+      ImGui::EndTable();
+    }
+
+    ImGui::End();
+  }
+
+private:
+  AppData& app_;
+  bool on_ = false;
+  float range_ = 150000.f;
+  float angle_ = osg::PI_2;
+};
+#else
 struct Toggle : public ui::ControlEventHandler
 {
   explicit Toggle(AppData& app) : a(app) { }
@@ -142,6 +219,7 @@ ui::Control* createUI(AppData& app)
 
   return top;
 }
+#endif
 
 //----------------------------------------------------------------------------
 
@@ -309,7 +387,7 @@ int main(int argc, char **argv)
   app.platformId = addPlatform(app.dataStore, EXAMPLE_SHIP_ICON);
 
   // place some random beams.
-  ::srand(time(NULL));
+  ::srand(time(nullptr));
   for (int i=0; i<numBeams; ++i)
   {
     double az, el, roll;
@@ -344,7 +422,15 @@ int main(int argc, char **argv)
 
   // set up the controls
   osg::observer_ptr<simVis::View> view = viewer->getMainView();
+#ifdef HAVE_IMGUI
+  // Pass in existing realize operation as parent op, parent op will be called first
+  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
+  GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
+  viewer->getMainView()->getEventHandlers().push_front(gui);
+  gui->add(new ControlPanel(app));
+#else
   view->addOverlayControl(createUI(app));
+#endif
   view->setLighting(false);
 
   // zoom the camera

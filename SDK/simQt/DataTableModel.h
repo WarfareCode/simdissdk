@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,9 +23,12 @@
 #ifndef SIMQT_DATATABLE_MODEL_H
 #define SIMQT_DATATABLE_MODEL_H
 
+#include <memory>
 #include <QList>
 #include <QAbstractItemModel>
 #include "simData/DataTable.h"
+
+namespace simUtil { class UnitTypeConverter; }
 
 namespace simQt {
 
@@ -45,7 +49,7 @@ namespace simQt {
     * @param parent
     * @param dataTable data for the model
     */
-    DataTableModel(QObject *parent = NULL, simData::DataTable* dataTable = NULL);
+    DataTableModel(QObject *parent = nullptr, simData::DataTable* dataTable = nullptr);
 
     /** Destructor */
     virtual ~DataTableModel();
@@ -78,8 +82,11 @@ namespace simQt {
     */
     void setDataTable(simData::DataTable* dataTable);
 
-    /** Returns the current data table; can be NULL */
+    /** Returns the current data table; can be nullptr */
     simData::DataTable* dataTable() const;
+
+    /** Set the UnitTypeConverter to show units in the column header */
+    void setUnitTypeConverter(std::shared_ptr<simUtil::UnitTypeConverter> converter);
 
   public slots:
     /** Set the number of digits after the decimal for floats and doubles */
@@ -96,6 +103,7 @@ namespace simQt {
     QList<const simData::TableColumn*> columns_; ///< index in list corresponds to model column index
     QList<double> rows_; ///< index in list corresponds to model row index
     unsigned int genericPrecision_;  ///< number of digits after the decimal for floats and doubles
+    std::shared_ptr<simUtil::UnitTypeConverter> unitTypeConverter_;
   };
 
 }

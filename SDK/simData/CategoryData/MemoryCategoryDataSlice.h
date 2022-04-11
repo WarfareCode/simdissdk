@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -26,6 +27,7 @@
 #include <map>
 #include <deque>
 #include "simCore/Common/Common.h"
+#include "simData/DataTypes.h"
 #include "simData/CategoryData/CategoryData.h"
 
 namespace simData {
@@ -92,6 +94,12 @@ public:
   /// remove all data in the slice, retaining current category data and the static point
   void flush();
 
+  /// remove all data in the slice
+  void completeFlush();
+
+  /// remove points in the given time range; up to but not including endTime
+  void flush(double startTime, double endTime);
+
   /// pass in the category name manager reference
   void setCategoryNameManager(CategoryNameManager* categoryNameManager);
 
@@ -145,6 +153,10 @@ private:
     void limitByPoints(uint32_t limitPoints);
     /// Limit category data by time
     void limitByTime(double timeLimit);
+    /// Remove all data in the slice
+    void completeFlush();
+    /// Remove points in the given time range; up to but not including endTime
+    void flush(double startTime, double endTime);
 
   private:
     // Verifies pos before using
@@ -155,7 +167,7 @@ private:
     TimeValueIterator find_(TimeValueIterator start, TimeValueIterator current, TimeValueIterator end, double time) const;
 
     const static size_t FastSearchWidth = 3; // Number of entries to check linearly before switching to a binary search
-    mutable TimeValuesEntries entries;  // The actual category data
+    mutable TimeValuesEntries entries_;  // The actual category data
     mutable size_t lastPos_;  // the last location referenced so use as the start location when searching
   };
 

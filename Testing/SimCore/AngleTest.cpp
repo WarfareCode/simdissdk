@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <cmath>
 #include <string>
 #include "simCore/Common/SDKAssert.h"
@@ -575,6 +576,95 @@ int testSim7284()
   return rv;
 }
 
+int test360()
+{
+  int rv = 0;
+
+  // test precision
+  rv += SDK_ASSERT(simCore::getAngleString(360.0 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 0, simCore::DEG_SYM_NONE, 0, 0) == "0");
+  rv += SDK_ASSERT(simCore::getAngleString(360.0 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 1, simCore::DEG_SYM_NONE, 0, 0) == "0.0");
+  rv += SDK_ASSERT(simCore::getAngleString(360.0 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 2, simCore::DEG_SYM_NONE, 0, 0) == "0.00");
+  rv += SDK_ASSERT(simCore::getAngleString(360.0 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "0.000");
+  rv += SDK_ASSERT(simCore::getAngleString(360.0 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 4, simCore::DEG_SYM_NONE, 0, 0) == "0.0000");
+  rv += SDK_ASSERT(simCore::getAngleString(360.0 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 5, simCore::DEG_SYM_NONE, 0, 0) == "0.00000");
+  rv += SDK_ASSERT(simCore::getAngleString(360.0 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 6, simCore::DEG_SYM_NONE, 0, 0) == "0.000000");
+  rv += SDK_ASSERT(simCore::getAngleString(360.0 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 7, simCore::DEG_SYM_NONE, 0, 0) == "0.0000000");
+
+  // test degrees
+  rv += SDK_ASSERT(simCore::getAngleString(360.0005 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "0.000");
+  rv += SDK_ASSERT(simCore::getAngleString(359.9995 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "0.000");
+  rv += SDK_ASSERT(simCore::getAngleString(359.99949 * simCore::DEG2RAD, simCore::FMT_DEGREES, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "359.999");
+
+  // test degree-minutes
+  rv += SDK_ASSERT(simCore::getAngleString(dmsAsRadian(359.0, 59.9995, 0.0), simCore::FMT_DEGREES_MINUTES, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "0 00.000");
+  rv += SDK_ASSERT(simCore::getAngleString(dmsAsRadian(359.0, 59.9995, 0.0), simCore::FMT_DEGREES_MINUTES, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "0 00.000");
+  rv += SDK_ASSERT(simCore::getAngleString(dmsAsRadian(359.0, 59.99949, 0.0), simCore::FMT_DEGREES_MINUTES, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "359 59.999");
+
+  // test degree-minute-seconds
+  rv += SDK_ASSERT(simCore::getAngleString(dmsAsRadian(359.0, 59.0, 59.9995), simCore::FMT_DEGREES_MINUTES_SECONDS, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "0 00 00.000");
+  rv += SDK_ASSERT(simCore::getAngleString(dmsAsRadian(359.0, 59.0, 59.9995), simCore::FMT_DEGREES_MINUTES_SECONDS, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "0 00 00.000");
+  rv += SDK_ASSERT(simCore::getAngleString(dmsAsRadian(359.0, 59.0, 59.99949), simCore::FMT_DEGREES_MINUTES_SECONDS, true, 3, simCore::DEG_SYM_NONE, 0, 0) == "359 59 59.999");
+
+  return rv;
+}
+
+int testAngleDifference()
+{
+  int rv = 0;
+  // Note that all tests are on angleDifferenceDeg(), not angleDifference().  That's OK because we know
+  // that the degree version simply calls into the radians version after comparison and it's easier to
+  // read.  Note also the use of areEqual() instead of areAnglesEqual() is intentional to ensure the range
+  // of output values is correct.
+
+  // Simple wrapping at 0
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(0.0, -360.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(0.0, 0.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(0.0, 360.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(0.0, 720.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(720.0, -360.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(720.0, 0.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(720.0, 360.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(720.0, 720.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(-1080.0, -360.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(-1080.0, 0.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(-1080.0, 360.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(-1080.0, 720.0), 0.0));
+
+  // Edge case testing at 90 degrees (result)
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, -181.0), 89.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, -180.0), 90.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, -179.0), 91.0));
+
+  // Edge case testing at 180 degrees (result)
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, -91.0), 179.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, -90.0), 180.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, -89.0), -179.0));
+
+  // Edge case testing at -90 degrees (result)
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, -1.0), -91.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, 0.0), -90.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, 1.0), -89.0));
+
+  // Edge case testing at 0 degrees (result)
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, 89.0), -1.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, 90.0), 0.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, 91.0), 1.0));
+
+  // Edge case testing at 90 degrees (result), using different sign
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, 179.0), 89.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, 180.0), 90.0));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(90.0, 181.0), 91.0));
+
+  // Identified shortcoming from other code
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(359.0, 1.0), 2.0));
+
+  // Test documentation examples
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifference(0.4, 0.1), -0.3));
+  rv += SDK_ASSERT(simCore::areEqual(simCore::angleDifferenceDeg(4.0, 1.0), -3.0));
+
+  return rv;
+}
+
 }
 
 int AngleTest(int argc, char* argv[])
@@ -589,6 +679,8 @@ int AngleTest(int argc, char* argv[])
   rv += testSim2511();
   rv += testSim4481();
   rv += testSim7284();
+  rv += test360();
+  rv += testAngleDifference();
 
   return rv;
 }

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -38,7 +39,7 @@ namespace simQt {
    Q_OBJECT;
   public:
     /** Constructor */
-    EntityTypeFilterWidget(QWidget* parent = NULL, unsigned int types = simData::ALL);
+    EntityTypeFilterWidget(QWidget* parent = nullptr, unsigned int types = simData::ALL);
 
     /** Destructor */
     virtual ~EntityTypeFilterWidget();

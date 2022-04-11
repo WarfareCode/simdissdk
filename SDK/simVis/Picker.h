@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -42,15 +43,15 @@ class ViewManager;
 class EntityNode;
 class PlatformNode;
 
-/** Highlight shader for making selected entities glow. */
+/** Highlight shader for making selected entities or objects glow. */
 class SDKVIS_EXPORT PickerHighlightShader : public osg::Referenced
 {
 public:
   /** Declares uniform variables for using and setting the highlight values. */
   PickerHighlightShader(osg::StateSet* stateset);
 
-  /** Installs the highlighting shader.  Without this, the highlighting will not apply to graphics. */
-  static void installShaderProgram(osg::StateSet* intoStateSet, bool defaultEnabled);
+  /** Installs the highlighting shader.  Without this, the highlighting will not apply to graphics. If a shaderPrefix is specified, will load a new non-default shader. */
+  static void installShaderProgram(osg::StateSet* intoStateSet, bool defaultEnabled, const std::string& shaderPrefix = "");
   /** Installs the highlighting shader (non-static version).  Applies to stateset supplied at construction. */
   void installShaderProgram(bool defaultEnabled);
 
@@ -62,12 +63,17 @@ public:
   /** Changes the Tag ID that is currently enabled.  Corresponds to the ID from osgEarth::Registry::objectIndex. */
   void setId(unsigned int tagId);
 
+  /** Setting a prefix allows for reuse of this code in contexts other than typical picking. Typically this is empty string. */
+  void setShaderPrefix(const std::string& shaderPrefix);
+
 protected:
   /** osg::Referenced-derivced, so protected destructor. */
   virtual ~PickerHighlightShader();
 
 private:
   osg::observer_ptr<osg::StateSet> stateset_;
+  /// Prefix for adding non-default shaders to the picker
+  std::string shaderPrefix_;
 };
 
 /** Abstract base class for pickers in SIMDIS SDK */

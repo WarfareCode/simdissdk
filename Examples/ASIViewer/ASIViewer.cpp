@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -24,15 +25,16 @@
  * Very simple utility to read and display Platform tracks from an ASI file
  */
 #include "simData/MemoryDataStore.h"
+#include "simCore/Calc/Angle.h"
+#include "simCore/Calc/CoordinateConverter.h"
 #include "simCore/Common/Version.h"
 #include "simCore/Common/HighPerformanceGraphics.h"
 #include "simCore/String/Format.h"
 #include "simCore/String/Tokenizer.h"
+#include "simCore/String/UtfUtils.h"
 #include "simCore/Time/Clock.h"
 #include "simCore/Time/ClockImpl.h"
 #include "simCore/Time/String.h"
-#include "simCore/Calc/Angle.h"
-#include "simCore/Calc/CoordinateConverter.h"
 #include "simVis/Platform.h"
 #include "simVis/Scenario.h"
 #include "simVis/SceneManager.h"
@@ -43,11 +45,17 @@
 #include "simVis/Types.h"
 #include "simUtil/ExampleResources.h"
 
-#include <osgEarth/Controls>
-#include <osgEarth/StringUtils>
-#include <osg/ImageStream>
+#include "osg/ImageStream"
+#include "osgDB/ReadFile"
+#include "osgEarth/StringUtils"
 
+#ifdef HAVE_IMGUI
+#include "BaseGui.h"
+#include "OsgImGuiHandler.h"
+#else
+#include "osgEarth/Controls"
 namespace ui = osgEarth::Util::Controls;
+#endif
 
 //----------------------------------------------------------------------------
 namespace
@@ -145,13 +153,14 @@ double timeFromString(std::string t, int referenceYear)
 //----------------------------------------------------------------------------
 struct AppData
 {
+#ifndef HAVE_IMGUI
   osg::ref_ptr<ui::HSliderControl> timeSlider_;
   osg::ref_ptr<ui::CheckBoxControl> playCheck_;
   osg::ref_ptr<ui::CheckBoxControl> overheadMode_;
   osg::ref_ptr<ui::LabelControl> timeReadout_;
+#endif
   simData::DataStore *ds_;
   simVis::View* view_;
-  simCore::Clock* clock_;
   double startTime_;
   double endTime_;
   double lastTime_;
@@ -159,10 +168,10 @@ struct AppData
   std::vector<uint64_t> platformIDs_;
   int tetherIndex_;
   osgEarth::DateTime refDateTime_;
+  std::string nowTimeStr_;
 
   explicit AppData(simData::DataStore *ds, simVis::View* view)
-  : timeSlider_(NULL),
-    ds_(ds),
+  : ds_(ds),
     view_(view),
     startTime_(0.0),
     endTime_(0.0),
@@ -174,14 +183,19 @@ struct AppData
 
   void apply()
   {
+#ifndef HAVE_IMGUI
     lastTime_ = timeSlider_->getValue();
+#endif
     ds_->update(lastTime_);
+    updateTimeReadout_();
   }
 
   void applyToggles()
   {
+#ifndef HAVE_IMGUI
     playing_ = playCheck_->getValue();
     view_->enableOverheadMode(overheadMode_->getValue());
+#endif
   }
 
   void tetherNext()
@@ -214,11 +228,22 @@ struct AppData
       const double t = lastTime_ + dt;
       ds_->update(t);
       lastTime_ = t;
-      timeSlider_->setValue(lastTime_, false);
+      updateTimeReadout_();
 
-      osgEarth::DateTime now = refDateTime_ + (t/3600.0);
-      timeReadout_->setText(now.asRFC1123());
+#ifndef HAVE_IMGUI
+      timeSlider_->setValue(lastTime_, false);
+#endif
     }
+  }
+
+  void updateTimeReadout_()
+  {
+    osgEarth::DateTime now = refDateTime_ + (lastTime_ / 3600.0);
+    nowTimeStr_ = now.asRFC1123();
+
+#ifndef HAVE_IMGUI
+    timeReadout_->setText(nowTimeStr_);
+#endif
   }
 };
 
@@ -236,7 +261,7 @@ public:
 
   void parse(const std::string &filename)
   {
-    std::ifstream infile(filename.c_str());
+    std::ifstream infile(simCore::streamFixUtf8(filename));
 
     std::string line;
     while (simCore::getStrippedLine(infile, line))
@@ -428,7 +453,7 @@ private:
     {
       uint64_t id;
       std::string timeString;
-      double lat, lon, alt, yaw, pitch, roll, vx, vy, vz;
+      double lat = 0.0, lon = 0.0, alt = 0.0, yaw = 0.0, pitch = 0.0, roll = 0.0, vx = 0.0, vy = 0.0, vz = 0.0;
       buf >> id >> timeString >> lat >> lon >> alt >> yaw >> pitch >> roll >> vx >> vy >> vz;
 
       const double t = timeFromString(timeString, refYear_);
@@ -451,7 +476,10 @@ private:
       update->setVelocity(ecef.velocity());
 
       if (t != -1 && t < app_.startTime_)
+      {
         app_.startTime_ = t;
+        app_.lastTime_ = t;
+      }
       if (t > app_.endTime_)
         app_.endTime_ = t;
 
@@ -846,6 +874,71 @@ private:
 };
 
 //----------------------------------------------------------------------------
+
+#ifdef HAVE_IMGUI
+// ImGui has this annoying habit of putting text associated with GUI elements like sliders and check boxes on
+// the right side of the GUI elements instead of on the left. Helper macro puts a label on the left instead,
+// while adding a row to a two column table started using ImGui::BeginTable(), which emulates a QFormLayout.
+#define IMGUI_ADD_ROW(func, label, ...) ImGui::TableNextColumn(); ImGui::Text(label); ImGui::TableNextColumn(); ImGui::SetNextItemWidth(200); func("##" label, __VA_ARGS__)
+
+class ControlPanel : public GUI::BaseGui
+{
+public:
+  explicit ControlPanel(AppData& app)
+    : GUI::BaseGui("ASI Simple Viewer"),
+    app_(app)
+  {
+  }
+
+  void draw(osg::RenderInfo& ri) override
+  {
+    ImGui::SetNextWindowPos(ImVec2(15, 15));
+    ImGui::SetNextWindowBgAlpha(.6f);
+    ImGui::Begin(name(), 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+
+    bool needUpdate = false;
+
+    if (ImGui::BeginTable("Table", 2))
+    {
+      float time = static_cast<float>(app_.lastTime_);
+      IMGUI_ADD_ROW(ImGui::SliderFloat, "Time", &time, static_cast<float>(app_.startTime_), static_cast<float>(app_.endTime_), "", ImGuiSliderFlags_AlwaysClamp);
+      if (time != app_.lastTime_)
+      {
+        app_.lastTime_ = time;
+        needUpdate = true;
+      }
+
+      ImGui::TableNextColumn();
+      ImGui::TableNextColumn();
+      ImGui::Text(app_.nowTimeStr_.c_str());
+
+      bool playing = app_.playing_;
+      IMGUI_ADD_ROW(ImGui::Checkbox, "Playing", &app_.playing_);
+      if (playing != app_.playing_)
+        needUpdate = true;
+
+      bool overhead = app_.view_->isOverheadEnabled();
+      bool newOverhead = overhead;
+      IMGUI_ADD_ROW(ImGui::Checkbox, "Overhead", &newOverhead);
+      if (overhead != newOverhead)
+        app_.view_->enableOverheadMode(newOverhead);
+
+      ImGui::EndTable();
+    }
+
+    if (ImGui::Button("Tether Next"))
+      app_.tetherNext();
+
+    if (needUpdate)
+      app_.apply();
+
+    ImGui::End();
+  }
+
+private:
+  AppData& app_;
+};
+#else
 struct ApplyUI : public ui::ControlEventHandler
 {
   explicit ApplyUI(AppData* app): app_(app) {}
@@ -897,6 +990,7 @@ ui::Control* createUI(AppData& app)
 
   return top;
 }
+#endif
 
 //----------------------------------------------------------------------------
 void readASI(osg::ArgumentParser& args, AppData& app)
@@ -944,7 +1038,15 @@ int main(int argc, char **argv)
   viewer->getSceneManager()->getScenario()->bind(&dataStore);
 
   /// show the instructions overlay
+#ifdef HAVE_IMGUI
+  // Pass in existing realize operation as parent op, parent op will be called first
+  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
+  GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
+  viewer->getMainView()->getEventHandlers().push_front(gui);
+  gui->add(new ControlPanel(app));
+#else
   viewer->getMainView()->addOverlayControl(createUI(app));
+#endif
   app.apply();
 
   /// add some stock OSG handlers

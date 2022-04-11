@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -36,8 +37,6 @@
 #include "simQt/ViewManagerDataModel.h"
 #include "simQt/ViewWidget.h"
 
-#include "osgEarth/Controls"
-
 #include <QApplication>
 #include <QDialog>
 #include <QPushButton>
@@ -53,9 +52,6 @@
 #include <cstdlib>
 
 #include "MainWindow.h"
-
-namespace ui = osgEarth::Util::Controls;
-
 
 int usage(char** argv)
 {
@@ -233,7 +229,7 @@ void MainWindow::removeView()
 {
   QVariant data = topTreeView_->model()->data(topTreeView_->currentIndex(), simQt::ViewManagerDataModel::VIEW_ROLE);
   simVis::View* selectedView = static_cast<simVis::View*>(data.value<void*>());
-  if (selectedView == NULL || mainViews_.empty())
+  if (selectedView == nullptr || mainViews_.empty())
     return;
 
   simVis::View* hostView = selectedView->getHostView();

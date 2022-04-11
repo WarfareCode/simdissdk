@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -25,14 +26,15 @@
 #include "osgEarth/LocalGeometryNode"
 
 #include "simNotify/Notify.h"
+#include "simCore/Calc/Angle.h"
+#include "simCore/Calc/CoordinateConverter.h"
+#include "simCore/Calc/Mgrs.h"
 #include "simCore/Common/Exception.h"
+#include "simCore/GOG/GogUtils.h"
 #include "simCore/String/Angle.h"
 #include "simCore/String/Format.h"
 #include "simCore/String/Tokenizer.h"
 #include "simCore/String/Utils.h"
-#include "simCore/Calc/Angle.h"
-#include "simCore/Calc/CoordinateConverter.h"
-#include "simCore/Calc/Mgrs.h"
 #include "simVis/GOG/GOGNode.h"
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/ParsedShape.h"
@@ -66,6 +68,11 @@ class NotifyErrorHandler : public simVis::GOG::ErrorHandler
   {
     SIM_ERROR << "GOG error: " << errorText << ", line: " << lineNumber << std::endl;
   }
+};
+
+/** List of tokens that are case sensitive and shouldn't be lowercase'd for parsing */
+static const std::set<std::string> CASE_SENSITIVE_GOG_TOKENS = {
+  "annotation", "comment", "name", "imagefile", "kml_icon", "starttime", "endtime"
 };
 
 }
@@ -179,12 +186,12 @@ GogNodeInterface* Parser::createGOG(const std::vector<std::string>& lines, const
 
   std::istringstream input(buf.str());
 
-  GogNodeInterface* result = NULL;
+  GogNodeInterface* result = nullptr;
   OverlayNodeVector output;
   std::vector<GogFollowData> followDataVec;
   if (createGOGs(input, nodeType, output, followDataVec))
   {
-    result = output.size() > 0 ? output.front() : NULL;
+    result = output.size() > 0 ? output.front() : nullptr;
   }
   if (!followDataVec.empty())
     followData = followDataVec.front();
@@ -240,7 +247,7 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
       {
         token = toLower(token);
         // stop further lower case conversion on text based values
-        if (token == "annotation" || token == "comment" || token == "name")
+        if (CASE_SENSITIVE_GOG_TOKENS.find(token) != CASE_SENSITIVE_GOG_TOKENS.end())
           break;
       }
     }
@@ -269,6 +276,27 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
     {
       // NOTE: this will only store comments within a start/end block
       currentMetaData.metadata += line + "\n";
+
+      // process deprecated KML icon comment keywords
+      if (tokens.size () > 2 && tokens[1] == "kml_icon")
+        current.set(GOG_IMAGEFILE, tokens[2]);
+      if (tokens.size() > 1 && tokens[1] == "kml_groundoverlay")
+      {
+        currentMetaData.shape = GOG_IMAGEOVERLAY;
+        current.setShape("imageoverlay");
+        type = SHAPE_ABSOLUTE;
+      }
+      if (tokens.size() > 1 && tokens[1] == "kml_latlonbox")
+      {
+        if (tokens.size() > 6)
+        {
+          current.set(GOG_LLABOX_N, tokens[2]);
+          current.set(GOG_LLABOX_S, tokens[3]);
+          current.set(GOG_LLABOX_E, tokens[4]);
+          current.set(GOG_LLABOX_W, tokens[5]);
+          current.set(GOG_LLABOX_ROT, tokens[6]);
+        }
+      }
     }
     else if (tokens[0] == "version")
     {
@@ -317,6 +345,8 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
       validStartEndBlock = (tokens[0] == "start");
       currentMetaData.metadata.clear();
       currentMetaData.shape = GOG_UNKNOWN;
+      currentMetaData.loadFormat = FORMAT_GOG;
+      currentMetaData.lineNumber = lineNumber;
       currentMetaData.clearSetFields();
       current.reset();
       current.setLineNumber(lineNumber);
@@ -337,6 +367,7 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
           positionLines.clear();
           type = SHAPE_UNKNOWN;
           currentMetaData.shape = GOG_UNKNOWN;
+          currentMetaData.lineNumber = lineNumber;
           currentMetaData.clearSetFields();
           state.apply(current);
           output.push_back(current);
@@ -365,7 +396,7 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
         // Store the un-decoded text in textToken to avoid problems with trim in osgEarth code. (SIMDIS-2875)
         current.set(GOG_TEXT, textToken);
         // add support to show annotation text in dialog
-        current.set(GOG_3D_NAME, Utils::decodeAnnotation(textToken));
+        current.set(GOG_3D_NAME, simCore::GOG::GogUtils::decodeAnnotation(textToken));
       }
       else
       {
@@ -386,7 +417,8 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
       tokens[0] == "poly"          ||
       tokens[0] == "polygon"       ||
       tokens[0] == "linesegs"      ||
-      tokens[0] == "cone"
+      tokens[0] == "cone"          ||
+      tokens[0] == "orbit"
       )
     {
       if (currentMetaData.shape != GOG_UNKNOWN)
@@ -420,6 +452,30 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
       else
       {
         printError_(lineNumber, "latlonaltbox command requires at least 5 arguments");
+      }
+    }
+    else if (tokens[0] == "imageoverlay")
+    {
+      if (tokens.size() > 4)
+      {
+        if (currentMetaData.shape != GOG_UNKNOWN)
+        {
+          SIM_WARN << "Multiple shape keywords found in single start/end block\n";
+          invalidShape = true;
+        }
+        currentMetaData.shape = Parser::getShapeFromKeyword(tokens[0]);
+        currentMetaData.metadata += line + "\n";
+        current.setShape("imageoverlay");
+        current.set(GOG_LLABOX_N, tokens[1]);
+        current.set(GOG_LLABOX_S, tokens[2]);
+        current.set(GOG_LLABOX_W, tokens[3]);
+        current.set(GOG_LLABOX_E, tokens[4]);
+        if (tokens.size() > 5)
+          current.set(GOG_LLABOX_ROT, tokens[5]);
+      }
+      else
+      {
+        printError_(lineNumber, "imageoverlay command requires at least 4 arguments");
       }
     }
     // arguments
@@ -540,6 +596,22 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
         printError_(lineNumber, "centerxy/centerxyz command requires at least 2 arguments");
       }
     }
+    else if (tokens[0] == "centerxy2")
+    {
+      if (tokens.size() >= 3)
+      {
+        if (type == SHAPE_UNKNOWN)
+          type = SHAPE_RELATIVE;
+        else if (type == SHAPE_ABSOLUTE)
+          continue;
+        currentMetaData.metadata += line + "\n";
+        current.set(GOG_CENTERXY2, PositionStrings(tokens[1], tokens[2]));
+      }
+      else
+      {
+        printError_(lineNumber, "centerxy2 command requires at least 2 arguments");
+      }
+    }
     else if (tokens[0] == "centerll" || tokens[0] == "centerlla" || tokens[0] == "centerlatlon")
     {
       if (tokens.size() >= 3)
@@ -558,6 +630,21 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
       {
         printError_(lineNumber, "centerll/centerlla/centerlatlon command requires at least 2 arguments");
       }
+    }
+    else if (tokens[0] == "centerll2" || tokens[0] == "centerlatlon2")
+    {
+      if (tokens.size() >= 3)
+      {
+        if (type == SHAPE_UNKNOWN)
+          type = SHAPE_ABSOLUTE;
+        else if (type == SHAPE_RELATIVE)
+          continue;
+        currentMetaData.metadata += line + "\n";
+        // note centerll2 only supports lat and lon, altitude for shape must be derived from first center point
+        current.set(GOG_CENTERLL2, PositionStrings(tokens[1], tokens[2]));
+      }
+      else
+        printError_(lineNumber, "centerll2 command requires at least 2 arguments");
     }
     // persistent state modifiers:
     else if (tokens[0] == "linecolor")
@@ -618,8 +705,8 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
     {
       if (tokens.size() >= 2)
       {
-        currentMetaData.metadata += line + "\n";
         state.altitudeMode_ = tokens[1];
+        currentMetaData.setExplicitly(GOG_ALTITUDE_MODE_SET);
       }
       else
       {
@@ -668,7 +755,7 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
         printError_(lineNumber, "angleunits command requires 1 argument");
       }
     }
-    else if (tokens[0] == "verticaldatum" && tokens.size() >= 2)
+    else if (tokens[0] == "verticaldatum")
     {
       if (tokens.size() >= 2)
       {
@@ -992,6 +1079,17 @@ bool Parser::parse(std::istream& input, std::vector<ParsedShape>& output, std::v
       current.set(GOG_FONTSIZE, tokens[1]);
       currentMetaData.setExplicitly(GOG_FONT_SIZE_SET);
     }
+    else if (tokens[0] == "imagefile")
+    {
+      current.set(GOG_IMAGEFILE, tokens[1]);
+    }
+    else if (tokens[0] == "opacity")
+    {
+      if (tokens.size() >= 2)
+        current.set(GOG_OPACITY, tokens[1]);
+      else
+        printError_(lineNumber, "opacity command requires 1 argument");
+    }
     else // treat everything as a name/value pair
     {
       if (!tokens.empty())
@@ -1045,7 +1143,7 @@ void Parser::updateMetaData_(const ModifierState& state, const std::string& refO
       currentMetaData.metadata += positionLines;
 }
 
-bool Parser::createGOGs_(const std::vector<ParsedShape>& parsedShapes, const GOGNodeType& nodeType, const std::vector<GogMetaData>& metaData, OverlayNodeVector& output, std::vector<GogFollowData>& followData) const
+bool Parser::createGOGsFromShapes(const std::vector<ParsedShape>& parsedShapes, const GOGNodeType& nodeType, const std::vector<GogMetaData>& metaData, OverlayNodeVector& output, std::vector<GogFollowData>& followData) const
 {
   // add exception handling prior to passing data to renderer
   SAFETRYBEGIN;
@@ -1077,16 +1175,21 @@ bool Parser::createGOGs_(const std::vector<ParsedShape>& parsedShapes, const GOG
   return false;
 }
 
-bool Parser::createGOGs(std::istream& input, const GOGNodeType& nodeType, OverlayNodeVector& output, std::vector<GogFollowData>& followData) const
+bool Parser::createGOGs(std::istream& input, const GOGNodeType& nodeType, OverlayNodeVector& output, std::vector<GogFollowData>& followData, std::vector<ParsedShape>* parsedShapes, std::vector<GogMetaData>* metaData) const
 {
   // first, parse from GOG into Config
-  std::vector<ParsedShape> parsedShapes;
-  std::vector<GogMetaData> metaData;
-  if (!parse(input, parsedShapes, metaData))
+  std::vector<ParsedShape> parsedShapesLocal;
+  std::vector<GogMetaData> metaDataLocal;
+  if (!parse(input, parsedShapesLocal, metaDataLocal))
     return false;
 
   // then parse from Config into Annotation.
-  return createGOGs_(parsedShapes, nodeType, metaData, output, followData);
+  const bool rv = createGOGsFromShapes(parsedShapesLocal, nodeType, metaDataLocal, output, followData);
+  if (parsedShapes)
+    parsedShapes->swap(parsedShapesLocal);
+  if (metaData)
+    metaData->swap(metaDataLocal);
+  return rv;
 }
 
 GogShape Parser::getShapeFromKeyword(const std::string& keyword)
@@ -1121,6 +1224,10 @@ GogShape Parser::getShapeFromKeyword(const std::string& keyword)
     return GOG_LATLONALTBOX;
   if (keyword == "cone")
     return GOG_CONE;
+  if (keyword == "imageoverlay")
+    return GOG_IMAGEOVERLAY;
+  if (keyword == "orbit")
+    return GOG_ORBIT;
   return GOG_UNKNOWN;
 }
 
@@ -1156,21 +1263,25 @@ std::string Parser::getKeywordFromShape(GogShape shape)
     return "latlonaltbox";
   case GOG_CONE:
     return "cone";
+  case GOG_IMAGEOVERLAY:
+    return "imageoverlay";
+  case GOG_ORBIT:
+    return "orbit";
   case GOG_UNKNOWN:
     return "";
   }
   return "";
 }
 
-bool Parser::loadGOGs(std::istream& input, const GOGNodeType& nodeType, OverlayNodeVector& output, std::vector<GogFollowData>& followData) const
+bool Parser::loadGOGs(std::istream& input, const GOGNodeType& nodeType, OverlayNodeVector& output, std::vector<GogFollowData>& followData, std::vector<ParsedShape>* parsedShapes, std::vector<GogMetaData>* metaData) const
 {
-  return createGOGs(input, nodeType, output, followData);
+  return createGOGs(input, nodeType, output, followData, parsedShapes, metaData);
 }
 
 void Parser::printError_(size_t lineNumber, const std::string& errorText) const
 {
   // Assertion failure means Null Object pattern failed
-  assert(context_.errorHandler_ != NULL);
+  assert(context_.errorHandler_ != nullptr);
   if (context_.errorHandler_)
     context_.errorHandler_->printError(lineNumber, errorText);
 }

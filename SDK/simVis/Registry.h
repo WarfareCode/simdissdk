@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,13 +24,20 @@
 #define SIMVIS_REGISTRY_H
 
 #include <list>
+#include <set>
 #include "OpenThreads/ReentrantMutex"
 #include "osg/observer_ptr"
 #include "osg/ref_ptr"
 #include "osgDB/FileUtils"
-#include "osgEarth/ThreadingUtils"
 #include "simCore/Common/Common.h"
 #include "simCore/Common/FileSearch.h"
+#include "simVis/osgEarthVersion.h"
+
+#ifdef HAVE_OSGEARTH_THREADING
+#include "osgEarth/Threading"
+#else
+#include "osgEarth/ThreadingUtils"
+#endif
 
 namespace osg { class FrameStamp; }
 namespace osgText { class Font; }
@@ -76,15 +84,27 @@ public:
 
   /**
   * Gets a copy of the list of extensions to look for when searching for a platform model.
-  * @param out_list List to populate with search extensions (output param)
+  * @param out_list List to populate with search extensions (output param); values do not have dots (e.g. "png")
   */
   void getModelSearchExtensions(FileExtensionList& out_list) const;
 
   /**
   * Sets the list of extensions to look for when searching for a platform model.
-  * @param list Model file extensions list
+  * @param list Model file extensions list; values do not have dots (e.g. "png")
   */
   void setModelSearchExtensions(const FileExtensionList& list);
+
+  /**
+  * Gets a copy of the list of extensions that are registered known pseudo-loader extensions, which might not represent a file on disk.
+  * @param out_list List to populate with pseudo loader extensions (output param); values do not have dots (e.g. "rot")
+  */
+  void getPseudoLoaderExtensions(std::set<std::string>& out_list) const;
+
+  /**
+  * Sets the list of extensions that are registered known pseudo-loader extensions, which might not represent a file on disk.
+  * @param list Pseudo loader file extensions list; values do not have dots (e.g. "rot")
+  */
+  void setPseudoLoaderExtensions(const std::set<std::string>& list);
 
   /**
   * Searches for the named model, using the model search path list and the extensions list.
@@ -104,14 +124,14 @@ public:
   /**
   * Gets or loads a node that represent the specified icon.
   * The result will be either a 3D model or a billboard icon depending on the
-  * Not multi-thread safe.
   * file type of the icon file found.
+  * Not multi-thread safe.
   * @param[in ] name Location of the file
   * @param[inout] pIsImage Pointer to a boolean that will be set to true if the loaded model refers
-  *     to an image, or false if using a model.  Only set for if the return value is non-NULL.
-  * @return A node, or NULL if no file was found.
+  *     to an image, or false if using a model.  Only set for if the return value is non-nullptr.
+  * @return A node, or nullptr if no file was found.
   */
-  osg::Node* getOrCreateIconModel(const std::string& name, bool* pIsImage = NULL) const;
+  osg::Node* getOrCreateIconModel(const std::string& name, bool* pIsImage = nullptr) const;
 
   /** Retrieve a pointer to the model cache. */
   ModelCache* modelCache() const;
@@ -184,10 +204,14 @@ public:
 
 public:
 
-  /**
-  * The static singleton registry instance
-  */
+  /** The static singleton registry instance */
   static Registry* instance();
+
+  /**
+  * Destroy the singleton registry instance. This method is not thread safe. It should only be called at the end of program execution
+  * on the main thread after all worker threads have returned.
+  */
+  static void destroy();
 
 protected:
   virtual ~Registry();
@@ -204,8 +228,12 @@ private:
   /// use the fileSearch_ to find the specified file. Returns the passed in filename if fileSearch_ is not set. This method is thread safe
   std::string findFile_(const std::string& filename, simCore::FileSearch::SearchFileType fileType) const;
 
+  /// singleton pointer
+  static Registry* instance_;
+
   FilePathList modelPaths_;
   FileExtensionList modelExtensions_;
+  std::set<std::string> pseudoLoaderExtensions_;
   ModelCache* modelCache_;
 
   // A mapping between the supplied file name and the actual file name
@@ -227,7 +255,11 @@ private:
   bool memoryChecking_;
 
   simCore::FileSearchPtr fileSearch_;
+#ifdef HAVE_OSGEARTH_THREADING
+  mutable osgEarth::Threading::RecursiveMutex fileSearchMutex_;
+#else
   mutable OpenThreads::ReentrantMutex fileSearchMutex_;
+#endif
 
   /// We maintain a callback method that blocks HTTP results, and uses our file search
   class ReadFileCallback;

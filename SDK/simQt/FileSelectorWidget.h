@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -66,7 +67,7 @@ class SDKQT_EXPORT FileSelectorWidget : public QWidget
 
 public:
   /** Constructor */
-  FileSelectorWidget(QWidget* parent=NULL);
+  FileSelectorWidget(QWidget* parent=nullptr);
   virtual ~FileSelectorWidget();
 
   /** Declare options for the file selector */
@@ -177,13 +178,20 @@ public:
   /** Retrieve currently set filename */
   QString filename() const;
 
+  /** Returns the valid state */
+  bool isValid() const;
+
 public slots:
   /** Sets the filename this selector represents */
   void setFilename(const QString& filename);
+  /** Sets the valid state; if invalid the background is turned red */
+  void setValid(bool valid);
 
 signals:
-  /** Emitted when the filename changes */
-  void filenameChanged(const QString& filename);
+  /** Emitted when the filename is set.  Applies to both programmatically set and user edits. */
+  void filenameChanged(const QString& filename="");
+  /** Emitted when the filename is set.  Only emitted when user changes value. */
+  void fileSelected(const QString& filename="");
 
 private slots:
   /** Connects to the ... button */
@@ -193,6 +201,9 @@ private slots:
   void textEdited_();
 
 private:
+  /** Changes the filename, optionally emitting the fileSelected() signal if needed */
+  void setFilename_(const QString& filename, bool canEmitFileSelected);
+
   Ui_FileSelectorWidget* ui_;
   /** location for saving state information */
   QString registryKey_;
@@ -214,13 +225,17 @@ private:
   QString customFileFilter_;
   /** Indicates if icon is placed before the text widgets */
   bool iconBeforeText_;
+  /** The valid state of the control as dictated by a caller */
+  bool isValid_;
+
+  /** Cached value of the filename */
+  QString filename_;
 
   /** Re-implement eventFilter() */
   virtual bool eventFilter(QObject* obj, QEvent* evt);
 
   /** Converts the filter option enum to a readable text */
   QString filterOptions2QString_(FileSelectorWidget::FilterOptions option) const;
-
 };
 
 }

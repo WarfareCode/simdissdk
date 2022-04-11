@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -192,7 +193,7 @@ typedef std::shared_ptr<GogObject> GogObjectPtr;
 class GogManager
 {
 public:
-  /** Observer class to listen to the GogManager for new or removed GOGs */
+  /** Observer class to listen to the GogManager for new or removed GOGs. Notifications include finalized and editable provisional, but not fully provisional GOGs */
   class GogChangeObserver
   {
   public:
@@ -312,6 +313,20 @@ public:
   */
   virtual void removeGogObserver(GogChangeObserverPtr observer) = 0;
 
+  /**
+  * Set the editable state of a provisional GOG.
+  * @param gog provisional GOG id
+  * @param editable toggles the provisional GOG's editable state
+  * @return zero if successful, non-zero otherwise
+  */
+  virtual int setProvisionalGogEditable(simUtil::GogObject* gog, bool editable) = 0;
+
+  /**
+  * Get the editable state of a provisional GOG.
+  * @param gog provisional GOG id
+  * @return true if provisional GOG is editable, false otherwise
+  */
+  virtual bool getProvisionalGogEditable(const simUtil::GogObject* gog) const = 0;
 };
 
 }

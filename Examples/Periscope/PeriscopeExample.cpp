@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -42,7 +43,7 @@
 #include "simUtil/ExampleResources.h"
 #include "simUtil/HudManager.h"
 
-#include "osgEarth/Controls"
+#include "osgDB/ReadFile"
 #include "osgEarth/SimpleOceanLayer"
 #include "osgEarth/Version"
 
@@ -63,7 +64,6 @@
 #define SUB_ALT         3.5
 
 using namespace osgEarth::Util;
-namespace ui = osgEarth::Util::Controls;
 
 // put a ship out there.
 static simCore::Coordinate s_shipPosOri(simCore::COORD_SYS_LLA,
@@ -340,10 +340,10 @@ int main(int argc, char** argv)
 
   // remove the default manipulator; we will set the camera manually
   viewer->getMainView()->setUpViewInWindow(20, 20, width, height, 0);
-  viewer->getMainView()->setCameraManipulator(NULL);
+  viewer->getMainView()->setCameraManipulator(nullptr);
 
   // apply the reticle overlay.
-  simUtil::HudManager hudManager(viewer->getMainView());
+  simUtil::HudManager hudManager(viewer->getMainView(), viewer->getMainView()->getOrCreateHUD());
   if (reticle.valid())
     hudManager.createImage(reticle.get(), 0, 0, 100, 100);
 

@@ -1,24 +1,25 @@
-// -*- mode: c++ -*-
+/* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <deque>
 #include <QStandardItemModel>
 #include "osg/NodeVisitor"
@@ -227,12 +228,12 @@ std::string StateSetVisitor::uniformToString(const osg::Uniform& uniform)
 FillTreeStateSetVisitor::FillTreeStateSetVisitor(QStandardItem& parent, osg::NodeVisitor::TraversalMode tm)
   : StateSetVisitor(tm),
     parent_(parent),
-    modes_(NULL),
-    attributes_(NULL),
-    textureModes_(NULL),
-    textureAttributes_(NULL),
-    uniforms_(NULL),
-    defines_(NULL)
+    modes_(nullptr),
+    attributes_(nullptr),
+    textureModes_(nullptr),
+    textureAttributes_(nullptr),
+    uniforms_(nullptr),
+    defines_(nullptr)
 {
 }
 
@@ -320,9 +321,9 @@ void FillTreeStateSetVisitor::applyDefine(osg::StateSet& stateSet, const std::st
 QList<QStandardItem*> FillTreeStateSetVisitor::appendRow_(QStandardItem& parent, const QString& column1, const QString& column2, const QString& column3) const
 {
   QList<QStandardItem*> row;
-  row.push_back(newStandardItem_(NULL, column1));
-  row.push_back(newStandardItem_(NULL, column2));
-  row.push_back(newStandardItem_(NULL, column3));
+  row.push_back(newStandardItem_(nullptr, column1));
+  row.push_back(newStandardItem_(nullptr, column2));
+  row.push_back(newStandardItem_(nullptr, column3));
   parent.appendRow(row);
   return row;
 }

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -91,8 +92,8 @@ CategoryFilter::CategoryFilter(simData::DataStore* dataStore, bool autoUpdate)
   if (autoUpdate_)
   {
     // Does nothing without a datastore
-    assert(dataStore != NULL);
-    if (dataStore_ == NULL)
+    assert(dataStore != nullptr);
+    if (dataStore_ == nullptr)
       return;
 
     buildCategoryFilter_(true, true, true, true);
@@ -119,7 +120,7 @@ CategoryFilter::CategoryFilter(const CategoryFilter& other)
 
 CategoryFilter::~CategoryFilter()
 {
-  if ((dataStore_ != NULL) && (listenerPtr_ != NULL))
+  if ((dataStore_ != nullptr) && (listenerPtr_ != nullptr))
     dataStore_->categoryNameManager().removeListener(listenerPtr_);
 }
 
@@ -134,7 +135,7 @@ CategoryFilter& CategoryFilter::assign(const CategoryFilter& other, bool copyAut
     return *this;
 
   // Clear the listener pointer unconditionally
-  if ((dataStore_ != NULL) && (listenerPtr_ != NULL))
+  if ((dataStore_ != nullptr) && (listenerPtr_ != nullptr))
   {
     dataStore_->categoryNameManager().removeListener(listenerPtr_);
     listenerPtr_.reset();
@@ -145,10 +146,10 @@ CategoryFilter& CategoryFilter::assign(const CategoryFilter& other, bool copyAut
   categoryCheck_ = other.categoryCheck_;
   categoryRegExp_ = other.categoryRegExp_;
 
-  if (dataStore_ != NULL && autoUpdate_)
+  if (dataStore_ != nullptr && autoUpdate_)
   {
     // re-add observers/listeners
-    assert(listenerPtr_ == NULL);
+    assert(listenerPtr_ == nullptr);
     listenerPtr_.reset(new CategoryFilterListener(this));
     dataStore_->categoryNameManager().addListener(listenerPtr_);
   }
@@ -372,24 +373,22 @@ void CategoryFilter::setCategoryRegExp(int nameInt, const simData::RegExpFilterP
   // new entry, add to the map if this is a non-empty string
   if (nameIter == categoryRegExp_.end())
   {
-    if (regExp != NULL && !regExp->pattern().empty())
+    if (regExp != nullptr && !regExp->pattern().empty())
       categoryRegExp_[nameInt] = regExp;
     return;
   }
 
   // update the expression if non-empty, remove if empty
-  if (regExp != NULL && !regExp->pattern().empty())
+  if (regExp != nullptr && !regExp->pattern().empty())
     nameIter->second = regExp;
   else
-    categoryRegExp_.erase(nameIter);
+    removeName(nameInt);
 }
 
-bool CategoryFilter::match(uint64_t entityId) const
+bool CategoryFilter::match(const simData::DataStore& dataStore, uint64_t entityId) const
 {
-  if (dataStore_ == NULL)
-    return true;
   CurrentCategoryValues curCategoryData;
-  CategoryFilter::getCurrentCategoryValues(*dataStore_, entityId, curCategoryData);
+  CategoryFilter::getCurrentCategoryValues(dataStore, entityId, curCategoryData);
   return matchData(curCategoryData);
 }
 
@@ -417,13 +416,10 @@ bool CategoryFilter::matchData(const CurrentCategoryValues& curCategoryData) con
     // category is unchecked if and only if all children are unchecked
     const bool categoryIsChecked = catValues.first;
 
-    // no category values, move on
-    if (catValues.second.size() == 0 ||
-      checksIter->first == simData::CategoryNameManager::NO_CATEGORY_NAME ||
+    // Skip testing this category if it's unchecked (does not apply to matching), or if name is special no-name value
+    if (checksIter->first == simData::CategoryNameManager::NO_CATEGORY_NAME ||
       !categoryIsChecked)
-    {
       continue;
-    }
 
     // grab the pointer for ease of use
     const ValuesCheck* currentChecksValues = &(catValues.second);
@@ -501,7 +497,7 @@ bool CategoryFilter::matchData(const CurrentCategoryValues& curCategoryData) con
 bool CategoryFilter::matchRegExpFilter_(const CurrentCategoryValues& curCategoryData) const
 {
   // no failure if no regular expressions
-  if (categoryRegExp_.empty() || dataStore_ == NULL)
+  if (categoryRegExp_.empty() || dataStore_ == nullptr)
     return true;
   CurrentCategoryValues::const_iterator curCategoryDataIter;
   // first, check the reg exp, since this is likely to be more comprehensive
@@ -530,7 +526,7 @@ bool CategoryFilter::matchRegExpFilter_(const CurrentCategoryValues& curCategory
 
 std::string CategoryFilter::serialize(bool simplify) const
 {
-  if (dataStore_ == NULL)
+  if (dataStore_ == nullptr)
     return " ";
 
   simData::CategoryNameManager& catNameMgr = dataStore_->categoryNameManager();
@@ -556,7 +552,7 @@ std::string CategoryFilter::serialize(bool simplify) const
   for (auto regIter = categoryRegExpCopy.begin(); regIter != categoryRegExpCopy.end(); ++regIter)
   {
     // Skip this regexp if it's not valid
-    if (regIter->second == NULL || regIter->second->pattern().empty())
+    if (regIter->second == nullptr || regIter->second->pattern().empty())
       continue;
 
     auto catIter = categoryCheckCopy.find(regIter->first);
@@ -577,8 +573,13 @@ std::string CategoryFilter::serialize(bool simplify) const
     if (regExpIter != categoryRegExpCopy.end())
       regExp = regExpIter->second->pattern();
 
-    if ((values.empty() && regExp.empty()) || (categoryName == simData::CategoryNameManager::NO_CATEGORY_NAME))
-      continue; // ignore if there are no values and no regExp, or the category name int value is not valid
+    // Ignore if the category name int value is not valid
+    if (categoryName == simData::CategoryNameManager::NO_CATEGORY_NAME)
+      continue;
+
+    // Note here that values.empty() and regExp.empty() is a valid state.  It means that the
+    // filter is set up so that the category matches, but Unlisted Values is unchecked (default).
+    // Therefore, all category matching will eventually fail on this filter.  But it is valid.
 
     std::string categoryNameString = catNameMgr.nameIntToString(categoryName);
     if (categoryNameString.empty())
@@ -630,7 +631,7 @@ std::string CategoryFilter::serialize(bool simplify) const
 ///@return false on fail
 bool CategoryFilter::deserialize(const std::string &checksString, bool skipEmptyCategories, RegExpFilterFactory* regExpFactory)
 {
-  if (dataStore_ == NULL)
+  if (dataStore_ == nullptr)
     return false;
 
   categoryCheck_.clear();
@@ -795,6 +796,9 @@ void CategoryFilter::simplifyValues_(CategoryFilter::CategoryCheck& checks) cons
 
 void CategoryFilter::simplifyValues_(CategoryFilter::ValuesCheck& values) const
 {
+  if (values.empty())
+    return;
+
   // Get the value of the "Unlisted Value" entry
   ValuesCheck::const_iterator unlistedValueIter = values.find(simData::CategoryNameManager::UNLISTED_CATEGORY_VALUE);
   // "Unlisted Value" defaults to OFF
@@ -842,6 +846,10 @@ bool CategoryFilter::doesCategoryAffectFilter_(int nameInt, const CategoryFilter
 
   const ValuesCheck& values = nameBoolAndChecks.second;
 
+  // if values is empty, then "Unlisted Value" defaults OFF, so nothing should match this filter, but it still is valid
+  if (values.empty())
+    return true;
+
   // Get the value of the "Unlisted Value" entry
   ValuesCheck::const_iterator unlistedIter = values.find(simData::CategoryNameManager::UNLISTED_CATEGORY_VALUE);
   const bool unlistedValue = (unlistedIter != values.end()) ? unlistedIter->second : false;
@@ -887,7 +895,7 @@ void CategoryFilter::simplifyRegExp_(CategoryFilter::CategoryRegExp& regExps) co
 {
   for (auto i = regExps.begin(); i != regExps.end(); /* no increment */)
   {
-    if (i->second == NULL || i->second->pattern().empty())
+    if (i->second == nullptr || i->second->pattern().empty())
       regExps.erase(i++);
     else
       ++i;
@@ -899,7 +907,7 @@ void CategoryFilter::simplify_(CategoryFilter::CategoryCheck& checks) const
   // Remove all categories that have a non-empty regular expression
   for (auto i = categoryRegExp_.begin(); i != categoryRegExp_.end(); ++i)
   {
-    if (i->second != NULL && !i->second->pattern().empty())
+    if (i->second != nullptr && !i->second->pattern().empty())
       checks.erase(i->first);
   }
   simplifyValues_(checks);
@@ -916,7 +924,7 @@ void CategoryFilter::simplify(int categoryName)
   if (refIter != categoryRegExp_.end())
   {
     // Clean up categoryRegExp_ first
-    if (refIter->second == NULL || refIter->second->pattern().empty())
+    if (refIter->second == nullptr || refIter->second->pattern().empty())
       categoryRegExp_.erase(refIter);
     else if (i != categoryCheck_.end())
     {
@@ -1036,7 +1044,7 @@ void CategoryFilter::getValues(int nameInt, ValuesCheck& checks) const
 const simData::RegExpFilter* CategoryFilter::getRegExp(int nameInt) const
 {
   auto i = categoryRegExp_.find(nameInt);
-  return (i == categoryRegExp_.end() ? NULL : i->second.get());
+  return (i == categoryRegExp_.end() ? nullptr : i->second.get());
 }
 
 std::string CategoryFilter::getRegExpPattern(int nameInt) const

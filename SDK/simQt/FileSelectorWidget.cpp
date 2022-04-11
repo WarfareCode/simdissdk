@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -33,14 +34,15 @@ namespace simQt {
 FileSelectorWidget::FileSelectorWidget(QWidget* parent)
   : QWidget(parent),
     registryKey_("Private/file"),
-    labelWidget_(NULL),
+    labelWidget_(nullptr),
     includeLabel_(false),
     label_(tr("File")),
     browserTitle_(tr("Load Data File")),
     flags_(FileSelectorWidget::FileLoad),
     filterOption_(FileSelectorWidget::SIMDIS_ASI_FILE_PATTERNS),
     customFileFilter_(tr("All Files (*)")),
-    iconBeforeText_(false)
+    iconBeforeText_(false),
+    isValid_(true)
 {
   ResourceInitializer::initialize();  // Needs to be here so that Qt Designer works.
 
@@ -77,18 +79,18 @@ void FileSelectorWidget::setIconBeforeText(bool alignLeft)
   iconBeforeText_ = alignLeft;
   QPushButton* fileButton = ui_->fileButton;
   ui_->horizontalLayout->removeWidget(fileButton);
-  if (labelWidget_ != NULL)
+  if (labelWidget_ != nullptr)
     ui_->horizontalLayout->removeWidget(labelWidget_);
 
   if (alignLeft)
   {
     ui_->horizontalLayout->insertWidget(0, fileButton);
-    if (labelWidget_ != NULL)
+    if (labelWidget_ != nullptr)
       ui_->horizontalLayout->addWidget(labelWidget_);
   }
   else
   {
-    if (labelWidget_ != NULL)
+    if (labelWidget_ != nullptr)
       ui_->horizontalLayout->insertWidget(0, labelWidget_);
     ui_->horizontalLayout->addWidget(fileButton);
   }
@@ -119,7 +121,7 @@ void FileSelectorWidget::setIncludeLabel(bool value)
 {
   if (value == true)
   {
-    if (labelWidget_ == NULL)
+    if (labelWidget_ == nullptr)
     {
       labelWidget_ = new QLabel(label_);
     }
@@ -132,7 +134,7 @@ void FileSelectorWidget::setIncludeLabel(bool value)
   {
     ui_->horizontalLayout->removeWidget(labelWidget_);
     delete labelWidget_;
-    labelWidget_ = NULL;
+    labelWidget_ = nullptr;
   }
 
   includeLabel_ = value;
@@ -187,7 +189,7 @@ FileSelectorWidget::FileOption FileSelectorWidget::fileOptions() const
 
 QString FileSelectorWidget::filename() const
 {
-  return ui_->fileText->text();
+  return filename_;
 }
 
 void FileSelectorWidget::loadButton_()
@@ -204,14 +206,42 @@ void FileSelectorWidget::loadButton_()
     file = simQt::FileDialog::loadFile(this, browserTitle_, registryKey_, filterOptions2QString_(filterOption_));
   }
   if (!file.isEmpty())
-    setFilename(file);
+    setFilename_(file, true);
 }
 
 void FileSelectorWidget::setFilename(const QString& filename)
 {
-  QString osFilename = QDir::toNativeSeparators(filename);
-  ui_->fileText->setText(osFilename);
-  emit filenameChanged(osFilename);
+  setFilename_(filename, false);
+}
+
+void FileSelectorWidget::setFilename_(const QString& filename, bool canEmitFileSelected)
+{
+  const QString& osFilename = QDir::toNativeSeparators(filename);
+  if (osFilename == filename_)
+    return;
+  filename_ = osFilename;
+  ui_->fileText->setText(filename_);
+  emit filenameChanged(filename_);
+  if (canEmitFileSelected)
+    emit fileSelected(filename_);
+}
+
+bool FileSelectorWidget::isValid() const
+{
+  return isValid_;
+}
+
+void FileSelectorWidget::setValid(bool valid)
+{
+  if (isValid_ == valid)
+    return;
+
+  isValid_ = valid;
+
+  if (isValid_)
+    ui_->fileText->setStyleSheet("");
+  else
+    ui_->fileText->setStyleSheet("QLineEdit {color: red}");
 }
 
 bool FileSelectorWidget::eventFilter(QObject* obj, QEvent* evt)
@@ -242,7 +272,7 @@ FileSelectorWidget::FilterOptions FileSelectorWidget::filterOption() const
 void FileSelectorWidget::editingFinished_()
 {
   ui_->fileText->setStyleSheet("QLineEdit {background: palette(base); color: black;}");
-  setFilename(ui_->fileText->text());
+  setFilename_(ui_->fileText->text(), true);
 }
 
 // only used in DEBUG mode

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -29,6 +30,17 @@
 
 namespace simVis
 {
+
+SimdisEntityState::SimdisEntityState()
+  : node_(nullptr),
+  platformHostNode_(nullptr),
+  rfPropagation_(nullptr)
+{
+}
+
+SimdisEntityState::~SimdisEntityState()
+{
+}
 
 SimdisRangeToolState::SimdisRangeToolState(SimdisEntityState* beginEntity, SimdisEntityState* endEntity)
   : RangeToolState(beginEntity, endEntity)
@@ -46,13 +58,13 @@ osg::Vec3d SimdisRangeToolState::coord(Coord which)
   if (beginEntity_->type_ == simData::BEAM)
   {
     auto simdisState = dynamic_cast<SimdisEntityState*>(beginEntity_);
-    if (simdisState == NULL)
+    if (simdisState == nullptr)
       return osg::Vec3d();
 
     const simVis::BeamNode* beam = dynamic_cast<const simVis::BeamNode*>(simdisState->node_.get());
     // Node not defined correctly; type() and pointer should match)
-    assert(beam != NULL);
-    if (beam != NULL)
+    assert(beam != nullptr);
+    if (beam != nullptr)
     {
       simCore::Vec3 from;
       beam->getClosestPoint(endEntity_->lla_, from);
@@ -66,13 +78,13 @@ osg::Vec3d SimdisRangeToolState::coord(Coord which)
     assert(endEntity_->type_ == simData::BEAM);
 
     auto simdisState = dynamic_cast<SimdisEntityState*>(endEntity_);
-    if (simdisState == NULL)
+    if (simdisState == nullptr)
       return osg::Vec3d();
 
     const simVis::BeamNode* beam = dynamic_cast<const simVis::BeamNode*>(simdisState->node_.get());
     // Node not defined correctly; type() and pointer should match)
-    assert(beam != NULL);
-    if (beam != NULL)
+    assert(beam != nullptr);
+    if (beam != nullptr)
     {
       simCore::Vec3 to;
       beam->getClosestPoint(beginEntity_->lla_, to);
@@ -86,11 +98,11 @@ osg::Vec3d SimdisRangeToolState::coord(Coord which)
 
 int SimdisRangeToolState::populateEntityState(const simVis::ScenarioManager& scenario, const simVis::EntityNode* node, EntityState* state)
 {
-  if ((node == NULL) || (state == NULL))
+  if ((node == nullptr) || (state == nullptr))
     return 1;
 
   auto hostNode = dynamic_cast<const simVis::PlatformNode*>(scenario.getHostPlatform(node));
-  if (hostNode == NULL)
+  if (hostNode == nullptr)
     return 1;
 
   state->id_ = node->getId();
@@ -102,7 +114,7 @@ int SimdisRangeToolState::populateEntityState(const simVis::ScenarioManager& sce
     state->hostId_ = hostNode->getId();
 
   auto simdisState = dynamic_cast<SimdisEntityState*>(state);
-  if (simdisState != NULL)
+  if (simdisState != nullptr)
   {
     simdisState->node_ = node;
     simdisState->platformHostNode_ = hostNode;
@@ -119,11 +131,11 @@ int SimdisRangeToolState::populateEntityState(const simVis::ScenarioManager& sce
   {
     // Platforms need velocity which is not available from getPositionOrientation, so add it in
     const simVis::PlatformNode* platform = dynamic_cast<const simVis::PlatformNode*>(node);
-    if (platform == NULL)
+    if (platform == nullptr)
       return 1;
 
     const simData::PlatformUpdate* update = platform->update();
-    if (update == NULL)
+    if (update == nullptr)
       return 1;
 
     simCore::Coordinate ecef(simCore::COORD_SYS_ECEF,
@@ -136,7 +148,7 @@ int SimdisRangeToolState::populateEntityState(const simVis::ScenarioManager& sce
     state->vel_ = needVelocity.velocity();
   }
 
-  if ((simdisState != NULL) && (simdisState->type_ == simData::BEAM))
+  if ((simdisState != nullptr) && (simdisState->type_ == simData::BEAM))
   {
     simRF::RFPropagationManagerPtr manager = scenario.rfPropagationManager();
     simdisState->rfPropagation_ = manager->getRFPropagation(node->getId());

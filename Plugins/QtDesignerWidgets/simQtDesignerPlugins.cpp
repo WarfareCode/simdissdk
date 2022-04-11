@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -27,11 +28,12 @@
 #include "ColorWidgetPlugin.h"
 #include "CategoryDataBreadcrumbsPlugin.h"
 #include "CategoryFilterWidgetPlugin.h"
-#include "CategoryFilterWidget2Plugin.h"
 #include "DataTableComboBoxPlugin.h"
 #include "DirectorySelectorWidgetPlugin.h"
 #include "DockWidgetPlugin.h"
+#ifdef HAVE_SIMVIS
 #include "EntityLineEditPlugin.h"
+#endif
 #include "EntityTreeCompositePlugin.h"
 #include "EntityFilterLineEditPlugin.h"
 #include "EntityTypeFilterWidgetPlugin.h"
@@ -49,7 +51,6 @@ simQtDesignerPlugins::simQtDesignerPlugins(QObject* parent) : QObject(parent)
   // Add all plug-in widgets here
   widgetFactories_.append(new CategoryDataBreadcrumbsPlugin(this));
   widgetFactories_.append(new CategoryFilterWidgetPlugin(this));
-  widgetFactories_.append(new CategoryFilterWidget2Plugin(this));
   widgetFactories_.append(new ColorButtonPlugin(this));
 #ifdef HAVE_OSG
   widgetFactories_.append(new ColorGradientWidgetPlugin(this));
@@ -59,7 +60,9 @@ simQtDesignerPlugins::simQtDesignerPlugins(QObject* parent) : QObject(parent)
   widgetFactories_.append(new DirectorySelectorWidgetPlugin(this));
   widgetFactories_.append(new DockWidgetPlugin(this));
   widgetFactories_.append(new EntityFilterLineEditPlugin(this));
+#ifdef HAVE_SIMVIS
   widgetFactories_.append(new EntityLineEditPlugin(this));
+#endif
   widgetFactories_.append(new EntityTreeCompositePlugin(this));
   widgetFactories_.append(new EntityTypeFilterWidgetPlugin(this));
   widgetFactories_.append(new FileSelectorWidgetPlugin(this));
@@ -75,7 +78,3 @@ QList<QDesignerCustomWidgetInterface*> simQtDesignerPlugins::customWidgets() con
 {
   return widgetFactories_;
 }
-
-#if(QT_VERSION < QT_VERSION_CHECK(5, 0, 0))
-Q_EXPORT_PLUGIN2(mydesignerplugin, simQtDesignerPlugins)
-#endif

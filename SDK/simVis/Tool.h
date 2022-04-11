@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -102,6 +103,13 @@ namespace simVis
     * @param updates the changes to the scenario's entities for the given update time
     */
     virtual void onUpdate(const ScenarioManager& scenario, const simCore::TimeStamp& timeStamp, const EntityVector& updates) { }
+
+    /**
+    * Called when scenario or an entity is about to be flushed.
+    * @param scenario  the scenarioManager that is managing this tool.
+    * @param flushedId  0 if scenario flush, otherwise the ID of the entity that will be flushed
+    */
+    virtual void onFlush(const ScenarioManager& scenario, simData::ObjectId flushedId) { }
   };
 
 } // namespace simVis

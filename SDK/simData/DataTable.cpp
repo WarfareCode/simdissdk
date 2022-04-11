@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -137,7 +138,7 @@ public:
   virtual bool equals(const TableCell& b) const
   {
     const TableCellT<ValueType>* cellThisType = dynamic_cast<const TableCellT<ValueType>*>(&b);
-    if (cellThisType == NULL)
+    if (cellThisType == nullptr)
       return false;
     ValueType tmpValue;
     cellThisType->value(tmpValue);
@@ -212,7 +213,7 @@ namespace
   TableStatus getCellValue(const std::vector<ColumnCellPair>& vec, TableColumnId columnId, T& value)
   {
     std::vector<ColumnCellPair>::const_iterator i = std::lower_bound(vec.begin(), vec.end(), ColumnCellPair(columnId, NullTableCell));
-    if (i == vec.end() || i->second == NULL || i->first != columnId)
+    if (i == vec.end() || i->second == nullptr || i->first != columnId)
       return TableStatus::Error("Cell not found.");
     return i->second->value(value);
   }
@@ -233,7 +234,7 @@ namespace
     {
       // Found an entry, cell already exists
       TableCellT<T>* cellTyped = dynamic_cast<TableCellT<T>*>(iter1->second);
-      if (cellTyped != NULL)
+      if (cellTyped != nullptr)
       {
         // existing cell is same type as cellValue, is okay to just set it
         cellTyped->setValue(value);

@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <cassert>
 #include "osg/Depth"
 #include "osg/MatrixTransform"
@@ -317,7 +318,7 @@ void HudEditorGui::updatePosition(const std::string& windowName)
 
   // Get or create the window pointer
   auto i = windows_.find(windowName);
-  WindowNodePx* window = NULL;
+  WindowNodePx* window = nullptr;
   if (i == windows_.end())
   {
     // Pull out size parameters; they're required on creation
@@ -337,7 +338,7 @@ void HudEditorGui::updatePosition(const std::string& windowName)
   else
     window = i->second.get();
 
-  // Should not be possible to be NULL here
+  // Should not be possible to be nullptr here
   assert(window);
   if (!window)
     return;
@@ -375,10 +376,10 @@ void HudEditorGui::traverse(osg::NodeVisitor& nv)
   {
     // Pull out the View and deal with resize events
     osgGA::EventVisitor* ev = nv.asEventVisitor();
-    osgGA::GUIActionAdapter* aa = (ev ? ev->getActionAdapter() : NULL);
-    const osg::View* view = (aa ? aa->asView() : NULL);
-    const osg::Camera* camera = (view ? view->getCamera() : NULL);
-    const osg::Viewport* viewport = (camera ? camera->getViewport() : NULL);
+    osgGA::GUIActionAdapter* aa = (ev ? ev->getActionAdapter() : nullptr);
+    const osg::View* view = (aa ? aa->asView() : nullptr);
+    const osg::Camera* camera = (view ? view->getCamera() : nullptr);
+    const osg::Viewport* viewport = (camera ? camera->getViewport() : nullptr);
 
     // Determine if resize happened (we can't rely on resize events, they don't always include right size)
     if (viewport)

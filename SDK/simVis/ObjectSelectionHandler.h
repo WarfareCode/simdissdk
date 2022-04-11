@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -73,7 +74,7 @@ public:
   */
   void setSelectCallback(SelectCallback *callback);
 
-  /// Get the installed acceptance callback, or NULL if none is installed.
+  /// Get the installed acceptance callback, or nullptr if none is installed.
   SelectCallback* getSelectCallback() const;
 
   /**

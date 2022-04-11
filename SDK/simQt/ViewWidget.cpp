@@ -1,28 +1,27 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling and Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <QGLFormat>
+#include <QKeyEvent>
 #include <QWindow>
 #include "osg/Camera"
 #include "osg/DisplaySettings"
@@ -46,7 +45,7 @@ class ExposedSwapGraphicsWindowQt : public osgQt::GraphicsWindowQt
 {
 public:
   /** Constructor that takes a Traits instance */
-  explicit ExposedSwapGraphicsWindowQt(osg::GraphicsContext::Traits* traits, QWidget* parent = NULL, const QGLWidget* shareWidget = NULL, Qt::WindowFlags f = 0)
+  explicit ExposedSwapGraphicsWindowQt(osg::GraphicsContext::Traits* traits, QWidget* parent = nullptr, const QGLWidget* shareWidget = nullptr, Qt::WindowFlags f = 0)
     : GraphicsWindowQt(traits, parent, shareWidget, f)
   {
   }
@@ -67,6 +66,35 @@ public:
 
 ////////////////////////////////////////////////////////////////
 
+AutoRepeatFilter::AutoRepeatFilter(QObject* parent)
+  : QObject(parent),
+  enabled_(true)
+{
+}
+
+bool AutoRepeatFilter::eventFilter(QObject* obj, QEvent* evt)
+{
+  if (enabled_ && evt && evt->type() == QEvent::KeyPress)
+  {
+    const QKeyEvent* keyEvt = dynamic_cast<const QKeyEvent*>(evt);
+    if (keyEvt && keyEvt->isAutoRepeat())
+      return true;
+  }
+  return QObject::eventFilter(obj, evt);
+}
+
+void AutoRepeatFilter::setEnabled(bool enabled)
+{
+  enabled_ = enabled;
+}
+
+bool AutoRepeatFilter::isEnabled() const
+{
+  return enabled_;
+}
+
+////////////////////////////////////////////////////////////////
+
 ViewWidget::ViewWidget(osgViewer::View* view)
   : osgQt::GLWidget(simQt::Gl3FormatGuesser::getFormat())
 {
@@ -82,6 +110,10 @@ ViewWidget::~ViewWidget()
 
 void ViewWidget::init_(osgViewer::View* view)
 {
+  // Install an event handler to "eat" auto-repeat key events, avoiding keyboard navigation errors
+  autoRepeatFilter_ = new AutoRepeatFilter(this);
+  installEventFilter(autoRepeatFilter_);
+
   if (!view)
     return;
 
@@ -147,6 +179,16 @@ osg::GraphicsContext* ViewWidget::createGraphicsContext_()
   // Creates the graphics window Qt, telling it which traits were used to create it.  Note
   // the use of ExposedSwapGraphicsWindowQt to avoid Qt OpenGL swap warning.
   return new ExposedSwapGraphicsWindowQt(traits.get());
+}
+
+void ViewWidget::setAllowAutoRepeatKeys(bool allowAutoRepeat)
+{
+  autoRepeatFilter_->setEnabled(!allowAutoRepeat);
+}
+
+bool ViewWidget::allowAutoRepeatKeys() const
+{
+  return !autoRepeatFilter_->isEnabled();
 }
 
 }

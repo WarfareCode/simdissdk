@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -106,7 +107,7 @@ simVis::PopupHandler* PlatformPopupManipulator::popupHandler() const
 int PlatformPopupManipulator::move(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa)
 {
   // Pass the move event to the popupHandler_, who reinterprets as needed to update its mouse position
-  int rv = popupHandler_->handle(ea, aa) ? 1 : 0;
+  const int rv = popupHandler_->handle(ea, aa) ? 1 : 0;
   // Now update the last mouse view if it has changed
   osg::observer_ptr<simVis::View> currentView = static_cast<simVis::View*>(aa.asView());
   if (lastMouseView_ != currentView)

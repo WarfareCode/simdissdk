@@ -13,13 +13,15 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
 #include <limits>
+#include "osgDB/ReadFile"
 #include "osgEarth/NodeUtils"
 #include "osgEarth/GeoPositionNode"
 #include "osgEarth/LocalGeometryNode"
@@ -27,6 +29,7 @@
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/CoordinateConverter.h"
 #include "simCore/Calc/Math.h"
+#include "simCore/GOG/GogUtils.h"
 #include "simCore/String/Angle.h"
 #include "simCore/String/Format.h"
 #include "simCore/String/Utils.h"
@@ -48,6 +51,7 @@ static const float DEFAULT_LABEL_PRIORITY = 100.f;
 
 //------------------------------------------------------------------------
 
+#undef LC
 #define LC "[GOG::UnitsState] "
 
 namespace simVis { namespace GOG {
@@ -67,7 +71,7 @@ void Utils::applyLocalGeometryOffsets(LocalGeometryNode& node, ParserData& data,
   {
     // if this is a hosted node, it will need to set any offsets in the attitude transform's position, since it's position is ignored
     osg::PositionAttitudeTransform* trans = node.getPositionAttitudeTransform();
-    if (trans != NULL)
+    if (trans != nullptr)
       trans->setPosition(data.getLTPOffset());
     // hosted nodes don't set orientation offsets directly, they are instead applied through a Locator attached to the host
   }
@@ -94,6 +98,8 @@ bool Utils::canSerializeGeometry_(simVis::GOG::GogShape shape)
   case simVis::GOG::GOG_ANNOTATION:
   case simVis::GOG::GOG_LATLONALTBOX:
   case simVis::GOG::GOG_CONE:
+  case simVis::GOG::GOG_IMAGEOVERLAY:
+  case simVis::GOG::GOG_ORBIT:
     break;
   }
   return false;
@@ -251,13 +257,19 @@ void Utils::configureStyleForClipping(Style& style)
 
 std::string Utils::decodeAnnotation(const std::string& anno)
 {
-  const std::string r1 = simCore::StringUtils::substitute(anno, "_", " ");
-  return simCore::StringUtils::substitute(r1, "\\n", "\n");
+  return simCore::GOG::GogUtils::decodeAnnotation(anno);
 }
+
+osg::ref_ptr<osg::Image> Utils::readRefImage(const std::string& addr)
+{
+  return osgDB::readRefImageFile(simCore::GOG::GogUtils::processUrl(addr));
+}
+
+//------------------------------------------------------------------------
 
 UnitsState::UnitsState()
 {
-  //defaults
+  // defaults
   altitudeUnits_ = simCore::Units::FEET;
   rangeUnits_ = simCore::Units::YARDS;
   timeUnits_ = simCore::Units::SECONDS;
@@ -282,9 +294,8 @@ void UnitsState::parse(const std::string& s, const simCore::UnitsRegistry& units
   else if (s == "mins") units = simCore::Units::MINUTES;
   else if (s == "hrs") units = simCore::Units::HOURS;
   else if (s == "sm") units = simCore::Units::MILES;
-  if (unitsRegistry.unitsByAbbreviation(s, units) == 0)
-    return;
-  unitsRegistry.unitsByName(s, units);
+  else if (unitsRegistry.unitsByAbbreviation(s, units) != 0)
+    unitsRegistry.unitsByName(s, units);
 }
 
 //------------------------------------------------------------------------
@@ -339,7 +350,7 @@ ParserData::ParserData(const ParsedShape& parsedShape, const GOGContext& context
       units_.altitudeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_REF_ALT, 0.0)));
   }
 
-  // The centerLLA and centerXYZ doe not apply to points, lines, line segments and polygons
+  // The centerLLA and centerXYZ do not apply to points, lines, line segments and polygons
   if ((shape != GOG_POINTS) && (shape != GOG_POLYGON) && (shape != GOG_LINE) && (shape != GOG_LINESEGS))
   {
     if (parsedShape.hasValue(GOG_CENTERLL))
@@ -354,12 +365,11 @@ ParserData::ParserData(const ParsedShape& parsedShape, const GOGContext& context
         parseAngle(p.x, 0.0),  // latitude
         units_.altitudeUnits_.convertTo(simCore::Units::METERS, altitude));
     }
-
-    if (parsedShape.hasValue(GOG_CENTERXY))
+    else if (parsedShape.hasValue(GOG_CENTERXY))
     {
       const PositionStrings& p = parsedShape.positionValue(GOG_CENTERXY);
       // Convert Z value from string
-      double xyz[3] = {0.};
+      double xyz[3] = { 0. };
       simCore::isValidNumber(p.x, xyz[0]);
       simCore::isValidNumber(p.y, xyz[1]);
       simCore::isValidNumber(p.z, xyz[2]);
@@ -371,6 +381,44 @@ ParserData::ParserData(const ParsedShape& parsedShape, const GOGContext& context
       // if this is a relative GOG with no reference point defined, use the default reference point
       if (!refPointLLA_.isSet())
         refPointLLA_->set(context_.refPoint_->vec3d());
+    }
+    // annotations have a single center point but don't use centerxyz keyword for relative shapes, so make sure the refPointLLA_ is set for relative annotations
+    else if (shape == GOG_ANNOTATION && !refPointLLA_.isSet() && parsedShape.pointType() == ParsedShape::XYZ)
+      refPointLLA_->set(context_.refPoint_->vec3d());
+
+    // handle second center point
+    if (parsedShape.hasValue(GOG_CENTERLL2))
+    {
+      const PositionStrings& p = parsedShape.positionValue(GOG_CENTERLL2);
+      // Convert altitude value from string
+      double altitude = 0.;
+
+      if (centerLLA_.isSet())
+        altitude = centerLLA_->z();
+      // units as per the SIMDIS user manual:
+      centerLLA2_->set(
+        parseAngle(p.y, 0.0),  // longitude
+        parseAngle(p.x, 0.0),  // latitude
+        altitude);
+    }
+    if (parsedShape.hasValue(GOG_CENTERXY2))
+    {
+      const PositionStrings& p = parsedShape.positionValue(GOG_CENTERXY2);
+      // Convert values from string
+      double xyz[3] = { 0. };
+      simCore::isValidNumber(p.x, xyz[0]);
+      simCore::isValidNumber(p.y, xyz[1]);
+
+      // get Z from centerXYZ_ if it's valid
+      double z = 0.;
+      if (centerXYZ_.isSet())
+        z = centerXYZ_->z();
+
+      // units as per the SIMDIS user manual:
+      centerXYZ2_->set(
+        units_.rangeUnits_.convertTo(simCore::Units::METERS, xyz[0]),
+        units_.rangeUnits_.convertTo(simCore::Units::METERS, xyz[1]),
+        z);
     }
   }
 
@@ -670,7 +718,7 @@ GeoPoint ParserData::getMapPosition(bool ignoreOffset) const
     // apply any xyz offset to the map position ref point if there is one
     simCore::CoordinateConverter cc;
     cc.setReferenceOrigin(refPointLLA_->y() * simCore::DEG2RAD, refPointLLA_->x() * simCore::DEG2RAD, refPointLLA_->z());
-    simCore::Coordinate coord(simCore::COORD_SYS_ENU, simCore::Vec3(xyz.x(), xyz.y(), xyz.z()));
+    simCore::Coordinate coord(simCore::COORD_SYS_XEAST, simCore::Vec3(xyz.x(), xyz.y(), xyz.z()));
     simCore::Coordinate outCoord;
     cc.convert(coord, outCoord, simCore::COORD_SYS_LLA);
 

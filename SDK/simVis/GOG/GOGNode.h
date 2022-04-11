@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,6 +31,7 @@
 #include "osg/Group"
 #include "simCore/Common/Common.h"
 #include "simCore/Calc/Vec3.h"
+#include "simCore/Calc/Units.h"
 
 namespace simCore { class UnitsRegistry; }
 
@@ -55,12 +57,13 @@ namespace simVis { namespace GOG
     GOG_POINT_SIZE_SET,
     GOG_LINE_PROJECTION_SET,
     GOG_TEXT_OUTLINE_COLOR_SET,
-    GOG_TEXT_OUTLINE_THICKNESS_SET
+    GOG_TEXT_OUTLINE_THICKNESS_SET,
+    GOG_ALTITUDE_MODE_SET
   };
 
   // stipple defines
-  static const unsigned short GogDotStipple = 0xf0f0;
-  static const unsigned short GogDashStipple = 0xfff0;
+  static const unsigned short GogDotStipple = 0x0303;
+  static const unsigned short GogDashStipple = 0x3ffc;
   static const unsigned short GogSolidStipple = 0xffff;
 
   // surface tessellation size (meters) for ellipsoids, spheres, etc.
@@ -87,7 +90,7 @@ namespace simVis { namespace GOG
     const simCore::UnitsRegistry* unitsRegistry_;
 
     GOGContext()
-      : unitsRegistry_(NULL)
+      : unitsRegistry_(nullptr)
     {
     }
   };
@@ -125,7 +128,9 @@ namespace simVis { namespace GOG
     GOG_SPHERE,
     GOG_HEMISPHERE,
     GOG_LATLONALTBOX,
-    GOG_CONE
+    GOG_CONE,
+    GOG_IMAGEOVERLAY,
+    GOG_ORBIT
   };
 
   /** Describes the original load format of the shape */
@@ -149,6 +154,8 @@ namespace simVis { namespace GOG
     std::string             metadata; ///< attributes of the GOG
     GogShape                shape; ///< identifying the exact shape type of the GOG
     LoadFormat              loadFormat; ///< indicate the original load format of the GOG
+    size_t                  lineNumber; ///< line number from the source GOG file
+    simCore::Units          altitudeUnits_; ///< altitude units specified in the GOG file
   public:
     GogMetaData();
     bool                    isSetExplicitly(GogSerializableField field) const; ///< determines if a field is explicitly set
@@ -166,6 +173,8 @@ namespace simVis { namespace GOG
   * the orientation components to follow, simVis::Locator::COMP_HEADING, simVis::Locator::COMP_PITCH,
   * simVis::Locator::COMP_ROLL. The offset values are in the orientationOffsets vector. Constructor initializes
   * locatorFlags to simVis::Locator::COMP_NONE.
+  *
+  * @deprecated This is only used in the now-deprecated simVis::GOG::Parser
   */
   struct SDKVIS_EXPORT GogFollowData
   {

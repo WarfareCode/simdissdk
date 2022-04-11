@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -33,6 +34,7 @@ namespace simVis { namespace GOG {
  * Represents an entry that can contain an xy, xyz, ll, or lla point.
  * The provided context (e.g. "centerxy" vs "centerll") is expected to
  * be sufficient to differentiate between XY or LL point content.
+ * @deprecated This is only used in the now-deprecated simVis::GOG::Parser
  */
 struct /* HEADER-ONLY */ PositionStrings
 {
@@ -87,6 +89,8 @@ public:
  *  - "semiminoraxis" modifier is represented as GOG_MINORAXIS (times two)
  *  - GOG_ABSOLUTE is a flag set "true" when the GOG has ll, lla, or latlon points, and
  *      does not have a direct relationship to any single command.
+ *
+ * @deprecated This is only used in the now-deprecated simVis::GOG::Parser
  */
 enum ShapeParameter
 {
@@ -108,6 +112,8 @@ enum ShapeParameter
   GOG_REF_LAT, // Reference LLA
   GOG_REF_LON, // Reference LLA
   GOG_REF_ALT, // Reference LLA
+  GOG_CENTERLL2,
+  GOG_CENTERXY2,
 
   // GOG Unit Commands
   GOG_ALTITUDEUNITS = 50,
@@ -159,6 +165,9 @@ enum ShapeParameter
   GOG_3D_OFFSETROLL,
   GOG_TEXTOUTLINECOLOR,
   GOG_TEXTOUTLINETHICKNESS,
+  GOG_IMAGEFILE,
+  GOG_LLABOX_ROT, // rotation used by KML ground overlay latlonbox
+  GOG_OPACITY, // Used by ImageOverlay; opacity of the image file; other shapes use full RGBA values
 
   // Set to non-empty when GOG is absolute
   GOG_ABSOLUTE = 200,
@@ -170,6 +179,8 @@ enum ShapeParameter
  * parameter names (e.g. "centerll" and "centerlla" GOG commands both store
  * in "centerll" key).  This is the output of the stream parser, using
  * simVis::GOG::Parser::parse().
+ *
+ * @deprecated This is only used in the now-deprecated simVis::GOG::Parser
  */
 class SDKVIS_EXPORT ParsedShape
 {

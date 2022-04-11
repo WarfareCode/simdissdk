@@ -9,6 +9,7 @@ set(CORE_COMMON_HEADERS
     ${CORE_COMMON_INC}Export.h
     ${CORE_COMMON_INC}FileSearch.h
     ${CORE_COMMON_INC}HighPerformanceGraphics.h
+    ${CORE_COMMON_INC}Optional.h
     ${CORE_COMMON_INC}Time.h
     ${CORE_COMMON_INC}SDKAssert.h
     ${CMAKE_CURRENT_BINARY_DIR}/include/simCore/Common/Version.h
@@ -18,7 +19,7 @@ set(CORE_COMMON_SOURCES
     ${CORE_COMMON_SRC}Version.cpp
 )
 source_group(Headers\\Common FILES ${CORE_COMMON_HEADERS})
-source_group(Sources\\Common FILES ${CORE_COMMON_SOURCES})
+source_group("Source Files\\Common" FILES ${CORE_COMMON_SOURCES})
 
 # ----- simCore/Calc --------------------------------------------------------
 
@@ -52,6 +53,7 @@ set(CORE_CALC_SOURCES
     ${CORE_CALC_SRC}Angle.cpp
     ${CORE_CALC_SRC}Calculations.cpp
     ${CORE_CALC_SRC}CoordinateConverter.cpp
+    ${CORE_CALC_SRC}CoordinateSystem.cpp
     ${CORE_CALC_SRC}DatumConvert.cpp
     ${CORE_CALC_SRC}Gars.cpp
     ${CORE_CALC_SRC}Geometry.cpp
@@ -68,7 +70,7 @@ set(CORE_CALC_SOURCES
     ${CORE_CALC_SRC}UnitContext.cpp
 )
 source_group(Headers\\Calc FILES ${CORE_CALC_HEADERS})
-source_group(Sources\\Calc FILES ${CORE_CALC_SOURCES})
+source_group("Source Files\\Calc" FILES ${CORE_CALC_SOURCES})
 
 # ----- simCore/Calc/LUT --------------------------------------------------------
 
@@ -98,7 +100,7 @@ set(CORE_EM_SOURCES
     ${CORE_EM_SRC}RadarCrossSection.cpp
 )
 source_group(Headers\\EM FILES ${CORE_EM_HEADERS})
-source_group(Sources\\EM FILES ${CORE_EM_SOURCES})
+source_group("Source Files\\EM" FILES ${CORE_EM_SOURCES})
 
 # ----- simCore/String --------------------------------------------------------
 
@@ -107,17 +109,21 @@ set(CORE_STRING_SRC String/)
 set(CORE_STRING_HEADERS
     ${CORE_STRING_INC}Angle.h
     ${CORE_STRING_INC}Constants.h
+    ${CORE_STRING_INC}CsvReader.h
     ${CORE_STRING_INC}FilePatterns.h
     ${CORE_STRING_INC}Tokenizer.h
     ${CORE_STRING_INC}Format.h
     ${CORE_STRING_INC}TextFormatter.h
     ${CORE_STRING_INC}TextReplacer.h
     ${CORE_STRING_INC}UnitContextFormatter.h
+    ${CORE_STRING_INC}UtfUtils.h
     ${CORE_STRING_INC}Utils.h
     ${CORE_STRING_INC}ValidNumber.h
+    ${CORE_STRING_INC}XmlWriter.h
 )
 set(CORE_STRING_SOURCES
     ${CORE_STRING_SRC}Angle.cpp
+    ${CORE_STRING_SRC}CsvReader.cpp
     ${CORE_STRING_SRC}Format.cpp
     ${CORE_STRING_SRC}Tokenizer.cpp
     ${CORE_STRING_SRC}TextFormatter.cpp
@@ -125,9 +131,10 @@ set(CORE_STRING_SOURCES
     ${CORE_STRING_SRC}UnitContextFormatter.cpp
     ${CORE_STRING_SRC}Utils.cpp
     ${CORE_STRING_SRC}ValidNumber.cpp
+    ${CORE_STRING_SRC}XmlWriter.cpp
 )
 source_group(Headers\\String FILES ${CORE_STRING_HEADERS})
-source_group(Sources\\String FILES ${CORE_STRING_SOURCES})
+source_group("Source Files\\String" FILES ${CORE_STRING_SOURCES})
 
 # ----- simCore/Time --------------------------------------------------------
 
@@ -157,16 +164,33 @@ set(CORE_TIME_SOURCES
     ${CORE_TIME_SRC}Utils.cpp
 )
 source_group(Headers\\Time FILES ${CORE_TIME_HEADERS})
-source_group(Sources\\Time FILES ${CORE_TIME_SOURCES})
+source_group("Source Files\\Time" FILES ${CORE_TIME_SOURCES})
 
-# ----- simCore.h --------------------------------------------------------
+# ----- simCore/GOG --------------------------------------------------------
 
-set(CORE_ALL_HEADER
-    ../simCore.h
+set(CORE_GOG_INC GOG/)
+set(CORE_GOG_HEADERS
+    ${CORE_GOG_INC}GogUtils.h
+    ${CORE_GOG_INC}GogShape.h
+    ${CORE_GOG_INC}ParsedShape.h
+    ${CORE_GOG_INC}Parser.h
 )
-source_group("" FILES ${CORE_ALL_HEADER})
+set(CORE_GOG_SRC GOG/)
+set(CORE_GOG_SOURCES
+    ${CORE_GOG_SRC}GogUtils.cpp
+    ${CORE_GOG_SRC}GogShape.cpp
+    ${CORE_GOG_SRC}ParsedShape.cpp
+    ${CORE_GOG_SRC}Parser.cpp
+)
+source_group(Headers\\GOG FILES ${CORE_GOG_HEADERS})
+source_group("Source Files\\GOG" FILES ${CORE_GOG_SOURCES})
 
 # ----------------------------------------------------------------------
+
+# Avoid false MSVC 2017/2019 MSB8027 warning from Unity build on Utils.cpp and Angle.cpp
+set_source_files_properties(${CORE_STRING_SRC}Angle.cpp ${CORE_STRING_SRC}Utils.cpp
+    ${CORE_CALC_SRC}Angle.cpp ${CORE_TIME_SRC}Utils.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 
 set(CORE_PROJECT_FILES
     ${CORE_COMMON_HEADERS} ${CORE_COMMON_SOURCES}
@@ -175,7 +199,7 @@ set(CORE_PROJECT_FILES
     ${CORE_EM_HEADERS} ${CORE_EM_SOURCES}
     ${CORE_TIME_HEADERS} ${CORE_TIME_SOURCES}
     ${CORE_STRING_HEADERS} ${CORE_STRING_SOURCES}
-    ${CORE_ALL_HEADER}
+    ${CORE_GOG_HEADERS} ${CORE_GOG_SOURCES}
 )
 
 # Create the Version.h file
@@ -190,7 +214,7 @@ endif()
 add_library(simCore ${STATIC_OR_SHARED} ${CORE_PROJECT_FILES})
 set_target_properties(simCore PROPERTIES
     FOLDER "SIMDIS SDK"
-    PROJECT_LABEL "SIMDIS SDK - Core"
+    PROJECT_LABEL "simCore"
 )
 ApplySDKVersion(simCore)
 target_include_directories(simCore PUBLIC
@@ -234,6 +258,6 @@ if(INSTALL_HEADERS)
         DESTINATION include/simCore/String)
     install(FILES ${CORE_TIME_HEADERS}
         DESTINATION include/simCore/Time)
-    install(FILES ${CORE_ALL_HEADER}
-        DESTINATION include)
+    install(FILES ${CORE_GOG_HEADERS}
+        DESTINATION include/simCore/GOG)
 endif()

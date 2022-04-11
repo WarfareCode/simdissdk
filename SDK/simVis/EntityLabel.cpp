@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <limits>
 #include "osg/Depth"
 #include "osgEarth/LabelNode"
@@ -140,6 +141,7 @@ void EntityLabelNode::update(const simData::CommonPrefs& commonPrefs, const std:
       PB_FIELD_CHANGED(&lastLabelPrefs, &labelPrefs, textoutline) ||
       PB_FIELD_CHANGED(&lastLabelPrefs, &labelPrefs, backdroptype) ||
       PB_FIELD_CHANGED(&lastLabelPrefs, &labelPrefs, alignment) ||
+      PB_FIELD_CHANGED(&lastLabelPrefs, &labelPrefs, priority) ||
       PB_FIELD_CHANGED(&lastLabelPrefs, &labelPrefs, backdropimplementation);
 
     // update the style:
@@ -150,6 +152,9 @@ void EntityLabelNode::update(const simData::CommonPrefs& commonPrefs, const std:
       ts->alignment() = static_cast<osgEarth::TextSymbol::Alignment>(labelPrefs.alignment());
       ts->pixelOffset() = osg::Vec2s(labelPrefs.offsetx(), labelPrefs.offsety());
       ts->encoding() = osgEarth::TextSymbol::ENCODING_UTF8;
+
+      // Declutter is off if priority is negative
+      ts->declutter() = (labelPrefs.priority() >= 0);
 
       // text color:
       osg::Vec4 color = ColorUtils::RgbaToVec4(labelPrefs.color());

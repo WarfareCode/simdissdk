@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,7 +29,7 @@
 
 CategoryDataBreadcrumbsPlugin::CategoryDataBreadcrumbsPlugin(QObject *parent)
   : QObject(parent),
-    dataStore_(NULL)
+    dataStore_(nullptr)
 {
 }
 
@@ -46,7 +47,7 @@ void CategoryDataBreadcrumbsPlugin::initialize(QDesignerFormEditorInterface *)
 
 bool CategoryDataBreadcrumbsPlugin::isInitialized() const
 {
-  return dataStore_ != NULL;
+  return dataStore_ != nullptr;
 }
 
 QWidget *CategoryDataBreadcrumbsPlugin::createWidget(QWidget *parent)
@@ -54,7 +55,7 @@ QWidget *CategoryDataBreadcrumbsPlugin::createWidget(QWidget *parent)
   simQt::CategoryDataBreadcrumbs* rv = new simQt::CategoryDataBreadcrumbs(parent);
 
   // Create a filter for user to see
-  if (dataStore_ == NULL)
+  if (dataStore_ == nullptr)
     dataStore_ = new simData::MemoryDataStore;
   simData::CategoryNameManager& nameManager = dataStore_->categoryNameManager();
   simData::CategoryFilter filter(dataStore_);

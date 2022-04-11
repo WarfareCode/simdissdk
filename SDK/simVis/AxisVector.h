@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -85,14 +86,14 @@ private:
   void init_();
 
   /// create the axis vector lines
-  void createAxisVectors_(osg::Geode* geode) const;
+  void createAxisVectors_() const;
 
   /// width of axis vector lines
   float lineWidth_;
   /// most recent value for axis size
   osg::Vec3f axisLengths_;
   /// holds the 3 axis vectors
-  osg::ref_ptr<osgEarth::LineGroup> geode_;
+  osg::ref_ptr<osgEarth::LineGroup> lineGroup_;
 };
 
 } // namespace simVis

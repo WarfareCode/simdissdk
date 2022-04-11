@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>290</width>
+    <width>323</width>
     <height>253</height>
    </rect>
   </property>
@@ -25,9 +25,12 @@
     </widget>
    </item>
    <item>
-    <widget class="QTreeView" name="treeView">
+    <widget class="simQt::DndTreeView" name="treeView">
      <property name="contextMenuPolicy">
       <enum>Qt::ActionsContextMenu</enum>
+     </property>
+     <property name="alternatingRowColors">
+      <bool>true</bool>
      </property>
      <property name="selectionMode">
       <enum>QAbstractItemView::ExtendedSelection</enum>
@@ -236,6 +239,11 @@
    <class>simQt::EntityFilterLineEdit</class>
    <extends>QLineEdit</extends>
    <header>simQt/EntityFilterLineEdit.h</header>
+  </customwidget>
+  <customwidget>
+   <class>simQt::DndTreeView</class>
+   <extends>QTreeView</extends>
+   <header>simQt/DndTreeView.h</header>
   </customwidget>
  </customwidgets>
  <resources>

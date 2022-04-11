@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -34,6 +35,7 @@ namespace simVis
   class EntityLabelNode;
   class LocalGridNode;
   class Locator;
+  class SphericalVolume;
 
   /// Scene graph node representing the Gate volume
   class SDKVIS_EXPORT GateVolume : public simVis::LocatorNode
@@ -63,9 +65,9 @@ namespace simVis
     // Not implemented
     GateVolume(const GateVolume&);
 
-    osg::MatrixTransform* createNode_(const simData::GatePrefs* prefs, const simData::GateUpdate* update);
+    SphericalVolume* createNode_(const simData::GatePrefs* prefs, const simData::GateUpdate* update);
 
-    osg::ref_ptr<osg::MatrixTransform> gateSV_;
+    osg::ref_ptr<SphericalVolume> gateSV_;
   };
 
   /// Scene graph node representing a Gate centroid
@@ -79,8 +81,6 @@ namespace simVis
     void update(const simData::GateUpdate& update);
     /** Clears the geometry from the centroid; use this instead of setting node mask, to avoid center-on-entity issues. */
     void setVisible(bool visible);
-    /** Deactivate the centroid when the gate is not active, activate whenever the gate is active */
-    void setActive(bool active);
 
     /** Return the proper library name */
     virtual const char* libraryName() const { return "simVis"; }
@@ -115,8 +115,8 @@ namespace simVis
     */
     explicit GateNode(
       const simData::GateProperties& props,
-      Locator*                       locator = NULL,
-      const simVis::EntityNode*      host = NULL,
+      Locator*                       locator = nullptr,
+      const simVis::EntityNode*      host = nullptr,
       int                            referenceYear = 1970);
 
     /**
@@ -165,6 +165,12 @@ namespace simVis
     */
     void removeUpdateOverride(const std::string& id);
 
+    /**
+    * Get a pointer to the gate volume locator
+    * @return Pointer to the gate volume locator
+    */
+    Locator* getVolumeLocator() const;
+
     /** Return the proper library name */
     virtual const char* libraryName() const { return "simVis"; }
     /** Return the class name */
@@ -212,7 +218,7 @@ namespace simVis
 
     /**
     * Updates the entity based on the bound data store.
-    * @param updateSlice  Data store update slice (could be NULL)
+    * @param updateSlice  Data store update slice (could be nullptr)
     * @param force true to force the update to be applied; false allows entity to use its own internal logic to decide whether the update should be applied
     * @return true if update applied, false if not
     */
@@ -234,7 +240,7 @@ namespace simVis
     /**
     * Gets the world position for this gate's centroid. This is a convenience
     * function that extracts the Position information (not rotation) from the underlying locatorNode matrix.
-    * @param[out] out_position If not NULL, resulting position stored here, in coordinate system as specified by coordsys
+    * @param[out] out_position If not nullptr, resulting position stored here, in coordinate system as specified by coordsys
     * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
     * @return 0 if the output parameter is populated successfully, nonzero on failure
     */
@@ -243,8 +249,8 @@ namespace simVis
     /**
     * Gets the world position & orientation for this gate's centroid. This is a convenience
     * function that extracts the Position information and rotation from the underlying locatorNode matrix.
-    * @param[out] out_position If not NULL, resulting position stored here, in coordinate system as specified by coordsys
-    * @param[out] out_orientation If not NULL, resulting orientation stored here, in coordinate system as specified by coordsys
+    * @param[out] out_position If not nullptr, resulting position stored here, in coordinate system as specified by coordsys
+    * @param[out] out_orientation If not nullptr, resulting orientation stored here, in coordinate system as specified by coordsys
     * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
     * @return 0 if the output parameter is populated successfully, nonzero on failure
     */
@@ -258,7 +264,7 @@ namespace simVis
     static unsigned int getMask() { return simVis::DISPLAY_MASK_GATE; }
 
     /**
-     * Gets a pointer to the last data store update, or NULL if
+     * Gets a pointer to the last data store update, or nullptr if
      * none have been applied.
      */
     const simData::GateUpdate* getLastUpdateFromDS() const;

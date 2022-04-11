@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -21,6 +22,8 @@
  */
 #include <cassert>
 #include <ctype.h>
+#include <QApplication>
+#include <QClipboard>
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
@@ -39,7 +42,7 @@ namespace simQt {
 TimeWidget::TimeWidget(QWidget* parent)
   : QWidget(parent),
     scenarioReferenceYear_(1970),
-    disabledLineEdit_(NULL),
+    disabledLineEdit_(nullptr),
     timeEnabled_(true),
     labelToolTipSet_(false)
 {
@@ -67,15 +70,19 @@ TimeWidget::TimeWidget(QWidget* parent)
   layout->setMargin(0);
   layout->addWidget(title_);
   layout->addWidget(currentContainer_->widget());
-  setLayout(layout);  // do not use parent since parent could be NULL
+  setLayout(layout);  // do not use parent since parent could be nullptr
 
   colorCodeAction_ = new QAction(tr("&Color Code Text"), this);
   connect(colorCodeAction_, SIGNAL(triggered()), this, SLOT(setColorCode_()));
   colorCodeAction_->setCheckable(true);
 
+  copyAction_ = new QAction(tr("Copy Text"), this);
+  connect(copyAction_, SIGNAL(triggered()), this, SLOT(copyToClipboard_()));
+
   // The right mouse click menu to change color coding
   rightMouseClickMenu_ = new QMenu(this);
   rightMouseClickMenu_->addAction(colorCodeAction_);
+  rightMouseClickMenu_->addAction(copyAction_);
 }
 
 TimeWidget::~TimeWidget()
@@ -85,7 +92,10 @@ TimeWidget::~TimeWidget()
   containers_.clear();
 
   delete colorCodeAction_;
-  colorCodeAction_ = NULL;
+  colorCodeAction_ = nullptr;
+
+  delete copyAction_;
+  copyAction_ = nullptr;
 }
 
 void TimeWidget::addContainer_(TimeFormatContainer* widget, const QString& slotText)
@@ -293,6 +303,11 @@ void TimeWidget::setColorCode_()
   setColorCodeText(!currentContainer_->colorCode());
 }
 
+void TimeWidget::copyToClipboard_()
+{
+  QApplication::clipboard()->setText(currentContainer_->timeText());
+}
+
 int TimeWidget::scenarioReferenceYear() const
 {
   return scenarioReferenceYear_;
@@ -321,7 +336,7 @@ void TimeWidget::setTimeEnabled(bool value)
   timeEnabled_ = value;
   if (timeEnabled_)
   {
-    if (disabledLineEdit_ != NULL)
+    if (disabledLineEdit_ != nullptr)
     {
       disabledLineEdit_->setVisible(false);
       layout()->removeWidget(disabledLineEdit_);
@@ -334,7 +349,7 @@ void TimeWidget::setTimeEnabled(bool value)
     currentContainer_->widget()->setVisible(false);
     layout()->removeWidget(currentContainer_->widget());
 
-    if (disabledLineEdit_ == NULL)
+    if (disabledLineEdit_ == nullptr)
     {
       disabledLineEdit_ = new QLineEdit(tr("--------------------------------------"), this);
       disabledLineEdit_->setEnabled(false);

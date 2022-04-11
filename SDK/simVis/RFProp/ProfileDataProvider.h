@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,14 +29,16 @@
 namespace simRF
 {
 
-/** AREPS scale factor used to convert to loss */
-static const double AREPS_SCALE_FACTOR = 10.0;
+/** scale factor used to convert from shorts in LUT to actual value/float */
+static const double SCALE_FACTOR = 10.0;
 /** Initialization value for AREPS to use for loss values when AREPS reports an erroneous initialization value */
-static const short AREPS_INIT_VALUE = -32768;
+static const short INIT_VALUE = -32768;
 /** Height returned by AREPS for values along the ground, where propagation is more complicated. */
-static const short AREPS_GROUND_VALUE = -32766;
+static const short GROUND_VALUE = -32766;
 /** Erroneous initialization sentinel value that AREPS returns when cells are not initialized. */
-static const short AREPS_ERRONEOUS_INIT_VALUE = -32678;
+static const short ERRONEOUS_INIT_VALUE = -32678;
+/** Value to represent invalid data */
+static const short INVALID_VALUE = -32767;
 
 /**
  * ProfileDataProvider provides data along a height vs range profile sample.  The height samples and range samples are

@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include "osg/Transform"
 #include "osgEarth/Viewpoint"
 #include "simCore/Calc/Angle.h"
@@ -29,8 +30,8 @@
 
 namespace simUtil {
 
-/// Initialize the SRS to NULL (lazy initialization later)
-const osgEarth::SpatialReference* ViewpointPositions::wgs84Srs_ = NULL;
+/// Initialize the SRS to nullptr (lazy initialization later)
+const osgEarth::SpatialReference* ViewpointPositions::wgs84Srs_ = nullptr;
 
 /// Extracts the Center LLA position out of a viewpoint. Returns Vec3 of Latitude (rad), Longitude (rad), Altitude (meters)
 simCore::Vec3 ViewpointPositions::centerLla(const osgEarth::Viewpoint& vp)
@@ -66,7 +67,7 @@ simCore::Vec3 ViewpointPositions::eyeLla(const simVis::View& view)
   // Grab the viewpoint directly from the manipulator, instead of the View.  This prevents watch
   // mode offsets from tainting the azimuth/elevation calculations
   const osgEarth::Util::EarthManipulator* manip = dynamic_cast<const osgEarth::Util::EarthManipulator*>(view.getCameraManipulator());
-  if (manip == NULL)
+  if (manip == nullptr)
   {
     // Failure means we don't have an Earth Manipulator.  This might happen if there is
     // a simVis::View that is used as an inset that displays something besides the scene.
@@ -108,7 +109,7 @@ simCore::Vec3 ViewpointPositions::eyeLla(const simVis::View& view)
 /// Lazy initialization on static WGS-84 SRS */
 const osgEarth::SpatialReference* ViewpointPositions::wgs84_()
 {
-  if (ViewpointPositions::wgs84Srs_ == NULL)
+  if (ViewpointPositions::wgs84Srs_ == nullptr)
     ViewpointPositions::wgs84Srs_ = osgEarth::SpatialReference::create("wgs84");
   return ViewpointPositions::wgs84Srs_;
 }

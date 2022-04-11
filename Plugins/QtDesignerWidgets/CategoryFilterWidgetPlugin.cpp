@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -21,14 +22,15 @@
  */
 #include <QtCore/QtPlugin>
 #include "simData/CategoryData/CategoryFilter.h"
+#include "simData/CategoryData/CategoryNameManager.h"
 #include "simData/MemoryDataStore.h"
 #include "simQt/CategoryFilterWidget.h"
-#include "CategoryFilterWidget2Plugin.h"
+#include "simQt/CategoryTreeModel.h"
 #include "CategoryFilterWidgetPlugin.h"
 
 CategoryFilterWidgetPlugin::CategoryFilterWidgetPlugin(QObject *parent)
   : QObject(parent),
-    dataStore_(NULL)
+    dataStore_(nullptr)
 {
 }
 
@@ -42,21 +44,20 @@ void CategoryFilterWidgetPlugin::initialize(QDesignerFormEditorInterface *)
   if (dataStore_)
     return;
   dataStore_ = new simData::MemoryDataStore;
-  CategoryFilterWidget2Plugin::createDefaultCategories(*dataStore_);
+  CategoryFilterWidgetPlugin::createDefaultCategories(*dataStore_);
 }
 
 bool CategoryFilterWidgetPlugin::isInitialized() const
 {
-  return dataStore_ != NULL;
+  return dataStore_ != nullptr;
 }
 
 QWidget *CategoryFilterWidgetPlugin::createWidget(QWidget *parent)
 {
   simQt::CategoryFilterWidget* rv = new simQt::CategoryFilterWidget(parent);
-
   // Create the data store, adding default categories
-  initialize(NULL);
-  rv->setProviders(dataStore_);
+  initialize(nullptr);
+  rv->setDataStore(dataStore_);
 
   // Create a filter for user to see
   simData::CategoryNameManager& nameManager = dataStore_->categoryNameManager();
@@ -116,5 +117,29 @@ QString CategoryFilterWidgetPlugin::domXml() const
 
 QString CategoryFilterWidgetPlugin::includeFile() const
 {
-  return "simQt/CategoryFilterWidget.h";
+  return "simQt/CategoryTreeModel.h";
+}
+
+void CategoryFilterWidgetPlugin::createDefaultCategories(simData::DataStore& dataStore)
+{
+  // Add some useful category names for display purposes
+  simData::CategoryNameManager& nameManager = dataStore.categoryNameManager();
+  const int affinity = nameManager.addCategoryName("Affinity");
+  nameManager.addCategoryValue(affinity, "Friendly");
+  nameManager.addCategoryValue(affinity, "Hostile");
+  nameManager.addCategoryValue(affinity, "Neutral");
+  const int platformType = nameManager.addCategoryName("Platform Type");
+  nameManager.addCategoryValue(platformType, "Unknown");
+  nameManager.addCategoryValue(platformType, "Surface Ship");
+  nameManager.addCategoryValue(platformType, "Submarine");
+  nameManager.addCategoryValue(platformType, "Aircraft");
+  nameManager.addCategoryValue(platformType, "Satellite");
+  nameManager.addCategoryValue(platformType, "Helicopter");
+  nameManager.addCategoryValue(platformType, "Missile");
+  nameManager.addCategoryValue(platformType, "Decoy");
+  nameManager.addCategoryValue(platformType, "Buoy");
+  nameManager.addCategoryValue(platformType, "Reference Site");
+  nameManager.addCategoryValue(platformType, "Land Site");
+  nameManager.addCategoryValue(platformType, "Torpedo");
+  nameManager.addCategoryValue(platformType, "Contact");
 }

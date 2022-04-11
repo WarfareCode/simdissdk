@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -55,33 +56,33 @@
 #include "simVis/Utils.h"
 #include "simVis/SceneManager.h"
 
+#undef LC
 #define LC "[SceneManager] "
 
 //------------------------------------------------------------------------
 namespace
 {
+/** Default map background color, when no terrain/imagery loaded; note: cannot currently be changed in osgEarth at runtime */
+static const osg::Vec4f MAP_COLOR(0.01f, 0.01f, 0.01f, 1.f); // off-black
 
-  /** Default map background color, when no terrain/imagery loaded; note: cannot currently be changed in osgEarth at runtime */
-  static const osg::Vec4f MAP_COLOR(0.01f, 0.01f, 0.01f, 1.f); // off-black
+/** setUserData() tag for the scenario's object ID */
+static const std::string SCENARIO_OBJECT_ID = "scenid";
 
-  /** setUserData() tag for the scenario's object ID */
-  static const std::string SCENARIO_OBJECT_ID = "scenid";
-
-  /** Debugging callback that will dump the culling results each frame -- useful for debugging render order */
-  struct DebugCallback : public osg::NodeCallback
+/** Debugging callback that will dump the culling results each frame -- useful for debugging render order */
+struct DebugCallback : public osg::NodeCallback
+{
+  void operator()(osg::Node* node, osg::NodeVisitor* nv)
   {
-    void operator()(osg::Node* node, osg::NodeVisitor* nv)
+    traverse(node, nv);
+    osgUtil::CullVisitor* cv = dynamic_cast<osgUtil::CullVisitor*>(nv);
+    if (cv)
     {
-      traverse(node, nv);
-      osgUtil::CullVisitor* cv = dynamic_cast<osgUtil::CullVisitor*>(nv);
-      if (cv)
-      {
-        osgEarth::Config c = osgEarth::CullDebugger().dumpRenderBin(cv->getRenderStage());
-        OE_INFO << "FRAME " << cv->getFrameStamp()->getFrameNumber() << "-----------------------------------" << std::endl
-          << c.toJSON(true) << std::endl;
-      }
+      osgEarth::Config c = osgEarth::CullDebugger().dumpRenderBin(cv->getRenderStage());
+      OE_INFO << "FRAME " << cv->getFrameStamp()->getFrameNumber() << "-----------------------------------" << std::endl
+        << c.toJSON(true) << std::endl;
     }
-  };
+  }
+};
 }
 
 namespace simVis {
@@ -105,7 +106,7 @@ void SceneManager::detectTerrainEngineDriverProblems_()
   // Try to detect the osgearth_engine_rex driver; if not present, we will likely fail to render anything useful
   osgDB::Registry* registry = osgDB::Registry::instance();
   const std::string engineDriverExtension = "osgearth_engine_rex";
-  if (registry->getReaderWriterForExtension(engineDriverExtension) != NULL)
+  if (registry->getReaderWriterForExtension(engineDriverExtension) != nullptr)
   {
     hasEngineDriverProblem_ = false;
     return;
@@ -186,7 +187,7 @@ void SceneManager::init_()
   addChild(drapeableNode_.get());
 
   // updates scenario objects
-  scenarioManager_ = new ScenarioManager(this, projectorManager_.get());
+  scenarioManager_ = new ScenarioManager(projectorManager_.get());
   scenarioManager_->setName("Scenario");
   drapeableNode_->addChild(scenarioManager_.get());
 
@@ -257,10 +258,10 @@ void SceneManager::setSkyNode(osgEarth::SkyNode* skyNode)
       skyNodeParent->removeChild(skyNode_.get());
     }
   }
-  skyNode_ = NULL;
+  skyNode_ = nullptr;
 
   // install a new one.
-  if (skyNode != NULL)
+  if (skyNode != nullptr)
   {
     // insert the sky between this node and its children.
     skyNode_ = skyNode;
@@ -270,14 +271,14 @@ void SceneManager::setSkyNode(osgEarth::SkyNode* skyNode)
 
 bool SceneManager::isSilverLining_(const osgEarth::SkyNode* skyNode) const
 {
-  if (skyNode == NULL)
+  if (skyNode == nullptr)
     return false;
   try
   {
     // Attempt to use RTTI to determine if sky node is from SilverLining.  While not
     // ideal, there is no other way to automatically determine.
     const char* typeName = typeid(*skyNode).name();
-    if (typeName == NULL)
+    if (typeName == nullptr)
       return false;
 
     // Search for the name SilverLining in the type ID
@@ -341,7 +342,7 @@ void SceneManager::setMapNode(osgEarth::MapNode* mapNode)
 void SceneManager::setMap(osgEarth::Map* map)
 {
   // Swaps out the layers of underlying mapNode_ with layers in map.
-  if (map == NULL)
+  if (map == nullptr)
     return;
 
   if (mapNode_.valid())
@@ -458,12 +459,16 @@ void SceneManager::applyImageLayerDisplaySettings_(const osgEarth::ImageLayer& s
 {
   destLayer->setOpacity(sourceLayer.getOpacity());
   destLayer->setVisible(sourceLayer.getVisible());
+#if OSGEARTH_SOVERSION >= 127
+  destLayer->setOpenAutomatically(sourceLayer.getOpenAutomatically());
+#else
   destLayer->setEnabled(sourceLayer.getEnabled());
+#endif
 }
 
-std::string SceneManager::getLayerHash_(osgEarth::TerrainLayer* layer) const
+std::string SceneManager::getLayerHash_(osgEarth::TileLayer* layer) const
 {
-  // This method mimics the logic in osgEarth::TerrainLayer::setCache for generating a unique id for the layer
+  // This method mimics the logic in osgEarth::TileLayer::setCache for generating a unique id for the layer
 
   // system will generate a cacheId. technically, this is not quite right, we need to remove everything that's
   // an image layer property and just use the tilesource properties.
@@ -480,28 +485,18 @@ std::string SceneManager::getLayerHash_(osgEarth::TerrainLayer* layer) const
 osg::Node* SceneManager::getManipulatorAttachPoint() const
 {
   return
+#if OSGEARTH_SOVERSION >= 104
+    (mapNode_.valid() && mapNode_->getTerrainEngine() && mapNode_->getTerrainEngine()->getNode()) ? mapNode_->getTerrainEngine()->getNode() :
+#else
     mapNode_.valid() ? mapNode_->getTerrainEngine() :
+#endif
     mapContainer_.get();
-}
-
-Locator* SceneManager::createLocator() const
-{
-  return
-    mapNode_.valid() ? new Locator(mapNode_->getMap()->getProfile()->getSRS()) :
-    NULL;
-}
-
-CachingLocator* SceneManager::createCachingLocator() const
-{
-  return
-    mapNode_.valid() ? new CachingLocator(mapNode_->getMap()->getProfile()->getSRS()) :
-    NULL;
 }
 
 osg::Group* SceneManager::getOrCreateAttachPoint(const std::string& name) const
 {
   // Assertion failure means this method was called before init_()
-  assert(scenarioManager_ != NULL);
+  assert(scenarioManager_ != nullptr);
   return scenarioManager_->getOrCreateAttachPoint(name);
 }
 

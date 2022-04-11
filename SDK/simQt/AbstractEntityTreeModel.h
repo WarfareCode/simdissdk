@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -24,7 +25,7 @@
 
 #include <QTreeWidgetItem>
 #include "simCore/Common/Common.h"
-
+#include "simData/ObjectId.h"
 
 namespace simQt {
 
@@ -58,11 +59,17 @@ namespace simQt {
 
     /** Return an Index based on the entity's ID */
     virtual QModelIndex index(uint64_t id) const = 0;
+    /** Return an Index based on the entity's ID; if necessary, process any pending adds */
+    virtual QModelIndex index(uint64_t id) = 0;
+
     /** Return the entity's ID for a given index */
     virtual uint64_t uniqueId(const QModelIndex &index) const = 0;
 
     /** Returns whether we use an entity icon or type abbreviation for the entity type column */
     virtual bool useEntityIcons() const = 0;
+
+    /** Returns the number of entities that match the given type(s) */
+    virtual int countEntityTypes(simData::ObjectType type) const = 0;
 
   public slots:
     /** Swaps the view to the hierarchy tree */

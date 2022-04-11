@@ -60,7 +60,7 @@ endif()
 
 # Include base macros required by other macros
 include(BuildSystemVariables)
-include(EnableGccNewCxxFeatures)
+include(EnableNewCxxFeatures)
 include(HelperFunctions)
 include(CheckOSGEarthMethodExists)
 
@@ -193,10 +193,14 @@ find_package(GLCORE)
 
 # --- osgEarth -----------------------------
 
+# VSI-distributed osgEarth requires GEOS
+include(ImportGEOS)
 # allow the user to set OSGEARTH_DIR in CMAKE GUI and auto-populate all OSGEARTH libraries:
 set(OSGEARTH_DIR "" CACHE PATH "osgEarth root directory")
 include(ImportOSGEarth)
 
+# --- GLEW -----------------------------
+include(ImportGLEW)
 
 # --- Protocol Buffers -----------------------------
 set(PROTOBUF_DIR "" CACHE PATH "Protocol Buffers root directory")
@@ -206,6 +210,9 @@ include(ImportProtobuf)
 # --- SQLITE3 -----------------------------
 set(SQLITE3_DIR "" CACHE PATH "Sqlite3 root directory")
 include(ImportSQLite)
+if (SQLITE3_FOUND)
+    set(SIM_HAVE_DB_SUPPORT 1)
+endif()
 
 # subprojects
 add_subdirectory(SDK)
@@ -216,6 +223,17 @@ endif()
 add_subdirectory(Plugins)
 if(ENABLE_UNIT_TESTING)
     add_subdirectory(Testing)
+endif()
+
+# SWIG module requires Python3.  FindPython3.cmake is first distributed in CMake 3.12
+if(NOT CMAKE_VERSION VERSION_LESS "3.12")
+    option(BUILD_SDK_SWIG "Build SIMDIS SDK SWIG module" OFF)
+    if(BUILD_SDK_SWIG)
+        # Include SWIG for Python simCore module
+        include(ImportSWIG)
+        find_package(Python3 COMPONENTS Development Interpreter)
+        add_subdirectory(swig)
+    endif()
 endif()
 
 # Add documentation files
@@ -229,3 +247,21 @@ install(FILES INSTALL.md LICENSE.txt README.md DESTINATION .)
 
 # Mark several variables as advanced
 include(SdkAdvancedVariables)
+
+# Create lists of what is built or skipped
+set(BUILDING)
+set(SKIPPING)
+foreach(LIB IN ITEMS simNotify simCore simData simVis simUtil simQt)
+    if(TARGET ${LIB})
+        list(APPEND BUILDING ${LIB})
+    else()
+        list(APPEND SKIPPING ${LIB})
+    endif()
+endforeach()
+# Make lists comma-separated
+string(REPLACE ";" ", " BUILDING "${BUILDING}")
+string(REPLACE ";" ", " SKIPPING "${SKIPPING}")
+message(STATUS "Building: ${BUILDING}")
+if(SKIPPING)
+    message(STATUS "Skipping: ${SKIPPING}")
+endif()

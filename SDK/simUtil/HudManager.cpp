@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -220,14 +221,15 @@ void HudTextAdapter::update_()
         osgText->setDrawMode(osgText::TextBase::TEXT);
       else
       {
+        // set draw mode first, other changes depend on it
+        osgText->setDrawMode(osgText::TextBase::FILLEDBOUNDINGBOX | osgText::TextBase::TEXT);
         // Turn on the bounding box, which disables Halo
         osgText->setBackdropType(osgText::Text::NONE);
         osgText->setBoundingBoxColor(backgroundColor_);
-        osgText->setDrawMode(osgText::TextBase::FILLEDBOUNDINGBOX | osgText::TextBase::TEXT);
       }
     }
 
-    osgText->setText(tokens[ii]);
+    osgText->setText(tokens[ii], osgText::String::ENCODING_UTF8);
     positionText_(ii, osgText.get());
 #if OSG_VERSION_GREATER_OR_EQUAL(3,3,2)
     extent_->add(osgText->getBoundingBox());
@@ -482,15 +484,15 @@ public:
   /** Checks for resize events */
   bool virtual handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa, osg::Object*, osg::NodeVisitor*)
   {
-    if (manager_ == NULL)
+    if (manager_ == nullptr)
       return false;
 
     // this handler does not (always?) receive RESIZE events, so check it manually.
     if (ea.getEventType() == osgGA::GUIEventAdapter::FRAME)
     {
       const osg::View* view = aa.asView();
-      const osg::Camera* camera = (view) ? view->getCamera() : NULL;
-      const osg::Viewport* viewport = (camera) ? camera->getViewport() : NULL;
+      const osg::Camera* camera = (view) ? view->getCamera() : nullptr;
+      const osg::Viewport* viewport = (camera) ? camera->getViewport() : nullptr;
       if (viewport)
       {
         int width = static_cast<int>(viewport->width());
@@ -522,13 +524,13 @@ private:
 
 //-------------------------------------------------------------------------------------------------------
 
-HudManager::HudManager(simVis::View* view)
+HudManager::HudManager(osgViewer::View* view, osg::Group* parentNode)
   : renderLevel_(HUD_BASE_LEVEL),
-    view_(view)
+    view_(view),
+    parentNode_(parentNode)
 {
   group_ = new osg::Group();
-  hud_ = view_->getOrCreateHUD();
-  osg::StateSet* stateset = hud_->getOrCreateStateSet();
+  osg::StateSet* stateset = parentNode_->getOrCreateStateSet();
   simVis::setLighting(stateset, osg::StateAttribute::OFF);
 
   const osg::Viewport* vp = view->getCamera()->getViewport();
@@ -537,12 +539,12 @@ HudManager::HudManager(simVis::View* view)
 
   handler_ = new ResizeHandler(this);
   view_->addEventHandler(handler_);
-  hud_->addChild(group_);
+  parentNode_->addChild(group_);
 }
 
 HudManager::~HudManager()
 {
-  hud_->removeChild(group_);
+  parentNode_->removeChild(group_);
   view_->removeEventHandler(handler_);
 }
 
@@ -623,11 +625,6 @@ void HudManager::resize_(int width, int height)
     (*it)->resize(windowWidth_, windowHeight_);
   for (std::vector< osg::ref_ptr<HudImage> >::const_iterator it = imageVector_.begin(); it != imageVector_.end(); ++it)
     (*it)->resize(windowWidth_, windowHeight_);
-}
-
-osg::Camera* HudManager::hud() const
-{
-  return hud_.get();
 }
 
 void HudManager::setRenderLevel(HudRenderLevel renderLevel)
@@ -780,13 +777,13 @@ void HudRowText::positionText_(int index, osgText::Text* text)
     float width = 0.f;
     osgText::Font* font = const_cast<osgText::Font*>(text->getFont());
     // Assertion failure means we don't have a font yet
-    assert(font != NULL);
+    assert(font != nullptr);
     if (!font)
       return;
     for (osgText::String::const_iterator i = text->getText().begin(); i != text->getText().end(); ++i)
     {
       osgText::Glyph* glyph = font->getGlyph(osgText::FontResolution(text->getFontWidth(), text->getFontHeight()), *i);
-      if (glyph != NULL)
+      if (glyph != nullptr)
         width += glyph->getHorizontalAdvance();
     }
 

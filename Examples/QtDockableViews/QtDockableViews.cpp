@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -25,6 +26,8 @@
  * Demonstrates using simVis::View objects in QDockWidgets with a QMainWindow
  */
 
+#include "osgEarth/Registry"
+
 #include "simNotify/Notify.h"
 #include "simCore/Common/Version.h"
 #include "simCore/Common/HighPerformanceGraphics.h"
@@ -34,8 +37,6 @@
 #include "simVis/ViewManager.h"
 #include "simVis/View.h"
 #include "simVis/SceneManager.h"
-
-#include "osgEarth/Controls"
 
 #include <QAction>
 #include <QApplication>
@@ -49,8 +50,6 @@
 #include <QWindow>
 
 #include "MyMainWindow.h"
-
-namespace ui = osgEarth::Util::Controls;
 
 int usage(char** argv)
 {
@@ -106,6 +105,8 @@ MyMainWindow::MyMainWindow(int framerate)
   // timer single shot to avoid infinite loop problems in Qt on MSVC11
   timer_->setSingleShot(true);
   connect(timer_, SIGNAL(timeout()), this, SLOT(update()));
+  if (framerate < 1)
+    framerate = 1;
   timer_->start(1000/framerate);
 
   // connect actions to our slots
@@ -123,7 +124,7 @@ MyMainWindow::~MyMainWindow()
 void MyMainWindow::paintEvent(QPaintEvent* e)
 {
   // refresh all the views -- only repaint if the last created GL window was exposed (or got deleted).
-  // This repaints on NULL because it the flag (in this app) can only be NULL if user closed an open
+  // This repaints on nullptr because the flag (in this app) can only be nullptr if user closed an open
   // window, and other windows that are still open are almost certainly still exposed.  We do check
   // for isExposed() on the last created window, under the presumption that once it is exposed, we
   // can safely draw on all windows.
@@ -183,6 +184,11 @@ void MyMainWindow::createMainView_()
   viewWidget->setMinimumSize(2, 2);
   viewWidget->resize(100, 100);
   centralWidget()->layout()->addWidget(viewWidget);
+
+  // by default, the database pager unreferenced image objects once it downloads them
+  // the driver. In composite viewer mode we don't want that since we may be adding
+  // and removing views.  This may use more memory, but it's a requirement for multiple GCs.
+  mainview->getScene()->getDatabasePager()->setUnrefImageDataAfterApplyPolicy(true, false);
 }
 
 simVis::View* MyMainWindow::createView_(const QString& name) const
@@ -208,6 +214,11 @@ int main(int argc, char** argv)
 
   if (arguments.read("--help"))
     return usage(argv);
+
+  // Need to turn off the un-ref image data after apply, else the multiple graphics
+  // contexts will attempt to grab images that no longer exist.  This should be called
+  // if you expect multiple graphics contexts rendering the same scene.
+  osgEarth::Registry::instance()->unRefImageDataAfterApply() = false;
 
   // read the framerate
   int framerate = 20;

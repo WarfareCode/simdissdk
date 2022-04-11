@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -42,6 +43,7 @@
 // coordsys@nga.mil
 #include "simCore/Calc/CoordinateConverter.h"
 #include "simCore/Calc/Math.h"
+#include "simCore/String/UtfUtils.h"
 
 #include <vector>
 #include <string>
@@ -157,7 +159,7 @@ int loadGoldData(const std::string &fname, vector<Coordinate> &inVec,
 {
   const bool lla = cs == COORD_SYS_LLA;
 
-  ifstream inFile(fname.c_str());
+  ifstream inFile(simCore::streamFixUtf8(fname));
   std::string st;
   std::vector<std::string> tmpvec;
   double pos[3];

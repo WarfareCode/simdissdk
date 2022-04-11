@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -94,13 +95,13 @@ void LobGroupMemoryDataSlice::update(double time)
   // only pass in the currentUpdate if it has data points
   if (currentUpdate->datapoints_size())
   {
-    current_ = NULL;
+    current_ = nullptr;
     setCurrent(currentUpdate);
   }
-  else // set current to NULL, need to call setCurrent to trigger update flag
+  else // set current to nullptr, need to call setCurrent to trigger update flag
   {
     delete currentUpdate;
-    setCurrent(NULL);
+    setCurrent(nullptr);
   }
 }
 
@@ -109,7 +110,17 @@ void LobGroupMemoryDataSlice::flush(bool keepStatic)
   if (MemorySliceHelper::flush(updates_, keepStatic) == 0)
   {
     delete current_;
-    current_ = NULL;
+    current_ = nullptr;
+  }
+  dirty_ = true;
+}
+
+void LobGroupMemoryDataSlice::flush(double startTime, double endTime)
+{
+  if (MemorySliceHelper::flush(updates_, startTime, endTime) == 0)
+  {
+    delete current_;
+    current_ = nullptr;
   }
   dirty_ = true;
 }

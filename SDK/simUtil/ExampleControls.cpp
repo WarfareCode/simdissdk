@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -39,14 +40,14 @@ namespace
 {
   struct PlatformListData
   {
-    PlatformListData() : selected_(NULL) { }
+    PlatformListData() : selected_(nullptr) { }
     Control* selected_;
     std::map<simData::ObjectId, LabelControl*> labelsById_;
   };
 
   struct BeamListData
   {
-    BeamListData() : selected_(NULL) { }
+    BeamListData() : selected_(nullptr) { }
     Control* selected_;
   };
 
@@ -80,8 +81,8 @@ namespace
       if (data_->selected_)
         data_->selected_->clearBackColor();
 
-      view_->tetherCamera(NULL);
-      data_->selected_ = NULL;
+      view_->tetherCamera(nullptr);
+      data_->selected_ = nullptr;
     }
     simVis::View* view_;
     PlatformListData*    data_;

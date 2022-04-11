@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,11 +23,14 @@
 #ifndef SIMVIS_UTILS_H
 #define SIMVIS_UTILS_H
 
+#include <functional>
+
 #include "simCore/Common/Common.h"
 #include "simCore/Calc/Coordinate.h"
 #include "simCore/Calc/Vec3.h"
 #include "simCore/Time/Clock.h"
 #include "simData/DataStore.h"
+#include "simData/DataStoreHelpers.h"
 #include "simData/DataTypes.h"
 
 #include "osg/BoundingBox"
@@ -49,10 +53,10 @@
 // MACROS to test for changes in protobuf properties.
 
 #define PB_HAS_FIELD(a, field) ( \
-  ((a)!=NULL) && ((a)->has_##field()) )
+  ((a)!=nullptr) && ((a)->has_##field()) )
 
 #define PB_DOESNT_HAVE_FIELD(a, field) ( \
-  ((a)==NULL) || (!(a)->has_##field()) )
+  ((a)==nullptr) || (!(a)->has_##field()) )
 
 #define PB_FIELD_APPEARED(a, b, field) ( \
   PB_DOESNT_HAVE_FIELD((a), field) && \
@@ -71,6 +75,10 @@
 #define PB_FIELD_CHANGED(a, b, field) ( \
   PB_FIELD_STATUS_CHANGED((a), (b), field) || ( \
     PB_BOTH_HAVE_FIELD((a), (b), field) && ((a)->field() != (b)->field()) ) )
+
+#define PB_REPEATED_FIELD_CHANGED(a, b, field) ( \
+  ((a)->field ## _size() != (b)->field ## _size()) || \
+  (simData::DataStoreHelpers::vecFromRepeated((a)->field()) != simData::DataStoreHelpers::vecFromRepeated((b)->field())) )
 
 
 #define PB_HAS_SUBFIELD(a, first, second) ( \
@@ -103,13 +111,6 @@ namespace osgViewer {
 namespace simVis
 {
   class PlatformModelNode;
-
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  /**
-   * Whether to use the REX terrain engine.
-   */
-  SDK_DEPRECATE(SDKVIS_EXPORT bool useRexEngine(), "Method will be removed in a future SDK release.");
-#endif
 
   /**
    * Enable or disable lighting on a state set. We must set both the
@@ -164,7 +165,7 @@ namespace simVis
   /**
    * Utility template method to find the first Update Callback of the given type.
    * @param node Node to search the update callback chain of
-   * @return First update callback that is of type T, or NULL if none is found.
+   * @return First update callback that is of type T, or nullptr if none is found.
    */
   template <typename T>
   T* findUpdateCallbackOfType(osg::Node* node)
@@ -177,7 +178,7 @@ namespace simVis
         return asType;
       callback = callback->getNestedCallback();
     }
-    return NULL;
+    return nullptr;
   }
 
   /// convert a simCore::Coordinate to a GeoPoint, if possible
@@ -242,19 +243,6 @@ namespace simVis
    */
   SDKVIS_EXPORT bool isImageFile(const std::string& location);
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  /**
-  * Finds the full path of the font file, searching in SIMDIS installed fonts locations.
-  * Provided as a convenience method to simVis::Registry::instance()->findFontFile().
-  * This method is deprecated and may be removed in a future release.  Please use the
-  * Registry method instead.
-  * @param fontFile file name
-  * @return string  full path of file
-  * @deprecated Use simVis::Registry::findFontFile() instead.
-  */
-  SDK_DEPRECATE(SDKVIS_EXPORT std::string findFontFile(const std::string& fontFile), "Method will be removed in future SDK release.");
-#endif
-
   /**
    * Convert simData DistanceUnits to osgEarth::Units.
    */
@@ -264,6 +252,9 @@ namespace simVis
    * Convert simData SpeedUnits to osgEarth::Units.
    */
   SDKVIS_EXPORT osgEarth::Units convertUnitsToOsgEarth(const simData::SpeedUnits& input);
+
+  /** Given an icon alignment and image size, gives offsets from center. */
+  SDKVIS_EXPORT void iconAlignmentToOffsets(simData::TextAlignment align, const osg::Vec2f& iconDims, osg::Vec2f& outOffsets);
 
   /// Returns the thickness associated with the TextOutline setting in pixels.
   SDKVIS_EXPORT float outlineThickness(simData::TextOutline outline);
@@ -351,6 +342,15 @@ namespace simVis
     * @param max_hpr_deg Maximum allowable Euler angles (HRP, degrees)
     */
     static void clampMatrixOrientation(osg::Matrixd& mat, osg::Vec3d& min_hpr_deg, osg::Vec3d& max_hpr_deg);
+
+    /**
+    * Takes an ECEF position and return the projected position at altitude 0
+    * Similar to simCore::clampEcefPointToGeodeticSurface() but more efficient when matrix is already available
+    * @param ecefPos specified position
+    * @param local2world ENU matrix at specified position
+    * @return ECEF point at altitude 0
+    */
+    static osg::Vec3d ecefEarthPoint(const simCore::Vec3& ecefPos, const osg::Matrixd& world2local);
 
     /**
     * Quaternion spherical linear interpolator - for sweeping one quat onto another
@@ -466,6 +466,71 @@ namespace simVis
 
   /// makes a big red "X" square image for the given size in pixels
   SDKVIS_EXPORT osg::Image* makeBrokenImage(int size=32);
+
+  /**
+   * Builds a sphere mesh geometry, configured potentially with a two-pass alpha render bin for
+   * colors that are transparent.
+   * @param r Radius of the sphere, in scene graph units (meters)
+   * @param color The geometry is given a BIND_OVERALL mapping to this color.
+   * @param maxAngle Degrees, used to divide the number of vertical segments. For example, if the
+   *   latitude spans 90 degrees vertically and maxAngle is 10.0, there are 10 vertical strips.
+   *   Maximum angle between vertices (controls tessellation).
+   * @return Node representing the sphere
+   */
+  SDKVIS_EXPORT osg::ref_ptr<osg::Node> createSphere(float r, const osg::Vec4& color, float maxAngle = 15.0f);
+
+  /**
+   * Builds a hemisphere mesh geometry, configured potentially with a two-pass alpha render bin for
+   * colors that are transparent.
+   * @param r Radius of the hemisphere, in scene graph units (meters)
+   * @param color The geometry is given a BIND_OVERALL mapping to this color.
+   * @param maxAngle Degrees, used to divide the number of vertical segments. For example, if the
+   *   latitude spans 90 degrees vertically and maxAngle is 10.0, there are 10 vertical strips.
+   *   Maximum angle between vertices (controls tessellation).
+   * @return Node representing the hemisphere
+   */
+  SDKVIS_EXPORT osg::ref_ptr<osg::Node> createHemisphere(float r, const osg::Vec4& color, float maxAngle = 15.0f);
+
+  /**
+   * Builds an ellipsoidal mesh geometry, configured potentially with a two-pass alpha render bin for
+   * colors that are transparent.
+   * @param xRadius Radius in X dimension of the ellipsoid, in scene graph units (meters)
+   * @param yRadius Radius in Y dimension of the ellipsoid, in scene graph units (meters)
+   * @param zRadius Radius in Z dimension of the ellipsoid, in scene graph units (meters)
+   * @param color The geometry is given a BIND_OVERALL mapping to this color.
+   * @param maxAngle Degrees, used to divide the number of vertical segments. For example, if the
+   *   latitude spans 90 degrees vertically and maxAngle is 10.0, there are 10 vertical strips.
+   *   Maximum angle between vertices (controls tessellation).
+   * @param minLat Used for sectors, this is the minimum vertical angle in degrees.
+   * @param maxLat Used for sectors, this is the maximum vertical angle in degrees.
+   * @param minLon Used for sectors, this is the minimum horizontal angle in degrees.
+   * @param maxLon Used for sectors, this is the maximum horizontal angle in degrees.
+   * @return Ellipsoidal mesh adhering to input parameters
+   */
+  SDKVIS_EXPORT osg::ref_ptr<osg::Node> createEllipsoid(float xRadius, float yRadius, float zRadius,
+    const osg::Vec4& color, float maxAngle = 10.0f, float minLat = -90.0, float maxLat = 90.0,
+    float minLon = -180.0, float maxLon = 180.0);
+
+  /**
+   * Creates an ellipsoidal geometry mesh. This mesh is optionally textured. This code is adapted
+   * from the osgEarth AnnotationUtils::createEllipsoidGeometry() call.
+   * @param xRadius Radius in X dimension of the ellipsoid, in scene graph units (meters)
+   * @param yRadius Radius in Y dimension of the ellipsoid, in scene graph units (meters)
+   * @param zRadius Radius in Z dimension of the ellipsoid, in scene graph units (meters)
+   * @param color The geometry is given a BIND_OVERALL mapping to this color.
+   * @param maxAngle Degrees, used to divide the number of vertical segments. For example, if the
+   *   latitude spans 90 degrees vertically and maxAngle is 10.0, there are 10 vertical strips.
+   *   Maximum angle between vertices (controls tessellation).
+   * @param minLat Used for sectors, this is the minimum vertical angle in degrees.
+   * @param maxLat Used for sectors, this is the maximum vertical angle in degrees.
+   * @param minLon Used for sectors, this is the minimum horizontal angle in degrees.
+   * @param maxLon Used for sectors, this is the maximum horizontal angle in degrees.
+   * @param genTexCoords If true, texture coordinates are generated too for each vetex.
+   * @return Ellipsoidal mesh adhering to input parameters
+   */
+  SDKVIS_EXPORT osg::ref_ptr<osg::Geometry> createEllipsoidGeometry(float xRadius, float yRadius, float zRadius,
+    const osg::Vec4f& color, float maxAngle = 10.f, float minLat = -90.f, float maxLat = 90.f,
+    float minLon = -180.f, float maxLon = 180.f, bool genTexCoords = false);
 
   /**
    * Computes the world matrix for a node, using its local matrix.
@@ -738,6 +803,34 @@ namespace simVis
   private:
     /** Model-View Projection Window matrix, inverted for performance.  Mutable for caching. */
     mutable osg::Matrixd invertedMvpw_;
+  };
+
+  /**
+   * Generic GUIEventHandler callback that calls a function (lambda) that you define.  When the screen dimensions
+   * change, as detected by the FRAME event on which the callback is attached, your function is called if the
+   * dimensions are different from what is currently saved.  This is intended to be used as an easy way to get
+   * screen dimensions without having to define multiple helper classes.  To use this, you can write code like:
+   *
+   * <code>
+   * node->addEventCallback(new ViewportSizeCallback([](const osg::Vec2f& dims) {
+   *    std::cout << "New dimensions: " << dims.x() << "x" << dims.y() << "\n";
+   *   }));
+   * </code>
+   */
+  class SDKVIS_EXPORT ViewportSizeCallback : public osgGA::GUIEventHandler
+  {
+  public:
+    explicit ViewportSizeCallback(std::function<void(const osg::Vec2f&)> func);
+
+    /** Checks for updated viewport size. */
+    virtual bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa, osg::Object*, osg::NodeVisitor*) override;
+
+    /** Retrieves the last window size seen */
+    osg::Vec2f windowSize() const;
+
+  private:
+    osg::Vec2f windowSize_;
+    std::function<void(const osg::Vec2f&)> func_;
   };
 
 } // namespace simVis

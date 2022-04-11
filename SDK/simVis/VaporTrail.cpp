@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -67,6 +68,7 @@ VaporTrail::VaporTrail(const simData::DataStore& dataStore, osg::Group* expireMo
     textureCounter_(0)
 {
   vaporTrailGroup_ = new osg::Group();
+  vaporTrailGroup_->setName("VaporTrail Group");
   vaporTrailGroup_->setNodeMask(simVis::DISPLAY_MASK_NONE);
 
   osg::StateSet* groupState = vaporTrailGroup_->getOrCreateStateSet();
@@ -96,11 +98,11 @@ VaporTrail::~VaporTrail()
   recyclePuffs_.clear();
   if (expireModeGroup_.valid())
     expireModeGroup_->removeChild(vaporTrailGroup_);
-  vaporTrailGroup_ = NULL;
-  hostPlatform_ = NULL;
+  vaporTrailGroup_ = nullptr;
+  hostPlatform_ = nullptr;
 
   textures_.clear();
-  locator_ = NULL;
+  locator_ = nullptr;
 }
 
 void VaporTrail::update(double time)
@@ -295,7 +297,7 @@ int VaporTrail::addFirstPuff_()
   // interpolation may be required
   simData::PlatformUpdate interpolatedPlatformUpdate;
   simData::Interpolator* li = dataStore_.interpolator();
-  if (platformUpdate->time() != time && li != NULL && platformIter.hasNext())
+  if (platformUpdate->time() != time && li != nullptr && platformIter.hasNext())
   {
     // defn of upper_bound previous()
     assert(platformUpdate->time() < time);
@@ -311,7 +313,7 @@ int VaporTrail::addFirstPuff_()
     simCore::Vec3(platformUpdate->psi(), platformUpdate->theta(), platformUpdate->phi()),
     simCore::Vec3(platformUpdate->vx(), platformUpdate->vy(), platformUpdate->vz()));
 
-  osg::ref_ptr<Locator> startTimeLocator = new Locator(locator_->getSRS());
+  osg::ref_ptr<Locator> startTimeLocator = new Locator();
   startTimeLocator->setCoordinate(coord, platformUpdate->time(), locator_->getEciRefTime());
   // add offset for wake to prevent wake from getting wet
   const double altOffset = (vaporTrailData_.isWake ? 0.1 : 0.0);
@@ -512,22 +514,6 @@ void VaporTrail::createTexture_(osg::Geode& geode, osg::Texture2D* texture) cons
 }
 
 //////////////////////////////////////////////////////////////////////////
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-VaporTrail::VaporTrailPuff::VaporTrailPuff(osg::Geode* graphic, const simCore::Vec3& position, double startTime)
-  : scale_(1.0),
-  startTime_(startTime),
-  active_(true)
-{
-  addChild(graphic);
-  setMatrix(osg::Matrixd::translate(position.x(), position.y(), position.z()));
-  setNodeMask(simVis::DISPLAY_MASK_PLATFORM);
-
-  // set up our uniform for parent's shader, setting the default color.
-  overrideColor_ = new OverrideColor(getOrCreateStateSet());
-  overrideColor_->setColor(simVis::Color::White);
-  overrideColor_->setCombineMode(OverrideColor::MULTIPLY_COLOR);
-}
-#endif
 
 VaporTrail::VaporTrailPuff::VaporTrailPuff(osg::Geode* graphic, const osg::Matrixd& mat, double startTime)
   : scale_(1.0),
@@ -557,19 +543,6 @@ VaporTrail::VaporTrailPuff::~VaporTrailPuff()
       parentAsGroup->removeChild(this);
   }
 }
-
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-void VaporTrail::VaporTrailPuff::set(const simCore::Vec3& position, double startTime)
-{
-  // set this position in our matrix; it is required to set position for puffs with no expansion;
-  // if there is a radius expansion/scaling, that will be handled in update() below
-  setMatrix(osg::Matrixd::translate(position.x(), position.y(), position.z()));
-  startTime_ = startTime;
-  setNodeMask(simVis::DISPLAY_MASK_PLATFORM);
-  active_ = true;
-  scale_ = 1.0;
-}
-#endif
 
 void VaporTrail::VaporTrailPuff::set(const osg::Matrixd& mat, double startTime)
 {

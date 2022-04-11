@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -32,7 +33,7 @@ namespace simQt {
 DirectorySelectorWidget::DirectorySelectorWidget(QWidget* parent)
   : QWidget(parent),
     registryKey_("Private/directory"),
-    labelWidget_(NULL),
+    labelWidget_(nullptr),
     includeLabel_(false),
     label_(tr("Directory")),
     browserTitle_(tr("Select Directory"))
@@ -83,7 +84,7 @@ void DirectorySelectorWidget::setIncludeLabel(bool value)
 {
   if (value == true)
   {
-    if (labelWidget_ == NULL)
+    if (labelWidget_ == nullptr)
     {
       labelWidget_ = new QLabel(label_);
     }
@@ -93,7 +94,7 @@ void DirectorySelectorWidget::setIncludeLabel(bool value)
   {
     ui_->horizontalLayout->removeWidget(labelWidget_);
     delete labelWidget_;
-    labelWidget_ = NULL;
+    labelWidget_ = nullptr;
   }
 
   includeLabel_ = value;

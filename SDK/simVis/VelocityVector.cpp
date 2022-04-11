@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -38,11 +39,10 @@ namespace simVis
 {
 
 // --------------------------------------------------------------------------
-VelocityVector::VelocityVector(Locator* hostLocator, const osg::Vec4f& vectorColor, float lineWidth)
+VelocityVector::VelocityVector(Locator* hostLocator, float lineWidth)
   : LocatorNode(new Locator(hostLocator, Locator::COMP_POSITION)),
     forceRebuild_(true),
-    lineWidth_(lineWidth),
-    vectorColor_(vectorColor)
+    lineWidth_(lineWidth)
 {
   setName("VelocityVector");
   setNodeMask(DISPLAY_MASK_NONE);
@@ -64,16 +64,37 @@ int VelocityVector::rebuild_(const simData::PlatformPrefs& prefs)
     return 1;
   }
 
-  osg::ref_ptr<osgEarth::LineGroup> geode = new osgEarth::LineGroup();
-  createVelocityVector_(prefs, geode.get());
+  osg::ref_ptr<osgEarth::LineGroup> lineGroup = new osgEarth::LineGroup();
+  createVelocityVector_(prefs, lineGroup.get());
 
   // disable lighting
-  osg::StateSet* stateSet = geode->getOrCreateStateSet();
+  simVis::setLighting(lineGroup->getOrCreateStateSet(), osg::StateAttribute::OFF);
 
   setNodeMask(DISPLAY_MASK_PLATFORM);
-  this->addChild(geode.get());
+  this->addChild(lineGroup.get());
   return 0;
 }
+
+/** Helper visitor to set the color of all lines visited */
+class SetLineColorVisitor : public osg::NodeVisitor
+{
+public:
+  explicit SetLineColorVisitor(const osg::Vec4f& color)
+    : osg::NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN),
+      color_(color)
+  {
+  }
+
+  virtual void apply(osg::Geometry& geometry)
+  {
+    osgEarth::LineDrawable* line = dynamic_cast<osgEarth::LineDrawable*>(&geometry);
+    if (line)
+      line->setColor(color_);
+  }
+
+private:
+  osg::Vec4f color_;
+};
 
 void VelocityVector::setPrefs(bool draw, const simData::PlatformPrefs& prefs, bool force)
 {
@@ -111,10 +132,20 @@ void VelocityVector::setPrefs(bool draw, const simData::PlatformPrefs& prefs, bo
       }
     }
     else
-      setNodeMask(draw ? DISPLAY_MASK_PLATFORM : DISPLAY_MASK_NONE);
+    {
+      // Update the color if needed
+      if (PB_FIELD_CHANGED(&lastPrefs_, &prefs, velveccolor))
+      {
+        SetLineColorVisitor setLineColor(simVis::Color(prefs.velveccolor(), simVis::Color::RGBA));
+        accept(setLineColor);
+      }
+
+      setNodeMask(DISPLAY_MASK_PLATFORM);
+    }
 
     forceRebuild_ = false;
   }
+
   lastPrefs_ = prefs;
 }
 
@@ -125,7 +156,7 @@ void VelocityVector::update(const simData::PlatformUpdate& platformUpdate)
     rebuild_(lastPrefs_);
 }
 
-void VelocityVector::createVelocityVector_(const simData::PlatformPrefs& prefs, osg::Geode* geode) const
+void VelocityVector::createVelocityVector_(const simData::PlatformPrefs& prefs, osg::Group* group) const
 {
   osg::ref_ptr<osgEarth::LineDrawable> geom = new osgEarth::LineDrawable(GL_LINES);
   geom->setName("simVis::VelocityVector");
@@ -163,12 +194,12 @@ void VelocityVector::createVelocityVector_(const simData::PlatformPrefs& prefs, 
   geom->allocate(2);
   geom->setVertex(0, osg::Vec3());
   geom->setVertex(1, osg::Vec3(velocity.x(), velocity.y(), velocity.z()));
-  geom->setColor(vectorColor_);
+  geom->setColor(simVis::Color(prefs.velveccolor(), simVis::Color::RGBA));
   // set linewidth
   geom->setLineWidth(lineWidth_);
 
   // Add the drawable to the geode
-  geode->addDrawable(geom.get());
+  group->addChild(geom.get());
 }
 
 }

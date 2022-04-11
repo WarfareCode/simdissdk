@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -75,8 +76,8 @@ public:
   /**
    * Gets or loads a node that represents the specified icon.  The result will either be a 3D
    * model or a billboard icon.  The icon is loaded synchronously.  The URI is passed directly
-   * to osgDB::readRefNodeFile(), so use simVis::Registry::findModelFile() is recommended
-   * before calling this method.
+   * to osgDB::readRefNodeFile(), so using simVis::Registry::findModelFile() is recommended
+   * before calling this method to avoid an osgDB file search.
    *
    * This call is synchronous and can impact the frame rate for models that take a long time to
    * load or optimize.  For asynchronous loading, see asyncLoad().
@@ -84,9 +85,9 @@ public:
    * @param uri Location of the model to load.  This class does not explicitly pass the string
    *  through the simVis::Registry::findModelFile() method, so be sure to call that if the
    *  URI is not going to be automatically found by OSG built-in mechanisms.
-   * @param pIsImage If non-NULL, will be set to true or false based on whether the URI represents
+   * @param pIsImage If non-nullptr, will be set to true or false based on whether the URI represents
    *  an image file that needs billboarding.
-   * @return A node, or NULL if no file was found.
+   * @return A node, or nullptr if no file was found.
    */
   osg::Node* getOrCreateIconModel(const std::string& uri, bool* pIsImage);
 

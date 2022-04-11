@@ -1,24 +1,25 @@
-// -*- mode: c++ -*-
+/* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <cassert>
 #include <QAction>
 #include <QFileInfo>
@@ -130,7 +131,7 @@ void MruList::clear()
 void MruList::openRecentFile_()
 {
   QAction* action = qobject_cast<QAction*>(sender());
-  if (action != NULL)
+  if (action != nullptr)
     emit(fileSelected(action->data().toString()));
 }
 
@@ -157,8 +158,11 @@ void MruList::fixActions_()
     action->setVisible(true);
     action->setEnabled(true);
 
-    // Text looks like: "&3 file.asi"
-    action->setText(tr("&%1 %2").arg(idx + 1).arg(fi.fileName()));
+    // Text looks like: "&3 file.asi"; can only specify shortcuts (&) for items numbered < 10.
+    if (idx < 9)
+      action->setText(tr("&%1 %2").arg(idx + 1).arg(fi.fileName()));
+    else
+      action->setText(tr("%1 %2").arg(idx + 1).arg(fi.fileName()));
 
     // We're showing an action, so we want to show the separators
     showSeparators = true;
@@ -172,8 +176,8 @@ void MruList::fixActions_()
     action->setEnabled(false);
   }
 
-  // Get rid of NULLs that might be introduced by deleted menus
-  separators_.removeAll(NULL);
+  // Get rid of nullptrs that might be introduced by deleted menus
+  separators_.removeAll(nullptr);
   // Hide or show separators based on whether any actions are shown
   for (auto it = separators_.begin(); it != separators_.end(); ++it)
     (*it)->setVisible(showSeparators);

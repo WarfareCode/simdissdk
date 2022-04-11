@@ -1,28 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling and Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* U.S. Naval Research Laboratory.
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <iostream>
 #include <cassert>
 #include <QTimer>
@@ -137,7 +134,7 @@ private:
 class DockWidget::DoubleClickFrame : public QFrame
 {
 public:
-  DoubleClickFrame(DockWidget& dockWidget, QWidget* parent=NULL, Qt::WindowFlags flags=0)
+  explicit DoubleClickFrame(DockWidget& dockWidget, QWidget* parent=nullptr, Qt::WindowFlags flags=0)
     : QFrame(parent, flags),
       dockWidget_(dockWidget)
   {
@@ -175,7 +172,7 @@ private:
 class DockWidget::DoubleClickIcon : public QLabel
 {
 public:
-  DoubleClickIcon(DockWidget& dockWidget, QWidget* parent = NULL, Qt::WindowFlags flags = 0)
+  DoubleClickIcon(DockWidget& dockWidget, QWidget* parent = nullptr, Qt::WindowFlags flags = 0)
     : QLabel(parent, flags),
     dockWidget_(dockWidget)
   {
@@ -198,7 +195,7 @@ private:
 
 DockWidget::DockWidget(QWidget* parent, Qt::WindowFlags flags)
   : QDockWidget(parent, flags),
-    globalSettings_(NULL),
+    globalSettings_(nullptr),
     mainWindow_(dynamic_cast<QMainWindow*>(parent))
 {
   init_();
@@ -206,7 +203,7 @@ DockWidget::DockWidget(QWidget* parent, Qt::WindowFlags flags)
 
 DockWidget::DockWidget(const QString& title, QWidget* parent, Qt::WindowFlags flags)
   : QDockWidget(title, parent, flags),
-    globalSettings_(NULL),
+    globalSettings_(nullptr),
     mainWindow_(dynamic_cast<QMainWindow*>(parent))
 {
   setObjectName(title);
@@ -245,23 +242,23 @@ DockWidget::~DockWidget()
   disconnect(QApplication::instance(), SIGNAL(focusChanged(QWidget*, QWidget*)), this, SLOT(changeTitleColorsFromFocusChange_(QWidget*, QWidget*)));
 
   delete noTitleBar_;
-  noTitleBar_ = NULL;
+  noTitleBar_ = nullptr;
   delete titleBar_;
-  titleBar_ = NULL;
+  titleBar_ = nullptr;
 }
 
 void DockWidget::init_()
 {
   // default title bar text size to application text size
   titleBarPointSize_ = QApplication::font().pointSize();
-  searchLineEdit_ = NULL;
+  searchLineEdit_ = nullptr;
   titleBarWidgetCount_ = 0;
   extraFeatures_ = DEFAULT_EXTRA_FEATURES;
-  settingsSaved_ = (settings_ == NULL);  // Prevent false asserts when the simQt::Settings is not provided in construction
+  settingsSaved_ = (settings_ == nullptr);  // Prevent false asserts when the simQt::Settings is not provided in construction
   haveFocus_ = false;
   isDockable_ = true;
-  disableAllDocking_ = NULL;
-  borderThickness_ = NULL;
+  disableAllDocking_ = nullptr;
+  borderThickness_ = nullptr;
 
   createStylesheets_();
 
@@ -576,7 +573,7 @@ void DockWidget::dock_()
 
   // In some cases, setFloating() may fail to redock.  In these cases, we may need
   // to request a valid dock from the main window.
-  if (isFloating() && mainWindow_ != NULL)
+  if (isFloating() && mainWindow_ != nullptr)
     mainWindow_->addDockWidget(Qt::RightDockWidgetArea, this);
 
   // Finally update the state of the enable/disable/visibility
@@ -627,7 +624,7 @@ void DockWidget::fixTabIcon_()
   // Locate the tab bar that contains this window, based on the window title
   int index = 0;
   QTabBar* tabBar = findTabWithTitle_(tabBars, windowTitle(), index);
-  if (tabBar == NULL)
+  if (tabBar == nullptr)
     return;
 
   // This title matches ours, set the tab icon
@@ -641,7 +638,7 @@ void DockWidget::fixTabIcon_()
     int newIndex = (index == 1 ? 0 : 1);
     // Set icon from our only other tabified widget
     DockWidget* firstTab = dynamic_cast<DockWidget*>(tabifiedWidgets[0]);
-    if (firstTab != NULL && firstTab->windowTitle() == tabBar->tabText(newIndex))
+    if (firstTab != nullptr && firstTab->windowTitle() == tabBar->tabText(newIndex))
     {
       tabBar->setTabIcon(newIndex, firstTab->widget()->windowIcon());
     }
@@ -714,7 +711,7 @@ void DockWidget::setWidget(QWidget* widget)
   }
 
   QDockWidget::setWidget(widget);
-  if (widget == NULL)
+  if (widget == nullptr)
     return;
   setWindowIcon(widget->windowIcon());
 
@@ -783,7 +780,7 @@ void DockWidget::setDockable(bool dockable)
 
 bool DockWidget::allDockingDisabled() const
 {
-  return (disableAllDocking_ != NULL && disableAllDocking_->value());
+  return (disableAllDocking_ != nullptr && disableAllDocking_->value());
 }
 
 void DockWidget::verifyDockState_(bool floating)
@@ -819,7 +816,7 @@ QTabBar* DockWidget::findTabWithTitle_(const QList<QTabBar*>& fromBars, const QS
         return tabBar;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 QAction* DockWidget::isDockableAction() const
@@ -835,7 +832,7 @@ bool DockWidget::isMaximized_() const
 
 bool DockWidget::searchEnabled() const
 {
-  return searchLineEdit_ != NULL;
+  return searchLineEdit_ != nullptr;
 }
 
 void DockWidget::setSearchEnabled(bool enable)
@@ -853,7 +850,7 @@ void DockWidget::setSearchEnabled(bool enable)
   if (!enable)
   {
     delete searchLineEdit_;
-    searchLineEdit_ = NULL;
+    searchLineEdit_ = nullptr;
     return;
   }
 
@@ -878,15 +875,15 @@ simQt::SearchLineEdit* DockWidget::searchLineEdit() const
 
 int DockWidget::insertTitleBarWidget(int beforeIndex, QWidget* widget)
 {
-  if (titleBar_ == NULL || titleBar_->layout() == NULL)
+  if (titleBar_ == nullptr || titleBar_->layout() == nullptr)
     return 1;
   QBoxLayout* layout = dynamic_cast<QBoxLayout*>(titleBar_->layout());
-  if (layout == NULL)
+  if (layout == nullptr)
     return 1;
   const int numPrev = titleBar_->layout()->count();
 
   // Calculate the actual index -- offset by icon, title, and maybe search edit if it exists
-  const int actualIndex = beforeIndex + (searchLineEdit_ == NULL ? 0 : 1) + SEARCH_LAYOUT_INDEX;
+  const int actualIndex = beforeIndex + (searchLineEdit_ == nullptr ? 0 : 1) + SEARCH_LAYOUT_INDEX;
   layout->insertWidget(actualIndex, widget);
 
   // Add the delta of objects changed in case this results in a "move" (i.e. no items added)
@@ -997,7 +994,7 @@ void DockWidget::changeTitleColorsFromFocusChange_(QWidget* oldFocus, QWidget* n
 bool DockWidget::isChildWidget_(const QWidget* widget) const
 {
   // Find out whether we're in the parentage for the focused widget
-  while (widget != NULL)
+  while (widget != nullptr)
   {
     if (widget == this)
       return true;
@@ -1089,7 +1086,7 @@ void DockWidget::loadSettings_()
 void DockWidget::restoreFloating_(const QByteArray& geometryBytes)
 {
   // Restore the widget from the main window
-  if (mainWindow_ == NULL)
+  if (mainWindow_ == nullptr)
   {
     // Must be floatable, because we can't dock without it
     assert(features().testFlag(DockWidgetFloatable));
@@ -1104,7 +1101,7 @@ void DockWidget::restoreFloating_(const QByteArray& geometryBytes)
   // If ignoring settings, bypass main window. Otherwise give main window first opportunity to restore the position
   if (extraFeatures_.testFlag(DockWidgetIgnoreSettings) || !mainWindow_->restoreDockWidget(this))
   {
-    const bool globalNoDocking = (disableAllDocking_ != NULL && disableAllDocking_->value());
+    const bool globalNoDocking = (disableAllDocking_ != nullptr && disableAllDocking_->value());
     // Restoration failed; new window.  Respect the features() flag to pop up or dock.
     if (features().testFlag(DockWidgetFloatable) || globalNoDocking)
     {

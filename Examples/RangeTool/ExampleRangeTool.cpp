@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -52,13 +53,17 @@
 /// paths to models
 #include "simUtil/ExampleResources.h"
 
+#ifdef HAVE_IMGUI
+#include "BaseGui.h"
+#include "OsgImGuiHandler.h"
+#else
 using namespace osgEarth::Util::Controls;
-
+#endif
 
 //----------------------------------------------------------------------------
 
 // global association to manipulate
-static osg::ref_ptr<simVis::RangeTool::Association> s_association = NULL;
+static osg::ref_ptr<simVis::RangeTool::Association> s_association = nullptr;
 
 // list of calculations to cycle through
 static simVis::RangeTool::CalculationVector s_lineCalcs;
@@ -67,19 +72,73 @@ static simVis::RangeTool::CalculationVector s_angleCalcs;
 // index of currently visible calculation
 static int s_lineCalcIndex = -1, s_angleCalcIndex = -1;
 
-
 //----------------------------------------------------------------------------
 /// create an overlay with some helpful information
 
 /// first line, describe the program
 static const std::string s_title = "Range Tool Example";
 
+#ifdef HAVE_IMGUI
+struct ControlPanel : public GUI::BaseGui
+{
+  ControlPanel()
+    : GUI::BaseGui(s_title)
+  {
+  }
+
+  void draw(osg::RenderInfo& ri) override
+  {
+    static ImVec4 gray(0.5f, 0.5f, 0.5f, 1.f);
+    static ImVec4 yellow(1.f, 1.f, 0.f, 1.f);
+    ImGui::SetNextWindowPos(ImVec2(15, 15));
+    ImGui::SetNextWindowBgAlpha(.6f);
+    ImGui::Begin(name(), 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::Text("1: cycle through line calculations");
+    ImGui::TextColored(yellow, lineCalcText.c_str());
+    ImGui::Text("2: cycle through angle calculations");
+    ImGui::TextColored(yellow, angleCalcText.c_str());
+    ImGui::Text("3: zoom in");
+    ImGui::Text("4: rotate zoomed in view");
+    ImGui::Text("5: reset to main view");
+    ImGui::Text("t: toggle follow-pattern");
+    ImGui::TextColored(gray, "w,x: position offset north/south");
+    ImGui::TextColored(gray, "a,d: position offset west/east");
+    ImGui::TextColored(gray, "q,z: position offset north/south");
+    ImGui::TextColored(gray, "g: reset position offset");
+    ImGui::Text("Press \".\" to play/pause");
+
+    ImGui::Text("Depth Testing"); ImGui::SameLine();
+    bool depthTesting = depthTesting_;
+    ImGui::Checkbox("", &depthTesting_);
+    if (depthTesting != depthTesting_)
+    {
+      for (simVis::RangeTool::CalculationVector::iterator c = s_lineCalcs.begin(); c != s_lineCalcs.end(); ++c)
+      {
+        simVis::RangeTool::GraphicVector& graphics = c->get()->graphics();
+        for (simVis::RangeTool::GraphicVector::iterator g = graphics.begin(); g != graphics.end(); ++g)
+        {
+          g->get()->graphicOptions().useDepthTest_ = depthTesting_;
+          g->get()->setDirty();
+        }
+      }
+    }
+
+    ImGui::End();
+  }
+
+  std::string lineCalcText;
+  std::string angleCalcText;
+
+private:
+  bool depthTesting_ = true;
+};
+#else
 /// keep a handle, for toggling
-static osg::ref_ptr<Control> s_helpControl = NULL;
+static osg::ref_ptr<Control> s_helpControl = nullptr;
 
 /// label displaying the name of the current calculation
-static osg::ref_ptr<LabelControl> s_lineCalcLabel = NULL;
-static osg::ref_ptr<LabelControl> s_angleCalcLabel = NULL;
+static osg::ref_ptr<LabelControl> s_lineCalcLabel = nullptr;
+static osg::ref_ptr<LabelControl> s_angleCalcLabel = nullptr;
 
 
 // callback to toggle depth testing flag
@@ -98,7 +157,6 @@ struct ToggleDepthTest : public ControlEventHandler
     }
   }
 };
-
 
 Control* createHelp()
 {
@@ -136,6 +194,7 @@ Control* createHelp()
   s_helpControl = vbox;
   return vbox;
 }
+#endif
 
 //----------------------------------------------------------------------------
 
@@ -291,6 +350,35 @@ struct MenuHandler : public osgGA::GUIEventHandler
     //nop
   }
 
+#ifdef HAVE_IMGUI
+  void setControlPanel(ControlPanel* controlPanel)
+  {
+    controlPanel_ = controlPanel;
+    setLineCalcText("Currently viewing: none");
+    setAngleCalcText("Currently viewing: none");
+  }
+#endif
+
+  void setLineCalcText(const std::string& text)
+  {
+#ifdef HAVE_IMGUI
+    if (controlPanel_)
+      controlPanel_->lineCalcText = text;
+#else
+    s_lineCalcLabel->setText(text);
+#endif
+  }
+
+  void setAngleCalcText(const std::string& text)
+  {
+#ifdef HAVE_IMGUI
+    if (controlPanel_)
+      controlPanel_->angleCalcText = text;
+#else
+    s_angleCalcLabel->setText(text);
+#endif
+  }
+
   /// callback to process user input
   bool handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa)
   {
@@ -302,10 +390,12 @@ struct MenuHandler : public osgGA::GUIEventHandler
     {
       switch (ea.getKey())
       {
+#ifndef HAVE_IMGUI
       case '?' : // toggle help
         s_helpControl->setVisible(!s_helpControl->visible());
         handled = true;
         break;
+#endif
 
       case '1' : // cycle line calculations
         if (s_lineCalcIndex >= 0)
@@ -317,11 +407,11 @@ struct MenuHandler : public osgGA::GUIEventHandler
 
         if (s_lineCalcIndex >= 0)
         {
-          s_lineCalcLabel->setText("Currently viewing: " + s_lineCalcs[s_lineCalcIndex]->name());
+          setLineCalcText("Currently viewing: " + s_lineCalcs[s_lineCalcIndex]->name());
           s_association->add(s_lineCalcs[s_lineCalcIndex].get());
         }
         else
-          s_lineCalcLabel->setText("Currently viewing: none");
+          setLineCalcText("Currently viewing: none");
         break;
 
       case '2' : // cycle angle calculations
@@ -334,11 +424,11 @@ struct MenuHandler : public osgGA::GUIEventHandler
 
         if (s_angleCalcIndex >= 0)
         {
-          s_angleCalcLabel->setText("Currently viewing: " + s_angleCalcs[s_angleCalcIndex]->name());
+          setAngleCalcText("Currently viewing: " + s_angleCalcs[s_angleCalcIndex]->name());
           s_association->add(s_angleCalcs[s_angleCalcIndex].get());
         }
         else
-          s_angleCalcLabel->setText("Currently viewing: none");
+          setAngleCalcText("Currently viewing: none");
         break;
 
       case '3' : // zoom in
@@ -417,6 +507,9 @@ protected: // data
   osg::ref_ptr<simVis::Viewer> viewer_;
   osg::ref_ptr<simVis::ScenarioManager> scenario_;
   osg::observer_ptr<osg::Node> tetherNode_;
+#ifdef HAVE_IMGUI
+  ControlPanel* controlPanel_ = nullptr;
+#endif
 };
 
 //----------------------------------------------------------------------------
@@ -557,14 +650,25 @@ int main(int argc, char **argv)
   /// set the camera to look at the platform
   mainView->setFocalOffsets(0, -45, 5e5);
 
+  MenuHandler* menuHandler = new MenuHandler(viewer.get(), scene->getScenario(), obj1Node.get());
   /// handle keypress events
-  viewer->addEventHandler(new MenuHandler(viewer.get(), scene->getScenario(), obj1Node.get()));
+  viewer->addEventHandler(menuHandler);
 
   /// hovering the mouse over the platform should trigger a popup
   viewer->addEventHandler(new simVis::PopupHandler(scene.get()));
 
+#ifdef HAVE_IMGUI
+  ControlPanel* controlPanel = new ControlPanel();
+  menuHandler->setControlPanel(controlPanel);
+  // Pass in existing realize operation as parent op, parent op will be called first
+  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
+  GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
+  viewer->getMainView()->getEventHandlers().push_front(gui);
+  gui->add(controlPanel);
+#else
   /// show the instructions overlay
   mainView->addOverlayControl(createHelp());
+#endif
 
   // Create one inset centered on each object
   simVis::View* inset1 = createInsetView(*mainView, 0.50f);

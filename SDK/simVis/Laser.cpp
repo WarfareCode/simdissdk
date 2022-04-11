@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,6 +23,7 @@
 #include "osg/Geometry"
 #include "osgEarth/Horizon"
 #include "osgEarth/LineDrawable"
+#include "osgEarth/ObjectIndex"
 #include "simCore/Calc/Math.h"
 #include "simNotify/Notify.h"
 #include "simVis/EntityLabel.h"
@@ -38,14 +40,15 @@ namespace simVis
 LaserNode::LaserNode(const simData::LaserProperties& props, Locator* hostLocator, const EntityNode* host, int referenceYear)
   : EntityNode(simData::LASER),
     hasLastUpdate_(false),
-    node_(NULL),
+    node_(nullptr),
     host_(host),
-    localGrid_(NULL),
+    localGrid_(nullptr),
     hasLastPrefs_(false),
-    label_(NULL)
+    label_(nullptr),
+    objectIndexTag_(0)
 {
   lastProps_ = props;
-  Locator* locator = NULL;
+  Locator* locator = nullptr;
 
   if (!props.has_azelrelativetohostori() || !props.azelrelativetohostori())
   {
@@ -61,7 +64,7 @@ LaserNode::LaserNode(const simData::LaserProperties& props, Locator* hostLocator
   {
     // in the azelrelativetohostori case, only a single locator is needed,
     // b/c position and orientation offsets are both relative to platform orientation.
-    laserXYZOffsetLocator_ = NULL;
+    laserXYZOffsetLocator_ = nullptr;
     locator = new ResolvedPositionOrientationLocator(hostLocator, Locator::COMP_ALL);
   }
 
@@ -69,7 +72,7 @@ LaserNode::LaserNode(const simData::LaserProperties& props, Locator* hostLocator
   setNodeMask(DISPLAY_MASK_NONE);
   locatorNode_ = new LocatorNode(locator);
   locatorNode_->setName("Laser");
-  locatorNode_->setNodeMask(DISPLAY_MASK_NONE);
+  locatorNode_->setEntityToMonitor(this);
   addChild(locatorNode_);
   setName("LaserNode");
 
@@ -79,42 +82,49 @@ LaserNode::LaserNode(const simData::LaserProperties& props, Locator* hostLocator
   label_ = new EntityLabelNode();
   locatorNode_->addChild(label_);
 
-  // horizon culling:
-  this->addCullCallback( new osgEarth::HorizonCullCallback() );
-
+  // horizon culling: entity culling based on bounding sphere
+  addCullCallback( new osgEarth::HorizonCullCallback() );
+  // labels are culled based on entity center point
   osgEarth::HorizonCullCallback* callback = new osgEarth::HorizonCullCallback();
   callback->setCullByCenterPointOnly(true);
-  callback->setHorizon(new osgEarth::Horizon(*getLocator()->getSRS()->getEllipsoid()));
   callback->setProxyNode(this);
   label_->addCullCallback(callback);
 
   // flatten in overhead mode.
   simVis::OverheadMode::enableGeometryFlattening(true, this);
+  // SIM-10724: Labels need to not be flattened to be displayed in overhead mode
+  simVis::OverheadMode::enableGeometryFlattening(false, label_.get());
+
+  // Add a tag for picking
+  objectIndexTag_ = osgEarth::Registry::objectIndex()->tagNode(this, this);
 }
 
-LaserNode::~LaserNode() {}
+LaserNode::~LaserNode()
+{
+  osgEarth::Registry::objectIndex()->remove(objectIndexTag_);
+}
 
 void LaserNode::updateLabel_(const simData::LaserPrefs& prefs)
 {
-  if (hasLastUpdate_)
+  if (!hasLastUpdate_)
+    return;
+
+  std::string label = getEntityName_(prefs.commonprefs(), EntityNode::DISPLAY_NAME, false);
+  if (prefs.commonprefs().labelprefs().namelength() > 0)
+    label = label.substr(0, prefs.commonprefs().labelprefs().namelength());
+
+  std::string text;
+  if (prefs.commonprefs().labelprefs().draw())
+    text = labelContentCallback().createString(prefs, lastUpdate_, prefs.commonprefs().labelprefs().displayfields());
+
+  if (!text.empty())
   {
-    std::string label = getEntityName_(prefs.commonprefs(), EntityNode::DISPLAY_NAME, false);
-    if (prefs.commonprefs().labelprefs().namelength() > 0)
-      label = label.substr(0, prefs.commonprefs().labelprefs().namelength());
-
-    std::string text;
-    if (prefs.commonprefs().labelprefs().draw())
-      text = labelContentCallback().createString(prefs, lastUpdate_, prefs.commonprefs().labelprefs().displayfields());
-
-    if (!text.empty())
-    {
-      label += "\n";
-      label += text;
-    }
-
-    const float zOffset = 0.0f;
-    label_->update(prefs.commonprefs(), label, zOffset);
+    label += "\n";
+    label += text;
   }
+
+  const float zOffset = 0.0f;
+  label_->update(prefs.commonprefs(), label, zOffset);
 }
 
 std::string LaserNode::popupText() const
@@ -156,7 +166,9 @@ void LaserNode::setPrefs(const simData::LaserPrefs& prefs)
   // validate localgrid prefs changes that might provide user notifications
   localGrid_->validatePrefs(prefs.commonprefs().localgrid());
 
-  refresh_(NULL, &prefs);
+  refresh_(nullptr, &prefs);
+
+  applyProjectorPrefs_(lastPrefs_.commonprefs(), prefs.commonprefs());
   updateLabel_(prefs);
   lastPrefs_ = prefs;
   hasLastPrefs_ = true;
@@ -169,7 +181,7 @@ bool LaserNode::isActive() const
 
 bool LaserNode::isVisible() const
 {
-  return getNodeMask() != DISPLAY_MASK_NONE && (node_ != NULL) && node_->getNodeMask() != DISPLAY_MASK_NONE;
+  return getNodeMask() != DISPLAY_MASK_NONE && (node_ != nullptr) && node_->getNodeMask() != DISPLAY_MASK_NONE;
 }
 
 simData::ObjectId LaserNode::getId() const
@@ -207,15 +219,17 @@ bool LaserNode::updateFromDataStore(const simData::DataSliceBase* updateSliceBas
   if (updateSlice->hasChanged() || force || hostChangedToActive || hostChangedToInactive)
   {
     const simData::LaserUpdate* current = updateSlice->current();
-    const bool laserChangedToInactive = (current == NULL && hasLastUpdate_);
+    const bool laserChangedToInactive = (current == nullptr && hasLastUpdate_);
 
     // do not apply update if host platform is not active
     if (current && (force || host_->isActive()))
     {
-      refresh_(current, NULL);
+      refresh_(current, nullptr);
       lastUpdate_ = *current;
       hasLastUpdate_ = true;
       updateApplied = true;
+      // ensure that the locator node is in sync with its locator; this will be a no-op if they are already in sync.
+      locatorNode_->syncWithLocator();
     }
     else if (laserChangedToInactive || hostChangedToInactive)
     {
@@ -236,7 +250,6 @@ void LaserNode::flush()
 {
   hasLastUpdate_ = false;
   setNodeMask(DISPLAY_MASK_NONE);
-  locatorNode_->setNodeMask(DISPLAY_MASK_NONE);
 }
 
 double LaserNode::range() const
@@ -249,7 +262,7 @@ double LaserNode::range() const
 
 const simData::LaserUpdate* LaserNode::getLastUpdateFromDS() const
 {
-  return hasLastUpdate_ ? &lastUpdate_ : NULL;
+  return hasLastUpdate_ ? &lastUpdate_ : nullptr;
 }
 
 int LaserNode::getPosition(simCore::Vec3* out_position, simCore::CoordinateSystem coordsys) const
@@ -285,13 +298,11 @@ void LaserNode::refresh_(const simData::LaserUpdate* newUpdate, const simData::L
   if (activePrefs->commonprefs().datadraw() == false)
   {
     setNodeMask(DISPLAY_MASK_NONE);
-    // deactivate the locatorNode
-    locatorNode_->setNodeMask(DISPLAY_MASK_NONE);
     return;
   }
 
   // force indicates that activePrefs and activeUpdate must be applied, the visual must be redrawn, and the locator updated
-  const bool force = !hasLastUpdate_ || !hasLastPrefs_ || node_ == NULL ||
+  const bool force = !hasLastUpdate_ || !hasLastPrefs_ || node_ == nullptr ||
     (newPrefs && PB_SUBFIELD_CHANGED(&lastPrefs_, newPrefs, commonprefs, datadraw));
 
   // if new geometry is required, build it
@@ -309,8 +320,6 @@ void LaserNode::refresh_(const simData::LaserUpdate* newUpdate, const simData::L
       locatorNode_->replaceChild(oldNode, node_);
     else
       locatorNode_->addChild(node_);
-    // activate the locatorNode
-    locatorNode_->setNodeMask(DISPLAY_MASK_LASER);
     dirtyBound();
   }
   else
@@ -339,7 +348,7 @@ void LaserNode::refresh_(const simData::LaserUpdate* newUpdate, const simData::L
   // update the local grid prefs, if laser is being drawn
   if (visible && (force || newPrefs))
   {
-    assert(localGrid_ != NULL);
+    assert(localGrid_ != nullptr);
     localGrid_->setPrefs(activePrefs->commonprefs().localgrid(), force);
   }
 }
@@ -374,7 +383,7 @@ void LaserNode::updateLocator_(const simData::LaserUpdate* newUpdate, const simD
     if (!lastProps_.has_azelrelativetohostori() || !lastProps_.azelrelativetohostori())
     {
       // if assert fails, check that constructor creates this locator for non-relative lasers
-      assert(laserXYZOffsetLocator_ != NULL);
+      assert(laserXYZOffsetLocator_ != nullptr);
 
       // laser xyz offsets are relative to host platform orientation;
       laserXYZOffsetLocator_->setLocalOffsets(posOffset, simCore::Vec3(), activeUpdate->time(), false);
@@ -392,7 +401,7 @@ void LaserNode::updateLocator_(const simData::LaserUpdate* newUpdate, const simD
   }
 }
 
-osg::Geode* LaserNode::createGeometry_(const simData::LaserPrefs &prefs)
+osg::Group* LaserNode::createGeometry_(const simData::LaserPrefs &prefs)
 {
   const float length = prefs.maxrange();
   const double segmentLength = simCore::sdkMin(prefs.maxrange(), MAX_SEGMENT_LENGTH);
@@ -410,14 +419,14 @@ osg::Geode* LaserNode::createGeometry_(const simData::LaserPrefs &prefs)
   g->setLineWidth(prefs.laserwidth());
 
   // done
-  osg::Geode* geode = new osgEarth::LineGroup();
-  geode->addChild(g);
-  return geode;
+  osg::Group* lineGroup = new osgEarth::LineGroup();
+  lineGroup->addChild(g);
+  return lineGroup;
 }
 
 void LaserNode::updateLaser_(const simData::LaserPrefs &prefs)
 {
-  if (node_ == NULL || node_->getNumChildren() == 0)
+  if (node_ == nullptr || node_->getNumChildren() == 0)
     return;
   osgEarth::LineDrawable* geom = dynamic_cast<osgEarth::LineDrawable*>(node_->getChild(0));
   if (!geom)
@@ -431,10 +440,26 @@ void LaserNode::updateLaser_(const simData::LaserPrefs &prefs)
   geom->setLineWidth(prefs.laserwidth());
 }
 
+void LaserNode::getVisibleEndPoints(std::vector<osg::Vec3d>& ecefVec) const
+{
+  ecefVec.clear();
+  if (!isActive() || !hasLastPrefs_)
+    return;
+
+  // Pull the origin node from the locator node. This is more efficient than a matrix multiply
+  simCore::Vec3 firstPos;
+  locatorNode_->getPosition(&firstPos, simCore::COORD_SYS_ECEF);
+  ecefVec.push_back(osg::Vec3d(firstPos.x(), firstPos.y(), firstPos.z()));
+
+  // Use the full matrix of the locator node to calculate the correctly-oriented end point
+  const float length = lastPrefs_.maxrange();
+  const auto& locatorMatrix = locatorNode_->getMatrix();
+  ecefVec.push_back(osg::Vec3d(0., length, 0.) * locatorMatrix);
+}
+
 unsigned int LaserNode::objectIndexTag() const
 {
-  // Not supported for lasers
-  return 0;
+  return objectIndexTag_;
 }
 
 }

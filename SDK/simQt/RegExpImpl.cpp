@@ -1,28 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling and Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* U.S. Naval Research Laboratory.
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <cassert>
 #include <QRegExp>
 #include <QRegularExpression>
@@ -36,8 +33,8 @@ RegExpImpl::RegExpImpl(const std::string& exp, CaseSensitivity caseSense, Patter
   : exp_(exp),
   caseSensitivity_(caseSense),
   patternSyntax_(patternSyntax),
-  qRegExp_(NULL),
-  fastRegex_(NULL)
+  qRegExp_(nullptr),
+  fastRegex_(nullptr)
 {
   initializeQRegExp_();
 }
@@ -47,8 +44,8 @@ RegExpImpl::RegExpImpl(const RegExpImpl& other)
   : exp_(other.exp_),
   caseSensitivity_(other.caseSensitivity_),
   patternSyntax_(other.patternSyntax_),
-  qRegExp_(NULL),
-  fastRegex_(NULL)
+  qRegExp_(nullptr),
+  fastRegex_(nullptr)
 {
   initializeQRegExp_();
 }
@@ -139,9 +136,9 @@ void RegExpImpl::setPatternSyntax(RegExpImpl::PatternSyntax patternSyntax)
 //------------------------------------------------------------
 bool RegExpImpl::isValid() const
 {
-  if (fastRegex_ != NULL)
+  if (fastRegex_ != nullptr)
     return fastRegex_->isValid();
-  if (qRegExp_ != NULL)
+  if (qRegExp_ != nullptr)
     return qRegExp_->isValid();
   return false;
 }
@@ -149,9 +146,9 @@ bool RegExpImpl::isValid() const
 //------------------------------------------------------------
 std::string RegExpImpl::errors() const
 {
-  if (fastRegex_ != NULL)
+  if (fastRegex_ != nullptr)
     return fastRegex_->errorString().toStdString();
-  if (qRegExp_ != NULL)
+  if (qRegExp_ != nullptr)
     return qRegExp_->errorString().toStdString();
   return "";
 }
@@ -240,14 +237,17 @@ void RegExpImpl::initializeQRegExp_()
   {
   case RegExp:
   {
-    QRegularExpression::PatternOptions patternOptions = QRegularExpression::DontCaptureOption | QRegularExpression::OptimizeOnFirstUsageOption;
+    QRegularExpression::PatternOptions patternOptions = QRegularExpression::DontCaptureOption;
+#if QT_VERSION < QT_VERSION_CHECK(5, 12, 0)
+    patternOptions |= QRegularExpression::OptimizeOnFirstUsageOption;
+#endif
     if (caseSensitivity_ == CaseInsensitive)
       patternOptions |= QRegularExpression::CaseInsensitiveOption;
     fastRegex_ = new QRegularExpression(QString::fromStdString(exp_), patternOptions);
     if (!fastRegex_->isValid())
     {
       delete fastRegex_;
-      fastRegex_ = NULL;
+      fastRegex_ = nullptr;
     }
     break;
   }
@@ -310,7 +310,7 @@ simData::RegExpFilterPtr RegExpFilterFactoryImpl::createRegExpFilter(const std::
   {
     SIM_ERROR << "Failed to create regular expression: " << newRegExp->errors() << "\n";
     delete newRegExp;
-    newRegExp = NULL;
+    newRegExp = nullptr;
   }
   return simData::RegExpFilterPtr(newRegExp);
 }

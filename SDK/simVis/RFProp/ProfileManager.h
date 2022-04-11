@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,25 +23,30 @@
 #ifndef SIMVIS_RFPROP_PROFILE_MANAGER_H
 #define SIMVIS_RFPROP_PROFILE_MANAGER_H
 
-#include "osg/Group"
+#include <memory>
+#include "simVis/LocatorNode.h"
 #include "simVis/RFProp/Profile.h"
-#include "simVis/RFProp/ColorProvider.h"
 
+namespace simCore { class DatumConvert; }
 namespace simRF
 {
 class BearingProfileMap;
+class ColorProvider;
+struct ProfileContext;
 
 /**
  * Manages a collection of Profiles
  */
-class SDKVIS_EXPORT ProfileManager : public osg::Group
+class SDKVIS_EXPORT ProfileManager : public simVis::LocatorNode
 {
 public:
   /**
    * Creates a new ProfileManager
+   * @param datumConvert converter for MSL heights
    */
-  ProfileManager();
-  virtual ~ProfileManager();
+  explicit ProfileManager(std::shared_ptr<simCore::DatumConvert> datumConvert);
+
+  void reset();
 
   /**
    * Create a new profile map for the given time
@@ -101,14 +107,14 @@ public:
   /**
    * Gets the profile at the given bearing
    * @param bearingR bearing in radians
-   * @return profile at specified bearing, or NULL if none
+   * @return profile at specified bearing, or nullptr if none
    */
   Profile* getProfileByBearing(double bearingR) const;
 
   /**
   * Gets the profile at the specified index, intended to support simple iteration through all profiles.
   * @param index of profile to return
-  * @return profile at specified index, or NULL if none
+  * @return profile at specified index, or nullptr if none
   */
   const Profile* getProfile(unsigned int index) const;
 
@@ -162,24 +168,15 @@ public:
   void setMode(Profile::DrawMode mode);
 
   /**
-   * Gets the display thickness, a height in meters
+   * Gets the display thickness, in # height steps
    */
-  float getDisplayThickness() const;
+  unsigned int getDisplayThickness() const;
 
   /**
    * Sets the display thickness, i.e., the altitude span for 3D displays
-   * @param displayThickness The display thickness in meters.  All Profiles managed by this ProfileManager will have this display thickness assigned to them.
+   * @param displayThickness The display thickness in # height steps.  All Profiles managed by this ProfileManager will have this display thickness assigned to them.
    */
-  void setDisplayThickness(float displayThickness);
-
-  /**
-   * Sets the display thickness in number of slots.  This call can fail if no profiles are loaded.
-   * The actual height is calculated based on the height of a slot in the current profile.  See
-   * also setDisplayThickness(float).
-   * @param numSlots Number of slots of height to visualize
-   * @return 0 on success; non-zero on failure, e.g. no profiles loaded
-   */
-  int setThicknessBySlots(int numSlots);
+  void setDisplayThickness(unsigned int displayThickness);
 
   /**
    * Gets the reference latitude in radians
@@ -205,12 +202,12 @@ public:
   void setRefCoord(double latRad, double lonRad, double alt);
 
   /**
-   * Get whether the Profiles should conform to a spherical earth
+   * Get whether the profile data are specified for spherical or WGS84 earth
    */
   bool getSphericalEarth() const;
 
   /**
-   * Set whether the Profiles should conform to a spherical earth
+   * Set whether the profile data are specified for spherical or WGS84 earth
    */
   void setSphericalEarth(bool sphericalEarth);
 
@@ -234,10 +231,7 @@ public:
    */
   void setThresholdType(ProfileDataProvider::ThresholdType type);
 
-  /**
-   * Notifies the ProfileManager that it needs to re-render it's Profiles b/c something change effecting the rendering.
-   */
-  void dirty();
+
 
   /** Return the proper library name */
   virtual const char* libraryName() const { return "simRF"; }
@@ -245,30 +239,28 @@ public:
   /** Return the class name */
   virtual const char* className() const { return "ProfileManager"; }
 
+protected:
+  virtual ~ProfileManager();
+
 private:
+  /**
+  * Notifies the ProfileManager that it needs to re-render its profiles b/c something changed affecting the rendering.
+  */
+  void dirty_();
+
   void updateVisibility_();
   void initShaders_();
 
-private:
   osg::ref_ptr<ColorProvider> colorProvider_;
-
+  osg::ref_ptr<osg::Uniform> alphaUniform_;    ///< Uniform shader value for adjusting the alpha
   std::map<double, BearingProfileMap*> timeBearingProfiles_; ///< map from time to profiles according to bearing
-  BearingProfileMap *currentProfileMap_; ///< profile map corresponding to the current time
-
+  BearingProfileMap *currentProfileMap_; ///< profile map corresponding to the current time; map does not own the profiles it contains
   double history_;          ///< number of bearing slices displayed
   double bearing_;          ///< current bearing of RF prop display
-  double height_;           ///< 2D Horizontal display height
-  float displayThickness_;  ///< display thickness for 3D displays
-  bool agl_;                ///< whether height values for the 2D Horizontal display are referenced to height above ground level (AGL) or to mean sea level (MSL).
-  bool displayOn_;          ///< whether the display is on or off
   float alpha_;             ///< Alpha value (1.0 opaque, 0.0 transparent)
-  Profile::DrawMode mode_;  ///< Type of display, e.g. 2D, 3D
-  osg::Vec3d refCoord_;     ///< Reference coordinate used for coordinate conversion used in the visualization
-  bool sphericalEarth_;     ///< whether the profile data are specified for spherical earth or not
-  double elevAngle_;        ///< elevation angle used in the current display
-  ProfileDataProvider::ThresholdType type_;  ///< threshold type selected for display, e.g., POD, SNR, CNR
+  bool displayOn_;          ///< whether visualization is active or not
+  std::shared_ptr<ProfileContext> profileContext_; ///< context shared by manager and each profile
 };
 }
 
 #endif /* SIMVIS_RFPROP_PROFILE_MANAGER_H */
-

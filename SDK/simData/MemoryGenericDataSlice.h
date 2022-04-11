@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -53,8 +54,11 @@ public:
   MemoryGenericDataSlice();
   virtual ~MemoryGenericDataSlice();
 
-  /// remove all data in the slice, except the static point
+  /// remove all data in the slice
   void flush();
+
+  /// remove data for the given time range; up to but not including endTime
+  void flush(double startTime, double endTime);
 
   /// apply the data limits indicated by 'prefs'
   void limitByPrefs(const CommonPrefs &prefs);
@@ -105,7 +109,7 @@ private:
   /// Maintains the current state
   mutable GenericData current_;
 
-  /// Used to detect changes requiring and update to current_
+  /// Used to detect changes requiring an update to current_
   mutable double lastTime_;
 
   // All the generic data keyed by generic data key

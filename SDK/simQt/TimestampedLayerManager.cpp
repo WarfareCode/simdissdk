@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 
 #include <cassert>
 #include "osg/ValueObject"
@@ -48,7 +49,7 @@ public:
   virtual void onLayerAdded(osgEarth::Layer *layer, unsigned int index)
   {
     osgEarth::ImageLayer* imageLayer = dynamic_cast<osgEarth::ImageLayer*>(layer);
-    if (imageLayer == NULL)
+    if (imageLayer == nullptr)
       return;
     parent_.addLayerWithTime_(imageLayer);
     parent_.setTime_(parent_.currTime_);
@@ -57,7 +58,7 @@ public:
   virtual void onLayerRemoved(osgEarth::Layer *layer, unsigned int index)
   {
     osgEarth::ImageLayer* imageLayer = dynamic_cast<osgEarth::ImageLayer*>(layer);
-    if (imageLayer == NULL)
+    if (imageLayer == nullptr)
       return;
     if (!parent_.layerIsTimed(imageLayer))
       return;
@@ -73,8 +74,10 @@ public:
     std::map<std::string, TimeGroup*>& groups = parent_.groups_;
     auto groupIter = groups.find(timeGroup);
 
-    // If there's at least one timed layer in this group, the group needs to exist
-    assert(groupIter != groups.end());
+    // If there's at least one timed layer in this group, the group needs to exist.  However,
+    // this condition could happen in cases where a layer group gets multiple entries with the
+    // same time stamp, then the layers get removed.  This condition is rare enough that we
+    // just handle it by breaking out here.
     if (groupIter == groups.end())
       return;
 
@@ -164,7 +167,7 @@ public:
   /* Reimplemented from MapNodeObserver */
   virtual osgEarth::MapNode* getMapNode()
   {
-    return (map_.valid() ? map_.get() : NULL);
+    return (map_.valid() ? map_.get() : nullptr);
   }
 
   /** Return the proper library name */
@@ -216,9 +219,13 @@ TimestampedLayerManager::~TimestampedLayerManager()
     attachPoint_->removeChild(mapChangeObserver_);
   clock_.removeTimeCallback(clockListener_);
   clockListener_.reset();
-  osgEarth::MapNode* mapNode = dynamic_cast<MapChangeObserver*>(mapChangeObserver_.get())->getMapNode();
-  if (mapNode && mapNode->getMap())
-    mapNode->getMap()->removeMapCallback(mapListener_.get());
+  auto* mco = dynamic_cast<MapChangeObserver*>(mapChangeObserver_.get());
+  if (mco)
+  {
+    osgEarth::MapNode* mapNode = mco->getMapNode();
+    if (mapNode && mapNode->getMap())
+      mapNode->getMap()->removeMapCallback(mapListener_.get());
+  }
   restoreOriginalVisibility_();
   for (auto groupIter = groups_.begin(); groupIter != groups_.end(); groupIter++)
     delete groupIter->second;
@@ -231,7 +238,7 @@ void TimestampedLayerManager::setTime_(const simCore::TimeStamp& stamp)
   if (!timingActive_)
     return;
 
-  osgEarth::ImageLayer* oldLayer = NULL;
+  osgEarth::ImageLayer* oldLayer = nullptr;
 
   // Update the current layer for each group
   for (auto groupIter = groups_.begin(); groupIter != groups_.end(); groupIter++)
@@ -271,8 +278,8 @@ void TimestampedLayerManager::setTime_(const simCore::TimeStamp& stamp)
         currentLayer->setVisible(false);
         oldLayer = currentLayer.get();
       }
-      currentLayer = NULL;
-      emit currentTimedLayerChanged(NULL, oldLayer);
+      currentLayer = nullptr;
+      emit currentTimedLayerChanged(nullptr, oldLayer);
     }
   }
 }
@@ -288,31 +295,18 @@ const osgEarth::ImageLayer* TimestampedLayerManager::getCurrentTimedLayer(const 
   auto groupIter = groups_.find(timeGroup);
   if (groupIter != groups_.end())
     return groupIter->second->currentLayer.get();
-  return NULL;
+  return nullptr;
 }
 
 void TimestampedLayerManager::addLayerWithTime_(osgEarth::ImageLayer* newLayer)
 {
   if (!newLayer)
     return;
-  const osgEarth::Config& conf = newLayer->getConfig();
-  std::string iso8601 = conf.value("time");
-  // Fall back to "times" if possible
-  if (iso8601.empty())
-    iso8601 = conf.value("times");
-  /*
-   * Some image layer file types can have time values (e.g. db files).  Config values can't be
-   * changed at time of file read, so time is set as a user value of the tile source in these cases.
-   * Config values take precedence of user values.
-   */
-  if (iso8601.empty() && newLayer->getTileSource())
-    newLayer->getTileSource()->getUserValue("time", iso8601);
+  const simCore::TimeStamp& simTime = getLayerTime(newLayer);
   // If layer has no time, nothing to do with it
-  if (iso8601.empty())
+  if (simTime == simCore::INFINITE_TIME_STAMP)
     return;
 
-  osgEarth::DateTime osgTime(iso8601);
-  simCore::TimeStamp simTime = simCore::TimeStamp(1970, osgTime.asTimeStamp());
   originalVisibility_[newLayer] = newLayer->getVisible();
   std::string groupName = getLayerTimeGroup(newLayer);
   // If the group doesn't exist yet, create it and put it in the map
@@ -356,7 +350,7 @@ void TimestampedLayerManager::setMapNode_(osgEarth::MapNode* mapNode)
     map->getLayers(vec);
     for (auto i = vec.begin(); i != vec.end(); i++)
     {
-      osgEarth::ImageLayer* newLayer = NULL;
+      osgEarth::ImageLayer* newLayer = nullptr;
       if (i->valid())
         newLayer = dynamic_cast<osgEarth::ImageLayer*>(i->get());
       addLayerWithTime_(newLayer);
@@ -389,7 +383,7 @@ void TimestampedLayerManager::restoreOriginalVisibility_()
   for (auto groupIter = groups_.begin(); groupIter != groups_.end(); groupIter++)
   {
     // Then iterate through the layers within the groups
-    for (auto layerIter = groupIter->second->layers.begin(); layerIter != groupIter->second->layers.begin(); layerIter++)
+    for (auto layerIter = groupIter->second->layers.begin(); layerIter != groupIter->second->layers.end(); layerIter++)
     {
       if (layerIter->second.valid() && layerIter->second != groupIter->second->currentLayer)
       {
@@ -399,6 +393,9 @@ void TimestampedLayerManager::restoreOriginalVisibility_()
           layerIter->second->setVisible(originVisIter->second);
       }
     }
+
+    // Unset the group's current layer.  Prevents bad starting state when timed visibility is reactiviated
+    groupIter->second->currentLayer = nullptr;
   }
 }
 
@@ -407,7 +404,7 @@ void TimestampedLayerManager::useTimedVisibility_()
   // Set all layers invisible as a base, then let setTime handle which (if any) should be visible
   for (auto groupIter = groups_.begin(); groupIter != groups_.end(); groupIter++)
   {
-    for (auto layerIter = groupIter->second->layers.begin(); layerIter != groupIter->second->layers.begin(); layerIter++)
+    for (auto layerIter = groupIter->second->layers.begin(); layerIter != groupIter->second->layers.end(); layerIter++)
     {
       if (layerIter->second.valid())
       {
@@ -420,15 +417,39 @@ void TimestampedLayerManager::useTimedVisibility_()
   setTime_(currTime_);
 }
 
-std::string TimestampedLayerManager::getLayerTimeGroup(const osgEarth::ImageLayer* layer)
+std::string TimestampedLayerManager::getLayerTimeGroup(const osgEarth::ImageLayer* layer) const
 {
-  if (!layer || !layerIsTimed(layer))
+  if (!layer || getLayerTime(layer) == simCore::INFINITE_TIME_STAMP)
     return "";
   const osgEarth::Config& conf = layer->getConfig();
   std::string rv = conf.value(TIME_GROUP_TAG);
   if (rv.empty())
     rv = DEFAULT_LAYER_TIME_GROUP;
   return rv;
+}
+
+simCore::TimeStamp TimestampedLayerManager::getLayerTime(const osgEarth::ImageLayer* layer) const
+{
+  if (!layer)
+    return simCore::INFINITE_TIME_STAMP;
+
+  const osgEarth::Config& conf = layer->getConfig();
+  std::string iso8601 = conf.value("time");
+  // Fall back to "times" if possible
+  if (iso8601.empty())
+    iso8601 = conf.value("times");
+
+  // Some image layer file types can have time values (e.g. db files).  Config values can't be
+  // changed at time of file read, so time is set as a user value of the layer in these cases.
+  // Config values take precedence over user values.
+  if (iso8601.empty())
+    layer->getUserValue("time", iso8601);
+  // If layer has no time, nothing to do with it
+  if (iso8601.empty())
+    return simCore::INFINITE_TIME_STAMP;
+
+  const osgEarth::DateTime osgTime(iso8601);
+  return simCore::TimeStamp(1970, osgTime.asTimeStamp());
 }
 
 }

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -43,9 +44,9 @@ class SDKUTIL_EXPORT RecenterEyeOnArea
 public:
   /**
    * Initialize, optionally with a view to use when recentering.
-   * @param view Inset view to use when updating viewpoints.  If NULL, then setView() must be called before recentering.
+   * @param view Inset view to use when updating viewpoints.  If nullptr, then setView() must be called before recentering.
    */
-  RecenterEyeOnArea(simVis::View* view=NULL);
+  RecenterEyeOnArea(simVis::View* view=nullptr);
   /**
    * Initialize using the current focus of a FocusManager for recentering.
    * @param focusManager Focus manager whose currently focused inset view will be used for updating viewpoints.

@@ -23,11 +23,7 @@ endif()
 # Figure out the expected version and expected folder based on VSI layout,
 # so that we can configure a good guess at the CMAKE_PREFIX_PATH required.
 # If your Qt is somewhere else, configure CMAKE_PREFIX_PATH appropriately.
-if(NOT MSVC10)
-    set(EXPECTED_QT5_VERSION 5.9.8)
-else()
-    set(EXPECTED_QT5_VERSION 5.5.1)
-endif()
+set(EXPECTED_QT5_VERSION 5.9.8)
 
 # VSI installs to a win64_vc-#.# subdirectory under c:/QtSDK.  By default, Qt is in /usr/local/Qt-* on both systems
 set(DEFAULT_QT_LOCATION "c:/QtSDK/${BUILD_SYSTEM_CANONICAL_NAME}/${EXPECTED_QT5_VERSION}")
@@ -46,7 +42,7 @@ if(NOT Qt5Widgets_FOUND)
 endif()
 
 # SDK-146: Update EXPECTED_QT_VERSION based off the actual version string from Qt that was specified
-set(EXPECTED_QT_VERSION "${Qt5Widgets_VERSION_STRING}")
+set(EXPECTED_QT5_VERSION "${Qt5Widgets_VERSION_STRING}")
 mark_as_advanced(Qt5Widgets_DIR)
 mark_as_advanced(Qt5Core_DIR)
 mark_as_advanced(Qt5Gui_DIR)
@@ -125,7 +121,7 @@ macro(INSTALL_QT5_LIB LIBNAME)
             CONFIGURATIONS Release
             COMPONENT ThirdPartyLibs
         )
-        INSTALL(FILES ${QT5_LIBRARY_DIR}/libQt5${LIBNAME}.so.${EXPECTED_QT5_VERSION}
+        INSTALL(FILES ${QT5_LIBRARY_DIR}/libQt5${LIBNAME}.so.${Qt5Widgets_VERSION_STRING}
             DESTINATION ${INSTALLSETTINGS_SHARED_LIBRARY_DIR}
             CONFIGURATIONS Release
             COMPONENT ThirdPartyLibs
@@ -138,6 +134,7 @@ macro(install_qtplugins dir)
     if(WIN32)
         INSTALL(DIRECTORY ${_qt5Gui_install_prefix}/plugins/${dir}
             DESTINATION ${INSTALLSETTINGS_RUNTIME_DIR}/
+            OPTIONAL
             COMPONENT ThirdPartyLibs
             FILES_MATCHING PATTERN *.dll
             PATTERN *d.dll EXCLUDE)
@@ -145,6 +142,7 @@ macro(install_qtplugins dir)
         # Note that Qt requires the Linux shared objects in the executable's subdirectory (e.g. bin)
         INSTALL(DIRECTORY ${_qt5Gui_install_prefix}/plugins/${dir}
             DESTINATION ${INSTALLSETTINGS_RUNTIME_DIR}/
+            OPTIONAL
             COMPONENT ThirdPartyLibs
             FILES_MATCHING PATTERN *.so)
     endif()
@@ -164,6 +162,7 @@ if(NOT DEFINED INSTALL_THIRDPARTY_LIBRARIES OR INSTALL_THIRDPARTY_LIBRARIES)
     # Each install needs platforms and image formats
     install_qtplugins(platforms)
     install_qtplugins(imageformats)
+    install_qtplugins(styles)
 endif()
 
 # At this point, the Widgets package is found -- find the others too

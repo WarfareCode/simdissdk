@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -49,16 +50,16 @@ static const int INTERVAL_SHORT = 2000;
 
 ToastOnWidget::ToastOnWidget(QWidget* widget)
   : widget_(widget),
-    hideTimer_(NULL),
-    popIn_(NULL),
-    popOut_(NULL)
+    hideTimer_(nullptr),
+    popIn_(nullptr),
+    popOut_(nullptr)
 {
   // Set up the toast button
   if (widget_)
     toast_ = new ClickableLabel(widget_);
   else
   {
-    // This shouldn't happen; indicates that we were given a NULL widget.
+    // This shouldn't happen; indicates that we were given a nullptr widget.
     assert(0);
     return;
   }

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -33,6 +34,7 @@
 class QTreeWidget;
 class QTreeWidgetItem;
 class QSortFilterProxyModel;
+class QTimer;
 
 namespace simQt {
 
@@ -97,12 +99,10 @@ public:
   /** Get the settings for all the filters */
   void getFilterSettings(QMap<QString, QVariant>& settings) const;
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  /** DEPRECATED: Sets/clears the selected ID in the entity list; does NOT generate a itemsSelected signal; instead, use setSelected method above */
-  void setSelected(uint64_t id, bool selected, bool signalItemsSelected = false);
-  /** DEPRECATED: Sets/clears selection for the IDs in 'list'; instead, use setSelected method above */
-  void setSelected(QList<uint64_t> list, bool selected);
-#endif
+  /** Set the type(s) to use when counting entity types for the numFilteredItemsChanged signal*/
+  void setCountEntityType(simData::ObjectType type);
+  /** Returns the entity count type(s) */
+  simData::ObjectType countEntityTypes() const;
 
 public slots:
   /** Swaps the view to the hierarchy tree */
@@ -142,6 +142,16 @@ private slots:
   /** Finish the delay an emit sendNumFilteredItems_ */
   void emitSend_();
 
+  /// Unconditionally emits the items selected; O(n) on selection list and emits a signal
+  void emitItemsSelected_();
+
+  /** Before items are added/removed/moved capture if any selected item is visible */
+  void captureVisible_();
+  /** If an item was visible before add/remove/move make sure it is still visible */
+  void keepVisible_();
+  /** If an item was visible before rename make sure it is still visible */
+  void captureAndKeepVisible_();
+
 protected:
   QTreeView* view_; ///< wrapped view
   AbstractEntityTreeModel* model_; ///< original data model
@@ -156,11 +166,16 @@ private:
   Settings::ObserverPtr settingsObserver_; ///< observer to listen to settings changes
   bool treeView_; ///< true if the tree view should show as a tree, false shows as a list
   bool pendingSendNumItems_; ///< true if waiting to emit a sendNumFilteredItems_ signal
-  bool emitSelectionChanged_; ///< determines if the widget should emit a selection changed signal. Defaults to true
+  bool processSelectionModelSignals_; ///< determines if the widget should emit a selection changed signal. Defaults to true
+  simData::ObjectType countEntityTypes_;
+  double lastSelectionChangedTime_; ///< Throttles calls to emitItemsSelected_
+  QTimer* emitItemsSelectedTimer_; ///< Throttles calls to emitItemsSelected_
 
   // Maintain a list (to match return value) and a set (for fast searches) of selections
   QList<uint64_t> selectionList_; ///< Cached version of all selected entities
   QSet<uint64_t> selectionSet_; ///< Parallel cache of all selected entities
+
+  std::vector<uint64_t> setVisible_; ///< Possibly make the items visible after the view has updated
 };
 
 }

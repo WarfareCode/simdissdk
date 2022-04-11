@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -31,7 +32,7 @@ LUTProfileDataProvider::LUTProfileDataProvider(simCore::LUT::LUT2<short> *lut, d
 {
   // LUTProfileDataProvider is taking ownership of the lut
   assert(lut);
-  if (lut == NULL)
+  if (lut == nullptr)
   {
     SIM_ERROR << "Attempting to assign a NULL LUT to the LUTProfileDataProvider" << std::endl;
   }
@@ -43,7 +44,7 @@ LUTProfileDataProvider::LUTProfileDataProvider(simCore::LUT::LUT2<short> *lut, P
 {
   // LUTProfileDataProvider is taking ownership of the lut
   assert(lut);
-  if (lut == NULL)
+  if (lut == nullptr)
   {
     SIM_ERROR << "Attempting to assign a NULL LUT to the LUTProfileDataProvider" << std::endl;
   }
@@ -100,7 +101,7 @@ double LUTProfileDataProvider::getValueByIndex(unsigned int heightIndex, unsigne
 {
   // Apply scalar to convert internal storage back to dB
   const double val = (*lut_)(heightIndex, rangeIndex);
-  return ((val > AREPS_GROUND_VALUE) ? scalar_ * val : val);
+  return ((val > GROUND_VALUE) ? scalar_ * val : val);
 }
 
 double LUTProfileDataProvider::interpolateValue(double height, double range) const

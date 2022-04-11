@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -159,33 +160,33 @@ int testStaticPlatformUpdates()
   // Verify that only the first update results in slice hasChanged
   ds->update(1.0);
   rv += SDK_ASSERT(slice->hasChanged());
-  rv += SDK_ASSERT(slice->current() != NULL);
+  rv += SDK_ASSERT(slice->current() != nullptr);
   rv += SDK_ASSERT(slice->current()->time() == -1.0);
 
   ds->update(1.1);
   rv += SDK_ASSERT(!slice->hasChanged());
-  rv += SDK_ASSERT(slice->current() != NULL);
+  rv += SDK_ASSERT(slice->current() != nullptr);
   rv += SDK_ASSERT(slice->current()->time() == -1.0);
 
   ds->update(2.0);
   rv += SDK_ASSERT(!slice->hasChanged());
-  rv += SDK_ASSERT(slice->current() != NULL);
+  rv += SDK_ASSERT(slice->current() != nullptr);
   rv += SDK_ASSERT(slice->current()->time() == -1.0);
 
   ds->update(10.0);
   rv += SDK_ASSERT(!slice->hasChanged());
-  rv += SDK_ASSERT(slice->current() != NULL);
+  rv += SDK_ASSERT(slice->current() != nullptr);
   rv += SDK_ASSERT(slice->current()->time() == -1.0);
 
   ds->update(1.0);
   rv += SDK_ASSERT(!slice->hasChanged());
-  rv += SDK_ASSERT(slice->current() != NULL);
+  rv += SDK_ASSERT(slice->current() != nullptr);
   rv += SDK_ASSERT(slice->current()->time() == -1.0);
 
   ds->flush(staticID);
   ds->update(1.0);
   rv += SDK_ASSERT(!slice->hasChanged());
-  rv += SDK_ASSERT(slice->current() != NULL);
+  rv += SDK_ASSERT(slice->current() != nullptr);
   rv += SDK_ASSERT(slice->current()->time() == -1.0);
 
   return rv;

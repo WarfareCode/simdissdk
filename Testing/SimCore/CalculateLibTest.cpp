@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,6 +29,7 @@
 #include "simCore/Calc/Calculations.h"
 #include "simCore/Calc/CoordinateConverter.h"
 #include "simCore/Calc/Math.h"
+#include "simCore/String/UtfUtils.h"
 
 namespace {
 
@@ -170,7 +172,7 @@ int testCalculateGeodesicDRCR(double *from, double *to, simCore::EarthModelCalcu
 
   simCore::calculateGeodesicDRCR(simCore::Vec3(from), from[3], simCore::Vec3(to), &downRng, &crossRng);
 
-  if (almostEqual(downRng, result[0]) &&
+  if (almostEqual(downRng, result[0], 1.3) &&
     almostEqual(crossRng, result[1]))
   {
     std::cerr << "successful" << std::endl;
@@ -352,6 +354,10 @@ int readNextTest(std::istream& fd, bool& doneReading)
     return 0;
   }
 
+  // Check for comments
+  if (test.compare(0, 1, "#") == 0)
+    return 0;
+
   int rv = 0;
   simCore::EarthModelCalculations earth = simCore::PERFECT_SPHERE;
   // set coordinate system / reference frame
@@ -514,7 +520,7 @@ int readNextTest(std::istream& fd, bool& doneReading)
 int calculateLibTestFile(const std::string& filename)
 {
   // Read the test data
-  std::ifstream fd(filename.c_str());
+  std::ifstream fd(simCore::streamFixUtf8(filename));
   if (!fd)
   {
     std::cout << "Error opening file " << filename << std::endl;

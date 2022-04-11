@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,6 +23,7 @@
 #ifndef SIMVIS_RADIAL_LOS_H
 #define SIMVIS_RADIAL_LOS_H
 
+#include <memory>
 #include "simCore/Common/Common.h"
 #include "simCore/Calc/Coordinate.h"
 #include "simVis/Types.h"
@@ -89,7 +91,12 @@ public:
   /**
    * Dtor
    */
-  virtual ~RadialLOS() { }
+  virtual ~RadialLOS();
+
+  /**
+   * Assignment
+   */
+  RadialLOS& operator = (const RadialLOS& rhs);
 
   /**
    * Sets the maximum range of the sample
@@ -172,10 +179,10 @@ public:
    * Re-samples the terrain for all sample points that fall within the specified extent.
    * @param[in ] mapNode Map interface to use for sampling
    * @param[in ] extent  Geospatial extent within which to update the samples
-   * @param patch Patch node, possibly NULL
+   * @param patch Patch node, possibly nullptr
    * @return True upon success
    */
-  bool update(osgEarth::MapNode* mapNode, const osgEarth::GeoExtent& extent, osg::Node* patch = NULL);
+  bool update(osgEarth::MapNode* mapNode, const osgEarth::GeoExtent& extent, osg::Node* patch = nullptr);
 
   /**
    * Gets the number of samples in each radial
@@ -236,7 +243,7 @@ private:
   osgEarth::Angle     fov_;
   osgEarth::Angle     azim_resolution_;
   osg::ref_ptr<const osgEarth::SpatialReference> srs_;
-  osg::ref_ptr<osgEarth::ElevationEnvelope> envelope_;
+  std::unique_ptr<osgEarth::ElevationPool::WorkingSet> elevationWorkingSet_;
   bool use_scene_graph_;
 
   bool getBoundingRadials_(double azim_rad, const Radial*& out_r0, const Radial*& out_r1, double& out_mix) const;

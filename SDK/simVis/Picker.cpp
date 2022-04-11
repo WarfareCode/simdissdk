@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -39,8 +40,17 @@
 
 namespace simVis {
 
+// Defines the picked entity for the vertex shader
 static const std::string SDK_PICK_HIGHLIGHT_OBJECTID = "sdk_pick_highlight_objectid";
+// Defines if the highlight is enabled for the vertex shader
 static const std::string SDK_PICK_HIGHLIGHT_ENABLED = "sdk_pick_highlight_enabled";
+// Defines the entry point for the vertex shader
+static const std::string SDK_PICK_CHECK_HIGHLIGHT = "sdkPickCheckHighlight";
+// Defines if an entity has been selected for the fragment shader
+static const std::string SDK_PICK_SELECTED = "sdk_pick_isselected";
+// Defines the entry point for the fragment shader
+static const std::string SDK_HIGHLIGHT_FRAG = "sdkPickHighlightFragment";
+
 static const unsigned int DEFAULT_PICK_MASK = simVis::DISPLAY_MASK_PLATFORM | simVis::DISPLAY_MASK_PLATFORM_MODEL;
 
 /////////////////////////////////////////////////////////////////
@@ -54,7 +64,7 @@ PickerHighlightShader::~PickerHighlightShader()
 {
 }
 
-void PickerHighlightShader::installShaderProgram(osg::StateSet* intoStateSet, bool defaultEnabled)
+void PickerHighlightShader::installShaderProgram(osg::StateSet* intoStateSet, bool defaultEnabled, const std::string& shaderPrefix)
 {
   if (!intoStateSet)
     return;
@@ -65,19 +75,32 @@ void PickerHighlightShader::installShaderProgram(osg::StateSet* intoStateSet, bo
   package.load(vp, package.pickerVertex());
   package.load(vp, package.pickerFragment());
 
+  // if there is a shader prefix add new shaders which will be used by the picker
+  if (!shaderPrefix.empty())
+  {
+    package.replace(SDK_PICK_CHECK_HIGHLIGHT, shaderPrefix + SDK_PICK_CHECK_HIGHLIGHT);
+    package.replace(SDK_PICK_HIGHLIGHT_OBJECTID, shaderPrefix + SDK_PICK_HIGHLIGHT_OBJECTID);
+    package.replace(SDK_PICK_HIGHLIGHT_ENABLED, shaderPrefix + SDK_PICK_HIGHLIGHT_ENABLED);
+    package.replace(SDK_PICK_SELECTED, shaderPrefix + SDK_PICK_SELECTED);
+    package.replace(SDK_HIGHLIGHT_FRAG, shaderPrefix + SDK_HIGHLIGHT_FRAG);
+
+    package.load(vp, package.pickerVertex());
+    package.load(vp, package.pickerFragment());
+  }
+
   // Since we're accessing object IDs, we need to load the indexing shader as well
   osgEarth::Registry::objectIndex()->loadShaders(vp);
 
   // A uniform that will tell the shader which object to highlight
-  intoStateSet->getOrCreateUniform(SDK_PICK_HIGHLIGHT_OBJECTID, osg::Uniform::UNSIGNED_INT)->set(0u);
-  intoStateSet->getOrCreateUniform(SDK_PICK_HIGHLIGHT_ENABLED, osg::Uniform::BOOL)->set(defaultEnabled);
+  intoStateSet->getOrCreateUniform(shaderPrefix + SDK_PICK_HIGHLIGHT_OBJECTID, osg::Uniform::UNSIGNED_INT)->set(0u);
+  intoStateSet->getOrCreateUniform(shaderPrefix + SDK_PICK_HIGHLIGHT_ENABLED, osg::Uniform::BOOL)->set(defaultEnabled);
 }
 
 void PickerHighlightShader::installShaderProgram(bool defaultEnabled)
 {
   osg::ref_ptr<osg::StateSet> stateset;
   if (stateset_.lock(stateset))
-    PickerHighlightShader::installShaderProgram(stateset.get(), defaultEnabled);
+    PickerHighlightShader::installShaderProgram(stateset.get(), defaultEnabled, shaderPrefix_);
 }
 
 bool PickerHighlightShader::isEnabled() const
@@ -86,7 +109,7 @@ bool PickerHighlightShader::isEnabled() const
   if (stateset_.lock(stateset))
   {
     bool isEnabled = false;
-    osg::Uniform* enabledUniform = stateset->getUniform(SDK_PICK_HIGHLIGHT_ENABLED);
+    osg::Uniform* enabledUniform = stateset->getUniform(shaderPrefix_ + SDK_PICK_HIGHLIGHT_ENABLED);
     // Note that get() returns true if it succeeds
     return enabledUniform && enabledUniform->get(isEnabled) && isEnabled;
   }
@@ -97,14 +120,19 @@ void PickerHighlightShader::setEnabled(bool enabled)
 {
   osg::ref_ptr<osg::StateSet> stateset;
   if (stateset_.lock(stateset))
-    stateset->getOrCreateUniform(SDK_PICK_HIGHLIGHT_ENABLED, osg::Uniform::BOOL)->set(enabled);
+    stateset->getOrCreateUniform(shaderPrefix_ + SDK_PICK_HIGHLIGHT_ENABLED, osg::Uniform::BOOL)->set(enabled);
 }
 
 void PickerHighlightShader::setId(unsigned int tagId)
 {
   osg::ref_ptr<osg::StateSet> stateset;
   if (stateset_.lock(stateset))
-    stateset->getOrCreateUniform(SDK_PICK_HIGHLIGHT_OBJECTID, osg::Uniform::UNSIGNED_INT)->set(tagId);
+    stateset->getOrCreateUniform(shaderPrefix_ + SDK_PICK_HIGHLIGHT_OBJECTID, osg::Uniform::UNSIGNED_INT)->set(tagId);
+}
+
+void PickerHighlightShader::setShaderPrefix(const std::string& shaderPrefix)
+{
+  shaderPrefix_ = shaderPrefix;
 }
 
 /////////////////////////////////////////////////////////////////
@@ -244,12 +272,12 @@ void IntersectPicker::pickThisFrame_()
   pickedThisFrame_ = true;
   // Intersect picker should only pick on Platforms and Platform Models
   unsigned int acceptMask = DEFAULT_PICK_MASK;
-  simVis::EntityNode* pickedEntity = NULL;
+  simVis::EntityNode* pickedEntity = nullptr;
   if (lastMouseView_.valid())
     pickedEntity = scenario_->find(lastMouseView_.get(), mx_, my_, acceptMask);
-  if (pickedEntity == NULL)
+  if (pickedEntity == nullptr)
   {
-    setPicked_(0, NULL);
+    setPicked_(0, nullptr);
     return;
   }
 
@@ -386,7 +414,7 @@ RTTPicker::RTTPicker(simVis::ViewManager* viewManager, simVis::ScenarioManager* 
 RTTPicker::~RTTPicker()
 {
   // Reset RTT Picker's callback to avoid possible invalid-memory situation if RTT Picker outlives us
-  rttPicker_->setDefaultCallback(NULL);
+  rttPicker_->setDefaultCallback(nullptr);
   osg::ref_ptr<simVis::ViewManager> viewManager;
   if (viewManager_.lock(viewManager))
     viewManager->removeCallback(viewManagerCallback_.get());
@@ -448,7 +476,6 @@ void RTTPicker::setUpViewWithDebugTexture(osgViewer::View* intoView, simVis::Vie
   stateSet->setAttributeAndModes(new osg::BlendFunc(GL_ONE, GL_ZERO), 1);
 
   const char* fs =
-    "#version " GLSL_VERSION_STR "\n"
     "void swap(inout vec4 c) { c.rgba = c==vec4(0)? vec4(1) : vec4(vec3((c.r+c.g+c.b+c.a)/4.0),1); }\n";
   osgEarth::Registry::shaderGenerator().run(geode);
   osgEarth::VirtualProgram::getOrCreate(geode->getOrCreateStateSet())->setFunction("swap", fs, osgEarth::ShaderComp::LOCATION_FRAGMENT_COLORING);

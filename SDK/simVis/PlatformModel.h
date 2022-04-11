@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -44,7 +45,7 @@ class RCSNode;
 class SDKVIS_EXPORT PlatformModelNode : public LocatorNode
 {
 public:
-  static const int TRAVERSAL_MASK;
+  static const unsigned int TRAVERSAL_MASK;
 
   /** Interface for activity callbacks. */
   class Callback : public osg::Referenced
@@ -70,7 +71,7 @@ public:
    * Constructs a new platform model node.
    * @param locator Parent locator from which to inherit position/orientation
    */
-  PlatformModelNode(Locator* locator = NULL);
+  PlatformModelNode(Locator* locator = nullptr);
 
   /**
   * Gets the bounds of the 3D model, possible scaled
@@ -179,7 +180,6 @@ private:
   osg::ref_ptr<simVis::DynamicScaleTransform> dynamicXform_;
   osg::ref_ptr<simVis::BillboardAutoTransform> imageIconXform_;
   osg::ref_ptr<osg::MatrixTransform> offsetXform_;
-  osg::ref_ptr<osg::MatrixTransform> imageAlignmentXform_;
   osg::Vec2f                         imageOriginalSize_;
   bool                               autoRotate_;
   bool                               lastPrefsValid_;
@@ -187,6 +187,11 @@ private:
   osg::ref_ptr<osg::Uniform>         brightnessUniform_;
   osg::ref_ptr<osg::Group>           alphaVolumeGroup_;
   unsigned int                       objectIndexTag_;
+
+  /** Potentially null pointer to the fast-path icon render node. */
+  osg::ref_ptr<osg::Node> fastPathIcon_;
+  /** If the model is externally provided, then turn off fast path */
+  bool allowFastPath_;
 
   /** Contains list of platform callbacks */
   std::vector<osg::ref_ptr<Callback> > callbacks_;
@@ -198,16 +203,22 @@ private:
 
   /// May changes the model based on prefs and returns true if the model was changed
   bool updateModel_(const simData::PlatformPrefs& prefs);
-  /// Updates the orientation offset  based on prefs; returns true if changed
-  bool updateOffsets_(const simData::PlatformPrefs& prefs);
+  enum ModelUpdate
+  {
+    NO_UPDATE,  ///< No further update required, model is correctly set
+    FORCE_UPDATE, ///< Continue processing to force an update of the model
+    CHECK_FOR_UPDATE,  ///< Check preferences to see if the model should be updated
+  };
+  /// Called by updateModel_() to try to update the fast-path icon; returns if the model was updated or if more processing is needed
+  ModelUpdate updateFastPathModel_(const simData::PlatformPrefs& prefs);
+  /// Updates the orientation offset  based on prefs or if force is set true; returns true if changed
+  bool updateOffsets_(const simData::PlatformPrefs& prefs, bool force);
   /// Updates the scale based on pref; returns true if changed
   bool updateScale_(const simData::PlatformPrefs& prefs);
   /// Updates the XYZ scale based on pref; returns true when scale changes
   bool updateScaleXyz_(const simData::PlatformPrefs& prefs);
   /// Updates the dynamic scale based on pref; returns true when dynamic scale changes
   bool updateDynamicScale_(const simData::PlatformPrefs& prefs);
-  /// Updates the 2D image alignment offsets; returns true if the alignment offset changed
-  bool updateImageAlignment_(const simData::PlatformPrefs& prefs, bool force);
   /// Updates the icon rotation based on pref or if force is set to true when the model has changed
   void updateImageIconRotation_(const simData::PlatformPrefs& prefs, bool force);
   /// Updates the depth buffer when the nodepthicons has changed or if force is set to true when the model has changed
@@ -230,6 +241,8 @@ private:
   void updateAlphaVolume_(const simData::PlatformPrefs& prefs);
   /// Updates the DOF Transform animation based on prefs
   void updateDofTransform_(const simData::PlatformPrefs& prefs, bool force) const;
+  /// Internal version of set setModel();
+  void setModel_(osg::Node* node, bool isImage);
 };
 
 } // namespace simVis

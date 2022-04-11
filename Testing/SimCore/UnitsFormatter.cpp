@@ -9,18 +9,15 @@
  *
  *
  * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
- *               EW Modeling and Simulation, Code 5770
+ *               EW Modeling & Simulation, Code 5773
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * For more information please send email to simdis@enews.nrl.navy.mil
- *
- * U.S. Naval Research Laboratory.
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
- ****************************************************************************
- *
  *
  */
 #ifdef HAVE_SIMUTIL
@@ -405,8 +402,8 @@ int testDoubles(const simCore::TextFormatter* fmt, simCore::UnitContextAdapter* 
   int rv = 0;
   rv += SDK_ASSERT(fmt->formatDouble(0.0) == "0");
   rv += SDK_ASSERT(fmt->formatDouble(-0.4) == "0");
-  rv += SDK_ASSERT(fmt->formatDouble(-0.50000001) == "-1");
-  rv += SDK_ASSERT(fmt->formatDouble(0.50000001) == "1");
+  rv += SDK_ASSERT(fmt->formatDouble(-1.50000001) == "-2");
+  rv += SDK_ASSERT(fmt->formatDouble(1.50000001) == "2");
   rv += SDK_ASSERT(fmt->formatDouble(1234567890123.05) == "1234567890123");
   units->setGenericPrecision(2);
   rv += SDK_ASSERT(fmt->formatDouble(0.001) == "0.00");

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -35,7 +36,7 @@ static const QString USAGE_STR = QObject::tr("<p>To edit, mouse click into a fie
 TimeFormatContainer::TimeFormatContainer(simCore::TimeFormat timeFormat, const QString& name)
   : timeFormat_(timeFormat),
   name_(name),
-  action_(NULL)
+  action_(nullptr)
 {
 }
 
@@ -96,6 +97,11 @@ bool SecondsContainer::hasFocus() const
 simCore::TimeStamp SecondsContainer::timeStamp() const
 {
   return widget_->timeStamp();
+}
+
+QString SecondsContainer::timeText() const
+{
+  return widget_->text();
 }
 
 void SecondsContainer::setTimeStamp(const simCore::TimeStamp& value)
@@ -191,6 +197,11 @@ simCore::TimeStamp MonthContainer::timeStamp() const
   return widget_->timeStamp();
 }
 
+QString MonthContainer::timeText() const
+{
+  return widget_->text();
+}
+
 void MonthContainer::setTimeStamp(const simCore::TimeStamp& value)
 {
   widget_->setTimeStamp(value);
@@ -282,6 +293,11 @@ bool OrdinalContainer::hasFocus() const
 simCore::TimeStamp OrdinalContainer::timeStamp() const
 {
   return widget_->timeStamp();
+}
+
+QString OrdinalContainer::timeText() const
+{
+  return widget_->text();
 }
 
 void OrdinalContainer::setTimeStamp(const simCore::TimeStamp& value)
@@ -378,6 +394,11 @@ simCore::TimeStamp MinutesContainer::timeStamp() const
   return widget_->timeStamp();
 }
 
+QString MinutesContainer::timeText() const
+{
+  return widget_->text();
+}
+
 void MinutesContainer::setTimeStamp(const simCore::TimeStamp& value)
 {
   widget_->setTimeStamp(value);
@@ -469,6 +490,11 @@ bool HoursContainer::hasFocus() const
 simCore::TimeStamp HoursContainer::timeStamp() const
 {
   return widget_->timeStamp();
+}
+
+QString HoursContainer::timeText() const
+{
+  return widget_->text();
 }
 
 void HoursContainer::setTimeStamp(const simCore::TimeStamp& value)

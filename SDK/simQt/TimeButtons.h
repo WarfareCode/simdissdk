@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -37,7 +38,7 @@ class SDKQT_EXPORT ButtonActions : public QObject
   Q_OBJECT;
 public:
   /** Constructor */
-  ButtonActions(QWidget *parent = NULL);
+  ButtonActions(QWidget *parent = nullptr);
   virtual ~ButtonActions();
 
   /** Returns step decrease action */
@@ -109,7 +110,7 @@ class SDKQT_EXPORT TimeButtons : public QWidget
 
 public:
   /** Constructor */
-  TimeButtons(QWidget *parent = NULL);
+  TimeButtons(QWidget *parent = nullptr);
   virtual ~TimeButtons();
 
   /** Binds the button to the action */

@@ -1,24 +1,25 @@
-// -*- mode: c++ -*-
+/* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #ifdef WIN32
 #include <windows.h>
 #endif
@@ -69,16 +70,12 @@ SplashScreen::~SplashScreen()
 void SplashScreen::addToWindowsTaskbar_()
 {
   // Note that as of Qt 4.8.2, setWindowFlags() MAY work to do this, but fails
-  // due to parent() being NULL; a call in setWindowFlags() accesses parent()
-  // directly without checking NULL, causing a crash.  So we must use Windows API
+  // due to parent() being nullptr; a call in setWindowFlags() accesses parent()
+  // directly without checking nullptr, causing a crash.  So we must use Windows API
 
 #ifdef WIN32
   // Pull out the HWND for the splash window
-#if (QT_VERSION < QT_VERSION_CHECK(5,0,0))
-  HWND windowId = winId();
-#else
   HWND windowId = reinterpret_cast<HWND>(winId());
-#endif
 
   // Turn on the taskbar icon for Windows
   int exStyle = GetWindowLong(windowId, GWL_EXSTYLE);

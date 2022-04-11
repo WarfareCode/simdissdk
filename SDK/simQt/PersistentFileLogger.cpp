@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #ifdef WIN32
 #include <Windows.h>
 #else
@@ -38,15 +39,15 @@
 namespace simQt {
 
 /** Path under (Application Data/Organization) folder for logs */
-static const QString LOGS_SUBDIRECTORY = "logs";
+static const QString DEFAULT_LOGS_SUBDIRECTORY = "logs";
 
 /** Filename pattern, including Prefix, DateTime string, and PID string */
-static const QString FILENAME_PATTERN("%1_%2_%3.log");
+static const QString FILENAME_PATTERN("%1_%2_%3%4");
 
 /** Describes the format for the date time.  If updating, update the wildcard pattern */
 static const QString DATETIME_STRING_FORMAT("yyyy-MM-dd_hh-mm-ss");
 /** Prefix, y-m-d, h-m-s, pid, .log, optional .# */
-static const QString WILDCARD_PATTERN = "%1_*-*-*_*-*-*_*.log*";
+static const QString WILDCARD_PATTERN = "%1_*-*-*_*-*-*_*%2*";
 
 /** Illegal filename characters */
 static const QString ILLEGAL_FILENAME_CHARS = "\\/:*?\"<>|";
@@ -57,9 +58,12 @@ PersistentFileLogger::PersistentFileLogger(const QString& prefix, QObject* paren
   : QObject(parent),
     prefix_(sanitizeFilename_(prefix)),
     startTime_(QDateTime::currentDateTime().toUTC()),
-    file_(NULL),
-    stream_(NULL),
-    openAttempted_(false)
+    file_(nullptr),
+    stream_(nullptr),
+    openAttempted_(false),
+    subdirectory_(DEFAULT_LOGS_SUBDIRECTORY),
+    extension_(".log"),
+    binary_(false)
 {
 }
 
@@ -67,6 +71,24 @@ PersistentFileLogger::~PersistentFileLogger()
 {
   delete stream_;
   delete file_;
+}
+
+void PersistentFileLogger::setSubdirectory(const QString& subdir)
+{
+  if (!isOpen())
+    subdirectory_ = sanitizeFilename_(subdir);
+}
+
+void PersistentFileLogger::setExtension(const QString& extension)
+{
+  if (!isOpen())
+    extension_ = sanitizeFilename_(extension);
+}
+
+void PersistentFileLogger::setBinary(bool binary)
+{
+  if (!isOpen())
+    binary_ = binary;
 }
 
 int PersistentFileLogger::addText(const QString& text)
@@ -79,9 +101,16 @@ int PersistentFileLogger::addText(const QString& text)
   return (stream_->status() == QTextStream::Ok) ? 0 : 1;
 }
 
+int PersistentFileLogger::write(const QByteArray& bytes)
+{
+  if (!file_)
+    return 1;
+  return static_cast<int>(file_->write(bytes)) == bytes.size() ? 0 : 1;
+}
+
 bool PersistentFileLogger::isOpen() const
 {
-  return stream_ != NULL && file_ != NULL  && stream_->status() == QTextStream::Ok;
+  return stream_ != nullptr && file_ != nullptr && stream_->status() == QTextStream::Ok;
 }
 
 QString PersistentFileLogger::filePath() const
@@ -92,10 +121,10 @@ QString PersistentFileLogger::filePath() const
 int PersistentFileLogger::open()
 {
   // make sure stream is not open
-  if (stream_ != NULL || file_ != NULL || openAttempted_)
+  if (stream_ != nullptr || file_ != nullptr || openAttempted_)
   {
     // Check for an error on the stream before returning
-    if (stream_ == NULL || stream_->status() != QTextStream::Ok)
+    if (stream_ == nullptr || stream_->status() != QTextStream::Ok)
       return 1;
     // File is open, all is good for writing
     return 0; // success
@@ -114,11 +143,17 @@ int PersistentFileLogger::open()
   // Open the file and the stream
   filename_ = logsDir.filePath(makeFileName_(logsDir));
   file_ = new QFile(filename_);
-  if (!file_->open(QFile::WriteOnly | QFile::Text))
+
+  // Configure the file opening flags
+  QIODevice::OpenMode openFlags = QIODevice::WriteOnly;
+  if (!binary_)
+    openFlags |= QIODevice::Text;
+
+  if (!file_->open(openFlags))
   {
     SIM_DEBUG << "Unable to open: " << filename_.toStdString() << "\n";
     delete file_;
-    file_ = NULL;
+    file_ = nullptr;
     return 1;
   }
   // Create the stream to write to the file
@@ -134,7 +169,7 @@ int PersistentFileLogger::clean(const DetermineRemovable& removable)
     return 1;
 
   // Set up a name filter to catch only files that match our prefix
-  logsDir.setNameFilters(QStringList() << WILDCARD_PATTERN.arg(prefix_));
+  logsDir.setNameFilters(QStringList() << WILDCARD_PATTERN.arg(prefix_).arg(extension_));
 
   // Determine which files to delete
   QStringList filesToDelete;
@@ -166,7 +201,7 @@ QString PersistentFileLogger::createFilePath_() const
 
   // Use the File Utilities to create the home path
   QString returnPath;
-  if (FileUtilities::createHomePath(LOGS_SUBDIRECTORY, false, returnPath) == 0)
+  if (FileUtilities::createHomePath(subdirectory_, false, returnPath) == 0)
   {
     return returnPath;
   }
@@ -207,7 +242,7 @@ QString PersistentFileLogger::expectedFileName_() const
 
   // Try to get a unique name.  This should only matter if we make the same file multiple times
   // in a short time span (e.g. during unit testing)
-  return FILENAME_PATTERN.arg(prefix_, dateTimeString, pidString);
+  return FILENAME_PATTERN.arg(prefix_, dateTimeString, pidString, extension_);
 }
 
 QString PersistentFileLogger::sanitizeFilename_(const QString& prefix) const

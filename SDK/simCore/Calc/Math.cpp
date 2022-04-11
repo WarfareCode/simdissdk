@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -86,9 +87,9 @@ void simCore::d3MMmult(const double a[][3], const double b[][3], double c[][3])
   assert(b);
   assert(c);
 
-  if ((a == NULL) || (b == NULL) || (c == NULL))
+  if ((a == nullptr) || (b == nullptr) || (c == nullptr))
   {
-    if (c != NULL)
+    if (c != nullptr)
     {
       for (size_t ii = 0; ii < 3; ++ii)
       {
@@ -125,7 +126,7 @@ void simCore::d3Mv3Mult(const double a[][3], const Vec3 &u, Vec3 &v)
   }
 
   assert(a);
-  if (a == NULL)
+  if (a == nullptr)
   {
     v.zero();
     return;
@@ -147,7 +148,7 @@ void simCore::d3MTv3Mult(const double a[][3], const Vec3 &u, Vec3 &v)
   }
 
   assert(a);
-  if (a == NULL)
+  if (a == nullptr)
   {
     v.zero();
     return;
@@ -165,9 +166,9 @@ void simCore::d3MMTmult(const double a[][3], const double b[][3], double c[][3])
   assert(b);
   assert(c);
 
-  if ((a == NULL) || (b == NULL) || (c == NULL))
+  if ((a == nullptr) || (b == nullptr) || (c == nullptr))
   {
-    if (c != NULL)
+    if (c != nullptr)
     {
       for (size_t ii = 0; ii < 3; ++ii)
       {
@@ -264,7 +265,7 @@ void simCore::d3DCMtoEuler(const double dcm[][3], Vec3 &ea)
   //   asin returns in the range -pi/2 to pi/2
 
   assert(dcm);
-  if (dcm == NULL)
+  if (dcm == nullptr)
   {
     ea.zero();
     return;
@@ -310,7 +311,7 @@ void simCore::d3EulertoDCM(const Vec3 &ea, double dcm[][3])
   // theta, and finally a rotation about the body z through the yaw angle psi.
 
   assert(dcm);
-  if (dcm == NULL)
+  if (dcm == nullptr)
     return;
 
   // psi/yaw components
@@ -360,7 +361,7 @@ void simCore::d3EulertoQ(const Vec3 &ea, double q[4])
   // Results verified by Matlab: http://www.mathworks.com/matlabcentral/fileexchange/27653
 
   assert(q);
-  if (q == NULL)
+  if (q == nullptr)
     return;
 
   // psi/yaw components
@@ -405,7 +406,7 @@ void simCore::d3QtoEuler(const double q[4], Vec3 &ea)
   // Function expects a normalized quaternion in the form:  q0 + q1i + q2j + q3k
 
   assert(q);
-  if (q == NULL)
+  if (q == nullptr)
   {
     ea.zero();
     return;
@@ -467,4 +468,47 @@ double simCore::toScientific(double value, int* exp)
   if (exp)
     *exp = static_cast<int>(numZeros);
   return (value < 0) ? -mantissa : mantissa;
+}
+
+int simCore::getPowerOfTenForSignificance(double num, unsigned int significance)
+{
+  // If number is 0, return 0 to avoid infinite case from log10(0)
+  if (num == 0.0)
+    return 0;
+
+  // Determine the number of digits difference from the significance to the provided value's significance
+  const double log10Diff = static_cast<double>(significance) - log10(fabs(num));
+
+  // Return 0 for a log10 that is positive, but under/at the significance value.  For example,
+  // if the expected range is [0.0,100.0] any incoming num in that range should return 0 for
+  // 10^0, which will have the impact of rounding to the nearest 10.
+  if (log10Diff >= 0.0 && log10Diff <= static_cast<double>(significance))
+    return 0;
+
+  return static_cast<int>(floor(log10Diff));
+}
+
+void simCore::roundRanges(double& minValue, double& maxValue)
+{
+  // Round ranges algorithm taken from legacy Plot-XY:
+  // Rounds the axis numbers to smooth numbers; general idea is that
+  // ([ceil | floor](val * 10 ^ X)) / 10 ^ X == rounded number
+  const double range = fabs(maxValue - minValue);
+  if (range == 0.0)
+    return;
+
+  // Calculate the desired 10^X first
+  const double powerVal = static_cast<double>(getPowerOfTenForSignificance(range, 2u));
+  const double powerTen = pow(10.0, powerVal);
+  // Do the formula: floor|ceil(num * 10^X) / 10^X to get significance of 2
+  if (minValue < maxValue)
+  {
+    minValue = (floor(minValue * powerTen)) / powerTen;
+    maxValue = (ceil(maxValue * powerTen)) / powerTen;
+  }
+  else
+  {
+    minValue = (ceil(minValue * powerTen)) / powerTen;
+    maxValue = (floor(maxValue * powerTen)) / powerTen;
+  }
 }

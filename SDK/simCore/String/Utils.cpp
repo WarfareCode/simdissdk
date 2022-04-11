@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -168,6 +169,38 @@ std::string getEnvVar(const std::string &env)
   if (!cenv)
     return "";
   return StringUtils::trimRight(cenv, "\r");
+}
+
+int setEnvVar(const std::string& key, const std::string& value, bool overrideExisting)
+{
+#ifdef WIN32
+  // Windows version does not support override functionality natively
+  if (!overrideExisting)
+  {
+    // Successful call if the key exists and we're not overwriting it
+    if (getenv(key.c_str()))
+      return 0;
+  }
+  const int rv = _putenv_s(key.c_str(), value.c_str());
+#else
+  const int rv = setenv(key.c_str(), value.c_str(), overrideExisting ? 1 : 0);
+#endif
+  return (rv == 0) ? 0 : 1;
+}
+
+std::string removeTrailingZeros(const std::string& str, bool leaveDecimal)
+{
+  size_t dec = str.find('.');
+  if (dec == str.npos)
+    return str;
+
+  size_t i = str.find_last_not_of("0");
+  if (i != str.npos)
+  {
+    if (i < str.size() && (leaveDecimal || str[i] != '.'))
+      ++i;
+  }
+  return str.substr(0, i);
 }
 
 } // namespace simCore

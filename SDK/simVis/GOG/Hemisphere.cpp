@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -25,10 +26,12 @@
 #include "osgEarth/LocalGeometryNode"
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/Math.h"
+#include "simCore/GOG/GogShape.h"
 #include "simNotify/Notify.h"
 #include "simVis/GOG/Hemisphere.h"
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
+#include "simVis/GOG/LoaderUtils.h"
 #include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 
@@ -51,20 +54,20 @@ GogNodeInterface* Hemisphere::deserialize(const ParsedShape& parsedShape,
   if (radius_m <= 0.f)
   {
     SIM_WARN << "Cannot create hemisphere with no radius\n";
-    return NULL;
+    return nullptr;
   }
-  osg::Node* shape = osgEarth::AnnotationUtils::createHemisphere(
+  osg::ref_ptr<osg::Node> shape = simVis::createHemisphere(
     radius_m, color);
   shape->setName("GOG Hemisphere");
 
-  osgEarth::LocalGeometryNode* node = NULL;
+  osgEarth::LocalGeometryNode* node = nullptr;
 
   if (nodeType == GOGNODE_GEOGRAPHIC)
   {
     node = new osgEarth::LocalGeometryNode();
     node->setMapNode(mapNode);
     node->setPosition(p.getMapPosition());
-    node->getPositionAttitudeTransform()->addChild(shape);
+    node->getPositionAttitudeTransform()->addChild(shape.get());
     node->setStyle(p.style_);
     osg::Quat yaw(p.localHeadingOffset_->as(osgEarth::Units::RADIANS), -osg::Vec3(0, 0, 1));
     osg::Quat pitch(p.localPitchOffset_->as(osgEarth::Units::RADIANS), osg::Vec3(1, 0, 0));
@@ -72,17 +75,55 @@ GogNodeInterface* Hemisphere::deserialize(const ParsedShape& parsedShape,
     node->setLocalRotation(roll * pitch * yaw);
   }
   else
-    node = new HostedLocalGeometryNode(shape, p.style_);
+    node = new HostedLocalGeometryNode(shape.get(), p.style_);
+
+  node->setName("GOG Hemisphere Position");
+  Utils::applyLocalGeometryOffsets(*node, p, nodeType);
+  GogNodeInterface* rv = new SphericalNodeInterface(node, metaData);
+  rv->applyToStyle(parsedShape, p.units_);
+
+  return rv;
+}
+
+GogNodeInterface* Hemisphere::createHemisphere(const simCore::GOG::Hemisphere& hemi, bool attached, const simCore::Vec3& refPoint, osgEarth::MapNode* mapNode)
+{
+  double radiusM = 0.;
+  hemi.getRadius(radiusM);
+  osgEarth::Distance radius(radiusM, osgEarth::Units::METERS);
+
+  osg::Vec4f color(osgEarth::Color::White);
+
+  float radius_m = radius.as(osgEarth::Units::METERS);
+
+  // cannot create a hemisphere with no radius
+  if (radius_m <= 0.f)
+  {
+    SIM_WARN << "Cannot create hemisphere with no radius\n";
+    return nullptr;
+  }
+  osg::ref_ptr<osg::Node> shape = simVis::createHemisphere(
+    radius_m, color);
+  shape->setName("GOG Hemisphere");
+
+  osgEarth::LocalGeometryNode* node = nullptr;
+  osgEarth::Style style;
+  if (!attached)
+  {
+    node = new osgEarth::LocalGeometryNode();
+    node->getPositionAttitudeTransform()->addChild(shape.get());
+    node->setMapNode(mapNode);
+  }
+  else
+    node = new HostedLocalGeometryNode(shape.get(), style);
   node->setName("GOG Hemisphere Position");
 
-  GogNodeInterface* rv = NULL;
-  if (node)
-  {
-    Utils::applyLocalGeometryOffsets(*node, p, nodeType);
-    rv = new SphericalNodeInterface(node, metaData);
-    rv->applyToStyle(parsedShape, p.units_);
-  }
-  return rv;
+  // use the ref point as the center if no center defined by the shape
+  simCore::Vec3 center;
+  if (hemi.getCenterPosition(center) != 0 && !attached)
+    center = refPoint;
+  LoaderUtils::setShapePositionOffsets(*node, hemi, center, refPoint, attached, false);
+  GogMetaData metaData;
+  return new SphericalNodeInterface(node, metaData);
 }
 
 } }

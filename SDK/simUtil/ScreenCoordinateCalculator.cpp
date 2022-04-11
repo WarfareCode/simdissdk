@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -75,10 +76,17 @@ ScreenCoordinateCalculator::ScreenCoordinateCalculator()
   : dirtyMatrix_(true)
 {
   // 11km is rough depth of Mariana Trench; decrease radius to help horizon culling work underwater
+#if OSGEARTH_SOVERSION >= 110
+  osgEarth::Ellipsoid em;
+  // See also: Scenario.cpp.  We need a horizon here to detect behind-earth coordinates
+  em.setSemiMajorAxis(em.getRadiusEquator() - 11000.0);
+  em.setSemiMinorAxis(em.getRadiusPolar() - 11000.0);
+#else
   osg::EllipsoidModel em;
   // See also: Scenario.cpp.  We need a horizon here to detect behind-earth coordinates
   em.setRadiusEquator(em.getRadiusEquator() - 11000.0);
   em.setRadiusPolar(em.getRadiusPolar() - 11000.0);
+#endif
   horizon_ = new osgEarth::Horizon(em);
 }
 
@@ -119,13 +127,6 @@ ScreenCoordinate ScreenCoordinateCalculator::calculate(const simVis::EntityNode&
   simCore::CoordinateConverter::convertGeodeticPosToEcef(lla, ecefOut);
   return matrixCalculate_(osg::Vec3d(ecefOut.x(), ecefOut.y(), ecefOut.z()));
 }
-
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-ScreenCoordinate ScreenCoordinateCalculator::calculate(const simCore::Vec3& lla)
-{
-  return calculateLla(lla);
-}
-#endif
 
 ScreenCoordinate ScreenCoordinateCalculator::calculateLla(const simCore::Vec3& lla)
 {

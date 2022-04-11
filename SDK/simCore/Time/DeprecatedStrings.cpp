@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -97,7 +98,7 @@ std::string DDD_HHMMSS_Formatter::toString(const simCore::TimeStamp& timeStamp, 
     const int days = static_cast<int>(timeStamp.secondsSinceRefYear().getSeconds() / simCore::SECPERDAY);
     const simCore::Seconds seconds = timeStamp.secondsSinceRefYear() - simCore::Seconds(days * simCore::SECPERDAY, 0);
     ss << std::setw(3) << std::setfill('0') << (days + 1) << " ";
-    HoursTimeFormatter::toStream(ss, seconds, precision);
+    HoursTimeFormatter::toStream(ss, seconds, precision, true);
   }
   return ss.str();
 }

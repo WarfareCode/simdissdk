@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -57,10 +58,12 @@ class SDKQT_EXPORT CategoryFilterCounter : public QObject
   Q_OBJECT;
 public:
   /** Default constructor */
-  explicit CategoryFilterCounter(QObject* parent = NULL);
+  explicit CategoryFilterCounter(QObject* parent = nullptr);
 
   /** Sets the category filter to use */
   void setFilter(const simData::CategoryFilter& filter);
+  /** Sets the entity filter, restricting the counts. Useful for only listing PLATFORMS, for example, in a platform-only list. */
+  void setObjectTypes(simData::ObjectType objectTypes);
 
   /** Retrieves the most recent results set */
   const CategoryCountResults& results() const;
@@ -115,6 +118,8 @@ private:
   std::unique_ptr<simData::CategoryFilter> filter_;
   /** Is set true when filter changes, until prepare() is called. */
   bool dirtyFlag_;
+  /** Filter entity results by object type */
+  simData::ObjectType objectTypes_;
 };
 
 /**
@@ -128,12 +133,15 @@ class SDKQT_EXPORT AsyncCategoryCounter : public QObject
   Q_OBJECT;
 public:
   /** Default constructor */
-  explicit AsyncCategoryCounter(QObject* parent = NULL);
+  explicit AsyncCategoryCounter(QObject* parent = nullptr);
 
   virtual ~AsyncCategoryCounter();
 
   /** Retrieves the last fully executed results. */
   const simQt::CategoryCountResults& lastResults() const;
+
+  /** Sets the entity filter, restricting the counts. Useful for only listing PLATFORMS, for example, in a platform-only list. */
+  void setObjectTypes(simData::ObjectType objectTypes);
 
 public slots:
   /**
@@ -165,6 +173,7 @@ private:
   CategoryFilterCounter* counter_;
   std::unique_ptr<simData::CategoryFilter> nextFilter_;
   bool retestPending_;
+  simData::ObjectType objectTypes_;
 };
 
 }

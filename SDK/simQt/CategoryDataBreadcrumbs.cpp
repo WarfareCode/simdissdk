@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -201,7 +202,7 @@ void CloseableItemDelegate::paint(QPainter* painter, const QStyleOptionViewItem&
 
     // Turn off state flags that we manage ourselves
     tbOpt.state = inOption.state & ~QStyle::State_HasFocus;
-    tbOpt.state = inOption.state & ~QStyle::State_MouseOver;
+    tbOpt.state = tbOpt.state & ~QStyle::State_MouseOver;
     // Turn on auto-raise
     tbOpt.state |= QStyle::State_AutoRaise;
     if (index == hoverIndex_)
@@ -290,7 +291,7 @@ bool CloseableItemDelegate::editorEvent(QEvent* evt, QAbstractItemModel* model, 
 {
   // We only care about mouse events
   QMouseEvent* mouseEvent = dynamic_cast<QMouseEvent*>(evt);
-  if (mouseEvent == NULL)
+  if (mouseEvent == nullptr)
     return false;
 
   // Farm off to helper functions
@@ -359,7 +360,7 @@ private:
 
 CategoryDataBreadcrumbs::CategoryDataBreadcrumbs(QWidget* parent)
   : QWidget(parent),
-    filter_(NULL),
+    filter_(nullptr),
     minimumGroupSize_(3),
     hideWhenEmpty_(true),
     emptyText_(tr("No active category filter")),
@@ -599,8 +600,8 @@ QString CategoryDataBreadcrumbs::buildValuesHtmlList_(const simData::CategoryNam
 
 void CategoryDataBreadcrumbs::addNameToList_(int nameIndex, bool useAltFillColor)
 {
-  // Break out to avoid NULL problems
-  if (filter_ == NULL || filter_->getDataStore() == NULL)
+  // Break out to avoid nullptr problems
+  if (filter_ == nullptr || filter_->getDataStore() == nullptr)
     return;
 
   // Initialize by getting the name manager, name, and current set of checks
@@ -751,7 +752,7 @@ void CategoryDataBreadcrumbs::clearFilter()
 
   // Clear out content
   delete filter_;
-  filter_ = NULL;
+  filter_ = nullptr;
   listWidget_->clear();
 
   // Resize
@@ -775,10 +776,10 @@ void CategoryDataBreadcrumbs::removeFilter_(const QModelIndex& index)
   }
   else
   {
-    // Change a single value, simplify, and re-emit
+    // Removal requires a simplified filter to behave well, so simplify, remove the value, simplify again, and re-emit
     const int value = valueVariant.toInt();
-    const bool wasChecked = index.data(ROLE_IS_CHECKED).toBool();
-    filter_->setValue(name, value, !wasChecked);
+    filter_->simplify();
+    filter_->removeValue(name, value);
     filter_->simplify();
   }
 
@@ -1051,8 +1052,9 @@ void CategoryDataBreadcrumbs::synchronizeToSenderFilter_()
   simQt::EntityCategoryFilter* from = dynamic_cast<simQt::EntityCategoryFilter*>(sender());
   // Assertion failure means that this method was called by something that wasn't an entity category
   // filter, which shouldn't be possible because it's a private slot.
-  assert(from != NULL);
-  setFilter(from->categoryFilter());
+  assert(from != nullptr);
+  if (from)
+    setFilter(from->categoryFilter());
 }
 
 }

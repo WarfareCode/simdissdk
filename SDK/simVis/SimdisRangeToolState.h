@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,8 +29,8 @@ namespace simRF { class RFPropagationFacade; }
 
 namespace simVis
 {
-
 class EntityNode;
+class PlatformNode;
 class ScenarioManager;
 
 /**
@@ -41,15 +42,8 @@ struct SDKVIS_EXPORT SimdisEntityState : public EntityState
   osg::ref_ptr<const simVis::PlatformNode> platformHostNode_; ///< The node of the host platform; for platforms platformHostNode_ == node_
   simRF::RFPropagationFacade* rfPropagation_;  ///< If the entity is a beam this MAY BE set
 
-  SimdisEntityState()
-    : node_(NULL),
-    platformHostNode_(NULL),
-    rfPropagation_(NULL)
-  {
-  }
-  virtual ~SimdisEntityState()
-  {
-  }
+  SimdisEntityState();
+  virtual ~SimdisEntityState();
 };
 
 

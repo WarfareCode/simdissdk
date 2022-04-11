@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,16 +23,16 @@
 #ifndef SIMVIS_LOCATORNODE_H
 #define SIMVIS_LOCATORNODE_H
 
-#include "simCore/Calc/Coordinate.h"
 #include "osg/MatrixTransform"
+#include "osg/observer_ptr"
 #include "osgEarth/Revisioning"
+#include "simCore/Calc/CoordinateSystem.h"
+#include "simVis/Locator.h"
 
 namespace simVis
 {
-class Locator;
-struct LocatorCallback;
+class EntityNode;
 
-//----------------------------------------------------------------------------
 /// Track the transform of a parent LocatorNode with a Locator
 class SDKVIS_EXPORT LocatorNode : public osg::MatrixTransform
 {
@@ -42,7 +43,7 @@ public:
   /// Default constructor
   LocatorNode();
   /// Creates a LocatorNode using the locator provided as the position
-  LocatorNode(Locator* locator);
+  explicit LocatorNode(Locator* locator, unsigned int componentsToTrack = Locator::COMP_ALL);
   /// Creates a LocatorNode using the locator provided as the position, adding the child provided to this
   LocatorNode(Locator* locator, osg::Node* child);
   /// OSG copy constructor implementation
@@ -54,9 +55,9 @@ public:
   const Locator* getLocator() const { return locator_.get(); }
 
   /// set the Locator for this LocatorNode, recalculates the transform matrix
-  void setLocator(Locator *locator);
+  void setLocator(Locator *locator, unsigned int componentsToTrack = Locator::COMP_ALL);
 
-  /// Turns on or off a flag to hint to use Overhead Mode for bounds computation when NodeVisitor is NULL
+  /// Turns on or off a flag to hint to use Overhead Mode for bounds computation when NodeVisitor is nullptr
   void setOverheadModeHint(bool overheadMode);
   /// Retrieves a previously set overhead mode hint, used for bounds computation in intersection visitors
   bool overheadModeHint() const;
@@ -66,7 +67,7 @@ public:
   * function that extracts the Position information (not rotation) from the
   * locatorNode matrix.
   *
-  * @param[out] out_position If not NULL, resulting position stored here
+  * @param[out] out_position If not nullptr, resulting position stored here
   * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
   * @return 0 if the output parameter is populated successfully, nonzero on failure
   */
@@ -77,13 +78,19 @@ public:
   * function that extracts the Position information and rotation from the
   * locatorNode matrix.
   *
-  * @param[out] out_position If not NULL, resulting position stored here
-  * @param[out] out_orientation If not NULL, resulting orientation stored here
+  * @param[out] out_position If not nullptr, resulting position stored here
+  * @param[out] out_orientation If not nullptr, resulting orientation stored here
   * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
   * @return 0 if the output parameter is populated successfully, nonzero on failure
   */
   int getPositionOrientation(simCore::Vec3* out_position, simCore::Vec3* out_orientation,
     simCore::CoordinateSystem coordsys = simCore::COORD_SYS_ECEF) const;
+
+  /**
+  * Links the locatorNode to an entity such that the isActive() state of the entity determines whether this node is active
+  * @param entity entity to track
+  */
+  void setEntityToMonitor(EntityNode* entity);
 
 public:
   /// Synchronizes the transform matrix with the locator
@@ -101,6 +108,8 @@ private: // data
   osg::ref_ptr<Locator> locator_;
   osgEarth::Util::Revision matrixRevision_;
   osg::ref_ptr<LocatorCallback> locatorCallback_;
+  osg::observer_ptr<EntityNode> entityToMonitor_;  ///< if set, the entity whose isActive() state determines the active state of this locatorNode
+  unsigned int componentsToTrack_; ///< Locator::Components mask
 
   /// Sometimes bounds are computed without a node visitor and we need to know if in overhead mode; this flag caches that.
   bool overheadModeHint_;

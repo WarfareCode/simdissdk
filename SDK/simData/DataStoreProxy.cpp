@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,7 +29,7 @@ namespace simData
 
 DataStoreProxy::DataStoreProxy(DataStore* dataStore)
   : dataStore_(dataStore),
-    interpolator_(NULL)
+    interpolator_(nullptr)
 {
   assert(dataStore_);
 }
@@ -39,7 +40,7 @@ void DataStoreProxy::reset(DataStore* newDataStore)
     return;
 
   // only capture old internals if there is somewhere new to put them
-  InternalsMemento *oldInternals = newDataStore ? dataStore_->createInternalsMemento() : NULL;
+  InternalsMemento *oldInternals = newDataStore ? dataStore_->createInternalsMemento() : nullptr;
 
   DataStore *const oldDataStore = dataStore_;
   dataStore_ = newDataStore;
@@ -71,7 +72,7 @@ void DataStoreProxy::setInterpolator(Interpolator *interpolator)
 
 Interpolator* DataStoreProxy::interpolator() const
 {
-  return isInterpolationEnabled() ? interpolator_ : NULL;
+  return isInterpolationEnabled() ? interpolator_ : nullptr;
 }
 
 void DataStoreProxy::addListener(DataStore::ListenerPtr callback)

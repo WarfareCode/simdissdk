@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,27 +24,28 @@
 #include "simVis/Platform.h"
 #include "simVis/TargetDelegation.h"
 
+#undef LC
 #define LC "[TargetDelegation] "
 
 namespace simVis
 {
 TargetDelegation::TargetDelegation()
 {
-  //nop
 }
 
+TargetDelegation::~TargetDelegation()
+{
+}
 
 void TargetDelegation::setGeoFence(const GeoFence* fence)
 {
   fence_ = fence;
 }
 
-
 void TargetDelegation::addUpdateGeometryCallback(UpdateGeometryCallback* cb)
 {
   updateGeometryCallbacks_.push_back(cb);
 }
-
 
 void TargetDelegation::updateGeometry_(osg::MatrixTransform* xform, const osg::Vec3d& ecef)
 {
@@ -55,17 +57,16 @@ void TargetDelegation::updateGeometry_(osg::MatrixTransform* xform, const osg::V
   }
 }
 
-
 void TargetDelegation::addOrUpdate(const PlatformNode* platform)
 {
   // determine whether we're already tracking this platform:
   const TargetNodeMap::iterator t = targetNodes_.find(platform);
   const bool isTracked = t != targetNodes_.end();
-  osg::MatrixTransform* mt = isTracked? t->second.get() : NULL;
+  osg::MatrixTransform* mt = isTracked? t->second.get() : nullptr;
 
   // get the ECEF position of the target
   const simData::PlatformUpdate* update = platform->update();
-  if (update == NULL)
+  if (update == nullptr)
   {
     // this probably means the platform should have been removed
     assert(0);
@@ -94,7 +95,7 @@ void TargetDelegation::addOrUpdate(const PlatformNode* platform)
   }
 
   // if it's outside out fence, ignore it.
-  else if (isTracked && !needToTrack)
+  else if (isTracked)
   {
     SIM_DEBUG << LC << "STOP tracking: " << platform->getId() << std::endl;
 
@@ -103,7 +104,6 @@ void TargetDelegation::addOrUpdate(const PlatformNode* platform)
     targetNodes_.erase(t);
   }
 }
-
 
 void TargetDelegation::remove(const PlatformNode* platform)
 {
@@ -125,4 +125,3 @@ void TargetDelegation::removeAll()
 }
 
 }
-

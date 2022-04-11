@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -25,6 +26,7 @@
 #include "simVis/GOG/GOGNode.h"
 
 namespace osgEarth { class MapNode; }
+namespace simCore { namespace GOG { class Sphere; } }
 
 namespace simVis { namespace GOG {
 
@@ -44,6 +46,9 @@ public:
     const GOGContext&        context,
     const GogMetaData&       metaData,
     osgEarth::MapNode*       mapNode);
+
+  /** Create the hemisphere from the shape object */
+  static GogNodeInterface* createSphere(const simCore::GOG::Sphere& sphere, bool attached, const simCore::Vec3& refPoint, osgEarth::MapNode* mapNode);
 };
 
 } } // namespace simVis::GOG

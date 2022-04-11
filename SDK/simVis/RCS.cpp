@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -39,6 +40,7 @@
 #include "simVis/Utils.h"
 #include "simVis/RCS.h"
 
+#undef LC
 #define LC "[simVis::RCSNode] "
 
 namespace simVis {
@@ -126,7 +128,7 @@ void RCSNode::setRcs(simCore::RadarCrossSectionPtr newRcs)
 
 void RCSNode::rebuild()
 {
-  loadedOK_ = (rcsData_ != NULL) ? true : false;
+  loadedOK_ = (rcsData_ != nullptr) ? true : false;
   this->removeChildren(0, this->getNumChildren());
 
   if (rcsData_ && (lastPrefs_->drawrcs() || lastPrefs_->draw3drcs()))
@@ -162,7 +164,7 @@ RCSRenderer::RCSRenderer(double frequency,
   float detail,
   const osg::Vec4& color,
   bool colorOverride) :
-  rcs_(NULL),
+  rcs_(nullptr),
   polarity_(polarity),
   freq_(frequency),
   elev_(elevation),
@@ -218,8 +220,8 @@ void RCSRenderer::renderRcs_()
   }
   else
   {
-    rcs3D_ = NULL;
-    rcs2D_ = NULL;
+    rcs3D_ = nullptr;
+    rcs2D_ = nullptr;
   }
 }
 
@@ -297,7 +299,7 @@ osg::Node* RCSRenderer::render2D_()
     crosshair->setDataVariance(osg::Object::DYNAMIC);
     crosshair->setUseVertexBufferObjects(true);
     crosshair->setLineWidth(3);
-    lineGroup->addDrawable(crosshair);
+    lineGroup->addChild(crosshair);
 
     double elev = simCore::DEG2RAD * elev_;
     int end = 2 + static_cast<int>(osg::absolute(max_)/10.0);
@@ -322,7 +324,7 @@ osg::Node* RCSRenderer::render2D_()
       polarRing->setDataVariance(osg::Object::DYNAMIC);
       polarRing->setUseVertexBufferObjects(true);
       polarRing->setLineWidth(3);
-      lineGroup->addDrawable(polarRing);
+      lineGroup->addChild(polarRing);
 
       for (int i = 0; i < 36; i ++)
       {
@@ -344,7 +346,7 @@ osg::Node* RCSRenderer::render2D_()
     rcs->setDataVariance(osg::Object::DYNAMIC);
     rcs->setUseVertexBufferObjects(true);
     rcs->setLineWidth(3);
-    lineGroup->addDrawable(rcs);
+    lineGroup->addChild(rcs);
 
     for (int i = 0; i < 360; i++)
     {

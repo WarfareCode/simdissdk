@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -27,6 +28,7 @@
 #include <osg/ref_ptr>
 #include "simCore/Calc/Coordinate.h"
 #include "simCore/Calc/Units.h"
+#include "simCore/GOG/GogShape.h"
 #include "simData/DataTypes.h"
 #include "simVis/Utils.h"
 #include "simVis/GOG/GOGNode.h"
@@ -37,9 +39,9 @@ namespace osgEarth{
   class FeatureNode;
   class GeometryNode;
   class GeoPositionNode;
+  class ImageOverlay;
   class LabelNode;
   class LocalGeometryNode;
-  class GeoPositionNode;
   class PlaceNode;
 }
 
@@ -101,7 +103,12 @@ public:
   GogNodeInterface(osg::Node* OverlayNode, const simVis::GOG::GogMetaData& metaData);
 
   /** Destructor */
-  virtual ~GogNodeInterface() {}
+  virtual ~GogNodeInterface();
+
+  /** Get a pointer to the shape object, may be NULL */
+  simCore::GOG::GogShape* shapeObject() const;
+  /** Set the GogShape object, which updates the node's style */
+  void setShapeObject(simCore::GOG::GogShapePtr shape);
 
   /** Font to use if not defined in annotation block */
   void setDefaultFont(const std::string& fontName);
@@ -186,6 +193,13 @@ public:
   virtual int getFont(std::string& fontFile, int& fontSize, osg::Vec4f& fontColor) const;
 
   /**
+   * Get the declutter priority for text in the overlay, returning non-zero if Overlay does not have a declutter priority.
+   * @param[out] priority Priority values, where -1 is no-declutter, and lower non-negative values are less likely to be occluded than higher values.
+   * @return 0 if this Overlay has a priority set, non-zero otherwise
+   */
+  virtual int getDeclutterPriority(int& priority) const;
+
+  /**
    * Get the line attributes of the Overlay
    * @param outlineState  set to true if there is a line symbol
    * @param color  set to the color of the line in osg format (r,g,b,a) between 0.0 - 1.0
@@ -209,7 +223,7 @@ public:
   * @param referencePosition will use this for ref position if it is valid, when applying local offset
   * @return 0 if position was found, non-zero otherwise
   */
-  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = NULL) const = 0;
+  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = nullptr) const = 0;
 
   /**
   * Get the reference position of the shape on the map, in osgEarth::GeoPoint position format, lon/lat/alt degrees/degrees/meters.
@@ -233,6 +247,13 @@ public:
   * @return 0 if this Overlay has an outline style, non-zero otherwise
   */
   virtual int getTextOutline(osg::Vec4f& outlineColor, simData::TextOutline& outlineThickness) const;
+
+  /**
+  * Retrieves the opacity value assigned to the GOG object.  By default, this is 1.0 (opaque).
+  * @param opacity Opacity for the overlay; 0.0 for transparent, 1.0 for fully opaque.
+  * @return 0 if this overlay has an opacity value, non-zero otherwise.
+  */
+  int getOpacity(float& opacity) const;
 
   /**
   * Get the underlying osg::Node that represents the Overlay in the scene graph
@@ -305,6 +326,9 @@ public:
   */
   virtual void setFont(const std::string& fontName, int fontSize, const osg::Vec4f& color);
 
+  /** Sets the priority for decluttering priority; -1 for no declutter, lower non-negative values for higher priority */
+  virtual void setDeclutterPriority(int priority);
+
   /** Update the line color of the Overlay in osg format (r,g,b,a) between 0.0 - 1.0 */
   virtual void setLineColor(const osg::Vec4f& color);
 
@@ -338,6 +362,14 @@ public:
   virtual void setTextOutline(const osg::Vec4f& outlineColor, simData::TextOutline outlineThickness);
 
   /**
+   * Sets an overriding opacity value on the GOG object.  This opacity is multiplied against any other
+   * opacities for foreground color, outline, image alpha value, etc. and is efficient for applying
+   * an overarching transparency level for the GOG.
+   * @param opacity Alpha value from 0.0 (transparent) to 1.0 (opaque)
+   */
+  virtual void setOpacity(float opacity);
+
+  /**
    * Indicates if the shape has a properly formatted AltitudeSymbol or an ExtrusionSymbol based
    * on the altitude mode combinations applied in the setAltitudeMode  method. Will return true
    * if the AltitudeSymbol and ExtrusionSymbol attributes match a known state, false otherwise.
@@ -367,10 +399,30 @@ public:
    */
   simVis::GOG::GogShape shape() const;
 
+  /// Set flag indicating if shape's yaw component is locked to a reference orientation
+  void setFollowYaw(bool follow);
+  /// Set flag indicating if shape's pitch component is locked to a reference orientation
+  void setFollowPitch(bool follow);
+  /// Set flag indicating if shape's roll component is locked to a reference orientation
+  void setFollowRoll(bool follow);
+
+  /// Set the yaw angular offset from a reference orientation in radians
+  void setYawOffset(double offsetRad);
+  /// Set the pitch angular offset from a reference orientation in radians
+  void setPitchOffset(double offsetRad);
+  /// Set the roll angular offset from a reference orientation in radians
+  void setRollOffset(double offsetRad);
+
+  /** Return the starting line number from the source GOG file*/
+  size_t lineNumber() const;
+
   /** Add the specified listener */
   void addGogNodeListener(GogNodeListenerPtr listener);
   /** Remove the specified listener */
   void removeGogNodeListener(GogNodeListenerPtr listener);
+
+  /** Retrieve the object index tag for picking GOGs. */
+  unsigned int objectIndexTag() const;
 
 protected: // methods
 
@@ -427,12 +479,16 @@ protected: // methods
   */
   void setGeoPositionAltitude_(osgEarth::GeoPositionNode& node, double altitudeAdjustment);
 
-  /** Helper method for initializeing hasMapNode_ and altitude_ from the specified GeoPosition node. */
+  /** Helper method for initializing hasMapNode_ and altitude_ from the specified GeoPosition node. */
   void initializeFromGeoPositionNode_(const osgEarth::GeoPositionNode& node);
+
+  /** Apply current orientation offsets to the node's local rotation, if applicable */
+  virtual void applyOrientationOffsets_() = 0;
 
 protected: // data
   osg::ref_ptr<osg::Node> osgNode_;  ///< reference to the basic osg::Node. Keep in ref_ptr so this instance will hold on the memory even if it's removed from the scene
   simVis::GOG::GogMetaData metaData_;  ///< meta data returned by the Parser
+  simCore::GOG::GogShapePtr shape_; ///< parsed shape object
   bool filled_; ///< cache fill state of the shape for quick reference
   bool extruded_; ///< cache extruded state of the shape for quick reference
   bool outlined_; ///< cache outlined state of the shape for quick reference
@@ -481,8 +537,16 @@ private:
   /** Range units specified by user in file */
   simCore::Units rangeUnits_;
 
+  /** cache the opacity value, for efficiency */
+  float opacity_;
+
   /** listeners for updates */
   std::vector<GogNodeListenerPtr> listeners_;
+
+  /** Cull callback that hides GOGs with timestamps as needed */
+  osg::ref_ptr<osg::NodeCallback> timeCallback_;
+
+  unsigned int objectIndexTag_; ///< object index for picking
 };
 
 /// Shared ptr wrapper for the GogNodeInterface object
@@ -491,18 +555,20 @@ typedef std::shared_ptr<GogNodeInterface> GogNodeInterfacePtr;
 /**
  * Implementation of GogNodeInterface for AnnotationNodes, which are a base class of all GOG node types.
  * Used when less generic GogNodeInterface can't be found for a given osg node
+ * @deprecated This class has been deprecated.  Use one of the other GogNodeInterface implementations instead.
  */
 class SDKVIS_EXPORT AnnotationNodeInterface : public GogNodeInterface
 {
 public:
-  AnnotationNodeInterface(osgEarth::AnnotationNode* annotationNode, const simVis::GOG::GogMetaData& metaData);
+  SDK_DEPRECATE(AnnotationNodeInterface(osgEarth::AnnotationNode* annotationNode, const simVis::GOG::GogMetaData& metaData), "Use one of the other GogNodeInterface implementations instead.");
   virtual ~AnnotationNodeInterface();
-  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = NULL) const;
+  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = nullptr) const;
 
 protected:
   virtual void adjustAltitude_();
   virtual void serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const;
   virtual void setStyle_(const osgEarth::Style& style);
+  virtual void applyOrientationOffsets_();
 
 private:
   osg::observer_ptr<osgEarth::AnnotationNode> annotationNode_;
@@ -516,8 +582,10 @@ class SDKVIS_EXPORT FeatureNodeInterface : public GogNodeInterface
 public:
   /** Constructor */
   FeatureNodeInterface(osgEarth::FeatureNode* featureNode, const simVis::GOG::GogMetaData& metaData);
+  /** Constructor with parent group node */
+  FeatureNodeInterface(osg::Group* node, osgEarth::FeatureNode* featureNode, const simVis::GOG::GogMetaData& metaData);
   virtual ~FeatureNodeInterface() {}
-  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = NULL) const;
+  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = nullptr) const;
   virtual int getTessellation(TessellationStyle& style) const;
   virtual void setAltitudeMode(AltitudeMode altMode);
   virtual void setAltOffset(double altOffsetMeters);
@@ -528,11 +596,14 @@ protected:
   virtual void adjustAltitude_();
   virtual void serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const;
   virtual void setStyle_(const osgEarth::Style& style);
+  virtual void applyOrientationOffsets_();
 
-private:
   osg::observer_ptr<osgEarth::FeatureNode> featureNode_;
   /// cache the original altitude values, to apply altitude offset dynamically
   std::vector<double> originalAltitude_;
+
+private:
+  void init_();
 };
 
 /**
@@ -544,7 +615,7 @@ public:
   /** Constructor */
   LocalGeometryNodeInterface(osgEarth::LocalGeometryNode* localNode, const simVis::GOG::GogMetaData& metaData);
   virtual ~LocalGeometryNodeInterface() {}
-  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = NULL) const;
+  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = nullptr) const;
   /// override the get reference position
   virtual int getReferencePosition(osg::Vec3d& referencePosition) const;
 
@@ -552,6 +623,7 @@ protected:
   virtual void adjustAltitude_();
   virtual void serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const;
   virtual void setStyle_(const osgEarth::Style& style);
+  virtual void applyOrientationOffsets_();
 
   /** LocalGeometryNode that this interface represents */
   osg::observer_ptr<osgEarth::LocalGeometryNode> localNode_;
@@ -565,15 +637,16 @@ class SDKVIS_EXPORT LabelNodeInterface : public GogNodeInterface
 {
 public:
   /** Constructor */
-  LabelNodeInterface(osgEarth::LabelNode* labelNode, const simVis::GOG::GogMetaData& metaData);
-  /** Constructor */
-  LabelNodeInterface(osgEarth::PlaceNode* placeNode, const simVis::GOG::GogMetaData& metaData);
+  LabelNodeInterface(osgEarth::GeoPositionNode* labelNode, const simVis::GOG::GogMetaData& metaData);
   virtual ~LabelNodeInterface() {}
   virtual int getFont(std::string& fontFile, int& fontSize, osg::Vec4f& fontColor) const;
-  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = NULL) const;
+  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = nullptr) const;
   virtual int getTextOutline(osg::Vec4f& outlineColor, simData::TextOutline& outlineThickness) const;
+  virtual int getDeclutterPriority(int& priority) const;
   virtual void setFont(const std::string& fontName, int fontSize, const osg::Vec4f& color);
   virtual void setTextOutline(const osg::Vec4f& outlineColor, simData::TextOutline outlineThickness);
+  virtual void setDeclutterPriority(int priority);
+  virtual void applyOrientationOffsets_();
 
 protected:
   virtual void adjustAltitude_();
@@ -601,8 +674,9 @@ public:
   /** Constructor */
   CylinderNodeInterface(osg::Group* groupNode, osgEarth::LocalGeometryNode* sideNode, osgEarth::LocalGeometryNode* topCapNode, osgEarth::LocalGeometryNode* bottomCapNode, const simVis::GOG::GogMetaData& metaData);
   virtual ~CylinderNodeInterface();
-  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = NULL) const;
+  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = nullptr) const;
   virtual void setAltitudeMode(AltitudeMode altMode);
+  virtual void applyOrientationOffsets_();
 
 protected:
   virtual void adjustAltitude_();
@@ -629,13 +703,14 @@ public:
   /** Constructor */
   ArcNodeInterface(osg::Group* groupNode, osgEarth::LocalGeometryNode* shapeNode, osgEarth::LocalGeometryNode* fillNode, const simVis::GOG::GogMetaData& metatData);
   virtual ~ArcNodeInterface() {}
-  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = NULL) const;
+  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = nullptr) const;
   virtual void setFilledState(bool state);
 
 protected:
   virtual void adjustAltitude_();
   virtual void serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const;
   virtual void setStyle_(const osgEarth::Style& style);
+  virtual void applyOrientationOffsets_();
 
 private:
   osg::observer_ptr<osgEarth::LocalGeometryNode> shapeNode_; ///< draws the arc
@@ -679,6 +754,58 @@ public:
   virtual ~ConeNodeInterface() {}
   virtual void setFillColor(const osg::Vec4f& color);
 };
+
+/**
+* Implementation of GogNodeInterface for an image overlay object, which is equivalent to a KML ground overlay.
+* Basic implementation since editing KML objects is limited.
+*/
+class SDKVIS_EXPORT ImageOverlayInterface : public GogNodeInterface
+{
+public:
+  ImageOverlayInterface(osgEarth::ImageOverlay* imageNode, const simVis::GOG::GogMetaData& metaData);
+  virtual ~ImageOverlayInterface() {}
+  virtual int getPosition(osg::Vec3d& position, osgEarth::GeoPoint* referencePosition = nullptr) const;
+
+  /** Override opacity, since the override color approach doesn't work */
+  virtual void setOpacity(float opacity) override;
+
+protected:
+  virtual void adjustAltitude_();
+  virtual void serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const;
+  virtual void setStyle_(const osgEarth::Style& style);
+  virtual void applyOrientationOffsets_();
+
+private:
+  osg::observer_ptr<osgEarth::ImageOverlay> imageNode_;
+};
+
+/**
+* Implementation of GogNodeInterface for a LatLonAltBox, which requires multiple FeatureNodes to display correctly
+*/
+class SDKVIS_EXPORT LatLonAltBoxInterface : public FeatureNodeInterface
+{
+public:
+  LatLonAltBoxInterface(osg::Group* node, osgEarth::FeatureNode* topNode, osgEarth::FeatureNode* bottomNode, const simVis::GOG::GogMetaData& metaData);
+  virtual ~LatLonAltBoxInterface() {}
+  // handle the special case for MultiGeometry
+  virtual void setAltOffset(double altOffsetMeters);
+
+protected:
+  virtual void serializeGeometry_(bool relativeShape, std::ostream& gogOutputStream) const;
+  virtual void serializeKeyword_(std::ostream& gogOutputStream) const;
+  virtual void setStyle_(const osgEarth::Style& style);
+
+private:
+  /// store the altitudes of the specified node into the specified altitudes vector, handles iterating through MultiGeometry
+  void initAltitudes_(osgEarth::FeatureNode& node, std::vector<double>& altitudes) const;
+  /// apply the altitude offsets, handles iterating through MultiGeometry
+  void applyAltOffsets_(osgEarth::FeatureNode& node, const std::vector<double>& altitudes) const;
+
+  osg::observer_ptr<osgEarth::FeatureNode> bottomNode_;
+  /// original altitudes of the bottom node
+  std::vector<double> bottomAltitude_;
+};
+
 
 }}
 

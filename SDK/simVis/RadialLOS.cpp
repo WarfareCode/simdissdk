@@ -13,23 +13,25 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
+#include <cassert>
 #include <limits>
-#include "simVis/RadialLOS.h"
-#include "simVis/Utils.h"
-#include "simCore/Calc/Calculations.h"
-#include "simCore/Calc/CoordinateConverter.h"
-#include "simNotify/Notify.h"
-#include "simCore/Calc/Math.h"
 #include "osgEarth/GeoData"
 #include "osgEarth/Terrain"
-#include <cassert>
+#include "simNotify/Notify.h"
+#include "simCore/Calc/Calculations.h"
+#include "simCore/Calc/CoordinateConverter.h"
+#include "simCore/Calc/Math.h"
+#include "simVis/RadialLOS.h"
+#include "simVis/Utils.h"
 
+#undef LC
 #define LC "[LOS] "
 
 namespace simVis {
@@ -70,6 +72,9 @@ RadialLOS::Sample::Sample(const Sample& rhs)
 //----------------------------------------------------------------------------
 //#define LOS_TIME_PROFILING
 
+// Increase the size of the WorkingSet to speed up computations over larger areas and repeated computations in the same area.
+#define WORKINGSET_SIZE 300
+
 RadialLOS::RadialLOS()
   : dirty_(true),
     range_max_(osgEarth::Distance(10.0, osgEarth::Units::KILOMETERS)),
@@ -77,23 +82,35 @@ RadialLOS::RadialLOS()
     azim_center_(osgEarth::Angle(0.0, osgEarth::Units::DEGREES)),
     fov_(osgEarth::Angle(360.0, osgEarth::Units::DEGREES)),
     azim_resolution_(osgEarth::Angle(15.0, osgEarth::Units::DEGREES)),
+    elevationWorkingSet_(new osgEarth::ElevationPool::WorkingSet(WORKINGSET_SIZE)),
     use_scene_graph_(false)
 {
-  //nop
 }
 
 RadialLOS::RadialLOS(const RadialLOS& rhs)
-  : dirty_(rhs.dirty_),
-    radials_(rhs.radials_),
-    originMap_(rhs.originMap_),
-    range_max_(rhs.range_max_),
-    range_resolution_(rhs.range_resolution_),
-    azim_center_(rhs.azim_center_),
-    fov_(rhs.fov_),
-    azim_resolution_(rhs.azim_resolution_),
-    use_scene_graph_(rhs.use_scene_graph_)
 {
-  //nop
+  *this = rhs;
+}
+
+RadialLOS::~RadialLOS()
+{
+}
+
+RadialLOS& RadialLOS::operator=(const RadialLOS& rhs)
+{
+  dirty_ = rhs.dirty_;
+  radials_ = rhs.radials_;
+  originMap_ = rhs.originMap_;
+  range_max_ = rhs.range_max_;
+  range_resolution_ = rhs.range_resolution_;
+  azim_center_ = rhs.azim_center_;
+  fov_ = rhs.fov_;
+  azim_resolution_ = rhs.azim_resolution_;
+  use_scene_graph_ = rhs.use_scene_graph_;
+  elevationWorkingSet_.reset(new osgEarth::ElevationPool::WorkingSet(WORKINGSET_SIZE));
+  // nocopy: srs_
+
+  return *this;
 }
 
 void RadialLOS::setMaxRange(const osgEarth::Distance& value)
@@ -143,11 +160,12 @@ void RadialLOS::setAzimuthalResolution(const osgEarth::Angle& value)
 
 bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& originCoord)
 {
-  assert(mapNode != NULL);
+  assert(mapNode != nullptr);
 
 #ifdef LOS_TIME_PROFILING
   osg::Timer_t startTime = osg::Timer::instance()->tick();
 #endif
+
 
   // clear out existing data
   radials_.clear();
@@ -155,16 +173,6 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
   // set up the localizer transforms:
   if (!convertCoordToGeoPoint(originCoord, originMap_, mapNode->getMapSRS()))
     return false;
-
-  if (!use_scene_graph_)
-  {
-    // create an elevation sampler on demand:
-    if (envelope_.valid() == false)
-    {
-      envelope_ = mapNode->getMap()->getElevationPool()->createEnvelope(
-          mapNode->getMapSRS(), 23);
-    }
-  }
 
   osg::Matrix local2world;
   originMap_.createLocalToWorld(local2world);
@@ -252,9 +260,16 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
       }
       else
       {
-        hae = envelope_->getElevation(mapPoint.x(), mapPoint.y());
+        osgEarth::ElevationSample sample = mapNode->getMap()->getElevationPool()->getSample(mapPoint, osgEarth::Distance(1.0, osgEarth::Units::METERS), elevationWorkingSet_.get());
+        hae = sample.elevation().as(osgEarth::Units::METERS);
         hamsl = hae;
-        ok = (hae != NO_DATA_VALUE);
+        ok = true;
+        if (hae == NO_DATA_VALUE)
+        {
+          // If there is invalid data at a point treat it as 0 HAE.
+          hae = 0.0;
+          hamsl = 0.0;
+        }
       }
 
       if (ok)
@@ -266,7 +281,7 @@ bool RadialLOS::compute(osgEarth::MapNode* mapNode, const simCore::Coordinate& o
         convertGeoPointToCoord(mapPoint, destCoord, mapNode);
 
         double elev;
-        simCore::calculateAbsAzEl(originLlaCoord.position(), destCoord.position(), NULL, &elev, NULL, simCore::FLAT_EARTH, &cc);
+        simCore::calculateAbsAzEl(originLlaCoord.position(), destCoord.position(), nullptr, &elev, nullptr, simCore::FLAT_EARTH, &cc);
 
         bool visible = false;
         if (elev >= maxElev)
@@ -366,7 +381,7 @@ bool RadialLOS::update(osgEarth::MapNode* mapNode, const osgEarth::GeoExtent& ex
           cc.setReferenceOrigin(originLlaCoord.lat(), originLlaCoord.lon(), originLlaCoord.alt());
 
           double elev;
-          simCore::calculateAbsAzEl(originLlaCoord.position(), destCoord.position(), NULL, &elev, NULL, simCore::FLAT_EARTH, &cc);
+          simCore::calculateAbsAzEl(originLlaCoord.position(), destCoord.position(), nullptr, &elev, nullptr, simCore::FLAT_EARTH, &cc);
           sample.elev_rad_ = elev;
         }
 

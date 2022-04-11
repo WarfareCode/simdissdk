@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -49,7 +50,7 @@ public:
   WeightedMenuManager(bool debugMenuWeights);
   virtual ~WeightedMenuManager();
 
-  // Set the menu, tool, and status bars to use; may be NULL
+  // Set the menu, tool, and status bars to use; may be nullptr
   void setMenuBar(QWidget* menuBar);
   void setToolBar(QWidget* toolBar);
   void setStatusBar(QWidget* statusBar);
@@ -77,10 +78,7 @@ public:
   /**
    * Returns the top level menu or menu bar (QMenu or QMenuBar) that
    * is used as the hierarchical parent of created menu items.  This
-   * is the first level for menus.  Derived classes should be returning
-   * either a QMenuBar or QMenu, that can be a parent to new QMenu instances.
-   *
-   * NOTE: DEPRECATED.  Please use setMenuBar() instead.
+   * is the first level for menus.
    */
   virtual QWidget* topLevelMenu();
 

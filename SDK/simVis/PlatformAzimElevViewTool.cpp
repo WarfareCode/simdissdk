@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,13 +29,15 @@
 #include "simCore/Calc/Angle.h"
 #include "simVis/Beam.h"
 #include "simVis/Gate.h"
+#include "simVis/GeoFence.h"
 #include "simVis/Locator.h"
 #include "simVis/Platform.h"
 #include "simVis/Shaders.h"
 #include "simVis/Scenario.h"
 #include "simVis/Utils.h"
 #include "simVis/PlatformAzimElevViewTool.h"
-#define OVERRIDE_TAG "PlatformAzimElevViewTool"
+
+#define AZEL_OVERRIDE_TAG "PlatformAzimElevViewTool"
 
 //#define DEBUG_LABELS
 
@@ -53,10 +56,10 @@ namespace
   /**
    * Adapter that routes geometry update calls back to our object.
    */
-  struct UpdateGeometryAdapter : public simVis::TargetDelegation::UpdateGeometryCallback
+  struct UpdateTargetGeometryAdapter : public simVis::TargetDelegation::UpdateGeometryCallback
   {
     simVis::PlatformAzimElevViewTool* tool_;
-    explicit UpdateGeometryAdapter(simVis::PlatformAzimElevViewTool* tool) : tool_(tool) { }
+    explicit UpdateTargetGeometryAdapter(simVis::PlatformAzimElevViewTool* tool) : tool_(tool) { }
     void operator()(osg::MatrixTransform* xform, const osg::Vec3d& ecef)
     {
       tool_->updateTargetGeometry(xform, ecef);
@@ -81,6 +84,10 @@ PlatformAzimElevViewTool::PlatformAzimElevViewTool(EntityNode* host) :
 
   // the geofence will filter out visible objects
   fence_ = new HorizonGeoFence();
+}
+
+PlatformAzimElevViewTool::~PlatformAzimElevViewTool()
+{
 }
 
 osg::Node* PlatformAzimElevViewTool::getNode() const
@@ -135,7 +142,7 @@ void PlatformAzimElevViewTool::onInstall(const ScenarioManager& scenario)
   // delegate target geometry:
   targets_ = new TargetDelegation();
   targets_->setGeoFence(fence_.get());
-  targets_->addUpdateGeometryCallback(new UpdateGeometryAdapter(this));
+  targets_->addUpdateGeometryCallback(new UpdateTargetGeometryAdapter(this));
   root_->addChild(targets_.get());
 
   // set up state for the delegation:
@@ -164,8 +171,8 @@ void PlatformAzimElevViewTool::onUninstall(const ScenarioManager& scenario)
     targets_->removeChildren(0, targets_->getNumChildren());
 
   // scenario has already removed us from the scenegraph
-  root_ = NULL;
-  targets_ = NULL;
+  root_ = nullptr;
+  targets_ = nullptr;
 }
 
 bool PlatformAzimElevViewTool::isInstalled_() const
@@ -244,19 +251,19 @@ void PlatformAzimElevViewTool::applyOverrides_(EntityNode* entity, bool enable)
     {
       simData::BeamPrefs prefs(beamPrefs_);
       prefs.set_drawtype(simData::BeamPrefs_DrawType_COVERAGE);
-      beam->setPrefsOverride(OVERRIDE_TAG, prefs);
+      beam->setPrefsOverride(AZEL_OVERRIDE_TAG, prefs);
 
       simData::BeamUpdate update;
       update.set_range(range_);
-      beam->setUpdateOverride(OVERRIDE_TAG, update);
+      beam->setUpdateOverride(AZEL_OVERRIDE_TAG, update);
 
       osg::StateSet* sset = beam->getOrCreateStateSet();
       sset->setAttributeAndModes(warpingProgram_.get(), 1);
     }
     else
     {
-      beam->removePrefsOverride(OVERRIDE_TAG);
-      beam->removeUpdateOverride(OVERRIDE_TAG);
+      beam->removePrefsOverride(AZEL_OVERRIDE_TAG);
+      beam->removeUpdateOverride(AZEL_OVERRIDE_TAG);
 
       osg::StateSet* sset = beam->getOrCreateStateSet();
       sset->removeAttribute(warpingProgram_.get());
@@ -274,20 +281,20 @@ void PlatformAzimElevViewTool::applyOverrides_(EntityNode* entity, bool enable)
       // overriding minrange and maxrange to same value to draw only the far face of the gate
       update.set_minrange(range_);
       update.set_maxrange(range_);
-      gate->setUpdateOverride(OVERRIDE_TAG, update);
+      gate->setUpdateOverride(AZEL_OVERRIDE_TAG, update);
 
       // prefs override forces gate rebuild, so do it after update override (which gate handles in-place)
       simData::GatePrefs prefs(gatePrefs_);
       prefs.set_drawcentroid(false);
-      gate->setPrefsOverride(OVERRIDE_TAG, prefs);
+      gate->setPrefsOverride(AZEL_OVERRIDE_TAG, prefs);
 
       osg::StateSet* sset = gate->getOrCreateStateSet();
       sset->setAttributeAndModes(warpingProgram_.get(), 1);
     }
     else
     {
-      gate->removePrefsOverride(OVERRIDE_TAG);
-      gate->removeUpdateOverride(OVERRIDE_TAG);
+      gate->removePrefsOverride(AZEL_OVERRIDE_TAG);
+      gate->removeUpdateOverride(AZEL_OVERRIDE_TAG);
 
       osg::StateSet* sset = gate->getOrCreateStateSet();
       sset->removeAttribute(warpingProgram_.get());

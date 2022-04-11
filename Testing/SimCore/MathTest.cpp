@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -586,6 +587,235 @@ int testGuessStepSize()
   return rv;
 }
 
+int testPowerOfTenSignificance()
+{
+  int rv = 0;
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.0, 0) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.0, 5) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.0, -5) == 0);
+
+  // Positive significance: 2
+
+  // Test positive significance of 2.  For example, 12340.0 is -3, because 2 digits
+  // of significance on 12340 is the "12" part, so "12340 * 10^-3 == 12.340"
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(12340.0, 2) == -3);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1234.0, 2) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(123.4, 2) == -1);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(12.34, 2) == 0);
+  // Note, 1.234 is within the power of ten significance for 10^0 for 2 digits of precision
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1.234, 2) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.1234, 2) == 2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.01234, 2) == 3);
+
+  // Test positive significance of 3
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(12340.0, 3) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1234.0, 3) == -1);
+  // Note the following 3 values are within significance for 10^3
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(123.4, 3) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(12.34, 3) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1.234, 3) == 0);
+  // ... and here we jump back out into 10^3, 10^4, etc
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.1234, 3) == 3);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.01234, 3) == 4);
+
+  // Test negative values
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-12340.0, 3) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-1234.0, 3) == -1);
+  // Note the following 3 values are within significance for 10^3
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-123.4, 3) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-12.34, 3) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-1.234, 3) == 0);
+  // ... and here we jump back out into 10^3, 10^4, etc
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-0.1234, 3) == 3);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-0.01234, 3) == 4);
+
+  // Edge cases for 2 significance
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(10001.0, 2) == -3);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(10000.0, 2) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(9999.9, 2) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1000.1, 2) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1000.0, 2) == -1);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(999.99, 2) == -1);
+
+  // 0 significance
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(123.4, 0) == -3);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(12.34, 0) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1.234, 0) == -1);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.1234, 0) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(0.01234, 0) == 1);
+
+  // Test +1 and -1, which should return 0 for 10^0
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1.0, 0) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1.0, 1) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1.0, 2) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(1.0, 3) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-1.0, 0) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-1.0, 1) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-1.0, 2) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-1.0, 3) == 0);
+
+  // Edge cases for 10 and -10
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(10.0, 0) == -1);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(10.0, 1) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(10.0, 2) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(10.0, 3) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-10.0, 0) == -1);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-10.0, 1) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-10.0, 2) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-10.0, 3) == 0);
+
+  // Edge cases for 100 and -100
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(100.0, 0) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(100.0, 1) == -1);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(100.0, 2) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(100.0, 3) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-100.0, 0) == -2);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-100.0, 1) == -1);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-100.0, 2) == 0);
+  rv += SDK_ASSERT(simCore::getPowerOfTenForSignificance(-100.0, 3) == 0);
+
+  return rv;
+}
+
+int helpTestRoundRanges(double minValue, double maxValue, double expectedOutMin, double expectedOutMax)
+{
+  double tmin = minValue;
+  double tmax = maxValue;
+  simCore::roundRanges(minValue, maxValue);
+  const int rv = (simCore::areEqual(expectedOutMin, minValue) && simCore::areEqual(expectedOutMax, maxValue)) ? 0 : 1;
+  if (rv != 0)
+    std::cout << "Failed Result: " << minValue << " to " << maxValue << "\n";
+  return rv;
+}
+
+int testRoundRanges()
+{
+  int rv = 0;
+
+  // Various "regular" input, including example from the documentation
+  rv += SDK_ASSERT(helpTestRoundRanges(1.5, 19.7, 1.0, 20.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(0.5, 19.7, 0.0, 20.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(0.005, 19.7, 0.0, 20.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(-0.005, 19.7, -1.0, 20.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(-1.5, 19.7, -2.0, 20.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(-8.5, 19.7, -9.0, 20.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(-9.5, 19.7, -10.0, 20.0) == 0);
+
+  // Use 1970, 4 digits of significance.  Note the range is ~2000, and rounding
+  // uses 2 digits, so expected minimum resolution is 100, thus 0 and -100 minimums
+  rv += SDK_ASSERT(helpTestRoundRanges(1.5, 1970, 0.0, 2000.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(0.5, 1970, 0.0, 2000.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(0.005, 1970, 0.0, 2000.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(-0.005, 1970, -100.0, 2000.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(-1.5, 1970, -100.0, 2000.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(-8.5, 1970, -100.0, 2000.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(-9.5, 1970, -100.0, 2000.0) == 0);
+
+  // Repeat the tests with swapped min/max values
+  rv += SDK_ASSERT(helpTestRoundRanges(19.7, 1.5, 20.0, 1.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(19.7, 0.5, 20.0, 0.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(19.7, 0.005, 20.0, 0.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(19.7, -0.005, 20.0, -1.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(19.7, -1.5, 20.0, -2.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(19.7, -8.5, 20.0, -9.0) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(19.7, -9.5, 20.0, -10.0) == 0);
+
+  // Test smaller and larger values
+  rv += SDK_ASSERT(helpTestRoundRanges(0.015, 0.197, 0.01, 0.20) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(0.00015, 0.00197, 0.0001, 0.0020) == 0);
+  rv += SDK_ASSERT(helpTestRoundRanges(0.000015, 0.000197, 0.00001, 0.00020) == 0);
+
+  return rv;
+}
+
+int testBetween()
+{
+  int rv = 0;
+
+  rv += SDK_ASSERT(simCore::isBetween(5, 0, 10));
+  rv += SDK_ASSERT(simCore::isBetween(5, 10, 0));
+  rv += SDK_ASSERT(simCore::isBetween(5, -10, 10));
+  rv += SDK_ASSERT(simCore::isBetween(5, 10, -10));
+  rv += SDK_ASSERT(simCore::isBetween(5, 0, std::numeric_limits<int>::max()));
+  rv += SDK_ASSERT(simCore::isBetween(5, std::numeric_limits<int>::max(), 0));
+  rv += SDK_ASSERT(simCore::isBetween(5, 5, 5));
+
+  rv += SDK_ASSERT(!simCore::isBetween(-5, 0, 10));
+  rv += SDK_ASSERT(!simCore::isBetween(-5, 10, 0));
+  rv += SDK_ASSERT(!simCore::isBetween(15, 0, 10));
+  rv += SDK_ASSERT(!simCore::isBetween(15, 10, 0));
+  rv += SDK_ASSERT(!simCore::isBetween(-15, -10, 10));
+  rv += SDK_ASSERT(!simCore::isBetween(-15, 10, -10));
+  rv += SDK_ASSERT(!simCore::isBetween(25, -10, 10));
+  rv += SDK_ASSERT(!simCore::isBetween(25, 10, -10));
+  rv += SDK_ASSERT(!simCore::isBetween(-5, 0, std::numeric_limits<int>::max()));
+  rv += SDK_ASSERT(!simCore::isBetween(-5, std::numeric_limits<int>::max(), 0));
+  rv += SDK_ASSERT(!simCore::isBetween(6, 5, 5));
+
+  rv += SDK_ASSERT(simCore::isBetween(5., 0., 10.));
+  rv += SDK_ASSERT(simCore::isBetween(5., 10., 0.));
+  rv += SDK_ASSERT(simCore::isBetween(5., -10., 10.));
+  rv += SDK_ASSERT(simCore::isBetween(5., 10., -10.));
+  rv += SDK_ASSERT(simCore::isBetween(5., 0., std::numeric_limits<double>::max()));
+  rv += SDK_ASSERT(simCore::isBetween(5., std::numeric_limits<double>::max(), 0.));
+  rv += SDK_ASSERT(simCore::isBetween(5., 5., 5.));
+
+  rv += SDK_ASSERT(!simCore::isBetween(-5., 0., 10.));
+  rv += SDK_ASSERT(!simCore::isBetween(-5., 10., 0.));
+  rv += SDK_ASSERT(!simCore::isBetween(15., -10., 10.));
+  rv += SDK_ASSERT(!simCore::isBetween(15., 10., -10.));
+  rv += SDK_ASSERT(!simCore::isBetween(-5., 0., std::numeric_limits<double>::max()));
+  rv += SDK_ASSERT(!simCore::isBetween(-5., std::numeric_limits<double>::max(), 0.));
+  rv += SDK_ASSERT(!simCore::isBetween(6., 5., 5.));
+
+  return rv;
+}
+
+int testClamp()
+{
+  int rv = 0;
+
+  rv += SDK_ASSERT(5 == simCore::clamp(5, 0, 10));
+  rv += SDK_ASSERT(5 == simCore::clamp(5, 10, 0));
+  rv += SDK_ASSERT(5 == simCore::clamp(5, -10, 10));
+  rv += SDK_ASSERT(5 == simCore::clamp(5, 10, -10));
+  rv += SDK_ASSERT(5 == simCore::clamp(5, 0, std::numeric_limits<int>::max()));
+  rv += SDK_ASSERT(5 == simCore::clamp(5, std::numeric_limits<int>::max(), 0));
+  rv += SDK_ASSERT(5 == simCore::clamp(5, 5, 5));
+
+  rv += SDK_ASSERT(0 == simCore::clamp(-5, 0, 10));
+  rv += SDK_ASSERT(0 == simCore::clamp(-5, 10, 0));
+  rv += SDK_ASSERT(10 == simCore::clamp(15, 0, 10));
+  rv += SDK_ASSERT(10 == simCore::clamp(15, 10, 0));
+  rv += SDK_ASSERT(-10 == simCore::clamp(-15, -10, 10));
+  rv += SDK_ASSERT(-10 == simCore::clamp(-15, 10, -10));
+  rv += SDK_ASSERT(10 == simCore::clamp(25, -10, 10));
+  rv += SDK_ASSERT(10 == simCore::clamp(25, 10, -10));
+  rv += SDK_ASSERT(0 == simCore::clamp(-5, 0, std::numeric_limits<int>::max()));
+  rv += SDK_ASSERT(0 == simCore::clamp(-5, std::numeric_limits<int>::max(), 0));
+  rv += SDK_ASSERT(6 == simCore::clamp(5, 6, 6));
+  rv += SDK_ASSERT(6 == simCore::clamp(7, 6, 6));
+
+  rv += SDK_ASSERT(5. == simCore::clamp(5., 0., 10.));
+  rv += SDK_ASSERT(5. == simCore::clamp(5., 10., 0.));
+  rv += SDK_ASSERT(5. == simCore::clamp(5., -10., 10.));
+  rv += SDK_ASSERT(5. == simCore::clamp(5., 10., -10.));
+  rv += SDK_ASSERT(5. == simCore::clamp(5., 0., std::numeric_limits<double>::max()));
+  rv += SDK_ASSERT(5. == simCore::clamp(5., std::numeric_limits<double>::max(), 0.));
+  rv += SDK_ASSERT(5. == simCore::clamp(5., 5., 5.));
+
+  rv += SDK_ASSERT(0. == simCore::clamp(-5., 0., 10.));
+  rv += SDK_ASSERT(0. == simCore::clamp(-5., 10., 0.));
+  rv += SDK_ASSERT(10. == simCore::clamp(15., -10., 10.));
+  rv += SDK_ASSERT(10. == simCore::clamp(15., 10., -10.));
+  rv += SDK_ASSERT(0. == simCore::clamp(-5., 0., std::numeric_limits<double>::max()));
+  rv += SDK_ASSERT(0. == simCore::clamp(-5., std::numeric_limits<double>::max(), 0.));
+  rv += SDK_ASSERT(6. == simCore::clamp(5., 6., 6.));
+  rv += SDK_ASSERT(6. == simCore::clamp(7., 6., 6.));
+
+  return rv;
+}
+
 }
 
 int MathTest(int argc, char* argv[])
@@ -605,6 +835,10 @@ int MathTest(int argc, char* argv[])
   rv += runV3SphtoRec();
   rv += testToScientific();
   rv += testGuessStepSize();
+  rv += testPowerOfTenSignificance();
+  rv += testRoundRanges();
+  rv += testBetween();
+  rv += testClamp();
 
   return rv;
 }

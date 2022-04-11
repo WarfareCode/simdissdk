@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -94,6 +95,12 @@ public: // methods
    */
   virtual void flush(ObjectId flushId, FlushType type = NON_RECURSIVE) {dataStore_->flush(flushId, type);}
 
+  /** Removes all the specified data */
+  virtual int flush(ObjectId id, FlushScope scope, FlushFields fields) {return dataStore_->flush(id, scope, fields);}
+
+  /** Removes a range of data from startTime up to but not including the endTime */
+  virtual int flush(ObjectId id, FlushScope scope, FlushFields fields, double startTime, double endTime) {return dataStore_->flush(id, scope, fields, startTime, endTime);}
+
   /**
   * clear out the data store of all scenario specific data, including all entities and category data names.
   */
@@ -119,7 +126,7 @@ public: // methods
   /// Specify the interpolator to use
   virtual void setInterpolator(Interpolator *interpolator);
 
-  /// Get the current interpolator (NULL if disabled)
+  /// Get the current interpolator (nullptr if disabled)
   virtual Interpolator* interpolator() const;
   ///@}
 
@@ -164,14 +171,14 @@ public: // methods
   ///@}
 
   /**@name Scenario Properties
-   * @note should always return a valid object (never NULL)
+   * @note should always return a valid object (never nullptr)
    * @{
    */
   virtual const  ScenarioProperties*          scenarioProperties(Transaction *transaction) const {return dataStore_->scenarioProperties(transaction);}
   virtual        ScenarioProperties*  mutable_scenarioProperties(Transaction *transaction) {return dataStore_->mutable_scenarioProperties(transaction);}
 
   /**@name Object Properties
-   * @note will return NULL if no object is associated with the specified id
+   * @note will return nullptr if no object is associated with the specified id
    * @{
    */
   virtual const  PlatformProperties*          platformProperties(ObjectId id, Transaction *transaction) const {return dataStore_->platformProperties(id, transaction);}
@@ -191,7 +198,7 @@ public: // methods
   ///@}
 
   /**@name Object Preferences
-   * @note will return NULL if no object is associated with the specified id
+   * @note will return nullptr if no object is associated with the specified id
    * @{
    */
   virtual const  PlatformPrefs*          platformPrefs(ObjectId id, Transaction *transaction) const {return dataStore_->platformPrefs(id, transaction);}
@@ -267,7 +274,7 @@ public: // methods
   virtual int removeGenericDataTag(ObjectId id, const std::string& tag) { return dataStore_->removeGenericDataTag(id, tag); }
 
   /**@name Add data update, command, generic data, or category data
-   *@note Returns NULL if platform for specified ID does not exist
+   *@note Returns nullptr if platform for specified ID does not exist
    * @{
    */
   virtual  PlatformUpdate *   addPlatformUpdate(ObjectId id, Transaction *transaction) {return dataStore_->addPlatformUpdate(id, transaction);}
@@ -334,7 +341,7 @@ public: // methods
   /**@name NewUpdatesListener
   * @{
   */
-  /// Sets a listener for when entity updates are added; use NULL to remove.
+  /// Sets a listener for when entity updates are added; use nullptr to remove.
   virtual void setNewUpdatesListener(NewUpdatesListenerPtr callback);
   ///@}
 

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -80,6 +81,10 @@ int limitByPoints(std::deque<T*> &updates, uint32_t limitPoints);
 /// remove all points, unless keeping a static (time = -1) point; returns non-zero if flush did not occur due to static case
 template<typename T>
 int flush(std::deque<T*> &updates, bool keepStatic = true);
+
+/// remove points in the given time range; up to but not including endTime
+template<typename T>
+int flush(std::deque<T*> &updates, double startTime, double endTime);
 } // namespace MemorySliceHelper
 
 /** Iterator for DataSlice vector */
@@ -134,6 +139,9 @@ public:
 
   /// remove all data in the slice
   virtual void flush(bool keepStatic = true);
+
+  /// remove points in the given time range; up to but not including endTime
+  virtual void flush(double startTime, double endTime);
 
   /**
    * Returns an iterator pointing to the first update whose timestamp is
@@ -256,7 +264,7 @@ public:
   /** The time delta between the given time and the data point before the given time; return -1 if no previous point */
   virtual double deltaTime(double time) const;
 
-  /** Retrieves the current interpolated T, or NULL if none */
+  /** Retrieves the current interpolated T, or nullptr if none */
   T* currentInterpolated();
 
 protected:
@@ -312,6 +320,9 @@ public:
 
   /// remove all data in the slice
   void flush();
+
+  /// remove points in the given time range; up to but not including endTime
+  void flush(double startTime, double endTime);
 
   //--- from DataSliceBase
   /**
@@ -407,6 +418,22 @@ protected: // methods
   void reset_();
 
   /**
+   * Repeated fields for command processing have unique requirements with respect to updating.
+   * If a repeated field of the update command has values, then the current preferences
+   * should be updated.  If the repeated field of the update command is empty, the current
+   * preferences should not be updated.   The routines below implement the unique
+   * requirements.  Currently the only repeated field that is part of command processing
+   * is acceptprojectorids().  If a new repeated field command is added then the routines
+   * hasRepeatedFields_() and clearRepeatedFields_() require changes.
+   */
+  /// Returns true if any repeated field has at least one value
+  bool hasRepeatedFields_(const PrefType* prefs) const;
+  /// Clears all repeated fields
+  void clearRepeatedFields_(PrefType* prefs) const;
+  /// Clears the repeated fields in pref if the corresponding repeated field in condition has at least one value
+  void conditionalClearRepeatedFields_(PrefType* prefs, const PrefType* condition) const;
+
+  /**
   * Clear a command from the command cache
   * The affected preference fields in the commandPrefsCache_ will be clear()'ed.
   * @param commandPref a prefs message in which the fields that are set represent the command that is to be cleared
@@ -497,6 +524,9 @@ public:
 
   /// remove all data in the slice
   virtual void flush(bool keepStatic = true);
+
+  /// remove points in the given time range; up to but not including endTime
+  virtual void flush(double startTime, double endTime);
 
   /**
   * Set the maximum number of data points times for current data slice, recalculates the current data slice if changed

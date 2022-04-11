@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -55,9 +56,9 @@ public:
 
   /** View used to initialize this state */
   simVis::View* view() const;
-  /** Node on which the view is tethered.  May be NULL if !isTethered().  In watch mode, this is the watcher node. */
+  /** Node on which the view is tethered.  May be nullptr if !isTethered().  In watch mode, this is the watcher node. */
   osg::Node* tetherNode() const;
-  /** In watch mode, returns the node that is being watched.  May be NULL if !isWatching(). */
+  /** In watch mode, returns the node that is being watched.  May be nullptr if !isWatching(). */
   simVis::EntityNode* watchedNode() const;
 
   /** Returns true if tethered to a node.  Must be true if isWatching() is true. */
@@ -116,7 +117,7 @@ private:
 class SDKUTIL_EXPORT ViewpointMonitor
 {
 public:
-  /** Initialize the monitor with a non-NULL top level view */
+  /** Initialize the monitor with a non-nullptr top level view */
   ViewpointMonitor(simVis::View* mainView);
   virtual ~ViewpointMonitor();
 
@@ -144,7 +145,7 @@ public:
      * The entity on which is being tethered has changed for the provided view.  The node is not
      * necessarily a simVis::EntityNode, but is likely either an EntityNode or a PlatformModelNode.
      * Note that the parent of a PlatformModelNode is an EntityNode.  This method is called with
-     * a NULL newTether when untethering.  In watch mode, the tether node is the watcher.
+     * a nullptr newTether when untethering.  In watch mode, the tether node is the watcher.
      * @param view View in which the tether node has changed.
      * @param newTether Node being tethered to.  Likely either a simVis::EntityNode or a
      *    simVis::PlatformNode, but not guaranteed (EarthManipulator allows for any type of node).
@@ -165,7 +166,7 @@ public:
      * being unset), this method is called.
      * @param view View in which the watched node has changed.
      * @param watchedNode Node being watched from the viewpoint of a tethered watcher node.  May
-     *   be NULL when the watch mode is being disabled.
+     *   be nullptr when the watch mode is being disabled.
      */
     virtual void watchedChanged(simVis::View* view, simVis::EntityNode* watchedNode) = 0;
 

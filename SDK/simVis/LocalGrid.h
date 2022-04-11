@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,7 +29,7 @@
 #include "simData/DataTypes.h"
 #include "simVis/LocatorNode.h"
 
-namespace osg { class Geode; }
+namespace osg { class Group; }
 namespace osgText { class Text; }
 
 namespace simVis
@@ -46,7 +47,7 @@ namespace simVis
     * @param[in ] host Host entity node
     * @param[in ] referenceYear The calculations for the Speed Rings Fixed Time preference needs the scenario reference year
     */
-    LocalGridNode(Locator* hostLocator, const EntityNode* host = NULL, int referenceYear = 1970);
+    LocalGridNode(Locator* hostLocator, const EntityNode* host = nullptr, int referenceYear = 1970);
 
     /**
     * Checks new preferences for this object, messages to console if there are issues
@@ -89,13 +90,13 @@ namespace simVis
     void configureLocator_(const simData::LocalGridPrefs& prefs);
 
     /// create Cartesian grid display
-    void createCartesian_(const simData::LocalGridPrefs& prefs, osg::Geode* geomGroup, osg::Geode* labelGroup) const;
+    void createCartesian_(const simData::LocalGridPrefs& prefs, osg::Group* geomGroup, osg::Group* labelGroup) const;
 
     /// create polar ring or range ring display
-    void createRangeRings_(const simData::LocalGridPrefs& prefs, osg::Geode* geomGroup, osg::Geode* labelGroup, bool includePolarRadials) const;
+    void createRangeRings_(const simData::LocalGridPrefs& prefs, osg::Group* geomGroup, osg::Group* labelGroup, bool includePolarRadials) const;
 
     /// create speed ring or speed line display
-    void createSpeedRings_(const simData::LocalGridPrefs& prefs, osg::Geode* geomGroup, osg::Geode* labelGroup, bool drawSpeedLine) const;
+    void createSpeedRings_(const simData::LocalGridPrefs& prefs, osg::Group* geomGroup, osg::Group* labelGroup, bool drawSpeedLine) const;
 
     /// update the speed ring/line display for current data
     void updateSpeedRings_(const simData::LocalGridPrefs& prefs, double sizeM, double timeRadiusSeconds);
@@ -110,8 +111,8 @@ namespace simVis
     int processSpeedParams_(const simData::LocalGridPrefs& prefs, double& sizeM, double& timeRadiusSeconds);
 
   private: // data
-    osg::ref_ptr<osg::Geode> graphicsGroup_;
-    osg::ref_ptr<osg::Geode> labelGroup_;
+    osg::ref_ptr<osg::Group> graphicsGroup_;
+    osg::ref_ptr<osg::Group> labelGroup_;
 
     simData::LocalGridPrefs lastPrefs_;
     bool                    forceRebuild_;

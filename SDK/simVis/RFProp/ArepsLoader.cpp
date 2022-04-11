@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -21,14 +22,15 @@
  */
 #include <iostream>
 #include "osgDB/FileUtils"
-#include "simCore/LUT/LUT2.h"
-#include "simCore/Calc/Angle.h"
-#include "simCore/Common/Version.h"
-#include "simCore/String/Tokenizer.h"
-#include "simCore/String/Format.h"
-#include "simCore/String/Constants.h"
-#include "simCore/String/Utils.h"
 #include "simNotify/Notify.h"
+#include "simCore/Calc/Angle.h"
+#include "simCore/Calc/Math.h"
+#include "simCore/Common/Version.h"
+#include "simCore/LUT/LUT2.h"
+#include "simCore/String/Constants.h"
+#include "simCore/String/Format.h"
+#include "simCore/String/Tokenizer.h"
+#include "simCore/String/UtfUtils.h"
 #include "simCore/String/Utils.h"
 #include "simCore/String/ValidNumber.h"
 #include "simVis/LocatorNode.h"
@@ -67,7 +69,7 @@ double ArepsLoader::getAntennaHeight() const
 int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile, bool firstFile)
 {
   // create stream to input file
-  std::ifstream inFile(arepsFile.c_str());
+  std::ifstream inFile(simCore::streamFixUtf8(arepsFile));
   if (!inFile)
   {
     SIM_ERROR << "Could not open AREPS file: " << simCore::toNativeSeparators(arepsFile) << " for reading" << std::endl;
@@ -295,30 +297,30 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
         cnr->initialize(minRange_, maxRange_, numRanges_);
 
         size_t rngCnt = 0;
-        std::vector<std::string> tmpvec;
+        std::vector<std::string> noiseVec;
         do
         {
           if (simCore::getStrippedLine(inFile, st))
           {
             // tokenize based on white space
-            simCore::stringTokenizer(tmpvec, st);
+            simCore::stringTokenizer(noiseVec, st);
           }
           else
           {
-            tmpvec.clear();
+            noiseVec.clear();
           }
-          vecLen = tmpvec.size();
+          vecLen = noiseVec.size();
           for (size_t i = 0; i < vecLen; ++i)
           {
             // AREPS CNR data stored as decibels, convert to centibels
             float cnr_dB;
-            if (rngCnt == numRanges_ || !simCore::isValidNumber(tmpvec[i], cnr_dB))
+            if (rngCnt == numRanges_ || !simCore::isValidNumber(noiseVec[i], cnr_dB))
             {
               SIM_ERROR << "Invalid CNR data for AREPS file: " << arepsFile << std::endl;
               delete cnr;
               return 1;
             }
-            short cnr_cB = static_cast<short>(simCore::rint(cnr_dB * AREPS_SCALE_FACTOR));
+            short cnr_cB = static_cast<short>(simCore::rint(cnr_dB * SCALE_FACTOR));
             (*cnr)(rngCnt) = cnr_cB;
             rngCnt++;
           }
@@ -326,7 +328,7 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
 
         // data must be populated in the provider prior to assigning to profile, provider takes ownership of the cnr LUT
         profile.addProvider(
-          new simRF::LUT1ProfileDataProvider(cnr, ProfileDataProvider::THRESHOLDTYPE_CNR, 1.0/AREPS_SCALE_FACTOR));
+          new simRF::LUT1ProfileDataProvider(cnr, ProfileDataProvider::THRESHOLDTYPE_CNR, 1.0/SCALE_FACTOR));
       }
       else if (st == "[Apm Loss Data]" || st == "[Apm Factor Data]")
       {
@@ -381,8 +383,8 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
               }
 
               // fix incorrect initialization value
-              if (lossVal == AREPS_ERRONEOUS_INIT_VALUE)
-                lossVal = AREPS_INIT_VALUE;
+              if (lossVal == ERRONEOUS_INIT_VALUE)
+                lossVal = INIT_VALUE;
               (*loss)(i, k) = lossVal;
               k++;
             }
@@ -392,7 +394,7 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
 
         // loss/ppf data provided must be populated prior to assigning to profile, provider takes ownership of the LUT
         profile.addProvider(
-          new simRF::LUTProfileDataProvider(loss, type, 1.0/AREPS_SCALE_FACTOR));
+          new simRF::LUTProfileDataProvider(loss, type, 1.0/SCALE_FACTOR));
       }
     }
   } // end of while (simCore::getStrippedLine ...
@@ -406,7 +408,11 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
   // set our radar parameters for all subsequent files
   if (firstFile && beamHandler_)
   {
-    beamHandler_->setRadarParams(radarParameters);
+    if (0 != beamHandler_->setRadarParams(radarParameters))
+    {
+      SIM_ERROR << "File: " << arepsFile << " could not set radar parameters" << std::endl;
+      return 1;
+    }
   }
 
   // string caches for missing data/calcs notifications
@@ -415,7 +421,7 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
 
   // PODProfileDataProvider depends on the loss provider
   const simRF::ProfileDataProvider* lossProvider = profile.getDataProvider()->getProvider(ProfileDataProvider::THRESHOLDTYPE_LOSS);
-  if (beamHandler_ != NULL && lossProvider)
+  if (beamHandler_ != nullptr && lossProvider)
   {
     osg::ref_ptr<PODProfileDataProvider> podProvider = new PODProfileDataProvider(lossProvider, beamHandler_->getPODLossThreshold());
     profile.addProvider(podProvider.get());
@@ -428,15 +434,17 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
 
   // create providers that depend on the PPF provider
   const simRF::ProfileDataProvider* ppfProvider = profile.getDataProvider()->getProvider(ProfileDataProvider::THRESHOLDTYPE_FACTOR);
-  if (beamHandler_ != NULL && ppfProvider)
+  if (beamHandler_ != nullptr && ppfProvider)
   {
-    profile.addProvider(new OneWayPowerDataProvider(ppfProvider, beamHandler_->radarParams()));
+    osg::ref_ptr<OneWayPowerDataProvider> oneWayPowerDataProvider = new OneWayPowerDataProvider(ppfProvider, beamHandler_->radarParams());
+    profile.addProvider(oneWayPowerDataProvider.get());
 
     osg::ref_ptr<TwoWayPowerDataProvider> twoWayPowerDataProvider = new TwoWayPowerDataProvider(ppfProvider, beamHandler_->radarParams());
     profile.addProvider(twoWayPowerDataProvider.get());
 
     // SNRDataProvider depends on TwoWayPowerDataProvider
-    profile.addProvider(new SNRDataProvider(twoWayPowerDataProvider.get(), beamHandler_->radarParams()));
+    osg::ref_ptr<SNRDataProvider> snrDataProvider = new SNRDataProvider(twoWayPowerDataProvider.get(), beamHandler_->radarParams());
+    profile.addProvider(snrDataProvider.get());
   }
   else if (!ppfProvider)
   {
@@ -445,7 +453,7 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
   }
 
   // determine if CNR data is available
-  if (profile.getDataProvider()->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_CNR) == NULL)
+  if (profile.getDataProvider()->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_CNR) == nullptr)
   {
     missingData += missingData.empty() ? "CNR" : ", CNR";
     missingCalcs += missingCalcs.empty() ? "CNR" : ", CNR";
@@ -459,7 +467,6 @@ int ArepsLoader::loadFile(const std::string& arepsFile, simRF::Profile& profile,
 
   profile.setBearing(bearingAngleRad);
   profile.setHalfBeamWidth(radarParameters.hbwD * simCore::DEG2RAD / 2.0);
-  profile.setDisplayThickness(maxHeight_);
   return 0;
 }
 

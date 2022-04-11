@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <cassert>
 #include <algorithm>
 #include <limits>
@@ -83,8 +84,12 @@ MousePositionManipulator::MousePositionManipulator(osgEarth::MapNode* mapNode, o
     terrainResolution_(0.00001),
     scene_(scene)
 {
-  assert(mapNode != NULL);
+  assert(mapNode != nullptr);
+#if OSGEARTH_SOVERSION >= 104
+  terrainEngineNode_ = mapNode_->getTerrainEngine()->getNode();
+#else
   terrainEngineNode_ = mapNode_->getTerrainEngine();
+#endif
   mapNodePath_.push_back(terrainEngineNode_.get());
   elevationQuery_ = new simVis::ElevationQueryProxy(mapNode_->getMap(), scene);
 
@@ -111,13 +116,17 @@ void MousePositionManipulator::setMapNode(osgEarth::MapNode* mapNode)
   mapNodePath_.clear();
 
   // If we don't have a valid map node, then try to gracefully deal with it
-  if (mapNode == NULL)
+  if (mapNode == nullptr)
   {
-    terrainEngineNode_ = NULL;
+    terrainEngineNode_ = nullptr;
     return;
   }
 
+#if OSGEARTH_SOVERSION >= 104
+  terrainEngineNode_ = mapNode_->getTerrainEngine()->getNode();
+#else
   terrainEngineNode_ = mapNode_->getTerrainEngine();
+#endif
   mapNodePath_.push_back(terrainEngineNode_.get());
   // Note that the elevation query proxy will take care of itself for updating map.
   // Elevation query proxy has a MapNodeObserver and should not be deleted.
@@ -201,7 +210,7 @@ int MousePositionManipulator::frame(const osgGA::GUIEventAdapter& ea, osgGA::GUI
   // NOTE: always return 0, since we don't need to capture the frame event
 
   // need to fire off mouseOverLatLon on listeners if elevation query still has a pending elevation query that is finished
-  if (llaListeners_.empty() || elevationQuery_ == NULL)
+  if (llaListeners_.empty() || elevationQuery_ == nullptr)
     return 0;
   double outElevation = 0.0;
   // this call does not block, will return false if no pending elevation query available
@@ -251,12 +260,12 @@ int MousePositionManipulator::getElevation(const osgEarth::GeoPoint& lonLatAlt, 
 
 int MousePositionManipulator::getElevation_(const osgEarth::GeoPoint& lonLatAlt, double& elevationMeters, bool blocking) const
 {
-  // It's possible that elevation query is NULL for NULL maps
-  if (elevationQuery_ == NULL)
+  // It's possible that elevation query is nullptr for nullptr maps
+  if (elevationQuery_ == nullptr)
     return 1;
 
   // The 3rd argument control how far down the angular resolution to get an answer
-  return elevationQuery_->getElevation(lonLatAlt, elevationMeters, terrainResolution_, NULL, blocking) ? 0 : 1;
+  return elevationQuery_->getElevation(lonLatAlt, elevationMeters, terrainResolution_, nullptr, blocking) ? 0 : 1;
 }
 void MousePositionManipulator::setTerrainResolution(double resolutionRadians)
 {

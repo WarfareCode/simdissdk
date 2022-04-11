@@ -13,12 +13,14 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
+#include "simVis/Constants.h"
 #include "simVis/RangeToolState.h"
 
 namespace simVis
@@ -29,8 +31,8 @@ RangeToolState::RangeToolState(EntityState* beginEntity, EntityState* endEntity)
   endEntity_(endEntity)
 {
   // Must pass in entities
-  assert(beginEntity_ != NULL);
-  assert(endEntity_ != NULL);
+  assert(beginEntity_ != nullptr);
+  assert(endEntity_ != nullptr);
 }
 
 RangeToolState::~RangeToolState()
@@ -238,8 +240,8 @@ osg::Vec3d RangeToolState::coord(RangeToolState::Coord which)
       earthModel_,
       &coordConv_,
       &downRng,
-      NULL,
-      NULL);
+      nullptr,
+      nullptr);
     coord_[which] = osg::Vec3d(downRng*sin(fpa[0]), downRng*cos(fpa[0]), 0.0);
   }
   break;

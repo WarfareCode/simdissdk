@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -25,7 +26,7 @@
 #include "simCore/Time/Utils.h"
 #include "simCore/Common/SDKAssert.h"
 #include "simCore/Common/Version.h"
-#include "simData.h"
+#include "simData/LinearInterpolator.h"
 #include "simUtil/DataStoreTestHelper.h"
 
 using namespace std;
@@ -84,8 +85,8 @@ void addPlatformGenericData(simData::DataStore* dataStore, uint64_t id, size_t i
 {
   simData::DataStore::Transaction transaction;
   simData::GenericData* genData = dataStore->addGenericData(id, &transaction);
-  SDK_ASSERT(genData != NULL);
-  if (genData == NULL)
+  SDK_ASSERT(genData != nullptr);
+  if (genData == nullptr)
     return;
 
   genData->set_time(static_cast<double>(index));
@@ -104,8 +105,8 @@ void addPlatformCategoryData(simData::DataStore* dataStore, uint64_t id, size_t 
 {
   simData::DataStore::Transaction transaction;
   simData::CategoryData* catData = dataStore->addCategoryData(id, &transaction);
-  SDK_ASSERT(catData != NULL);
-  if (catData == NULL)
+  SDK_ASSERT(catData != nullptr);
+  if (catData == nullptr)
     return;
 
   catData->set_time(static_cast<double>(index));
@@ -178,8 +179,8 @@ public:
 int sanityCheck(simData::DataStore* dataStore)
 {
   int rv = 0;
-  rv += SDK_ASSERT(dataStore != NULL);
-  if (dataStore == NULL) return rv;
+  rv += SDK_ASSERT(dataStore != nullptr);
+  if (dataStore == nullptr) return rv;
 
   simData::DataStore::IdList ids;
   dataStore->idList(&ids);
@@ -190,8 +191,8 @@ int sanityCheck(simData::DataStore* dataStore)
   {
     rv += SDK_ASSERT(*idIter > 0 && *idIter <= NUM_PLATS);
     const simData::PlatformPrefs* prefs = dataStore->platformPrefs(*idIter, &transaction);
-    rv += SDK_ASSERT(prefs != NULL);
-    if (prefs == NULL) continue;
+    rv += SDK_ASSERT(prefs != nullptr);
+    if (prefs == nullptr) continue;
     // Check two prefs that were set
     rv += SDK_ASSERT(prefs->commonprefs().has_name());
     rv += SDK_ASSERT(prefs->has_icon());
@@ -203,20 +204,20 @@ int sanityCheck(simData::DataStore* dataStore)
   double timeValue = NUM_POINTS / 2;
   dataStore->update(timeValue);
   const simData::PlatformUpdateSlice* slice = dataStore->platformUpdateSlice(1);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL) return rv;
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr) return rv;
   // Get the current data (for timeValue)
   const simData::PlatformUpdate* update = slice->current();
-  rv += SDK_ASSERT(update != NULL);
-  if (update == NULL) return rv;
+  rv += SDK_ASSERT(update != nullptr);
+  if (update == nullptr) return rv;
   rv += SDK_ASSERT(update->time() == timeValue);
 
   // Verify the time bounds; note that this might change depending on data store implementation
   simData::PlatformUpdateSlice::Bounds bounds = slice->interpolationBounds();
   // TODO: Are bounds only set when update() is interpolated?
-  // rv += SDK_ASSERT(bounds.first != NULL);
-  // rv += SDK_ASSERT(bounds.second != NULL);
-  if (bounds.first != NULL && bounds.second != NULL)
+  // rv += SDK_ASSERT(bounds.first != nullptr);
+  // rv += SDK_ASSERT(bounds.second != nullptr);
+  if (bounds.first != nullptr && bounds.second != nullptr)
   {
     rv += SDK_ASSERT(bounds.first->time() == 0);
     rv += SDK_ASSERT(bounds.second->time() == NUM_POINTS - 1);
@@ -263,7 +264,7 @@ int updateIterateTest(simData::DataStore* dataStore)
   const simData::PlatformUpdateSlice* slice = dataStore->platformUpdateSlice(1);
   simData::PlatformUpdateSlice::Iterator iter(slice);
   // Validate first entry with peek
-  rv += SDK_ASSERT(iter.peekNext() != NULL);
+  rv += SDK_ASSERT(iter.peekNext() != nullptr);
   rv += SDK_ASSERT(iter.peekNext()->time() == 0.0);
   // Validate copy constructor
   simData::PlatformUpdateSlice::Iterator copy(iter);
@@ -277,7 +278,7 @@ int updateIterateTest(simData::DataStore* dataStore)
   copy.toBack();
   rv += SDK_ASSERT(copy.hasPrevious());
   rv += SDK_ASSERT(!copy.hasNext());
-  rv += SDK_ASSERT(copy.peekPrevious() != NULL);
+  rv += SDK_ASSERT(copy.peekPrevious() != nullptr);
   rv += SDK_ASSERT(copy.peekPrevious()->time() == NUM_POINTS - 1);
   copy.toFront();
   // Validate copy constructor
@@ -289,7 +290,7 @@ int updateIterateTest(simData::DataStore* dataStore)
     const simData::PlatformUpdate* update = iter.next();
     rv += SDK_ASSERT(peek == update);
     rv += SDK_ASSERT(peek == iter.peekPrevious());
-    rv += SDK_ASSERT(update != NULL);
+    rv += SDK_ASSERT(update != nullptr);
     // Confirm time
     rv += SDK_ASSERT(update->time() == numSeen);
     numSeen++;
@@ -325,8 +326,8 @@ int commandIterateTest(simData::DataStore* dataStore)
   int rv = 0;
 
   const simData::PlatformCommandSlice* slice = dataStore->platformCommandSlice(1);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL)
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr)
     return rv;
 
   // check size
@@ -417,8 +418,8 @@ int genericIterateTest(simData::DataStore* dataStore)
   int rv = 0;
 
   const simData::GenericDataSlice* slice = dataStore->genericDataSlice(1);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL)
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr)
     return rv;
 
   // check size
@@ -465,8 +466,8 @@ int categoryIterateTest(simData::DataStore* dataStore)
   int rv = 0;
 
   const simData::CategoryDataSlice* slice = dataStore->categoryDataSlice(1);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL)
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr)
     return rv;
 
   // check size
@@ -565,8 +566,8 @@ int duplicateTimesCheck(simData::DataStore* dataStore)
   // Update the data store and get the update-slice for platform 1
   dataStore->update(1.0); // update to time 1.0
   const simData::PlatformUpdateSlice* slice = dataStore->platformUpdateSlice(1);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL) return rv;
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr) return rv;
   // Validate that the platform #1 has no duplicates and has data
   TestVisit testVisit;
   slice->visit(&testVisit);
@@ -603,8 +604,8 @@ int superformIteration(simData::DataStore* dataStore)
   {
     rv += SDK_ASSERT(dataStore->objectType(*i) == simData::PLATFORM);
     const simData::PlatformUpdateSlice* slice = dataStore->platformUpdateSlice(*i);
-    rv += SDK_ASSERT(slice != NULL);
-    if (slice == NULL)
+    rv += SDK_ASSERT(slice != nullptr);
+    if (slice == nullptr)
       continue;
     // Iterate through the slice
     simData::PlatformUpdateSlice::Iterator iter(slice);
@@ -645,11 +646,11 @@ int historicalDataCheck(simData::DataStore* dataStore)
   dataStore->update(50); // update to time
   int rv = 0;
   const simData::PlatformUpdateSlice* slice = dataStore->platformUpdateSlice(1);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL) return rv;
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr) return rv;
   const simData::PlatformUpdate* update = slice->current();
-  rv += SDK_ASSERT(update != NULL);
-  if (update == NULL) return rv;
+  rv += SDK_ASSERT(update != nullptr);
+  if (update == nullptr) return rv;
 
   // TODO
 
@@ -667,11 +668,11 @@ int interpTester(simData::DataStore* dataStore, uint64_t id, double timeVal)
     timeVal = floor(timeVal);
 
   const simData::PlatformUpdateSlice* slice = dataStore->platformUpdateSlice(id);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL) return rv;
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr) return rv;
   const simData::PlatformUpdate* update = slice->current();
-  rv += SDK_ASSERT(update != NULL);
-  if (update == NULL) return rv;
+  rv += SDK_ASSERT(update != nullptr);
+  if (update == nullptr) return rv;
   // Test data now
   rv += SDK_ASSERT(update->time() == timeVal);
   rv += SDK_ASSERT(update->x() == timeVal);
@@ -696,7 +697,7 @@ int interpolateTest(simData::DataStore* dataStore)
   rv += SDK_ASSERT(true == dataStore->canInterpolate());
   rv += SDK_ASSERT(false == dataStore->isInterpolationEnabled());
   // Remove the interpolator, then try to enable
-  dataStore->setInterpolator(NULL);
+  dataStore->setInterpolator(nullptr);
   rv += SDK_ASSERT(true == dataStore->canInterpolate());
   rv += SDK_ASSERT(false == dataStore->enableInterpolation(true));
   rv += SDK_ASSERT(false == dataStore->isInterpolationEnabled());
@@ -723,7 +724,7 @@ int interpolateTest(simData::DataStore* dataStore)
   rv += SDK_ASSERT(interpTester(dataStore, 1, 50) == 0);
   rv += SDK_ASSERT(interpTester(dataStore, 1, 50.5) == 0);
 
-  dataStore->setInterpolator(NULL);
+  dataStore->setInterpolator(nullptr);
   return rv;
 }
 
@@ -761,7 +762,7 @@ int timeNextPreviousCheck(simData::DataStore* dataStore)
     return rv;
   // Get a slice
   const simData::PlatformUpdateSlice* slice = dataStore->platformUpdateSlice(*idList.begin());
-  rv += SDK_ASSERT(slice != NULL);
+  rv += SDK_ASSERT(slice != nullptr);
   if (!slice)
     return rv;
   // Test some arbitrary times

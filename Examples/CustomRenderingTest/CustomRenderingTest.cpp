@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -218,13 +219,13 @@ public:
 
     // Adjust the coordinates of the locator to match that of the host
     auto host = node_->host();
-    if (host != NULL)
+    if (host != nullptr)
     {
       simCore::Coordinate coord;
       host->getLocator()->getCoordinate(&coord);
       // In this example the custom rendering is tracking the host platform.  It is
       // possible to add offsets or to set a completely independent location.
-      node_->getLocator()->setCoordinate(coord);
+      node_->getLocator()->setCoordinate(coord, host->getLocator()->getTime());
       node_->dirtyBound();
     }
 
@@ -318,7 +319,7 @@ public:
 
     // Pick out the node from the scene (created by the ScenarioDataStoreAdapter automatically)
     simVis::CustomRenderingNode* node = manager_->find<simVis::CustomRenderingNode>(newId);
-    if (node != NULL)
+    if (node != nullptr)
     {
       // A real render engine would need to account for multiple Custom Rendering nodes here,
       // either by creating a separate updater per entity, or configuring the updater to
@@ -346,6 +347,10 @@ int main(int argc, char **argv)
   // set up the registry so the SDK can find platform models
   simExamples::configureSearchPaths();
 
+  // data source which will provide positions for the platform
+  // based on the simulation time.
+  simData::MemoryDataStore dataStore;
+
   // creates a world map.
   osg::ref_ptr<osgEarth::Map> map = simExamples::createDefaultExampleMap();
 
@@ -357,10 +362,6 @@ int main(int argc, char **argv)
 
   // add sky node
   simExamples::addDefaultSkyNode(viewer.get());
-
-  // data source which will provide positions for the platform
-  // based on the simulation time.
-  simData::MemoryDataStore dataStore;
 
   scene->getScenario()->bind(&dataStore);
 

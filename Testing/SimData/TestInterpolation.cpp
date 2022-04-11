@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -32,7 +33,7 @@
 using namespace std;
 
 namespace {
-class AssertionException : public std::exception
+class InterpAssertionException : public std::exception
 {
 };
 
@@ -40,7 +41,7 @@ void assertTrue(bool value)
 {
   if (!value)
   {
-    throw AssertionException();
+    throw InterpAssertionException();
   }
 }
 
@@ -48,7 +49,7 @@ template <class T> void assertEquals(const T& expected, const T& actual)
 {
   if (!(expected == actual))
   {
-    throw AssertionException();
+    throw InterpAssertionException();
   }
 }
 
@@ -56,7 +57,7 @@ void assertEquals(const std::string& expected, const std::string& actual)
 {
   if (!(expected == actual))
   {
-    throw AssertionException();
+    throw InterpAssertionException();
   }
 }
 
@@ -64,7 +65,7 @@ template <class T> void assertNotEquals(const T& expected, const T& actual)
 {
   if (expected == actual)
   {
-    throw AssertionException();
+    throw InterpAssertionException();
   }
 }
 
@@ -91,7 +92,7 @@ void testInterpolation_enable()
   assertTrue(ds.isInterpolationEnabled());
 
   // unset interpolator
-  ds.setInterpolator(NULL);
+  ds.setInterpolator(nullptr);
   assertTrue(!ds.isInterpolationEnabled());
 
   // disabling should succeed
@@ -138,7 +139,7 @@ void testInterpolation_nearest()
 
   // nothing should exist before first datapoint
   ds->update(0.9);
-  assertEquals(pslice->current(), (const simData::PlatformUpdate*)NULL);
+  assertEquals(pslice->current(), (const simData::PlatformUpdate*)nullptr);
   assertTrue(!pslice->hasChanged());
   assertEquals(pslice->isInterpolated(), false);
   // test that re-updating datastore at same time does not signal a changed dataslice update (non-interpolated case)
@@ -152,19 +153,19 @@ void testInterpolation_nearest()
   // after end datapoint, we get nothing : "file mode" behavior
   ds->update(2.1);
   assertTrue(!pslice->hasChanged());  // if invalid before, and invalid after, no change.
-  assertEquals(pslice->current(), (const simData::PlatformUpdate*)NULL);
+  assertEquals(pslice->current(), (const simData::PlatformUpdate*)nullptr);
   assertEquals(pslice->isInterpolated(), false);
   // currently, an expired platform signals hasChanged at every update
 
   // at borders, should match the datapoints exactly
   ds->update(1.0);
-  assertTrue(pslice->current() != NULL);
+  assertTrue(pslice->current() != nullptr);
   assertEquals(pslice->isInterpolated(), false);
   assertEquals(pslice->current()->time(), 1.0);
 
   // at borders, should match the datapoints exactly
   ds->update(2.0);
-  assertTrue(pslice->current() != NULL);
+  assertTrue(pslice->current() != nullptr);
   assertTrue(pslice->hasChanged());
   assertEquals(pslice->isInterpolated(), false);
   assertEquals(pslice->current()->time(), 2.0);
@@ -178,7 +179,7 @@ void testInterpolation_nearest()
 
   // should match the nearest time when "interpolating"
   ds->update(1.4);
-  assertTrue(pslice->current() != NULL);
+  assertTrue(pslice->current() != nullptr);
   assertTrue(pslice->hasChanged());
   assertEquals(pslice->isInterpolated(), true);
   assertEquals(pslice->current()->time(), 1.4);
@@ -192,7 +193,7 @@ void testInterpolation_nearest()
   }
 
   ds->update(1.6);
-  assertTrue(pslice->current() != NULL);
+  assertTrue(pslice->current() != nullptr);
   assertEquals(pslice->isInterpolated(), true);
   assertEquals(pslice->current()->time(), 1.6);
   assertEquals(pslice->current()->x(), simCore::WGS_A + satelliteHeight + 20.0);
@@ -237,30 +238,30 @@ void testInterpolation_linear()
 
   // nothing should exist before first datapoint or after end
   ds->update(0.9);
-  assertEquals(pslice->current(), (const simData::PlatformUpdate*)NULL);
+  assertEquals(pslice->current(), (const simData::PlatformUpdate*)nullptr);
   assertEquals(pslice->isInterpolated(), false);
 
   // after end datapoint, we get nothing : "file mode" behavior
   ds->update(2.1);
-  assertEquals(pslice->current(), (const simData::PlatformUpdate*)NULL);
+  assertEquals(pslice->current(), (const simData::PlatformUpdate*)nullptr);
   assertEquals(pslice->isInterpolated(), false);
 
   // at borders, should match the datapoints exactly
   ds->update(1.0);
-  assertTrue(pslice->current() != NULL);
+  assertTrue(pslice->current() != nullptr);
   assertEquals(pslice->isInterpolated(), false);
   assertEquals(pslice->current()->time(), 1.0);
 
   // at borders, should match the datapoints exactly
   ds->update(2.0);
-  assertTrue(pslice->current() != NULL);
+  assertTrue(pslice->current() != nullptr);
   assertEquals(pslice->isInterpolated(), false);
   assertEquals(pslice->current()->time(), 2.0);
 
   // should interpolate
   ds->update(1.5);
   assertTrue(pslice->hasChanged());
-  assertTrue(pslice->current() != NULL);
+  assertTrue(pslice->current() != nullptr);
   assertEquals(pslice->isInterpolated(), true);
   assertEquals(pslice->current()->time(), 1.5);
   // test that re-updating datastore at same time does not signal a changed dataslice update (interpolated case)
@@ -303,7 +304,7 @@ void testInterpolation_linearAngle()
     // add valid datapoints
     simData::DataStore::Transaction t;
     simData::LaserUpdate *u = ds->addLaserUpdate(laserId, &t);
-    assertTrue(u != NULL);
+    assertTrue(u != nullptr);
     u->set_time(1.0);
     u->mutable_orientation()->set_yaw(0.0);
     u->mutable_orientation()->set_pitch(0.0);
@@ -315,7 +316,7 @@ void testInterpolation_linearAngle()
     // add valid datapoints
     simData::DataStore::Transaction t;
     simData::LaserUpdate *u = ds->addLaserUpdate(laserId, &t);
-    assertTrue(u != NULL);
+    assertTrue(u != nullptr);
     u->set_time(2.0);
     u->mutable_orientation()->set_yaw(0.5);
     u->mutable_orientation()->set_pitch(0.5);
@@ -327,7 +328,7 @@ void testInterpolation_linearAngle()
     // add valid datapoints
     simData::DataStore::Transaction t;
     simData::LaserUpdate *u = ds->addLaserUpdate(laserId, &t);
-    assertTrue(u != NULL);
+    assertTrue(u != nullptr);
     u->set_time(3.0);
     u->mutable_orientation()->set_yaw(M_TWOPI - 0.5);
     u->mutable_orientation()->set_pitch(1.0);
@@ -336,12 +337,12 @@ void testInterpolation_linearAngle()
   }
 
   const simData::LaserUpdateSlice *lslice = ds->laserUpdateSlice(laserId);
-  assertTrue(lslice != NULL);
+  assertTrue(lslice != nullptr);
 
   // nothing should exist before first datapoint
   ds->update(0.9);
   assertTrue(!lslice->hasChanged());
-  assertEquals(lslice->current(), (const simData::LaserUpdate*)NULL);
+  assertEquals(lslice->current(), (const simData::LaserUpdate*)nullptr);
   assertEquals(lslice->isInterpolated(), false);
   // test that re-updating datastore at same time does not signal a changed dataslice update (interpolated case)
   {
@@ -359,7 +360,7 @@ void testInterpolation_linearAngle()
   // at borders, should match the datapoints exactly
   ds->update(1.0);
   assertTrue(lslice->hasChanged());
-  assertTrue(lslice->current() != NULL);
+  assertTrue(lslice->current() != nullptr);
   assertEquals(lslice->isInterpolated(), false);
   assertEquals(lslice->current()->time(), 1.0);
   // test that re-updating datastore at same time does not signal a changed dataslice update (interpolated case)
@@ -372,14 +373,14 @@ void testInterpolation_linearAngle()
 
   // at borders, should match the datapoints exactly
   ds->update(3.0);
-  assertTrue(lslice->current() != NULL);
+  assertTrue(lslice->current() != nullptr);
   assertEquals(lslice->isInterpolated(), false);
   assertEquals(lslice->current()->time(), 3.0);
 
   // should interpolate
   ds->update(1.5);
   assertTrue(lslice->hasChanged());
-  assertTrue(lslice->current() != NULL);
+  assertTrue(lslice->current() != nullptr);
   assertEquals(lslice->isInterpolated(), true);
   assertEquals(lslice->current()->time(), 1.5);
   assertTrue(simCore::areEqual(lslice->current()->orientation().yaw(), 0.25));
@@ -395,7 +396,7 @@ void testInterpolation_linearAngle()
 
   // should interpolate
   ds->update(2.5);
-  assertTrue(lslice->current() != NULL);
+  assertTrue(lslice->current() != nullptr);
   assertEquals(lslice->isInterpolated(), true);
   assertEquals(lslice->current()->time(), 2.5);
   assertTrue(simCore::areEqual(lslice->current()->orientation().yaw(), 0.0));
@@ -409,7 +410,7 @@ void testInterpolation_linearAngle()
 
   ds->update(2.6);
   // returns most recent (non-interpolated) datapoint
-  assertTrue(lslice->current() != NULL);
+  assertTrue(lslice->current() != nullptr);
   assertEquals(lslice->current()->time(), 2.0);
   assertEquals(lslice->isInterpolated(), false);
 }
@@ -428,7 +429,7 @@ int TestInterpolation(int argc, char* argv[])
 
     return 0;
   }
-  catch (AssertionException& e)
+  catch (InterpAssertionException& e)
   {
     cout << e.what() << endl;
     return 1;

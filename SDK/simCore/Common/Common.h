@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -49,26 +50,6 @@
  */
 #define SDK_DEPRECATE(METHOD, TEXT) SDK_DEPRECATED_PRE(TEXT) METHOD SDK_DEPRECATED_POST(TEXT)
 
-
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-
-// set up define for whether member templates are supported by VisualStudio compilers.
-#ifdef _MSC_VER
-  #if(_MSC_VER >= 1300)
-    #define __STL_MEMBER_TEMPLATES
-  #endif
-#endif
-
-// Define NULL pointer value
-#ifndef NULL
-  #ifdef  __cplusplus
-    #define NULL    0
-  #else
-    #define NULL ((void *)0)
-  #endif
-#endif
-
-#endif /* USE_DEPRECATED_SIMDISSDK_API */
 
 #ifdef WIN32
   #ifndef WIN32_LEAN_AND_MEAN

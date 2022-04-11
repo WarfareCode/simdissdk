@@ -9,18 +9,15 @@
  *
  *
  * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
- *               EW Modeling and Simulation, Code 5770
+ *               EW Modeling & Simulation, Code 5773
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * For more information please send email to simdis@enews.nrl.navy.mil
- *
- * U.S. Naval Research Laboratory.
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
- ****************************************************************************
- *
  *
  */
 #include <cassert>
@@ -114,7 +111,7 @@ HudPositionManager::~HudPositionManager()
 void HudPositionManager::addWindow(const std::string& name, const osg::Vec2d& defaultPositionPct, RepositionCallback* reposCallback)
 {
   // Assertion failure means other asserts in the code will fail due to unexpected precondition
-  assert(reposCallback != NULL);
+  assert(reposCallback != nullptr);
 
   auto i = allWindows_.find(name);
 
@@ -134,7 +131,7 @@ void HudPositionManager::addWindow(const std::string& name, const osg::Vec2d& de
     // cases where we will eventually expect that the WindowData* exists, but has
     // no callback, due to being removed or due to being loaded with a position
     // "externally" such as through a settings file.
-    assert(i->second->repositionCallback() == NULL);
+    assert(i->second->repositionCallback() == nullptr);
 
     // It is not necessarily an error to add a window that exists already.  Just update
     // the reposition callback, but don't bother setting the position, because we already
@@ -157,8 +154,8 @@ int HudPositionManager::removeWindow(const std::string& name)
   if (i == allWindows_.end())
     return 1;
   // Assertion failure means removal of a window that was already removed
-  assert(i->second->repositionCallback() != NULL);
-  i->second->setRepositionCallback(NULL);
+  assert(i->second->repositionCallback() != nullptr);
+  i->second->setRepositionCallback(nullptr);
   return 0;
 }
 
@@ -207,7 +204,7 @@ int HudPositionManager::getAllWindows(std::vector<std::string>& names, bool acti
   for (auto i = allWindows_.begin(); i != allWindows_.end(); ++i)
   {
     // Active callbacks have a reposition callback
-    if (!activeOnly || i->second->repositionCallback() != NULL)
+    if (!activeOnly || i->second->repositionCallback() != nullptr)
       names.push_back(i->first);
   }
   return 0;
@@ -238,7 +235,7 @@ int HudPositionManager::setSize(const std::string& name, const osg::Vec2d& minXy
 class RepositionPixelsCallback::ResizeCallback : public osgGA::GUIEventHandler
 {
 public:
-  ResizeCallback(RepositionPixelsCallback* parent)
+  explicit ResizeCallback(RepositionPixelsCallback* parent)
     : windowSize_(0.0, 0.0),
       parent_(parent)
   {

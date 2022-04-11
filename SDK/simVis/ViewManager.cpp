@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,6 +24,7 @@
 #include <cstring>
 #include <iterator>
 #include "simNotify/Notify.h"
+#include "simCore/Calc/Math.h"
 #include "simVis/Gl3Utils.h"
 #include "simVis/Registry.h"
 #include "simVis/ViewManager.h"
@@ -65,7 +67,7 @@ namespace
       viewMan_(viewMan),
       width_(0),
       height_(0),
-      resizeView_(NULL)
+      resizeView_(nullptr)
       { }
 
     bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa, osg::Object* object, osg::NodeVisitor*)
@@ -84,7 +86,7 @@ namespace
       {
         viewMan_->handleResize(width_, height_);
         aa.requestRedraw();
-        resizeView_ = NULL;
+        resizeView_ = nullptr;
       }
       return false;
     }
@@ -181,7 +183,7 @@ void AddEventHandlerToViews::removeFromViews(const simVis::ViewManager& viewMana
 
 void AddEventHandlerToViews::operator()(simVis::View* inset, const EventType& e)
 {
-  if (guiEventHandler_ != NULL)
+  if (guiEventHandler_ != nullptr)
   {
     switch (e)
     {
@@ -243,7 +245,6 @@ void ViewManager::removeView(simVis::View* view)
   }
 }
 
-
 void ViewManager::getViews(std::vector<simVis::View*>& views) const
 {
   std::vector<osgViewer::View*> temp;
@@ -258,18 +259,15 @@ void ViewManager::getViews(std::vector<simVis::View*>& views) const
   }
 }
 
-
 unsigned int ViewManager::getNumViews() const
 {
   return viewer_->getNumViews();
 }
 
-
 simVis::View* ViewManager::getView(unsigned int index) const
 {
-  return index < getNumViews() ? dynamic_cast<simVis::View*>(viewer_->getView(index)) : NULL;
+  return index < getNumViews() ? dynamic_cast<simVis::View*>(viewer_->getView(index)) : nullptr;
 }
-
 
 simVis::View* ViewManager::getViewByName(const std::string& name) const
 {
@@ -280,9 +278,34 @@ simVis::View* ViewManager::getViewByName(const std::string& name) const
     if ((*i)->getName() == name)
       return dynamic_cast<simVis::View*>(*i);
   }
-  return NULL;
+  return nullptr;
 }
 
+simVis::View* ViewManager::getViewByMouseXy(const osg::Vec2d& mouseXy) const
+{
+  std::vector<simVis::View*> allViews;
+  getViews(allViews);
+
+  simVis::View* rv = nullptr;
+  for (auto* view : allViews)
+  {
+    // Ignore invalid views, and views set up to ignore event focus
+    if (!view || !view->getCamera())
+      continue;
+    auto* camera = view->getCamera();
+    if (!camera->getViewport() || !camera->getAllowEventFocus() || (camera->getNodeMask() == 0))
+      continue;
+
+    // Save the last view, which is front-most
+    auto* vp = camera->getViewport();
+    if (simCore::isBetween(mouseXy.x(), vp->x(), vp->x() + vp->width()) &&
+      simCore::isBetween(mouseXy.y(), vp->y(), vp->y() + vp->height()))
+    {
+      rv = view;
+    }
+  }
+  return rv;
+}
 
 int ViewManager::getIndexOf(simVis::View* view) const
 {
@@ -293,7 +316,6 @@ int ViewManager::getIndexOf(simVis::View* view) const
     return -1;
   return iter - temp.begin();
 }
-
 
 void ViewManager::addCallback(Callback* value)
 {
@@ -355,7 +377,9 @@ void ViewManager::handleResize(int newwidth, int newheight)
   unsigned int numViews = getNumViews();
   for (unsigned int i = 0; i < numViews; ++i)
   {
-    getView(i)->processResize(newwidth, newheight);
+    simVis::View* view = getView(i);
+    if (view)
+      view->processResize(newwidth, newheight);
   }
 }
 

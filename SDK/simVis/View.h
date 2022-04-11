@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -46,7 +47,9 @@ enum NavMode
   NAVMODE_GLOBESPIN,
   NAVMODE_ZOOM,
   NAVMODE_CENTERVIEW,
-  NAVMODE_GIS
+  NAVMODE_GIS,
+  NAVMODE_BUILDER,
+  NAVMODE_NGTS
 };
 
 /// A camera viewpoint configuration
@@ -147,7 +150,7 @@ public:
   /** Views can either be top-level, insets, or HUDs */
   enum ViewType
   {
-    VIEW_TOPLEVEL = 0, ///< getHostView() will be NULL; standalone view (potentially with children)
+    VIEW_TOPLEVEL = 0, ///< getHostView() will be nullptr; standalone view (potentially with children)
     VIEW_INSET,        ///< getHostView() will be parent view
     VIEW_SUPERHUD      ///< getHostView() will be underlay view
   };
@@ -161,7 +164,7 @@ public:
    * Returns the views "host view" if there is one.
    * See setUpViewAsInset() for a description of the host view.
    *
-   * @return A managed view, or NULL if this view is independent.
+   * @return A managed view, or nullptr if this view is independent.
    */
   simVis::View* getHostView() const;
 
@@ -228,12 +231,12 @@ public:
   int getIndexOfInset(simVis::View* view) const;
 
   /**
-   * Gets an inset by index, returning NULL on invalid index
+   * Gets an inset by index, returning nullptr on invalid index
    */
   simVis::View* getInset(unsigned int index) const;
 
   /**
-   * Gets an inset by name, returning NULL if no inset has the name.
+   * Gets an inset by name, returning nullptr if no inset has the name.
    */
   simVis::View* getInsetByName(const std::string& name) const;
 
@@ -270,7 +273,7 @@ public:
    * Tether the camera location to a scenario entity.  Transitions to the viewpoint with
    * a duration of 0 seconds.  Accounts for entity node graph to tether to correct node
    * in the platform graph.
-   * @param node EntityNode or PlatformModelNode to which to tether the camera, or NULL to clear
+   * @param node EntityNode or PlatformModelNode to which to tether the camera, or nullptr to clear
    *   the tether.  The node will be processed through getModelNodeForTether_(), so the node in
    *   getViewpoint() may be different than the one requested.
    * @see tetherCamera(osg::Node*, const simVis::Viewpoint&, double)
@@ -282,7 +285,7 @@ public:
    * Tether the camera location to a scenario entity and apply focal offsets. Will transition
    * to new camera view during duration specified.  Accounts for entity node graph to tether
    * to correct node in the platform graph.
-   * @param node EntityNode or PlatformModelNode to which to tether the camera, or NULL to clear
+   * @param node EntityNode or PlatformModelNode to which to tether the camera, or nullptr to clear
    *   the tether.  The node will be processed through getModelNodeForTether_(), so the node in
    *   getViewpoint() may be different than the one requested.
    * @param vp Parameters for the viewpoint.  Tether node in Viewpoint will be replaced with
@@ -293,7 +296,7 @@ public:
 
   /**
   * Get the node to which the camera is tethered.
-  * @return a node, or NULL if the camera is not tethered.
+  * @return a node, or nullptr if the camera is not tethered.
   * @see simVis::Viewpoint::getNode()
   * @see getViewpoint()
   */
@@ -377,7 +380,7 @@ public:
 
   /**
   * Enable/disable cockpit mode (camera positioned in cockpit and using az/el/roll of tether platform)
-  * @param tether Node to which to tether in cockpit mode, or NULL to disable
+  * @param tether Node to which to tether in cockpit mode, or nullptr to disable
   */
   void enableCockpitMode(osg::Node* tether);
 
@@ -389,8 +392,8 @@ public:
 
   /**
   * Enable/disable watch mode (camera positioned at watcher position, and pointed at watched position)
-  * @param watched Node that will be watched, or NULL to disable
-  * @param watcher Node that is watching, or NULL to disable
+  * @param watched Node that will be watched, or nullptr to disable
+  * @param watcher Node that is watching, or nullptr to disable
   */
   void enableWatchMode(osg::Node* watched, osg::Node* watcher);
 
@@ -402,13 +405,13 @@ public:
 
   /**
   * Get the EntityNode that watch mode is using as the watcher
-  * @return a EntityNode, or NULL if the view is not in watch mode
+  * @return a EntityNode, or nullptr if the view is not in watch mode
   */
   simVis::EntityNode* getWatcherNode() const;
 
   /**
    * Get the EntityNode that watch mode is using as the watched (i.e. target for the camera)
-   * @return a EntityNode, or NULL if the view is not in watch mode
+   * @return a EntityNode, or nullptr if the view is not in watch mode
    */
   simVis::EntityNode* getWatchedNode() const;
 
@@ -612,22 +615,19 @@ public:
   ViewType type() const;
 
   /**
-   * Gets the entity node's model node if the specified node is an EntityNode.  Essentially
-   * returns either the simVis::EntityNode, or for platforms will find the PlatformModelNode
-   * under the provided EntityNode.  Tethering requires a PlatformModelNode for platforms,
-   * or the EntityNode for other entity types.
+   * Gets a node suitable for tethering.  The type of node varies based on the entity type.
    * @param node Either an EntityNode or PlatformModelNode representing the entity to tether.
-   * @return the entity node of the tether node, or the original node if not a Platform Model node
+   * @return A node suitable for tethering
    */
   osg::Node* getModelNodeForTether(osg::Node* node) const;
 
   /**
    * Up-casts an osg::Node to a simVis::EntityNode.  The incoming osg::Node may already be a
    * simVis::EntityNode, or it might be a simVis::PlatformModelNode.  The return is always
-   * either a valid simVis::EntityNode pointer, or NULL.
+   * either a valid simVis::EntityNode pointer, or nullptr.
    * @param node Either a simVis::EntityNode, or a simVis::PlatformModelNode, representing the
    *   entity in question.
-   * @return Pointer to the EntityNode, or NULL if not able to pull out that pointer from the input.
+   * @return Pointer to the EntityNode, or nullptr if not able to pull out that pointer from the input.
    */
   simVis::EntityNode* getEntityNode(osg::Node* node) const;
 
@@ -752,8 +752,6 @@ private: // data
   /// NodeVisitor that holds the overhead mode indicator for the EarthManipulator
   osg::ref_ptr<osg::NodeVisitor> updateCameraNodeVisitor_;
 };
-
-class FocusManager;
 
 /// Monitor the adding and removing of inset
 class InsetAddDelete : public simVis::ViewManager::Callback

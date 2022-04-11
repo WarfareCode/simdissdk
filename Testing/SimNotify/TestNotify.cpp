@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,11 +29,12 @@
 #ifndef _MSC_VER
 #include <unistd.h>
 #endif
-#include "simCore/Common/Common.h"
-#include "simCore/Common/Version.h"
 #include "simNotify/Notify.h"
 #include "simNotify/NotifyHandler.h"
 #include "simNotify/StandardNotifyHandlers.h"
+#include "simCore/Common/Common.h"
+#include "simCore/Common/Version.h"
+#include "simCore/String/UtfUtils.h"
 
 using namespace std;
 
@@ -395,8 +397,8 @@ void testStandardNotifyHandler()
   memset(stdoutBuf, '\0', sizeof(stdoutBuf));
 
   // Reset stdout and stderr
-  setbuf(stdout, NULL);
-  setbuf(stderr, NULL);
+  setbuf(stdout, nullptr);
+  setbuf(stderr, nullptr);
 
   // Reset notify handlers to default
   simNotify::setNotifyLevel(simNotify::defaultNotifyLevel());
@@ -436,7 +438,7 @@ void testStdoutNotifyHandler()
   }
 
   // Reset stdout and stderr
-  setbuf(stdout, NULL);
+  setbuf(stdout, nullptr);
 
   // Reset notify handlers to default
   simNotify::setNotifyHandlers(simNotify::defaultNotifyHandler());
@@ -468,7 +470,7 @@ void testStderrNotifyHandler()
   }
 
   // Reset stdout and stderr
-  setbuf(stderr, NULL);
+  setbuf(stderr, nullptr);
 
   // Reset notify handlers to default
   simNotify::setNotifyHandlers(simNotify::defaultNotifyHandler());
@@ -500,7 +502,7 @@ void testFileNotifyHandler()
   handler.reset();
 
   // Read the string from the file
-  ifstream fd(filename);
+  ifstream fd(simCore::streamFixUtf8(filename));
 
   if (!fd.is_open())
   {

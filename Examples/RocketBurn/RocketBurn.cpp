@@ -13,12 +13,14 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
+#include "osgDB/ReadFile"
 #include "simCore/Common/Version.h"
 #include "simCore/Common/HighPerformanceGraphics.h"
 #include "simData/MemoryDataStore.h"
@@ -46,8 +48,8 @@ public:
   {
   }
 
-  /// current time has been changed
-  virtual void onTimeChange(simData::DataStore *source)
+  /// data store has changed
+  virtual void onChange(simData::DataStore *source)
   {
     rbStorage_.update(source->updateTime());
     vtStorage_.update(source->updateTime());

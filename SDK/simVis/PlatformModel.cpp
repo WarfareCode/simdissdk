@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -33,7 +34,6 @@
 #include "osgEarth/Horizon"
 #include "osgEarth/ObjectIndex"
 #include "osgEarth/AnnotationUtils"
-
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Angle.h"
 #include "simCore/String/Format.h"
@@ -48,18 +48,13 @@
 #include "simVis/RCS.h"
 #include "simVis/Registry.h"
 #include "simVis/Utils.h"
+#include "simVis/PlatformIconFactory.h"
 #include "simVis/PlatformModel.h"
-
-#define LC "[PlatformModel] "
-
-using namespace osgEarth;
 
 namespace simVis {
 
 /** OSG Mask for traversal (like the select type in SIMDIS 9) */
-const int PlatformModelNode::TRAVERSAL_MASK = simVis::DISPLAY_MASK_PLATFORM_MODEL;
-/** Conversion factor to convert a brightness pref value (0-100) to an ambient light value (from S9) */
-static const float BRIGHTNESS_TO_AMBIENT = 0.022f;
+const unsigned int PlatformModelNode::TRAVERSAL_MASK = simVis::DISPLAY_MASK_PLATFORM_MODEL;
 /** Default brightness ambient value; 36 brightness is the default value */
 static const osg::Vec4f DEFAULT_AMBIENT(
   36.f * BRIGHTNESS_TO_AMBIENT,
@@ -81,7 +76,7 @@ public:
   {
     osg::ref_ptr<PlatformModelNode> refPlatform;
     if (platform_.lock(refPlatform) && !ignoreResult_)
-      refPlatform->setModel(model.get(), isImage);
+      refPlatform->setModel_(model.get(), isImage);
   }
 
   void ignoreResult()
@@ -96,23 +91,22 @@ private:
 
 /* OSG Scene Graph Layout of This Class
  *
- *       /= labelRoot => label_              /= rcs_         /= alphaVolumeGroup_ => model_
- * this => dynamicXform_ => imageIconXform_ <=> imageAlignmentXform_ => offsetXform_ => model_
+ *       /= label_                           /= rcs_         /= alphaVolumeGroup_ => model_
+ * this => dynamicXform_ => imageIconXform_ <=> offsetXform_ => model_
  *                                           \= other scaled children
+ *                                           \= fastPathIcon_
  *
- * model_ is the representative for the 3D model or 2D image, and may be set to NULL at times.
+ * model_ is the representative for the 3D model or 2D image, and may be set to nullptr at times.
  * It is set from the call to simVis::Registry::instance()->getOrCreateIconModel().
  *
  * The offsetXform_ handles transforms provided by the end user to orient and translate the model
  * correctly in the scene.  For example, a 90 degree yaw orientation can be used to fix models
- * that point the wrong way.  The offsets only apply to the model and not any
- * of its attachments.
- *
- * The imageAlignmentXform_ handles implementing a standard alignment option to 2D image icons, referenced from
- * the position. It simply applies offsets to represent right/center/left and top/center/bottom alignments
- * to the model. The alignment offsets apply on top of other offset and rotation adjustments, so if the rotation of
- * the image icon is set to follow yaw, the image icon will apply alignment with respect to yaw.
- * The offsets only apply to the model and not any of its attachments.
+ * that point the wrong way.  The offsets only apply to the model and not any of its attachments.
+ * This matrix also implements a standard alignment option to 2D image icons, reference from the
+ * position. It simply applies offsets to represent right/center/left and top/center/bottom
+ * alignments to the model. The alignment offsets apply on top of other offset and rotation
+ * adjustments, so if the rotation of the image icon is set to follow yaw, the image icon will apply
+ * alignment with respect to yaw. The offsets only apply to the model and not any of its attachments.
  *
  * The rcs_ is the radar cross section, which might be a 2D or 3D segment.  It is colored on
  * its own based on RCS data file settings.  It's important that override color not apply
@@ -134,15 +128,20 @@ private:
  * alphaVolumeGroup_ is only on when the alphavolume() preference is on.  It does a second pass on
  * the platform model, this time drawing the backfaces.  This is useful for things like drawing the
  * interior of an alpha sphere used in error ellipses.
+ *
+ * fastPathIcon_ is an optimization path to help with rendering image-only platforms very quickly
+ * by reducing state set changes.  It only is available for 2D icons.  It is mutually exclusive to
+ * imageAlignmentXform_.  Only one or the other is active.
  */
 
 PlatformModelNode::PlatformModelNode(Locator* locator)
   : LocatorNode(locator),
-    isImageModel_(false),
-    autoRotate_(false),
-    lastPrefsValid_(false),
-    brightnessUniform_(new osg::Uniform("osg_LightSource[0].ambient", DEFAULT_AMBIENT)),
-    objectIndexTag_(0)
+  isImageModel_(false),
+  autoRotate_(false),
+  lastPrefsValid_(false),
+  brightnessUniform_(new osg::Uniform(LIGHT0_AMBIENT_COLOR.c_str(), DEFAULT_AMBIENT)),
+  objectIndexTag_(0),
+  allowFastPath_(true)
 {
   // EntityLabelNode for platformModel is a special case - a locatorNode with no locator; it gets its location from parent, the platformmodelnode (which is a locatorNode).
   label_ = new EntityLabelNode();
@@ -157,9 +156,6 @@ PlatformModelNode::PlatformModelNode(Locator* locator)
   // Apply the override color shader to the container
   overrideColor_ = new simVis::OverrideColor(offsetXform_->getOrCreateStateSet());
 
-  imageAlignmentXform_ = new osg::MatrixTransform();
-  imageAlignmentXform_->setName("imageAlignmentXform");
-
   // Set up the transform responsible for rotating the 2-D image icons
   imageIconXform_ = new BillboardAutoTransform();
   imageIconXform_->setAutoScaleToScreen(false);
@@ -167,17 +163,13 @@ PlatformModelNode::PlatformModelNode(Locator* locator)
   imageIconXform_->setName("imageIconXform");
   imageIconXform_->dirty();
 
-  // Horizon culler for the platform. The culler is attached to this node,
+  // Horizon culler for the platform (and its label). The culler is attached to this node,
   // but uses the imageIconXform for the actual testing.
-  HorizonCullCallback* hcc = new HorizonCullCallback();
+  osgEarth::HorizonCullCallback* hcc = new osgEarth::HorizonCullCallback();
   hcc->setCullByCenterPointOnly(true);
   hcc->setProxyNode(imageIconXform_.get());
   hcc->setName("HorizonCullCallback");
   addCullCallback(hcc);
-
-  // the following line is necessary prior to OSG 3.4, since we are unable
-  // to pass the shared Horizon down from the ScenarioManager:
-  hcc->setHorizon(new Horizon(*locator->getSRS()->getEllipsoid()));
 
   // used to apply both dynamic and static scaling to the model.
   dynamicXform_ = new simVis::DynamicScaleTransform();
@@ -187,8 +179,7 @@ PlatformModelNode::PlatformModelNode(Locator* locator)
   addChild(label_);
   addChild(dynamicXform_);
   dynamicXform_->addChild(imageIconXform_);
-  imageIconXform_->addChild(imageAlignmentXform_);
-  imageAlignmentXform_->addChild(offsetXform_);
+  imageIconXform_->addChild(offsetXform_);
 
   // Set up the brightness factor for the entity, attaching close to the model
   offsetXform_->getOrCreateStateSet()->addUniform(brightnessUniform_, osg::StateAttribute::ON);
@@ -206,7 +197,7 @@ PlatformModelNode::PlatformModelNode(Locator* locator)
   alphaVolumeGroup_->getOrCreateStateSet()->setAttributeAndModes(face.get(), osg::StateAttribute::ON | osg::StateAttribute::OVERRIDE);
 
   // Set an initial model.  Without this, visitors expecting a node may fail early.
-  setModel(simVis::Registry::instance()->modelCache()->boxNode(), false);
+  setModel_(simVis::Registry::instance()->modelCache()->boxNode(), false);
 }
 
 PlatformModelNode::~PlatformModelNode()
@@ -233,14 +224,14 @@ bool PlatformModelNode::addScaledChild(osg::Node* node)
 {
   // Scaled children go into the imageIconXform_, so that the orientation fixes
   // for the model do not accidentally swap the location/orientation of attachments
-  if (imageIconXform_ == NULL)
+  if (imageIconXform_ == nullptr)
     return false;
   return imageIconXform_->addChild(node);
 }
 
 bool PlatformModelNode::removeScaledChild(osg::Node* node)
 {
-  if (imageIconXform_ == NULL)
+  if (imageIconXform_ == nullptr)
     return false;
   return imageIconXform_->removeChild(node);
 }
@@ -262,13 +253,20 @@ void PlatformModelNode::syncWithLocator()
 
 bool PlatformModelNode::updateModel_(const simData::PlatformPrefs& prefs)
 {
-  if (lastPrefsValid_ &&
+  // Early return for fast path icon
+  ModelUpdate modelUpdate = allowFastPath_ ? updateFastPathModel_(prefs) : NO_UPDATE;
+  if (modelUpdate == NO_UPDATE)
+    return true;
+
+  // Slower (normal) speed path for icons -- only look at the icon() preference
+  if ((modelUpdate == CHECK_FOR_UPDATE) &&
+      lastPrefsValid_ &&
       !PB_FIELD_CHANGED(&lastPrefs_, &prefs, icon))
     return false;
 
   const simVis::Registry* registry = simVis::Registry::instance();
   if (prefs.icon().empty())
-    setModel(NULL, false);
+    setModel_(nullptr, false);
   else if (!registry->isMemoryCheck())
   {
     // Find the fully qualified URI
@@ -277,7 +275,7 @@ bool PlatformModelNode::updateModel_(const simData::PlatformPrefs& prefs)
     if (uri.empty())
     {
       SIM_WARN << "Failed to find icon model: " << prefs.icon() << "\n";
-      setModel(simVis::Registry::instance()->modelCache()->boxNode(), false);
+      setModel_(simVis::Registry::instance()->modelCache()->boxNode(), false);
     }
     else
     {
@@ -291,7 +289,88 @@ bool PlatformModelNode::updateModel_(const simData::PlatformPrefs& prefs)
   return true;
 }
 
-void PlatformModelNode::setModel(osg::Node* newModel, bool isImage)
+PlatformModelNode::ModelUpdate PlatformModelNode::updateFastPathModel_(const simData::PlatformPrefs& prefs)
+{
+  PlatformIconFactory* iconFactory = PlatformIconFactory::instance();
+  // Attempt to use the simplified/optimized 2D icon path
+  if (lastPrefsValid_ && !iconFactory->hasRelevantChanges(lastPrefs_, prefs))
+    return NO_UPDATE;
+
+  // This is potentially a synchronous load of a 2D icon, which means we don't have to worry
+  // about thread interactions. If it succeeds and we need to change the icon, then the change
+  // is instantaneous. We'll have to update model sizes and other internal fields manually,
+  // because we cannot call setModel() in this use case. setModel() overrides the fast-path.
+  osg::ref_ptr<osg::Node> newIcon = iconFactory->getOrCreate(prefs);
+
+  // Only need to make changes if the icon is different from the old one
+  if (newIcon.get() == fastPathIcon_.get())
+    return fastPathIcon_.valid() ? NO_UPDATE : FORCE_UPDATE;
+
+  // Remove old fast path icon (if applicable)
+  if (fastPathIcon_.valid())
+    imageIconXform_->removeChild(fastPathIcon_.get());
+  // Assign and add the new fast path icon
+  fastPathIcon_ = newIcon;
+  const bool fastPathValid = fastPathIcon_.valid();
+
+  // If the fast path icon is not valid, then we need to force a load of the slow/normal path icon in caller
+  if (!fastPathValid)
+  {
+    offsetXform_->setNodeMask(getMask());
+    return FORCE_UPDATE;
+  }
+
+  fastPathIcon_->setNodeMask(getMask());
+  imageIconXform_->addChild(fastPathIcon_.get());
+
+  // Do not set model_, so that a state set is not created on it. The icon
+  // factory takes care of all model_-based prefs.
+  if (model_.valid())
+  {
+    offsetXform_->removeChild(model_);
+    alphaVolumeGroup_->removeChild(model_);
+    model_ = nullptr;
+    dynamicXform_->setSizingNode(nullptr);
+  }
+
+  // The factory can only return 2D images
+  isImageModel_ = true;
+
+  // Save the image original size
+  osg::ComputeBoundsVisitor cb;
+  fastPathIcon_->accept(cb);
+  const osg::BoundingBox& bounds = cb.getBoundingBox();
+  imageOriginalSize_.x() = bounds.xMax() - bounds.xMin();
+  imageOriginalSize_.y() = bounds.yMax() - bounds.yMin();
+
+  // Fix the sizing node for the dynamic transform to avoid initial very-large icons.
+  dynamicXform_->setDynamicScaleToPixels(isImageModel_ && prefs.dynamicscalealgorithm() == simData::DSA_METERS_TO_PIXELS);
+  dynamicXform_->setSizingNode(fastPathIcon_.get());
+
+  // Kill off any pending async model loads
+  if (lastSetModelCallback_.valid())
+    lastSetModelCallback_->ignoreResult();
+
+  // Either use the fast-path icon, or use the more featured, slower path in offsetXform_; don't use both
+  offsetXform_->setNodeMask(fastPathValid ? 0u : getMask());
+  return fastPathValid ? NO_UPDATE : CHECK_FOR_UPDATE;
+}
+
+void PlatformModelNode::setModel(osg::Node* node, bool isImage)
+{
+  // If necessary turn off fast draw
+  if (fastPathIcon_.valid())
+  {
+    imageIconXform_->removeChild(fastPathIcon_.get());
+    fastPathIcon_ = nullptr;
+    offsetXform_->setNodeMask(getMask());
+  }
+
+  allowFastPath_ = false;
+  setModel_(node, isImage);
+}
+
+void PlatformModelNode::setModel_(osg::Node* newModel, bool isImage)
 {
   if (model_ == newModel && isImageModel_ == isImage)
     return;
@@ -300,7 +379,7 @@ void PlatformModelNode::setModel(osg::Node* newModel, bool isImage)
   if (lastSetModelCallback_.valid())
   {
     lastSetModelCallback_->ignoreResult();
-    lastSetModelCallback_ = NULL;
+    lastSetModelCallback_ = nullptr;
   }
 
   isImageModel_ = isImage;
@@ -310,13 +389,13 @@ void PlatformModelNode::setModel(osg::Node* newModel, bool isImage)
   {
     offsetXform_->removeChild(model_);
     alphaVolumeGroup_->removeChild(model_);
-    model_ = NULL;
-    dynamicXform_->setSizingNode(NULL);
+    model_ = nullptr;
+    dynamicXform_->setSizingNode(nullptr);
   }
 
   // if the new properties say "no model", we're done
   model_ = newModel;
-  if (newModel != NULL)
+  if (newModel != nullptr)
   {
     // Set render order by setting render bin.  We set the OVERRIDE flag in case the model has renderbins set inside of it.
     // Note that osg::Depth settings are not changed here, but are instead dealt with inside updateImageDepth_() call below.
@@ -329,6 +408,8 @@ void PlatformModelNode::setModel(osg::Node* newModel, bool isImage)
     // re-add to the parent groups
     offsetXform_->addChild(model_.get());
     alphaVolumeGroup_->addChild(model_.get());
+    if (lastPrefsValid_)
+      dynamicXform_->setDynamicScaleToPixels(isImageModel_ && lastPrefs_.dynamicscalealgorithm() == simData::DSA_METERS_TO_PIXELS);
     dynamicXform_->setSizingNode(model_.get());
   }
 
@@ -349,8 +430,7 @@ void PlatformModelNode::setModel(osg::Node* newModel, bool isImage)
   warnOnInvalidOffsets_(lastPrefs_, true);
   updateImageIconRotation_(lastPrefs_, true);
   updateLighting_(lastPrefs_, true);
-  updateOffsets_(lastPrefs_);
-  updateImageAlignment_(lastPrefs_, true);
+  updateOffsets_(lastPrefs_, true);
   updateBounds_();
   updateDofTransform_(lastPrefs_, true);
 }
@@ -371,67 +451,11 @@ void PlatformModelNode::setRotateToScreen(bool value)
   imageIconXform_->dirty();
 }
 
-bool PlatformModelNode::updateImageAlignment_(const simData::PlatformPrefs& prefs, bool force)
+bool PlatformModelNode::updateOffsets_(const simData::PlatformPrefs& prefs, bool force)
 {
-  if (!imageAlignmentXform_.valid())
-    return false;
-
   if (!force && lastPrefsValid_ &&
-    !PB_FIELD_CHANGED(&lastPrefs_, &prefs, iconalignment))
-    return false;
-
-  float xOffset = 0.f;
-  float yOffset = 0.f;
-
-  if (isImageModel_)
-  {
-    const float width = imageOriginalSize_.x();
-    const float height = imageOriginalSize_.y();
-
-    switch (prefs.iconalignment())
-    {
-    case simData::ALIGN_LEFT_TOP:
-      xOffset = width / 2.f;
-      yOffset = -height / 2.f;
-      break;
-    case simData::ALIGN_LEFT_CENTER:
-      xOffset = width / 2.f;
-      break;
-    case simData::ALIGN_LEFT_BOTTOM:
-      xOffset = width / 2.f;
-      yOffset = height / 2.f;
-      break;
-    case simData::ALIGN_CENTER_TOP:
-      yOffset = -height / 2.f;
-      break;
-    case simData::ALIGN_CENTER_CENTER:
-      break;
-    case simData::ALIGN_CENTER_BOTTOM:
-      yOffset = height / 2.f;
-      break;
-    case simData::ALIGN_RIGHT_TOP:
-      xOffset = -width / 2.f;
-      yOffset = -height / 2.f;
-      break;
-    case simData::ALIGN_RIGHT_CENTER:
-      xOffset = -width / 2.f;
-      break;
-    case simData::ALIGN_RIGHT_BOTTOM:
-      xOffset = -width / 2.f;
-      yOffset = height / 2.f;
-      break;
-    }
-  }
-  osg::Matrix alignmentMatrix;
-  alignmentMatrix.makeTranslate(osg::Vec3(xOffset, yOffset, 0.f));
-  imageAlignmentXform_->setMatrix(alignmentMatrix);
-  return true;
-}
-
-bool PlatformModelNode::updateOffsets_(const simData::PlatformPrefs& prefs)
-{
-  if (lastPrefsValid_ &&
       !PB_FIELD_CHANGED(&lastPrefs_, &prefs, platpositionoffset) &&
+      !PB_FIELD_CHANGED(&lastPrefs_, &prefs, iconalignment) &&
       !PB_SUBFIELD_CHANGED(&lastPrefs_, &prefs, orientationoffset, pitch) &&
       !PB_SUBFIELD_CHANGED(&lastPrefs_, &prefs, orientationoffset, yaw) &&
       !PB_SUBFIELD_CHANGED(&lastPrefs_, &prefs, orientationoffset, roll))
@@ -444,6 +468,15 @@ bool PlatformModelNode::updateOffsets_(const simData::PlatformPrefs& prefs)
     // x/y order change and sign change needed to match the behavior of SIMDIS 9
     offsetMatrix.makeTranslate(osg::Vec3(-pos.y(), pos.x(), pos.z()));
   }
+
+  // Adjust image icons by the correction for the hot spot (icon alignment)
+  if (isImageModel_)
+  {
+    osg::Vec2f xyOffset;
+    simVis::iconAlignmentToOffsets(prefs.iconalignment(), imageOriginalSize_, xyOffset);
+    offsetMatrix.preMultTranslate(osg::Vec3f(xyOffset, 0.f));
+  }
+
   if (prefs.has_orientationoffset())
   {
     const simData::BodyOrientation& ori = prefs.orientationoffset();
@@ -453,6 +486,7 @@ bool PlatformModelNode::updateOffsets_(const simData::PlatformPrefs& prefs)
       offsetMatrix.preMultRotate(qrot);
     }
   }
+
   offsetXform_->setMatrix(offsetMatrix);
 
   // Changing icon orientation can change the reported 'actual' bounds for model; return non-zero
@@ -485,8 +519,11 @@ void PlatformModelNode::updateBounds_()
   // Compute bounds, but exclude the label:
   osg::ComputeBoundsVisitor cb;
   cb.setTraversalMask(cb.getTraversalMask() |~ simVis::DISPLAY_MASK_LABEL);
-  // compute bounds based on the imageAlignmentXform_, which is the parent of the offsetXform_. Note it has no children other than the offsetXform_.
-  imageAlignmentXform_->accept(cb);
+  // compute bounds based on the offsetXform_, which is the parent of the model.
+  if (fastPathIcon_)
+    fastPathIcon_->accept(cb);
+  else
+    offsetXform_->accept(cb);
   unscaledBounds_ = cb.getBoundingBox();
 
   // Now get the scaled bounds
@@ -526,7 +563,7 @@ bool PlatformModelNode::updateScale_(const simData::PlatformPrefs& prefs)
 
 bool PlatformModelNode::updateScaleXyz_(const simData::PlatformPrefs& prefs)
 {
-  // By default scalexyz is NULL. It is used to override the scale preference which is defaulted to 1. When uninitialized, it should not override the scale pref.
+  // By default scalexyz is nullptr. It is used to override the scale preference which is defaulted to 1. When uninitialized, it should not override the scale pref.
   if (!prefs.has_scalexyz() || (lastPrefsValid_ &&
       !PB_FIELD_CHANGED(&lastPrefs_, &prefs, scalexyz)))
     return false;
@@ -542,7 +579,8 @@ bool PlatformModelNode::updateDynamicScale_(const simData::PlatformPrefs& prefs)
       !PB_FIELD_CHANGED(&lastPrefs_, &prefs, scale) &&
       !PB_FIELD_CHANGED(&lastPrefs_, &prefs, dynamicscale) &&
       !PB_FIELD_CHANGED(&lastPrefs_, &prefs, dynamicscalescalar) &&
-      !PB_FIELD_CHANGED(&lastPrefs_, &prefs, dynamicscaleoffset))
+      !PB_FIELD_CHANGED(&lastPrefs_, &prefs, dynamicscaleoffset) &&
+      !PB_FIELD_CHANGED(&lastPrefs_, &prefs, dynamicscalealgorithm))
     return false;
 
   const bool ds = prefs.dynamicscale();
@@ -550,11 +588,12 @@ bool PlatformModelNode::updateDynamicScale_(const simData::PlatformPrefs& prefs)
   dynamicXform_->setDynamicScalingEnabled(ds);
   // Scale applies whether dynamic scaling is enabled or static scaling is enabled
   dynamicXform_->setStaticScalar(prefs.scale());
-  // Scale scalar and scale offset only apply when dynamic scaling is on
+  // Scale scalar, scale offset, and algorithm only apply when dynamic scaling is on
   if (ds)
   {
     dynamicXform_->setDynamicScalar(prefs.dynamicscalescalar());
     dynamicXform_->setScaleOffset(prefs.dynamicscaleoffset());
+    dynamicXform_->setDynamicScaleToPixels(isImageModel_ && prefs.dynamicscalealgorithm() == simData::DSA_METERS_TO_PIXELS);
   }
 
   return true;
@@ -649,7 +688,7 @@ void PlatformModelNode::updateRCS_(const simData::PlatformPrefs& prefs)
   {
     // remove it
     imageIconXform_->removeChild(rcs_.get());
-    rcs_ = NULL;
+    rcs_ = nullptr;
   }
 
   if (rcs_.valid())
@@ -807,8 +846,8 @@ void PlatformModelNode::updateOverrideColor_(const simData::PlatformPrefs& prefs
     return;
 
   if (lastPrefsValid_ &&
-      !PB_SUBFIELD_CHANGED(&lastPrefs_, &prefs, commonprefs, useoverridecolor) &&
-      !PB_SUBFIELD_CHANGED(&lastPrefs_, &prefs, commonprefs, overridecolor))
+    !PB_SUBFIELD_CHANGED(&lastPrefs_, &prefs, commonprefs, useoverridecolor) &&
+    !PB_SUBFIELD_CHANGED(&lastPrefs_, &prefs, commonprefs, overridecolor))
     return;
 
   // using an override color?
@@ -873,8 +912,7 @@ void PlatformModelNode::setPrefs(const simData::PlatformPrefs& prefs)
   bool needsBoundsUpdate = updateScale_(prefs);
   updateImageIconRotation_(prefs, false);
   updateRCS_(prefs);
-  needsBoundsUpdate = updateOffsets_(prefs) || needsBoundsUpdate;
-  needsBoundsUpdate = updateImageAlignment_(prefs, false) || needsBoundsUpdate;
+  needsBoundsUpdate = updateOffsets_(prefs, false) || needsBoundsUpdate;
   updateStippling_(prefs);
   updateCulling_(prefs);
   updatePolygonMode_(prefs);

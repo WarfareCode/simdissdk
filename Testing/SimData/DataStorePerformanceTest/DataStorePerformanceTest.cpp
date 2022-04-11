@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,6 +23,7 @@
 #include <fstream>
 
 #include "simCore/Common/Version.h"
+#include "simCore/String/UtfUtils.h"
 #include "simData/MemoryDataStore.h"
 #include "simData/LinearInterpolator.h"
 #include "simData/DataTable.h"
@@ -89,8 +91,8 @@ public:
     counters_->pref++;
   }
 
-  /// current time has been changed
-  virtual void onTimeChange(simData::DataStore *source)
+  /// data store has changed
+  virtual void onChange(simData::DataStore *source)
   {
     counters_->time++;
   }
@@ -257,7 +259,7 @@ public:
           if (!row.empty())
             table->addRow(row);
 
-          // Add a small epsilon to introduce NULLs
+          // Add a small epsilon to introduce nullptrs
           realTime += TIME_EPSILON;
         }
       }
@@ -267,7 +269,7 @@ public:
     };
     AddRowPerTable addRowPerTable(time, rowModulus);
     const simData::TableList* tables = helper_.dataStore()->dataTableManager().tablesForOwner(id);
-    if (tables != NULL)
+    if (tables != nullptr)
       tables->accept(addRowPerTable);
   }
 
@@ -348,11 +350,11 @@ protected:
     simData::DataTableManager& mgr = helper_.dataStore()->dataTableManager();
     for (size_t table = 0; table < numTables; ++table)
     {
-      simData::DataTable* newTable = NULL;
+      simData::DataTable* newTable = nullptr;
       mgr.addDataTable(id, "Table " + asString_(table), &newTable);
       for (size_t col = 0; col < numColPerTable; ++col)
       {
-        newTable->addColumn("Column " + asString_(col), tableVariableType_, 0, NULL);
+        newTable->addColumn("Column " + asString_(col), tableVariableType_, 0, nullptr);
       }
     }
   }
@@ -999,7 +1001,7 @@ int loadConfigurationFile(const std::string& fileName, TopLevelOptions& options,
     return -1;
 
   // open the config file
-  std::ifstream is(fileName.c_str());
+  std::ifstream is(simCore::streamFixUtf8(fileName));
   if (!is.is_open())
   {
     std::cerr << "Could not open configuration file: " << fileName << std::endl;

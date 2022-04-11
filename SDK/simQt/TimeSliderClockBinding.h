@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -57,7 +58,7 @@ public:
    * supply a clock instance to bind the slider.  Note that the memory
    * is managed by the parent/child relationship of this class to QSlider
    */
-  TimeSliderClockBinding(QSlider* parent, simCore::Clock* clock=NULL, DisabledMode disabledMode=HIDE_AND_DISABLE);
+  TimeSliderClockBinding(QSlider* parent, simCore::Clock* clock=nullptr, DisabledMode disabledMode=HIDE_AND_DISABLE);
   /** Automatically unbinds the clock as needed */
   virtual ~TimeSliderClockBinding();
 

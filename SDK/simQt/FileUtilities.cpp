@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
-/***************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+/****************************************************************************
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <cassert>
 #include <QDir>
 #include <QCoreApplication>
@@ -51,10 +52,10 @@ int FileUtilities::createHomePath(const QString& relativeFilePath, bool roaming,
   absolutePath = QDir::homePath();
 #ifdef WIN32
   // Assertion failure means that Windows API has changed and no longer supplies this
-  assert(getenv("APPDATA") != NULL);
+  assert(getenv("APPDATA") != nullptr);
   // Pull out the APPDATA variable
   const char* appDataCstr = (roaming ? getenv("APPDATA") : getenv("LOCALAPPDATA"));
-  if (appDataCstr != NULL)
+  if (appDataCstr != nullptr)
     absolutePath = appDataCstr;
   else if (absolutePath.isEmpty()) // would only happen if QDir::homePath() is empty
     return 2;

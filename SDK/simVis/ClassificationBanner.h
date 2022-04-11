@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -60,17 +61,17 @@ public:
 
   /**
    * Binds the label to the data store, so that the label's content and color represents
-   * the values in the data store's scenario properties.  Pass in NULL to unbind.  The
+   * the values in the data store's scenario properties.  Pass in nullptr to unbind.  The
    * label can only be bound to a single data store.
    * @param ds Data store that supplies the classification text and color through scenario
-   *    properties.  Use NULL to unbind from the data store.
+   *    properties.  Use nullptr to unbind from the data store.
    */
   void bindTo(simData::DataStore* ds);
 
   // Override osgText::Text methods
   virtual osg::Object* cloneType() const { return new ClassificationLabelNode(); }
   virtual osg::Object* clone(const osg::CopyOp& copyop) const { return new ClassificationLabelNode(*this, copyop); }
-  virtual bool isSameKindAs(const osg::Object* obj) const { return dynamic_cast<const ClassificationLabelNode*>(obj) != NULL; }
+  virtual bool isSameKindAs(const osg::Object* obj) const { return dynamic_cast<const ClassificationLabelNode*>(obj) != nullptr; }
   virtual const char* className() const { return "ClassificationLabelNode"; }
   virtual const char* libraryName() const { return "simVis"; }
 

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -152,7 +153,7 @@ bool ObjectSelectionHandler::isMouseClick_(const osgGA::GUIEventAdapter &upEv)
     ::fabs(upEv.getY() - mouseDownEvent_->getY()) <= 3.0f;
 }
 
-static bool nodeListContains(const osg::NodeList &list, osg::Node *node)
+static bool nodeListContains(const osg::NodeList &list, const osg::Node *node)
 {
   for (osg::NodeList::const_iterator i = list.begin(); i != list.end(); ++i)
   {

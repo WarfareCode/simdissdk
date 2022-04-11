@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -68,10 +69,12 @@ public:
   virtual QVariant headerData(int section, Qt::Orientation orientation, int role) const;
   virtual QModelIndex index(int row, int column, const QModelIndex &parent) const { return QModelIndex(); }
   virtual QModelIndex index(uint64_t id) const { return QModelIndex(); }
+  virtual QModelIndex index(uint64_t id) { return QModelIndex(); }
   virtual uint64_t uniqueId(const QModelIndex &index) const { return 0; }
   virtual QModelIndex parent(const QModelIndex &index) const { return QModelIndex(); }
   virtual int rowCount(const QModelIndex &parent) const { return 0; }
   virtual bool useEntityIcons() const { return useEntityIcons_; }
+  virtual int countEntityTypes(simData::ObjectType type) const { return 0; }
   virtual QAbstractItemView::SelectionMode selectionMode() const { return selectionMode_; }
   virtual bool useCenterAction() const { return useCenterAction_; }
   virtual bool expandsOnDoubleClick() const { return expandsOnDoubleClick_; }

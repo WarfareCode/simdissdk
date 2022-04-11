@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -148,7 +149,7 @@ namespace simCore
   * @param[out] funcAtT0 Value of the function f(t) at 't0'
   * @return error condition, 0: success, 1 failure
   */
-  SDKCORE_EXPORT int newtonInterp(double t0, double t[3], double f[3], double &funcAtT0);
+  SDKCORE_EXPORT int newtonInterp(double t0, const double t[3], const double f[3], double &funcAtT0);
 
   /**
   * @brief Compute time at which tabular function f(t) has a given value

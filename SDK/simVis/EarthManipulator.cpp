@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -91,7 +92,7 @@ void EarthManipulator::rotate(double dx, double dy)
   osgEarth::Util::EarthManipulator::rotate(dx, dy);
 }
 
-void EarthManipulator::zoom(double dx, double dy)
+void EarthManipulator::zoom(double dx, double dy, osg::View* view)
 {
   if (_distance < DISTANCE_CROSS_ZERO_THRESHOLD && _distance > -DISTANCE_CROSS_ZERO_THRESHOLD)
   {
@@ -106,18 +107,30 @@ void EarthManipulator::zoom(double dx, double dy)
   {
     _distance = (dy < 0) ? -DISTANCE_CROSS_ZERO_THRESHOLD : DISTANCE_CROSS_ZERO_THRESHOLD;
   }
-  osgEarth::Util::EarthManipulator::zoom(dx, dy, NULL);
+  // recalculate the center since osgEarth no longer does this, SIM-10727
+  if (!isTethering())
+    recalculateCenterFromLookVector();
+  osgEarth::Util::EarthManipulator::zoom(dx, dy, view);
 }
 
 void EarthManipulator::handleMovementAction(const ActionType& type, double dx, double dy, osg::View* view)
 {
   // Some actions need to turn off watch mode before being processed
   simVis::View* simVisView = dynamic_cast<simVis::View*>(view);
-  if (simVisView && simVisView->isWatchEnabled())
+  // WatchEnabled or TetherMode other than TETHER_CENTER requires extra processing to avoid leaving artifacts when breaking watch/tether
+  bool tetherHeading = false;
+  if (getSettings() && (getSettings()->getTetherMode() != osgEarth::EarthManipulator::TETHER_CENTER))
+  {
+    tetherHeading = true;
+    // Setting the tether mode doesn't fix the rotation artifact, but it does prevent this block from being triggered repeatedly
+    getSettings()->setTetherMode(osgEarth::EarthManipulator::TETHER_CENTER);
+  }
+  if (simVisView && (simVisView->isWatchEnabled() || tetherHeading))
   {
     // Disable watch mode if we're in watch mode and encounter a break-tether action
     const ActionTypeVector& atv = getSettings()->getBreakTetherActions();
-    if (std::find(atv.begin(), atv.end(), type) != atv.end())
+    // Rotation doesn't break tether completely, but it does break the heading portion of a tether
+    if (std::find(atv.begin(), atv.end(), type) != atv.end() || (tetherHeading && type == EarthManipulator::ACTION_ROTATE))
     {
       // Set up a tether node, which will get broken cleanly in the handleMovementAction().  Note
       // that calling enableWatchMode() here directly will not be clean because there are side

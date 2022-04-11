@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,19 +31,21 @@
 #include "simVis/LocatorNode.h"
 #include "simVis/Types.h"
 #include "simVis/RFProp/ArepsLoader.h"
+#include "simVis/RFProp/CompositeColorProvider.h"
+#include "simVis/RFProp/CompositeProfileProvider.h"
+#include "simVis/RFProp/FallbackDataHelper.h"
 #include "simVis/RFProp/OneWayPowerDataProvider.h"
 #include "simVis/RFProp/PODProfileDataProvider.h"
 #include "simVis/RFProp/ProfileManager.h"
 #include "simVis/RFProp/Profile.h"
 #include "simVis/RFProp/SNRDataProvider.h"
-#include "simVis/RFProp/CompositeProfileProvider.h"
-#include "simVis/RFProp/CompositeColorProvider.h"
 #include "simVis/RFProp/GradientColorProvider.h"
 #include "simVis/RFProp/RFPropagationFacade.h"
 
 namespace
 {
-const osg::Vec4f SIMDIS_ORANGE(1.0f, 0.5f, 0.0f, 1.0f);
+const simVis::Color SIMDIS_ORANGE(1.0f, 0.5f, 0.0f, 1.0f); // darker than dark orange
+const simVis::Color SIMDIS_CYAN(0.0f, 0.75f, 0.75f, 1.0f); // medium-dark cyan
 
 void setDefaultPODVector(simRF::PODVectorPtr podLossThresholds)
 {
@@ -89,24 +92,28 @@ void setDefaultPODVector(simRF::PODVectorPtr podLossThresholds)
   }
 }
 
-std::string bearingWarningMsg(const std::string& dataType)
+std::string dataTypeToString(simRF::ProfileDataProvider::ThresholdType dataType)
 {
-  return "No " + dataType + " data found for beam at requested bearing";
-}
-
-std::string dataWarningMsg(const std::string& dataType)
-{
-  return "No " + dataType + " data found for beam";
-}
-
-std::string rangeWarningMsg(const std::string& dataType)
-{
-  return dataType + " range request outside of propagation data limits";
-}
-
-std::string heightWarningMsg(const std::string& dataType)
-{
-  return dataType + " height request outside of propagation data limits";
+  switch (dataType)
+  {
+  case simRF::ProfileDataProvider::THRESHOLDTYPE_POD:
+    return "POD";
+  case simRF::ProfileDataProvider::THRESHOLDTYPE_LOSS:
+    return "Loss";
+  case simRF::ProfileDataProvider::THRESHOLDTYPE_FACTOR:
+    return "PPF";
+  case simRF::ProfileDataProvider::THRESHOLDTYPE_SNR:
+    return "SNR";
+  case simRF::ProfileDataProvider::THRESHOLDTYPE_CNR:
+    return "CNR";
+  case simRF::ProfileDataProvider::THRESHOLDTYPE_ONEWAYPOWER:
+    return "One-way power";
+  case simRF::ProfileDataProvider::THRESHOLDTYPE_RECEIVEDPOWER:
+    return "Received power";
+  default:
+    break;
+  }
+  return "?";
 }
 }
 
@@ -115,30 +122,19 @@ namespace simRF
 const int DEFAULT_TRANSPARENCY = 60;  // percentage, 0-100. 100 is fully transparent, 0 is opaque
 const int DEFAULT_HISTORY = 30; // degrees
 
-RFPropagationFacade::RFPropagationFacade(simData::ObjectId id, osg::Group* parent, osgEarth::Map* map)
- : id_(id),
-   antennaHeightMeters_(0.0),
-   rfParamsSet_(false),
-   parent_(parent)
+RFPropagationFacade::RFPropagationFacade(osg::Group* parent, std::shared_ptr<simCore::DatumConvert> datumConvert)
+  : antennaHeightMeters_(0.0),
+  profileManager_(new simRF::ProfileManager(datumConvert)),
+  parent_(parent)
 {
-  // create locator
-  if (map)
-  {
-    locator_ = new simVis::LocatorNode( new simVis::Locator(map->getSRS()) );
-  }
-  // add locator to the parent node
-  if (locator_.valid() && parent_.valid())
-    parent_->addChild(locator_);
+  // add profileManager_ to the parent node
+  if (profileManager_.valid() && parent_.valid())
+    parent_->addChild(profileManager_);
 
-  profileManager_ = new simRF::ProfileManager();
+  initializeColorProviders_();
 
-  initializeDefaultColors_();
-  colorProvider_ = new CompositeColorProvider();
-
-  profileManager_->setColorProvider(colorProvider_.get());
-
-  // set the default threshold type
-  setThresholdType(simRF::ProfileDataProvider::THRESHOLDTYPE_POD);
+  // set the threshold type, and update color provider accordingly
+  setThresholdType(simRF::ProfileDataProvider::THRESHOLDTYPE_LOSS);
 
   // set the default visualization mode
   setDrawMode(simRF::Profile::DRAWMODE_2D_HORIZONTAL);
@@ -146,7 +142,7 @@ RFPropagationFacade::RFPropagationFacade(simData::ObjectId id, osg::Group* paren
   podLossThresholds_ = PODVectorPtr(new std::vector<float>);
   setDefaultPODVector(podLossThresholds_);
 
-  radarParameters_ = RadarParametersPtr(new simCore::RadarParameters());
+  // do not create radarParameters_ until actually set
 
   // set default transparency
   setTransparency(DEFAULT_TRANSPARENCY);
@@ -155,14 +151,12 @@ RFPropagationFacade::RFPropagationFacade(simData::ObjectId id, osg::Group* paren
   setHistory(DEFAULT_HISTORY);
 
   setDisplay(false);
-  if (locator_)
-    locator_->addChild(profileManager_);
 }
 
 RFPropagationFacade::~RFPropagationFacade()
 {
-  if (parent_.valid() && locator_.valid())
-    parent_->removeChild(locator_.get());
+  if (parent_.valid() && profileManager_.valid())
+    parent_->removeChild(profileManager_.get());
 }
 
 int RFPropagationFacade::setModelType()
@@ -171,15 +165,39 @@ int RFPropagationFacade::setModelType()
   return 1;
 }
 
+namespace
+{
+// can't use struct equality comparison: some params are calculated and not expected to be provided
+bool areEqual(const simCore::RadarParameters& first, const simCore::RadarParameters& second)
+{
+  return (simCore::areEqual(first.freqMHz, second.freqMHz)
+    && simCore::areEqual(first.antennaGaindBi, second.antennaGaindBi)
+    && simCore::areEqual(first.noiseFiguredB, second.noiseFiguredB)
+    && simCore::areEqual(first.pulseWidth_uSec, second.pulseWidth_uSec)
+    && simCore::areEqual(first.systemLossdB, second.systemLossdB)
+    && simCore::areEqual(first.xmtPowerKW, second.xmtPowerKW)
+    && simCore::areEqual(first.hbwD, second.hbwD));
+}
+}
+
 int RFPropagationFacade::setRadarParams(const simCore::RadarParameters& radarParams)
 {
-  // copy the struct
-  *radarParameters_ = radarParams;
-  // noise power in db = 10 log (kT/pw); for T, use standard ambient temperature: 17°C/290K
-  radarParameters_->noisePowerdB = simCore::linear2dB(4e-15 / radarParams.pulseWidth_uSec) + radarParams.noiseFiguredB;
-  radarParameters_->xmtPowerW = radarParams.xmtPowerKW * 1e03;
-  rfParamsSet_ = true;
-  return 0;
+  if (!radarParameters_)
+  {
+    // use copy constructor
+    radarParameters_ = std::make_shared<simCore::RadarParameters>(radarParams);
+    // noise power in db = 10 log (kT/pw); for T, use standard ambient temperature: 17°C/290K
+    radarParameters_->noisePowerdB = simCore::linear2dB(4e-15 / radarParams.pulseWidth_uSec) + radarParams.noiseFiguredB;
+    radarParameters_->xmtPowerW = radarParams.xmtPowerKW * 1e03;
+    return 0;
+  }
+  if (areEqual(*radarParameters_.get(), radarParams))
+    return 0;
+
+  // TODO: if params don't match: reset facade and create new facade with new timestamp?
+  // adapt implementation to allow multiple facades per entity?
+  // for now, return error.
+  return 1;
 }
 
 const RadarParametersPtr RFPropagationFacade::radarParams() const
@@ -210,52 +228,33 @@ const PODVectorPtr RFPropagationFacade::getPODLossThreshold() const
 
 int RFPropagationFacade::setColorMap(simRF::ProfileDataProvider::ThresholdType type, const std::map<float, osg::Vec4>& colorMap)
 {
-  bool updateColorProvider = false;
-  simRF::ProfileDataProvider::ThresholdType currentType = profileManager_ ? profileManager_->getThresholdType() : simRF::ProfileDataProvider::THRESHOLDTYPE_POD;
-  switch (type)
+  auto foundColorProvider = colorProviderMap_.find(type);
+  if (foundColorProvider != colorProviderMap_.end())
+    foundColorProvider->second->setGradientColorMap(colorMap);
+  else
   {
-  // these types always share the same color map
-  case simRF::ProfileDataProvider::THRESHOLDTYPE_CNR:
-  case simRF::ProfileDataProvider::THRESHOLDTYPE_SNR:
-  case simRF::ProfileDataProvider::THRESHOLDTYPE_FACTOR:
-  case simRF::ProfileDataProvider::THRESHOLDTYPE_ONEWAYPOWER:
-    colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_CNR] = colorMap;
-    colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_SNR] = colorMap;
-    colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_FACTOR] = colorMap;
-    colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_ONEWAYPOWER] = colorMap;
-    updateColorProvider = currentType == simRF::ProfileDataProvider::THRESHOLDTYPE_CNR || currentType == simRF::ProfileDataProvider::THRESHOLDTYPE_SNR
-      || currentType == simRF::ProfileDataProvider::THRESHOLDTYPE_FACTOR || currentType == simRF::ProfileDataProvider::THRESHOLDTYPE_ONEWAYPOWER;
-    break;
-  default:
-    updateColorProvider = currentType == type;
-    colorMaps_[type] = colorMap;
-    break;
+    // some providers may not be available.
+    defaultColorProvider_->setGradientColorMap(colorMap);
   }
-  if (colorProvider_ == NULL || profileManager_ == NULL)
-    return 0;
-
-  // update the color provider if the specified type is currently active
-  if (updateColorProvider)
-    colorProvider_->setGradientColorMap(colorMap);
   return 0;
 }
 
 int RFPropagationFacade::setSlotData(simRF::Profile* profile)
 {
-  if (profile == NULL)
+  if (profile == nullptr)
     return 1;
-  if (profileManager_ == NULL)
-  {
-    assert(0);
+  const simCore::RadarParameters* rp = radarParameters_.get();
+  if (rp == nullptr)
     return 1;
-  }
+  if (!simCore::areEqual(profile->getHalfBeamWidth(), (rp->hbwD / 2. * simCore::DEG2RAD)))
+    return 1;
   profileManager_->addProfile(profile);
   return 0;
 }
 
 const simRF::Profile* RFPropagationFacade::getSlotData(double azRad) const
 {
-  return (profileManager_ == NULL) ? NULL : profileManager_->getProfileByBearing(azRad);
+  return profileManager_->getProfileByBearing(azRad);
 }
 
 int RFPropagationFacade::getInputFiles(const simCore::TimeStamp& time, std::vector<std::string>& filenames) const
@@ -272,8 +271,6 @@ int RFPropagationFacade::getInputFiles(const simCore::TimeStamp& time, std::vect
 
 int RFPropagationFacade::setDisplay(bool onOff)
 {
-  if (locator_ == NULL)
-    return 1;
   profileManager_->setDisplay(onOff);
   return 0;
 }
@@ -290,220 +287,160 @@ int RFPropagationFacade::setRangeTool(bool option)
 
 int RFPropagationFacade::setAglActive(bool aglActive)
 {
-  if (profileManager_ == NULL)
-    return 1;
   profileManager_->setAGL(aglActive);
   return 0;
 }
 
 bool RFPropagationFacade::aglActive() const
 {
-  if (profileManager_ == NULL)
-    return false;
-
   return profileManager_->getAGL();
 }
 
 int RFPropagationFacade::setDrawMode(simRF::Profile::DrawMode drawMode)
 {
-  if (profileManager_ == NULL)
-    return 1;
-
   profileManager_->setMode(drawMode);
   return 0;
 }
 
 simRF::Profile::DrawMode RFPropagationFacade::drawMode() const
 {
-  if (profileManager_ == NULL)
-    return Profile::DRAWMODE_2D_HORIZONTAL;
   return profileManager_->getMode();
 }
 
 int RFPropagationFacade::setHeight(double height)
 {
-  if (profileManager_ == NULL)
-    return 1;
-
   profileManager_->setHeight(height);
   return 0;
 }
 
 double RFPropagationFacade::height() const
 {
-  if (profileManager_ == NULL)
-    return 0.0;
-
   return profileManager_->getHeight();
 }
 
-int RFPropagationFacade::setThicknessBySlots(int numSlots)
+int RFPropagationFacade::setThickness(unsigned int thickness)
 {
-  if (profileManager_ == NULL)
-    return 1;
-
-  return profileManager_->setThicknessBySlots(numSlots);
-}
-
-int RFPropagationFacade::setThickness(double thickness)
-{
-  if (profileManager_ == NULL)
-    return 1;
-
-  profileManager_->setDisplayThickness(static_cast<float>(thickness));
+  profileManager_->setDisplayThickness(thickness);
   return 0;
 }
 
-double RFPropagationFacade::thickness() const
+unsigned int RFPropagationFacade::thickness() const
 {
-  if (profileManager_ == NULL)
-    return 0.0;
-
   return profileManager_->getDisplayThickness();
 }
 
 int RFPropagationFacade::setHistory(int length)
 {
-  if (profileManager_ == NULL)
-    return 1;
-
-  profileManager_->setHistory(static_cast<double>(length) * simCore::DEG2RAD);
+  profileManager_->setHistory(length * simCore::DEG2RAD);
   return 0;
 }
 
 int RFPropagationFacade::history() const
 {
-  if (profileManager_ == NULL)
-    return 0;
-
   return static_cast<int>(simCore::rint(profileManager_->getHistory() * simCore::RAD2DEG));
 }
 
 int RFPropagationFacade::setTransparency(int transparency)
 {
-  if (profileManager_)
-    profileManager_->setAlpha(1.f - transparency * 0.01f);
+  profileManager_->setAlpha(1.f - transparency * 0.01f);
   return 0;
 }
 
 int RFPropagationFacade::transparency() const
 {
   // Add 0.5f to round correctly; subtract from 1.f to convert alpha to transparency
-  if (profileManager_)
-    return static_cast<int>(0.5f + 100.f * (1.f - profileManager_->getAlpha()));
-  return 0;
+  return static_cast<int>(0.5f + 100.f * (1.f - profileManager_->getAlpha()));
 }
 
 int RFPropagationFacade::setThresholdMode(simRF::ColorProvider::ColorMode mode)
 {
-  if (profileManager_ == NULL)
-    return 1;
-  if (!colorProvider_)
+  if (!currentColorProvider_)
   {
     assert(false);
     return 1;
   }
-  colorProvider_->setMode(mode);
-
+  currentColorProvider_->setMode(mode);
   return 0;
 }
 
 simRF::ColorProvider::ColorMode RFPropagationFacade::thresholdMode() const
 {
-  if (profileManager_ == NULL || colorProvider_ == NULL)
+  if (!currentColorProvider_)
     return simRF::ColorProvider::COLORMODE_BELOW;
-  return colorProvider_->getMode();
+  return currentColorProvider_->getMode();
 }
 
 int RFPropagationFacade::setThresholdType(simRF::ProfileDataProvider::ThresholdType type)
 {
-  if (profileManager_ == NULL)
-    return 1;
-
   profileManager_->setThresholdType(type);
-
-  setGradientByThresholdType_(type);
-
+  setColorProviderByThresholdType_(type);
   return 0;
 }
 
 simRF::ProfileDataProvider::ThresholdType RFPropagationFacade::thresholdType() const
 {
-  if (profileManager_ == NULL)
-    return simRF::ProfileDataProvider::THRESHOLDTYPE_POD;
-
   return profileManager_->getThresholdType();
 }
 
-int RFPropagationFacade::setThresholdValue(int value)
+int RFPropagationFacade::setThresholdValue(float value)
 {
-  if (profileManager_ == NULL)
-    return 1;
-  if (!colorProvider_)
+  if (!currentColorProvider_)
   {
     assert(false);
     return 1;
   }
-  colorProvider_->setThreshold(value);
+  currentColorProvider_->setThreshold(value);
   return 0;
 }
 
-int RFPropagationFacade::threshold() const
+float RFPropagationFacade::threshold() const
 {
-  if (profileManager_ == NULL || colorProvider_ == NULL)
-    return 0;
-  return static_cast<int>(colorProvider_->getThreshold());
+  if (!currentColorProvider_)
+    return 0.f;
+  return currentColorProvider_->getThreshold();
 }
 
 int RFPropagationFacade::setAboveColor(const osg::Vec4f& color)
 {
-  if (profileManager_ == NULL)
-    return 1;
-  if (!colorProvider_)
+  if (!currentColorProvider_)
   {
     assert(false);
     return 1;
   }
-  colorProvider_->setAboveColor(color);
+  currentColorProvider_->setAboveColor(color);
   return 0;
 }
 
 int RFPropagationFacade::aboveColor(osg::Vec4f& color)
 {
-  if (profileManager_ == NULL)
-    return 1;
-  if (!colorProvider_)
+  if (!currentColorProvider_)
   {
     assert(false);
     return 1;
   }
-  color = colorProvider_->getAboveColor();
+  color = currentColorProvider_->getAboveColor();
   return 0;
 }
 
 int RFPropagationFacade::setBelowColor(const osg::Vec4f& color)
 {
-  if (profileManager_ == NULL)
-    return 1;
-  if (!colorProvider_)
+  if (!currentColorProvider_)
   {
     assert(false);
     return 1;
   }
-  colorProvider_->setBelowColor(color);
+  currentColorProvider_->setBelowColor(color);
   return 0;
 }
 
 int RFPropagationFacade::belowColor(osg::Vec4f& color)
 {
-  if (profileManager_ == NULL)
-    return 1;
-  if (!colorProvider_)
+  if (!currentColorProvider_)
   {
     assert(false);
     return 1;
   }
-  color = colorProvider_->getBelowColor();
+  color = currentColorProvider_->getBelowColor();
   return 0;
 }
 
@@ -512,274 +449,175 @@ int RFPropagationFacade::clearCache(bool reset)
   setDisplay(false);
   arepsFilesetTimeMap_.clear();
   // clear out old (data from) ProfileManager, create a new empty ProfileManager
-  profileManager_ = new simRF::ProfileManager();
+  profileManager_->reset();
   return 0;
 }
 
 double RFPropagationFacade::getPOD(double azimRad, double gndRngMeters, double hgtMeters) const
 {
-  const simRF::CompositeProfileProvider* cProvider = getProfileProvider(azimRad);
-  if (!cProvider)
-  {
-    SIM_WARN << bearingWarningMsg("POD") << std::endl;
-    return 0.0;
-  }
-
-  // we want a POD data provider
-  const simRF::ProfileDataProvider* provider =
-    (cProvider->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_POD));
-  if (!provider)
-  {
-    SIM_WARN << dataWarningMsg("POD") << std::endl;
-  }
-  else if (gndRngMeters < provider->getMinRange() || gndRngMeters > provider->getMaxRange())
-  {
-    SIM_WARN << rangeWarningMsg("POD") << std::endl;
-  }
-  else if (hgtMeters < provider->getMinHeight() || hgtMeters > provider->getMaxHeight())
-  {
-    SIM_WARN << heightWarningMsg("POD") << std::endl;
-  }
-  else
+  std::string msg;
+  const simRF::ProfileDataProvider* provider = getProfileDataProvider(
+    simRF::ProfileDataProvider::THRESHOLDTYPE_POD,
+    azimRad, gndRngMeters, hgtMeters, msg);
+  if (provider)
   {
     return provider->interpolateValue(hgtMeters, gndRngMeters);
   }
+  SIM_WARN << msg << "\n";
   return 0.0;
+}
+
+void RFPropagationFacade::setLossDataHelper(std::unique_ptr<FallbackDataHelper> helper)
+{
+  lossDataHelper_ = std::move(helper);
 }
 
 double RFPropagationFacade::getLoss(double azimRad, double gndRngMeters, double hgtMeters) const
 {
-  const simRF::CompositeProfileProvider* cProvider = getProfileProvider(azimRad);
-  if (!cProvider)
+  std::string msg;
+  const simRF::ProfileDataProvider* provider = getProfileDataProvider(
+    simRF::ProfileDataProvider::THRESHOLDTYPE_LOSS,
+    azimRad, gndRngMeters, hgtMeters, msg);
+  if (provider)
   {
-    SIM_WARN << bearingWarningMsg("loss") << std::endl;
-    return simCore::SMALL_DB_VAL;
-  }
-
-  // we want a Loss data provider
-  const simRF::ProfileDataProvider* provider =
-    (cProvider->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_LOSS));
-  if (!provider)
-  {
-    SIM_WARN << dataWarningMsg("loss") << std::endl;
-  }
-  else if (gndRngMeters < provider->getMinRange() || gndRngMeters > provider->getMaxRange())
-  {
-    SIM_WARN << rangeWarningMsg("Loss") << std::endl;
-  }
-  else if (hgtMeters < provider->getMinHeight() || hgtMeters > provider->getMaxHeight())
-  {
-    SIM_WARN << heightWarningMsg("Loss") << std::endl;
-  }
-  else
-  {
-    double lossVal = provider->interpolateValue(hgtMeters, gndRngMeters);
+    const double lossVal = provider->interpolateValue(hgtMeters, gndRngMeters);
     return (lossVal > simCore::SMALL_DB_VAL ? lossVal : simCore::SMALL_DB_VAL);
   }
+  if (lossDataHelper_)
+  {
+    const double lossdB = lossDataHelper_->value(azimRad, gndRngMeters, hgtMeters);
+    if (lossdB != simCore::SMALL_DB_VAL)
+      return lossdB;
+  }
+  SIM_WARN << msg << "\n";
   return simCore::SMALL_DB_VAL;
 }
 
 double RFPropagationFacade::getPPF(double azimRad, double gndRngMeters, double hgtMeters) const
 {
-  const simRF::CompositeProfileProvider* cProvider = getProfileProvider(azimRad);
-  if (!cProvider)
+  std::string msg;
+  const simRF::ProfileDataProvider* provider = getProfileDataProvider(
+    simRF::ProfileDataProvider::THRESHOLDTYPE_FACTOR,
+    azimRad, gndRngMeters, hgtMeters, msg);
+  if (provider)
   {
-    SIM_WARN << bearingWarningMsg("PPF") << std::endl;
-    return simCore::SMALL_DB_VAL;
+    const double ppf_dB = provider->interpolateValue(hgtMeters, gndRngMeters);
+    return (ppf_dB > simCore::SMALL_DB_VAL ? ppf_dB : simCore::SMALL_DB_VAL);
   }
 
-  // we want a PPF data provider
-  const simRF::ProfileDataProvider* provider =
-    (cProvider->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_FACTOR));
-  if (!provider)
+  if (lossDataHelper_)
   {
-    SIM_WARN << dataWarningMsg("PPF") << std::endl;
+    const double lossdB = lossDataHelper_->value(azimRad, gndRngMeters, hgtMeters);
+    const double slantRangeM = sqrt(simCore::square(gndRngMeters) + simCore::square(hgtMeters));
+    const double ppf_dB = simCore::lossToPpf(slantRangeM, radarParameters_->freqMHz, lossdB);
+    if (ppf_dB != simCore::SMALL_DB_VAL)
+      return ppf_dB;
   }
-  else if (gndRngMeters < provider->getMinRange() || gndRngMeters > provider->getMaxRange())
-  {
-    SIM_WARN << rangeWarningMsg("PPF") << std::endl;
-  }
-  else if (hgtMeters < provider->getMinHeight() || hgtMeters > provider->getMaxHeight())
-  {
-    SIM_WARN << heightWarningMsg("PPF") << std::endl;
-  }
-  else
-  {
-    double ppfVal = provider->interpolateValue(hgtMeters, gndRngMeters);
-    return (ppfVal > simCore::SMALL_DB_VAL ? ppfVal : simCore::SMALL_DB_VAL);
-  }
+  SIM_WARN << msg << "\n";
   return simCore::SMALL_DB_VAL;
 }
 
 double RFPropagationFacade::getSNR(double azimRad, double slantRngMeters, double hgtMeters, double xmtGaindB, double rcvGaindB, double rcsSqm, double gndRngMeters) const
 {
-  const simRF::CompositeProfileProvider* cProvider = getProfileProvider(azimRad);
-  if (!cProvider)
-  {
-    SIM_WARN << bearingWarningMsg("SNR") << std::endl;
+  const double rcvPowerdB = getReceivedPower(azimRad, slantRngMeters, hgtMeters, xmtGaindB, rcvGaindB, rcsSqm, gndRngMeters);
+  if (rcvPowerdB == simCore::SMALL_DB_VAL)
     return simCore::SMALL_DB_VAL;
-  }
-
-  const simRF::ProfileDataProvider* provider =
-  (cProvider->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_SNR));
-  if (!provider)
-  {
-    SIM_WARN << dataWarningMsg("SNR") << std::endl;
-  }
-  else if (gndRngMeters < provider->getMinRange() || gndRngMeters > provider->getMaxRange())
-  {
-    SIM_WARN << rangeWarningMsg("SNR") << std::endl;
-  }
-  else if (hgtMeters < provider->getMinHeight() || hgtMeters > provider->getMaxHeight())
-  {
-    SIM_WARN << heightWarningMsg("SNR") << std::endl;
-  }
-  else
-  {
-    const simRF::SNRDataProvider* snrProvider = dynamic_cast<const simRF::SNRDataProvider*>(provider);
-    if (snrProvider)
-      return snrProvider->getSNR(hgtMeters, gndRngMeters, slantRngMeters, xmtGaindB, rcvGaindB, rcsSqm);
-  }
-  // not found, return simCore::SMALL_DB_VAL as a near -infinity dB value
-  return simCore::SMALL_DB_VAL;
+  return (rcvPowerdB - radarParameters_->noisePowerdB);
 }
 
 double RFPropagationFacade::getCNR(double azimRad, double gndRngMeters) const
 {
-  const simRF::CompositeProfileProvider* cProvider = getProfileProvider(azimRad);
-  if (!cProvider)
-  {
-    SIM_WARN << bearingWarningMsg("CNR") << std::endl;
-    return simCore::SMALL_DB_VAL;
-  }
-
-  // we want a CNR data provider
-  const simRF::ProfileDataProvider* provider =
-    (cProvider->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_CNR));
-  if (!provider)
-  {
-    SIM_WARN << dataWarningMsg("CNR") << std::endl;
-  }
-  else if (gndRngMeters < provider->getMinRange() || gndRngMeters > provider->getMaxRange())
-  {
-    SIM_WARN << rangeWarningMsg("CNR") << std::endl;
-  }
-  else
+  std::string msg;
+  const simRF::ProfileDataProvider* provider = getProfileDataProvider(
+    simRF::ProfileDataProvider::THRESHOLDTYPE_CNR,
+    azimRad, gndRngMeters, msg);
+  if (provider)
   {
     return provider->interpolateValue(0.0, gndRngMeters);
   }
-  // not found, return simCore::SMALL_DB_VAL as a near -infinity dB value
+  SIM_WARN << msg << "\n";
   return simCore::SMALL_DB_VAL;
 }
 
 double RFPropagationFacade::getOneWayPower(double azimRad, double slantRngMeters, double hgtMeters, double xmtGaindB, double gndRngMeters, double rcvGaindB) const
 {
-  const simRF::CompositeProfileProvider* cProvider = getProfileProvider(azimRad);
-  if (!cProvider)
-  {
-    SIM_WARN << bearingWarningMsg("one-way power") << std::endl;
+  const double ppf_dB = getPPF(azimRad, gndRngMeters, hgtMeters);
+  if (ppf_dB == simCore::SMALL_DB_VAL)
     return simCore::SMALL_DB_VAL;
-  }
-
-  const simRF::ProfileDataProvider* provider =
-    (cProvider->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_ONEWAYPOWER));
-  if (!provider)
-  {
-    SIM_WARN << dataWarningMsg("one-way power") << std::endl;
-  }
-  else if (gndRngMeters < provider->getMinRange() || gndRngMeters > provider->getMaxRange())
-  {
-    SIM_WARN << rangeWarningMsg("One-way power") << std::endl;
-  }
-  else if (hgtMeters < provider->getMinHeight() || hgtMeters > provider->getMaxHeight())
-  {
-    SIM_WARN << heightWarningMsg("One-way power") << std::endl;
-  }
-  else
-  {
-    const simRF::OneWayPowerDataProvider* owpProvider = dynamic_cast<const simRF::OneWayPowerDataProvider*>(provider);
-    if (owpProvider)
-      return owpProvider->getOneWayPower(hgtMeters, gndRngMeters, slantRngMeters, xmtGaindB, rcvGaindB);
-  }
-  // not found, return simCore::SMALL_DB_VAL as a near -infinity dB value
-  return simCore::SMALL_DB_VAL;
+  return simRF::OneWayPowerDataProvider::getOneWayPower(*radarParameters_, ppf_dB, slantRngMeters, xmtGaindB, rcvGaindB);
 }
 
 double RFPropagationFacade::getReceivedPower(double azimRad, double slantRngMeters, double hgtMeters, double xmtGaindB, double rcvGaindB, double rcsSqm, double gndRngMeters) const
 {
-  const simRF::CompositeProfileProvider* cProvider = getProfileProvider(azimRad);
-  if (!cProvider)
-  {
-    SIM_WARN << bearingWarningMsg("received power") << std::endl;
+  const double ppf_dB = getPPF(azimRad, gndRngMeters, hgtMeters);
+  if (ppf_dB == simCore::SMALL_DB_VAL)
     return simCore::SMALL_DB_VAL;
-  }
-
-  const simRF::ProfileDataProvider* provider =
-    (cProvider->getProvider(simRF::ProfileDataProvider::THRESHOLDTYPE_RECEIVEDPOWER));
-  if (!provider)
-  {
-    SIM_WARN << dataWarningMsg("received power") << std::endl;
-  }
-  else if (gndRngMeters < provider->getMinRange() || gndRngMeters > provider->getMaxRange())
-  {
-    SIM_WARN << rangeWarningMsg("Received power") << std::endl;
-  }
-  else if (hgtMeters < provider->getMinHeight() || hgtMeters > provider->getMaxHeight())
-  {
-    SIM_WARN << heightWarningMsg("Received power") << std::endl;
-  }
-  else
-  {
-    const simRF::TwoWayPowerDataProvider* twpProvider = dynamic_cast<const simRF::TwoWayPowerDataProvider*>(provider);
-    if (twpProvider)
-      return twpProvider->getTwoWayPower(hgtMeters, gndRngMeters, slantRngMeters, xmtGaindB, rcvGaindB, rcsSqm);
-  }
-  // not found, return simCore::SMALL_DB_VAL as a near -infinity dB value
-  return simCore::SMALL_DB_VAL;
+  return simRF::TwoWayPowerDataProvider::getTwoWayPower(*radarParameters_, ppf_dB, slantRngMeters, xmtGaindB, rcvGaindB, rcsSqm);
 }
 
 bool RFPropagationFacade::valid() const
 {
-  // TODO: SPR-167: in SIMDIS 9, valid == (rfParametersSet && podVectorSet && colorMapSet);
-  return (profileManager_ != NULL && rfParamsSet_);
+  // in SIMDIS 9, valid == (rfParametersSet && podVectorSet && colorMapSet);
+  return (radarParameters_.get() != nullptr);
 }
 
 int RFPropagationFacade::loadArepsFiles(const simCore::TimeStamp& time, const std::vector<std::string>& filenames)
 {
   const double timeAsDouble = time.secondsSinceRefYear().Double();
+
+  // prepare the profileManager_ for addition of profiles
   profileManager_->addProfileMap(timeAsDouble);
   profileManager_->update(timeAsDouble);
-  // TODO: we have to update the profileManager_ time to load data at specified time; should we restore previous time after load is completed?
+  profileManager_->setSphericalEarth(true);
 
-  simRF::ArepsLoader arepsLoader(this);
+  // TODO: implementation of multiple timestamps of rfprop data per facade is notional.
+  //    - needs conops to be fleshed out.
+  //    - will need attention to ensure the implementation is consistent.
+  //    - will have to update the profileManager_ time to load data at specified time; should we restore previous time after load is completed?
 
   // TODO: SDK-53
   // it may be desirable to check that height min/max/num, range min/max/num, beam width, and antenna height values for the first file match values obtained from all subsequent files
   // loading 180 files is very slow, and there are no dependencies between files, so loading could be parallelized.
 
-  // Process AREPS files
-  for (size_t ii = 0; ii < filenames.size(); ii++)
+  simRF::ArepsLoader arepsLoader(this);
+  std::vector<std::string> filenamesAdded;
+  bool loadingFirstFile = true;
+  for (const auto& filename : filenames)
   {
     osg::ref_ptr<simRF::Profile> profile = new simRF::Profile(new simRF::CompositeProfileProvider());
-    if (0 != arepsLoader.loadFile(filenames[ii], *profile, ii == 0))
+    if (0 != arepsLoader.loadFile(filename, *profile, loadingFirstFile))
     {
-      // failed to load a file
-      profileManager_->removeProfileMap(timeAsDouble);
-      return 1;
+      // arepsLoader provides the messaging on failure
+      continue;
     }
+    // adding slot can fail if hbw does not match expected value
+    if (0 != setSlotData(profile.get()))
+    {
+      SIM_ERROR << "Could not add slot for AREPS file: " << filename << std::endl;
+      continue;
+    }
+    // successfully loaded the file
+    loadingFirstFile = false;
+    filenamesAdded.push_back(filename);
     if (arepsFilesetTimeMap_.empty())
     {
       setAntennaHeight(arepsLoader.getAntennaHeight());
     }
-    setSlotData(profile.get());
+  }
+
+  if (filenamesAdded.empty())
+  {
+    profileManager_->removeProfileMap(timeAsDouble);
+    return 1;
   }
 
   // store filenames to support getInputFiles()
   auto it = arepsFilesetTimeMap_.find(time);
   if (it == arepsFilesetTimeMap_.end())
-    arepsFilesetTimeMap_[time] = filenames;
+    arepsFilesetTimeMap_[time] = filenamesAdded;
   else
-    it->second.insert(it->second.end(), filenames.begin(), filenames.end());
+    it->second.insert(it->second.end(), filenamesAdded.begin(), filenamesAdded.end());
+
   setDisplay(true);
   return 0;
 }
@@ -787,9 +625,59 @@ int RFPropagationFacade::loadArepsFiles(const simCore::TimeStamp& time, const st
 const simRF::CompositeProfileProvider* RFPropagationFacade::getProfileProvider(double azimRad) const
 {
   const simRF::Profile *profile = getSlotData(azimRad);
-  if (profile)
-    return dynamic_cast<const simRF::CompositeProfileProvider*>(profile->getDataProvider());
-  return NULL;
+  return (profile ?
+    dynamic_cast<const simRF::CompositeProfileProvider*>(profile->getDataProvider()) :
+    nullptr);
+}
+
+const simRF::ProfileDataProvider* RFPropagationFacade::getProfileDataProvider(
+  ProfileDataProvider::ThresholdType type,
+  double azimRad, double gndRngMeters, std::string& msg) const
+{
+  const simRF::Profile *profile = getSlotData(azimRad);
+  if (!profile)
+  {
+    msg = "No data found for beam at requested bearing";
+    return nullptr;
+  }
+  const simRF::CompositeProfileProvider* cProvider =
+    dynamic_cast<const simRF::CompositeProfileProvider*>(profile->getDataProvider());
+  if (!cProvider)
+  {
+    msg = "No data found for beam at requested bearing";
+    return nullptr;
+  }
+  const simRF::ProfileDataProvider* provider = cProvider->getProvider(type);
+  if (!provider)
+  {
+    msg = "No " + dataTypeToString(type) + " data found for beam at requested bearing";
+    return nullptr;
+  }
+  if (gndRngMeters < provider->getMinRange() || gndRngMeters > provider->getMaxRange())
+  {
+    msg = "Requested range is outside of " + dataTypeToString(type) +" data limits";
+    return nullptr;
+  }
+  return provider;
+}
+
+const simRF::ProfileDataProvider* RFPropagationFacade::getProfileDataProvider(
+  ProfileDataProvider::ThresholdType type,
+  double azimRad, double gndRngMeters, double hgtMeters, std::string& msg) const
+{
+  const simRF::ProfileDataProvider* provider = getProfileDataProvider(type, azimRad, gndRngMeters, msg);
+  if (!provider)
+  {
+    // msg already populated
+    assert(!msg.empty());
+    return nullptr;
+  }
+  if (hgtMeters < provider->getMinHeight() || hgtMeters > provider->getMaxHeight())
+  {
+    msg = "Requested height is outside of " + dataTypeToString(type) + " data limits";
+    return nullptr;
+  }
+  return provider;
 }
 
 void RFPropagationFacade::setAntennaHeight(float antennaHeightM)
@@ -806,66 +694,70 @@ float RFPropagationFacade::antennaHeight() const
 float RFPropagationFacade::minHeight() const
 {
   const Profile* profile = getProfile(0);
-  if (profile == NULL)
+  if (profile == nullptr)
     return 0.0f;
   const simRF::CompositeProfileProvider* cProvider = profile->getDataProvider();
-  return (cProvider != NULL) ? cProvider->getMinHeight() : 0.0f;
+  return (cProvider != nullptr) ? cProvider->getMinHeight() : 0.0f;
 }
 
 float RFPropagationFacade::maxHeight() const
 {
   const Profile* profile = getProfile(0);
-  if (profile == NULL)
+  if (profile == nullptr)
     return 0.0f;
   const simRF::CompositeProfileProvider* cProvider = profile->getDataProvider();
-  return (cProvider != NULL) ? cProvider->getMaxHeight() : 0.0f;
+  return (cProvider != nullptr) ? cProvider->getMaxHeight() : 0.0f;
+}
+
+unsigned int RFPropagationFacade::heightSteps() const
+{
+  const Profile* profile = getProfile(0);
+  if (profile == nullptr)
+    return 0;
+  const simRF::CompositeProfileProvider* cProvider = profile->getDataProvider();
+  return (cProvider != nullptr) ? cProvider->getNumHeights() : 0;
 }
 
 
 double RFPropagationFacade::getBearing() const
 {
-  if (!profileManager_)
-    return 0.0;
   return profileManager_->getBearing();
 }
 
 void RFPropagationFacade::setBearing(double bearing)
 {
- if (profileManager_)
    profileManager_->setBearing(bearing);
 }
 
 void RFPropagationFacade::setElevation(double elevation)
 {
- if (profileManager_)
    profileManager_->setElevAngle(elevation);
+}
+
+void RFPropagationFacade::setSphericalEarth(bool sphericalEarth)
+{
+  profileManager_->setSphericalEarth(sphericalEarth);
 }
 
 unsigned int RFPropagationFacade::numProfiles() const
 {
-  return (profileManager_) ? profileManager_->getNumChildren() : 0;
+  return profileManager_->getNumChildren();
 }
 
 const simRF::Profile* RFPropagationFacade::getProfile(unsigned int index) const
 {
-  return (profileManager_) ? profileManager_->getProfile(index) : NULL;
+  return profileManager_->getProfile(index);
 }
 
 void RFPropagationFacade::setPosition(double latRad, double lonRad)
 {
   profileManager_->setRefCoord(latRad, lonRad, antennaHeight());
-
-  // locator takes lon/lat/alt, in degrees
-  if (locator_)
-  {
-    locator_->getLocator()->setCoordinate(simCore::Coordinate(
-        simCore::COORD_SYS_LLA,
-        simCore::Vec3(latRad, lonRad, antennaHeight())));
-  }
 }
 
-void RFPropagationFacade::initializeDefaultColors_()
+void RFPropagationFacade::initializeColorProviders_()
 {
+  CompositeColorProvider* lossColorProvider = new CompositeColorProvider();
+  colorProviderMap_[simRF::ProfileDataProvider::THRESHOLDTYPE_LOSS] = lossColorProvider;
   simRF::GradientColorProvider::ColorMap lossColors;
   lossColors[0.0f] = simVis::Color::Red;
   lossColors[110.0f] = simVis::Color::Yellow;
@@ -876,11 +768,11 @@ void RFPropagationFacade::initializeDefaultColors_()
   lossColors[135.0f] = simVis::Color::Teal;
   lossColors[140.0f] = simVis::Color::Green;
   lossColors[145.0f] = simVis::Color::Navy;
-  lossColors[150.0f] = osg::Vec4f(0.0f, 0.75f, 0.75f, 1.0f);
+  lossColors[150.0f] = SIMDIS_CYAN;
   lossColors[155.0f] = simVis::Color::Aqua;
   lossColors[160.0f] = simVis::Color::Purple;
-
-  colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_LOSS] = lossColors;
+  lossColorProvider->setGradientColorMap(lossColors);
+  lossColorProvider->setThreshold(150.f);
 
   simRF::GradientColorProvider::ColorMap complexColors;
   complexColors[101.0f] = simVis::Color::Red;
@@ -896,41 +788,61 @@ void RFPropagationFacade::initializeDefaultColors_()
   complexColors[-80.0f] = simVis::Color::Aqua;
   complexColors[-100.0f] = simVis::Color::Purple;
 
-  colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_SNR] = complexColors;
-  colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_CNR] = complexColors;
-  colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_ONEWAYPOWER] = complexColors;
-  colorMaps_[simRF::ProfileDataProvider::THRESHOLDTYPE_FACTOR] = complexColors;
+  CompositeColorProvider* snrColorProvider = new CompositeColorProvider();
+  colorProviderMap_[simRF::ProfileDataProvider::THRESHOLDTYPE_SNR] = snrColorProvider;
+  snrColorProvider->setGradientColorMap(complexColors);
+  snrColorProvider->setThreshold(0.f);
+
+  CompositeColorProvider* cnrColorProvider = new CompositeColorProvider();
+  colorProviderMap_[simRF::ProfileDataProvider::THRESHOLDTYPE_CNR] = cnrColorProvider;
+  cnrColorProvider->setGradientColorMap(complexColors);
+  cnrColorProvider->setThreshold(0.f);
+
+  CompositeColorProvider* oneWayColorProvider = new CompositeColorProvider();
+  colorProviderMap_[simRF::ProfileDataProvider::THRESHOLDTYPE_ONEWAYPOWER] = oneWayColorProvider;
+  oneWayColorProvider->setGradientColorMap(complexColors);
+  oneWayColorProvider->setThreshold(0.f);
+
+  CompositeColorProvider* factorColorProvider = new CompositeColorProvider();
+  colorProviderMap_[simRF::ProfileDataProvider::THRESHOLDTYPE_FACTOR] = factorColorProvider;
+  factorColorProvider->setGradientColorMap(complexColors);
+  factorColorProvider->setThreshold(0.f);
+
 
   // build a default color map
-  defaultColors_[100.0f] = simVis::Color::White;
-  defaultColors_[90.0f] = simVis::Color::Red;
-  defaultColors_[80.0f] = simVis::Color::Yellow;
-  defaultColors_[70.0f] = simVis::Color::Fuchsia;
-  defaultColors_[60.0f] = simVis::Color::Blue;
-  defaultColors_[50.0f] = simVis::Color::Lime;
-  defaultColors_[40.0f] = SIMDIS_ORANGE;
-  defaultColors_[30.0f] = simVis::Color::Teal;
-  defaultColors_[20.0f] = simVis::Color::Green;
-  defaultColors_[10.0f] = simVis::Color::Navy;
-  defaultColors_[0.0f] = simVis::Color::Silver;
+  simRF::GradientColorProvider::ColorMap defaultColors;
+  defaultColors[100.0f] = simVis::Color::White;
+  defaultColors[90.0f] = simVis::Color::Red;
+  defaultColors[80.0f] = simVis::Color::Yellow;
+  defaultColors[70.0f] = simVis::Color::Fuchsia;
+  defaultColors[60.0f] = simVis::Color::Blue;
+  defaultColors[50.0f] = simVis::Color::Lime;
+  defaultColors[40.0f] = SIMDIS_ORANGE;
+  defaultColors[30.0f] = simVis::Color::Teal;
+  defaultColors[20.0f] = simVis::Color::Green;
+  defaultColors[10.0f] = simVis::Color::Navy;
+  defaultColors[0.0f] = simVis::Color::Silver;
+
+  defaultColorProvider_ = new CompositeColorProvider();
+  defaultColorProvider_->setGradientColorMap(defaultColors);
+  defaultColorProvider_->setThreshold(50.f);
 }
 
-void RFPropagationFacade::setGradientByThresholdType_(simRF::ProfileDataProvider::ThresholdType type)
+void RFPropagationFacade::setColorProviderByThresholdType_(simRF::ProfileDataProvider::ThresholdType type)
 {
-  if (colorProvider_ == NULL)
-    return;
-  // apply the appropriate color map, or the default if we don't have one specified for this type
-  std::map<simRF::ProfileDataProvider::ThresholdType, simRF::GradientColorProvider::ColorMap>::const_iterator foundColor = colorMaps_.find(type);
-  if (foundColor != colorMaps_.end())
-    colorProvider_->setGradientColorMap(foundColor->second);
+  auto foundColorProvider = colorProviderMap_.find(type);
+  if (foundColorProvider != colorProviderMap_.end())
+    currentColorProvider_ = foundColorProvider->second;
   else
-    colorProvider_->setGradientColorMap(defaultColors_);
+  {
+    // some providers may not be available.
+    currentColorProvider_ = defaultColorProvider_;
+  }
+  profileManager_->setColorProvider(currentColorProvider_.get());
 }
 
 void RFPropagationFacade::enableDepthBuffer(bool enable)
 {
-  if (!profileManager_.valid())
-    return;
   osg::StateSet* stateset = profileManager_->getOrCreateStateSet();
   if (enable)
     stateset->setMode(GL_DEPTH_TEST, osg::StateAttribute::ON);
@@ -940,8 +852,6 @@ void RFPropagationFacade::enableDepthBuffer(bool enable)
 
 bool RFPropagationFacade::isDepthBufferEnabled() const
 {
-  if (!profileManager_.valid())
-    return false;
   const osg::StateSet* stateset = profileManager_->getStateSet();
   if (!stateset)
     return false;

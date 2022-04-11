@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -74,6 +75,9 @@ namespace simVis
     */
     void clampCoordToMapSurface(simCore::Coordinate& coord);
 
+    /** clampCoordToMapSurface() variation that accepts a context for optimization. */
+    void clampCoordToMapSurface(simCore::Coordinate& coord, osgEarth::ElevationPool::WorkingSet& ws);
+
     /** Return true if able to apply clamping, false otherwise */
     bool isValid() const;
 
@@ -85,7 +89,7 @@ namespace simVis
 
   private:
     osg::observer_ptr<const osgEarth::MapNode> mapNode_;
-    osg::ref_ptr<osgEarth::ElevationEnvelope> envelope_;
+    osgEarth::ElevationPool::WorkingSet workingSet_;
     bool useMaxElevPrec_;
   };
 
@@ -100,7 +104,7 @@ namespace simVis
     * @param type Type of entity node to alleviate the need for dynamic casting
     * @param locator Locator that will position this node
     */
-    EntityNode(simData::ObjectType type, Locator* locator = NULL);
+    EntityNode(simData::ObjectType type, Locator* locator = nullptr);
 
   public:
     /** Enumerates different name types for the label */
@@ -140,10 +144,10 @@ namespace simVis
 
     /**
     * Sets a custom callback that will be used to generate the string that goes in the label.
-    * @param callback Callback that will generate content; if NULL will only display entity name/alias
+    * @param callback Callback that will generate content; if nullptr will only display entity name/alias
     */
     void setLabelContentCallback(LabelContentCallback* callback);
-    /// Returns current content callback; guaranteed non-NULL
+    /// Returns current content callback; guaranteed non-nullptr
     LabelContentCallback& labelContentCallback() const;
 
     /// Returns the pop up text based on the label content callback, update and preference
@@ -161,7 +165,7 @@ namespace simVis
     * function that extracts the Position information (not rotation) from the
     * Entity's underlying locator or locatorNode.
     *
-    * @param[out] out_position If not NULL, resulting position stored here, in coordinate system as specified by coordsys
+    * @param[out] out_position If not nullptr, resulting position stored here, in coordinate system as specified by coordsys
     * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
     * @return 0 if the output parameter is populated successfully, nonzero on failure
     */
@@ -172,8 +176,8 @@ namespace simVis
     * function that extracts the Position information and rotation from the
     * locatorNode matrix.
     *
-    * @param[out] out_position If not NULL, resulting position stored here, in coordinate system as specified by coordsys
-    * @param[out] out_orientation If not NULL, resulting orientation stored here, in coordinate system as specified by coordsys
+    * @param[out] out_position If not nullptr, resulting position stored here, in coordinate system as specified by coordsys
+    * @param[out] out_orientation If not nullptr, resulting orientation stored here, in coordinate system as specified by coordsys
     * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
     * @return 0 if the output parameter is populated successfully, nonzero on failure
     */
@@ -213,7 +217,7 @@ namespace simVis
         if (dynamic_cast<T*>(node))
           return static_cast<T*>(node);
       }
-      return NULL;
+      return nullptr;
     }
 
     /**
@@ -229,7 +233,7 @@ namespace simVis
         if (dynamic_cast<T*>(node))
           return static_cast<T*>(node);
       }
-      return NULL;
+      return nullptr;
     }
 
     /**
@@ -267,7 +271,7 @@ namespace simVis
     /**
     * Updates the entity based on the bound data store. The implementation class
     * must provide this method.
-    * @param updateSlice  Data store update slice (could be NULL)
+    * @param updateSlice  Data store update slice (could be nullptr)
     * @param force true to force the update to be applied; false allows entity to use its own internal logic to decide whether the update should be applied
     * @return true if update applied, false if not
     */
@@ -290,11 +294,16 @@ namespace simVis
     */
     virtual double range() const = 0;
 
-    /** Accept textures from a projector. */
-    virtual void acceptProjector(ProjectorNode* projector);
+    /**
+     * Accept textures from a projector. Can only accept four projectors per entity.
+     * Pass in empty vector to stop accepting all projectors. Removes accept-projector
+     * from any previously accepted projector, that is not in this list. Returns 0 on
+     * success.
+     */
+    virtual int acceptProjectors(const std::vector<ProjectorNode*>& projectors);
 
-    /** Stop accepting textures from a projector. */
-    virtual void removeProjector(ProjectorNode* projector);
+    /** Set the node getter function to use. Expected to be called by ScenarioManager after EntityNode creation. */
+    void setNodeGetter(std::function<EntityNode* (simData::ObjectId)> getter);
 
     /** Return the proper library name */
     virtual const char* libraryName() const { return "simVis"; }
@@ -315,6 +324,15 @@ namespace simVis
     */
     std::string getEntityName_(const simData::CommonPrefs& common, EntityNode::NameType nameType, bool allowBlankAlias) const;
 
+    /** Apply projector prefs. Currently used for acceptsProjectorId only */
+    int applyProjectorPrefs_(const simData::CommonPrefs& lastPrefs, const simData::CommonPrefs& prefs);
+
+    /** Function used to get a projector node from an ID. Set by ScenarioManager after EntityNode creation using setNodeGetter(). */
+    std::function<EntityNode* (simData::ObjectId)> nodeGetter_ = [](simData::ObjectId) ->EntityNode* { return nullptr; };
+
+    /** Impl for public acceptProjectors(), allowing caller to change the underlying node, required for platforms. */
+    int acceptProjectors_(osg::Node* attachmentPoint, const std::vector<ProjectorNode*>& projectors);
+
   private:
     /** Copy constructor, not implemented or available. */
     EntityNode(const EntityNode&);
@@ -322,6 +340,7 @@ namespace simVis
     simData::ObjectType type_;
     osg::ref_ptr<Locator> locator_;
     osg::ref_ptr<LabelContentCallback> contentCallback_;
+    std::vector<osg::observer_ptr<ProjectorNode> > acceptedProjectors_;
   };
 
 } // namespace simVis

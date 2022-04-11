@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -66,6 +67,8 @@ public:
 
   /// Get current time
   virtual simCore::TimeStamp timeStamp() const = 0;
+  /// Get current time as text
+  virtual QString timeText() const = 0;
   /// Set current time
   virtual void setTimeStamp(const simCore::TimeStamp& value) = 0;
   /// Set begin/end time range
@@ -114,7 +117,7 @@ class SDKQT_EXPORT SecondsContainer : public TimeFormatContainer
 {
 public:
   /// constructor
-  SecondsContainer(QWidget* parent=NULL);
+  SecondsContainer(QWidget* parent=nullptr);
   virtual ~SecondsContainer();
 
   ///@return the underlying widget
@@ -123,6 +126,8 @@ public:
   virtual bool hasFocus() const;
   ///@return current time
   virtual simCore::TimeStamp timeStamp() const;
+  ///@return current time as text
+  virtual QString timeText() const;
   /// set current time
   virtual void setTimeStamp(const simCore::TimeStamp& value);
   /// set begin/end time range
@@ -160,7 +165,7 @@ class SDKQT_EXPORT MonthContainer : public TimeFormatContainer
 {
 public:
   /// constructor
-  MonthContainer(QWidget* parent=NULL);
+  MonthContainer(QWidget* parent=nullptr);
   virtual ~MonthContainer();
 
   ///@return the underlying widget
@@ -169,6 +174,8 @@ public:
   virtual bool hasFocus() const;
   ///@return current time
   virtual simCore::TimeStamp timeStamp() const;
+  ///@return current time as text
+  virtual QString timeText() const;
   /// set current time
   virtual void setTimeStamp(const simCore::TimeStamp& value);
   /// set begin/end time range
@@ -207,7 +214,7 @@ class SDKQT_EXPORT OrdinalContainer :  public TimeFormatContainer
 {
 public:
   /// constructor
-  OrdinalContainer(QWidget* parent=NULL);
+  OrdinalContainer(QWidget* parent=nullptr);
   virtual ~OrdinalContainer();
 
   ///@return the underlying widget
@@ -216,6 +223,8 @@ public:
   virtual bool hasFocus() const;
   ///@return current time
   virtual simCore::TimeStamp timeStamp() const;
+  ///@return current time as text
+  virtual QString timeText() const;
   /// set current time
   virtual void setTimeStamp(const simCore::TimeStamp& value);
   /// set begin/end time range
@@ -253,7 +262,7 @@ class SDKQT_EXPORT MinutesContainer : public TimeFormatContainer
 {
 public:
   /// constructor
-  MinutesContainer(QWidget* parent=NULL);
+  MinutesContainer(QWidget* parent=nullptr);
   virtual ~MinutesContainer();
 
   ///@return the underlying widget
@@ -262,6 +271,8 @@ public:
   virtual bool hasFocus() const;
   ///@return current time
   virtual simCore::TimeStamp timeStamp() const;
+  ///@return current time as text
+  virtual QString timeText() const;
   /// set current time
   virtual void setTimeStamp(const simCore::TimeStamp& value);
   /// set begin/end time range
@@ -299,7 +310,7 @@ class SDKQT_EXPORT HoursContainer : public TimeFormatContainer
 {
 public:
   /// constructor
-  HoursContainer(QWidget* parent=NULL);
+  HoursContainer(QWidget* parent=nullptr);
   virtual ~HoursContainer();
 
   ///@return the underlying widget
@@ -308,6 +319,8 @@ public:
   virtual bool hasFocus() const;
   ///@return current time
   virtual simCore::TimeStamp timeStamp() const;
+  ///@return current time as text
+  virtual QString timeText() const;
   /// set current time
   virtual void setTimeStamp(const simCore::TimeStamp& value);
   /// set begin/end time range

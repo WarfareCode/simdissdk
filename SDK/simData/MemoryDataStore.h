@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -87,6 +88,12 @@ public:
   /// if 0 is passed in flushes the entire scenario, except for static entities
   virtual void flush(ObjectId flushId, FlushType type = NON_RECURSIVE);
 
+  /** Removes all the specified data */
+  virtual int flush(ObjectId id, FlushScope scope, FlushFields fields);
+
+  /** Removes a range of data from startTime up to but not including the endTime */
+  virtual int flush(ObjectId id, FlushScope scope, FlushFields fields, double startTime, double endTime);
+
   /**
   * clear out the data store of all scenario specific data, including all entities and category data names.
   */
@@ -111,7 +118,7 @@ public:
   /// Specify the interpolator to use
   virtual void setInterpolator(Interpolator *interpolator);
 
-  /// Get the current interpolator (NULL if disabled)
+  /// Get the current interpolator (nullptr if disabled)
   virtual Interpolator* interpolator() const;
   ///@}
 
@@ -158,7 +165,7 @@ public:
   ///@}
 
   /**@name Properties
-   * @note should always return a valid object (never NULL)
+   * @note should always return a valid object (never nullptr)
    * @{
    */
   virtual const ScenarioProperties *scenarioProperties(Transaction *transaction) const;
@@ -181,7 +188,7 @@ public:
   ///@}
 
   /**@name Object Preferences
-   * @note will return NULL if no object is associated with the specified id
+   * @note will return nullptr if no object is associated with the specified id
    * @{
    */
   virtual const PlatformPrefs *platformPrefs(ObjectId id, Transaction *transaction) const;
@@ -239,7 +246,7 @@ public:
   virtual int removeGenericDataTag(ObjectId id, const std::string& tag);
 
   /**@name Add data update, command, generic data, or category data
-   *@note Returns NULL if platform for specified ID does not exist
+   *@note Returns nullptr if platform for specified ID does not exist
    * @{
    */
   virtual PlatformUpdate *addPlatformUpdate(ObjectId id, Transaction *transaction);
@@ -315,7 +322,7 @@ public:
   /**@name NewUpdatesListener
   * @{
   */
-  /// Sets a listener for when entity updates are added; use NULL to remove.
+  /// Sets a listener for when entity updates are added; use nullptr to remove.
   virtual void setNewUpdatesListener(NewUpdatesListenerPtr callback);
   /// Retrieves the listener for new updates (internal)
   NewUpdatesListener& newUpdatesListener() const;
@@ -351,6 +358,9 @@ private:
   template <typename EntryMapType>
   void dataLimit_(std::map<ObjectId, EntryMapType*>& entryMap, ObjectId id, const CommonPrefs* prefs);
   ///@}
+
+  /// Execute the onPostRemoveEntity callback
+  void fireOnPostRemoveEntity_(ObjectId id, ObjectType ot);
 
   /// Check to see if a Listener got removed during a callback
   void checkForRemoval_(ListenerList& list);
@@ -409,7 +419,7 @@ private:
     virtual void release() {}
   };
 
-  /// Perform transactions that modify preferences and properties
+  /// Perform transactions that modify preferences
   /// Notification of changes are sent to observers on transaction release
   template<typename T>
   class MutableSettingsTransactionImpl : public TransactionImpl
@@ -440,6 +450,38 @@ private:
     std::string newName_;                         ///< New entity name
     T *currentSettings_;                          ///< Pointer to current settings object stored by DataStore; Will not be modified until the transaction is committed
     T *modifiedSettings_;                         ///< The mutable settings object provided to the transaction initiator for modification
+    MemoryDataStore *store_;
+    ListenerList *observers_;
+  };
+
+  /// Perform transactions that modify properties
+  /// Notification of changes are sent to observers on transaction release
+  template<typename T>
+  class MutablePropertyTransactionImpl : public TransactionImpl
+  {
+  public:
+    MutablePropertyTransactionImpl(ObjectId id, T *properties, MemoryDataStore *store, ListenerList *observers);
+
+    /// Retrieve the settings object to be modified during the transaction
+    T *properties() { return modifiedProperties_; }
+
+    /// Check for changes to property object and copy them
+    /// to the internal data structure
+    virtual void commit();
+
+    /// No resources to be released here (resource locks/DB handles/etc)
+    virtual void release();
+
+    /// If the transaction was not committed, will deallocate the properties
+    /// object which has not been transferred
+    virtual ~MutablePropertyTransactionImpl();
+
+  private:
+    ObjectId id_;                                 ///< Id of entry associated with the transaction (to be provided to observers on entry change notification)
+    bool committed_;                              ///< The changes have been committed to the data structure
+    bool notified_;                               ///< Observers have been notified of the entry's modification
+    T *currentProperties_;                        ///< Pointer to current properties object stored by DataStore; Will not be modified until the transaction is committed
+    T *modifiedProperties_;                       ///< The mutable properties object provided to the transaction initiator for modification
     MemoryDataStore *store_;
     ListenerList *observers_;
   };
@@ -616,10 +658,12 @@ private:
   void updateLobGroups_(double time);
   ///Updates all the CustomRenderings
   void updateCustomRenderings_(double time);
-  /// Flushes an entity's updates, commands, category and generic data
-  void flushEntity_(ObjectId id, simData::ObjectType type, FlushType flushType);
+  /// Flushes an entity based on the given scope, fields and time ranges
+  void flushEntity_(ObjectId id, simData::ObjectType type, FlushScope flushScope, FlushFields flushFields, double startTime, double endTime);
   /// Flushes an entity's data tables
   void flushDataTables_(ObjectId id);
+  /// Flushes an entity's data tables for the given time range; up to but not including endTime
+  void flushDataTables_(ObjectId id, double startTime, double endTime);
 
   /// Initialize the default prefs objects
   virtual void setDefaultPrefs(const PlatformPrefs& platformPrefs,
@@ -652,7 +696,6 @@ private:
   CustomRenderings   customRenderings_;
   GenericDataMap     genericData_;  // Map to hold references for GenericData update slice contained by the DataEntry object with the associated id
   CategoryDataMap    categoryData_; // Map to hold references for CategoryData update slice contained by the DataEntry object with the associated id
-  std::pair<double, double> timeBounds_;  // First and last time recorded in scenario; might change when adding points or data limiting
 
   // default prefs objects
   PlatformPrefs  defaultPlatformPrefs_;
@@ -662,9 +705,6 @@ private:
   LobGroupPrefs  defaultLobGroupPrefs_;
   ProjectorPrefs defaultProjectorPrefs_;
   CustomRenderingPrefs defaultCustomRenderingPrefs_;
-
-  // Updates the contents of timeBounds_
-  void newTimeBound_(double timeVal);
 
   /// Observers to receive notifications when things change
   ListenerList listeners_;

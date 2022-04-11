@@ -9,18 +9,15 @@
  *
  *
  * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
- *               EW Modeling and Simulation, Code 5770
+ *               EW Modeling & Simulation, Code 5773
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * For more information please send email to simdis@enews.nrl.navy.mil
- *
- * U.S. Naval Research Laboratory.
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
- ****************************************************************************
- *
  *
  */
 #ifndef SIMUTIL_HUDPOSITIONMANAGER_H
@@ -144,7 +141,7 @@ private:
     /** Retrieves the (immutable) name */
     std::string name() const;
 
-    /** Sets the reposition callback for the window.  May be NULL. */
+    /** Sets the reposition callback for the window.  May be nullptr. */
     void setRepositionCallback(HudPositionManager::RepositionCallback* callback);
     /** Retrieves the current reposition callback */
     HudPositionManager::RepositionCallback* repositionCallback() const;

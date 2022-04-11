@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -33,7 +34,7 @@ class SDKQT_EXPORT MonospaceItemDelegate : public QStyledItemDelegate
 {
 public:
   /** Allocates a single monospace font to use in drawing */
-  MonospaceItemDelegate(QObject* parent = NULL);
+  MonospaceItemDelegate(QObject* parent = nullptr);
   /** Deletes the font dynamic memory */
   virtual ~MonospaceItemDelegate();
 
@@ -42,8 +43,14 @@ public:
   /** Returns an appropriate size for the selected font */
   virtual QSize sizeHint(const QStyleOptionViewItem& option, const QModelIndex& index) const;
 
+  /** Set an integer offset to the size, e.g. -1 to shrink text by 1 point */
+  void setPointSizeOffset(int offset);
+  /** Retrieve the point size offset */
+  int pointSizeOffset() const;
+
 private:
   QFont* monospaceFont_;
+  int pointSizeOffset_;
 };
 
 }

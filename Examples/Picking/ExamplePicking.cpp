@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -34,6 +35,7 @@
 #include "simCore/Common/Version.h"
 #include "simCore/Calc/Calculations.h"
 #include "simCore/Calc/CoordinateConverter.h"
+#include "simCore/GOG/Parser.h"
 #include "simCore/Time/ClockImpl.h"
 #include "simData/LinearInterpolator.h"
 #include "simData/MemoryDataStore.h"
@@ -41,6 +43,7 @@
 #include "simVis/osgEarthVersion.h"
 #include "simVis/OverheadMode.h"
 #include "simVis/Picker.h"
+#include "simVis/PlatformIconFactory.h"
 #include "simVis/Popup.h"
 #include "simVis/Scenario.h"
 #include "simVis/SceneManager.h"
@@ -48,12 +51,19 @@
 #include "simVis/ViewManager.h"
 #include "simVis/ViewManagerLogDbAdapter.h"
 #include "simVis/GOG/GogNodeInterface.h"
-#include "simVis/GOG/Parser.h"
+#include "simVis/GOG/Loader.h"
 #include "simUtil/DynamicSelectionPicker.h"
 #include "simUtil/ExampleResources.h"
+#include "simUtil/MouseDispatcher.h"
+#include "simUtil/PlatformPopupManipulator.h"
 #include "CustomRender.h"
 
+#ifdef HAVE_IMGUI
+#include "BaseGui.h"
+#include "OsgImGuiHandler.h"
+#else
 namespace ui = osgEarth::Util::Controls;
+#endif
 
 static const double MAX_TIME = 600.0; // seconds of data
 static const double MIN_X = -2000.0;  // X position minimum, meters, tangent plane
@@ -69,7 +79,11 @@ static const std::string NO_PICK = "-";  // Text to show when nothing is picked
 /** Data structure that contains variables used throughout the application */
 struct Application
 {
+#ifdef HAVE_IMGUI
+  std::string pickLabel = NO_PICK;
+#else
   osg::ref_ptr<ui::LabelControl> pickLabel;
+#endif
   osg::ref_ptr<simVis::View> mainView;
   osg::ref_ptr<simVis::View> mainRttView;
   osg::ref_ptr<simVis::View> insetView;
@@ -193,10 +207,10 @@ public:
         if (app_.insetRttView)
         {
           app_.mainView->removeInset(app_.insetRttView.get());
-          app_.insetRttView = NULL;
+          app_.insetRttView = nullptr;
         }
         app_.mainView->removeInset(app_.insetView.get());
-        app_.insetView = NULL;
+        app_.insetView = nullptr;
       }
       break;
 
@@ -247,14 +261,22 @@ private: // data
   bool blockMouseUntilRelease_;
 };
 
+
 /** When the picker selects new items, this callback is triggered */
 class UpdateLabelPickCallback : public simVis::Picker::Callback
 {
 public:
+#ifdef HAVE_IMGUI
+  explicit UpdateLabelPickCallback(std::string& label)
+    : label_(label)
+  {
+  }
+#else
   explicit UpdateLabelPickCallback(ui::LabelControl* label)
     : label_(label)
   {
   }
+#endif
 
   /** Update the label when new items are picked */
   virtual void pickChanged(unsigned int pickedId, osg::Referenced* picked)
@@ -262,7 +284,7 @@ public:
     osg::Node* node = dynamic_cast<osg::Node*>(picked);
     simVis::EntityNode* entity = osgEarth::findFirstParentOfType<simVis::EntityNode>(node);
     if (entity)
-      label_->setText(entity->getEntityName(simVis::EntityNode::REAL_NAME));
+      setText_(entity->getEntityName(simVis::EntityNode::REAL_NAME));
     else if (node)
     {
       // Since we know we're tagging GOGs, pull out the user values we encoded before
@@ -274,18 +296,68 @@ public:
       // Create a label to display information about the GOG
       std::stringstream newLabel;
       newLabel << node->getName() << " / " << objectType << " index " << gogIndex;
-      label_->setText(newLabel.str());
+      setText_(newLabel.str());
     }
     else
     {
-      label_->setText(NO_PICK);
+      setText_(NO_PICK);
     }
   }
 
 private:
+  void setText_(const std::string& text)
+  {
+#ifdef HAVE_IMGUI
+    label_ = text;
+#else
+    label_->setText(text);
+#endif
+  }
+#ifdef HAVE_IMGUI
+  std::string& label_;
+#else
   ui::LabelControl* label_;
+#endif
 };
 
+#ifdef HAVE_IMGUI
+struct ControlPanel : public GUI::BaseGui
+{
+  ControlPanel(Application& app, bool rttEnabled)
+    : GUI::BaseGui("Picking Example"),
+    app_(app),
+    rttEnabled_(rttEnabled)
+  {
+  }
+
+  void draw(osg::RenderInfo& ri) override
+  {
+    ImGui::SetNextWindowPos(ImVec2(15, 15));
+    ImGui::SetNextWindowBgAlpha(.6f);
+    ImGui::Begin(name(), 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoFocusOnAppearing);
+
+    ImGui::Text("h : Toggle highlighting");
+    ImGui::Text("O : Toggle overhead mode");
+    ImGui::Text("p : Pause playback");
+    ImGui::Text("v : Swap viewpoints");
+    ImGui::Text("d : Delete inset");
+    ImGui::Text("t : Toggle inset");
+    if (rttEnabled_)
+    {
+      ImGui::Text("1 : Toggle RTT 1 display");
+      ImGui::Text("2 : Toggle RTT 2 display");
+    }
+    ImGui::Text("Picked: "); ImGui::SameLine();
+    ImGui::TextColored(ImVec4(0.f, 1.f, 0.f, 1.f), app_.pickLabel.c_str());
+
+    ImGui::End();
+  }
+
+private:
+  Application& app_;
+  bool rttEnabled_;
+};
+#else
 /** Creates an overlay that will show information to the user. */
 ui::Control* createUi(osg::ref_ptr<ui::LabelControl>& pickLabel, bool rttEnabled)
 {
@@ -317,6 +389,7 @@ ui::Control* createUi(osg::ref_ptr<ui::LabelControl>& pickLabel, bool rttEnabled
 
   return vbox;
 }
+#endif
 
 /** Adds data points to a platform to bounce around inside a box */
 void addDataPoints(simCore::CoordinateConverter& cc, simData::DataStore& dataStore, uint64_t id)
@@ -468,18 +541,14 @@ void addGog(osg::Group* parentNode, osgEarth::MapNode* mapNode)
   ss << "end\n";
 
   // Configure the parser
-  simVis::GOG::Parser parser(mapNode);
-  parser.setReferenceLocation(osgEarth::GeoPoint(osgEarth::SpatialReference::get("wgs84"), LON, LAT, 0.0, osgEarth::ALTMODE_ABSOLUTE));
+  simCore::GOG::Parser parser;
+  simVis::GOG::Loader loader(parser, mapNode);
+  loader.setReferencePosition(simCore::Vec3(LON, LAT, 0.0));
   ss.seekg(0);
 
   // Load the GOG into the parser
-  simVis::GOG::Parser::OverlayNodeVector gogs;
-  std::vector<simVis::GOG::GogFollowData> followData;
-  if (!parser.loadGOGs(ss, simVis::GOG::GOGNODE_GEOGRAPHIC, gogs, followData))
-  {
-    SIM_WARN << "Unable to load GOG data.\n";
-    return;
-  }
+  simVis::GOG::Loader::GogNodeVector gogs;
+  loader.loadGogs(ss, "Picking", false, gogs);
 
   // Add the GOG nodes generated in the parser
   int index = 0;
@@ -495,7 +564,6 @@ void addGog(osg::Group* parentNode, osgEarth::MapNode* mapNode)
     parentNode->addChild(gog);
   }
 }
-
 
 int main(int argc, char** argv)
 {
@@ -516,6 +584,10 @@ int main(int argc, char** argv)
     pickType = PickRtt;
   else if (arguments.read("--intersect"))
     pickType = PickIntersect;
+
+  // RTT does not support Platform Icon Factory optimizations
+  if (pickType == PickRtt)
+    simVis::PlatformIconFactory::instance()->setEnabled(false);
 
   // First we need a map.
   osg::ref_ptr<osgEarth::Map> map = simExamples::createDefaultExampleMap();
@@ -602,11 +674,10 @@ int main(int argc, char** argv)
 
   // Add various event handlers
   app.mainView->installDebugHandlers();
-  app.mainView->addOverlayControl(createUi(app.pickLabel, (pickType == PickRtt)));
-  app.mainView->addEventHandler(new simVis::ToggleOverheadMode(app.mainView.get(), 'O', 'C'));
   app.mainView->addEventHandler(new MenuHandler(clock, app));
-  app.insetView->addEventHandler(new simVis::ToggleOverheadMode(app.insetView.get(), 'O', 'C'));
   app.insetView->addEventHandler(new MenuHandler(clock, app));
+  app.mainView->addEventHandler(new simVis::ToggleOverheadMode(app.mainView.get(), 'O', 'C'));
+  app.insetView->addEventHandler(new simVis::ToggleOverheadMode(app.insetView.get(), 'O', 'C'));
 
   // Set the initial viewpoints
   simVis::Viewpoint viewpoint;
@@ -662,17 +733,36 @@ int main(int argc, char** argv)
     rttPicker->setUpViewWithDebugTexture(app.insetRttView.get(), app.insetView.get());
   }
 
+#ifdef HAVE_IMGUI
+  // Pass in existing realize operation as parent op, parent op will be called first
+  viewMan->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewMan->getViewer()->getRealizeOperation()));
+  GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
+
+  // Because RTT requires rendering the view to a texture, ImGui would get called twice (and assert)
+  // if associated with the Main View. Instead we add it to Super HUD to work around the problem.
+  auto imGuiView = (pickType == PickRtt) ? superHud : app.mainView;
+  imGuiView->addEventHandler(gui);
+
+  gui->add(new ControlPanel(app, pickType == PickRtt));
+#else
+  app.mainView->addOverlayControl(createUi(app.pickLabel, (pickType == PickRtt)));
+#endif
+
+#ifdef HAVE_IMGUI
+  app.picker->addCallback(new UpdateLabelPickCallback(app.pickLabel));
+#else
   // When a new item is picked, update the label
   app.picker->addCallback(new UpdateLabelPickCallback(app.pickLabel.get()));
+#endif
 
   // Add a popup handler to demonstrate its use of the picker
-  simVis::PopupHandler* popupHandler = new simVis::PopupHandler(app.picker.get(), superHud.get());
+  osg::ref_ptr<simVis::PopupHandler> popupHandler = new simVis::PopupHandler(app.picker.get(), superHud.get());
   popupHandler->setShowInCorner(true);
   popupHandler->setBackColor(simVis::Color(0.f, 0.f, 0.f, 0.8f));
   popupHandler->setBorderColor(simVis::Color::Green);
   popupHandler->setTitleColor(simVis::Color::Lime);
   popupHandler->setLimitVisibility(false);
-  superHud->addEventHandler(popupHandler);
+  superHud->addEventHandler(popupHandler.get());
 
   // Run until the user quits by hitting ESC.
   return viewMan->run();

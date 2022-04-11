@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -159,6 +160,22 @@ static int checkValues(int uniqueID, const char* whichTest,
   return 0;
 }
 
+// calculate ecef->lla->ecef, comparing expected values of ecef and lla
+int ecefLlaEcef(const simCore::CoordinateConverter& cc, const simCore::Coordinate& ecef, const simCore::Coordinate& lla, double epsilon = 1e-5, double epsilon2 = 1e-5)
+{
+  int rv = 0;
+  simCore::Coordinate llaFromEcef;
+  cc.convert(ecef, llaFromEcef, simCore::COORD_SYS_LLA);
+  rv += SDK_ASSERT(llaFromEcef.coordinateSystem() == simCore::COORD_SYS_LLA);
+  rv += SDK_ASSERT(almostEqualCoord(lla, llaFromEcef, epsilon, epsilon2));
+
+  simCore::Coordinate ecefFromLla;
+  cc.convert(llaFromEcef, ecefFromLla, simCore::COORD_SYS_ECEF);
+  rv += SDK_ASSERT(ecefFromLla.coordinateSystem() == simCore::COORD_SYS_ECEF);
+  rv += SDK_ASSERT(almostEqualCoord(ecef, ecefFromLla, epsilon, epsilon2));
+  return rv;
+}
+
 //===========================================================================
 // Note on putting this data in a file:
 //
@@ -167,7 +184,7 @@ static int checkValues(int uniqueID, const char* whichTest,
 //
 static void createTestCases(vTestCases* testCases)
 {
-  if (testCases == NULL)
+  if (testCases == nullptr)
     return;
   TestCase* tempTestCase;
 
@@ -580,7 +597,6 @@ int testCC()
   rv += SDK_ASSERT(nwuFromEcef.coordinateSystem() == simCore::COORD_SYS_NWU);
   rv += SDK_ASSERT(almostEqualCoord(nwuFromEcef, nwuPos));
 
-
   // Convert from LLA -> ECEF -> LLA -> ECEF, using NGA Gold Data
   simCore::Coordinate ecefFromLla1;
   cc.convert(llaPos3, ecefFromLla1, simCore::COORD_SYS_ECEF);
@@ -724,6 +740,71 @@ int testCC()
 
   std::cout << std::endl << "Coordinate converter test case: ";
   std::cout << (rv==0 ? "PASSED" : "FAILED") << std::endl;
+  return rv;
+}
+
+int testEcefLlaCenterOfEarth()
+{
+  int rv = 0;
+  simCore::CoordinateConverter cc;
+  cc.setReferenceOriginDegrees(-2.95192266, 4.50036968, 0.);
+
+  {
+    // ecef 000 converts to lla center of earth, from north pole, and converts back to ecef 000.
+    const simCore::Vec3 ecef(0.0, 0.0, 0.0);
+    const simCore::Vec3 lla(M_PI_2, 0., -simCore::WGS_B);
+    rv += ecefLlaEcef(cc, simCore::Coordinate(simCore::COORD_SYS_ECEF, ecef),
+      simCore::Coordinate(simCore::COORD_SYS_LLA, lla));
+  }
+
+  // data from SIM-13615; points near center-of-earth
+  // test verifies that two-iteration calculation of lla from ecef for such points
+  // produce acceptable results to the extent that ecef-> lla generally matches lla->ecef
+  {
+    // {-4105.1847617285403, 0.0000000000000000, -1099.9809416857129 }
+    const simCore::Vec3 ecef(-4105.1847617285403, 0.0000000000000000, -1099.9809416857129);
+    // lla obtained by calculating from ecef using two-iterations
+    const simCore::Vec3 lla(0.028506163559486097, 3.1415926535897931, -6374047.4916362716);
+    rv += ecefLlaEcef(cc, simCore::Coordinate(simCore::COORD_SYS_ECEF, ecef),
+      simCore::Coordinate(simCore::COORD_SYS_LLA, lla), 2e-3, 6e-2);
+  }
+  {
+    // {-4225.9254900146734, 0.0000000000000000, 1132.3333223235286}
+    const simCore::Vec3 ecef(-4225.9254900146734, 0.0000000000000000, 1132.3333223235286);
+    // lla obtained by calculating from ecef using two-iterations
+    const simCore::Vec3 lla(-0.029437050317393673, 3.1415926535897931, -6373927.7387804883);
+    rv += ecefLlaEcef(cc, simCore::Coordinate(simCore::COORD_SYS_ECEF, ecef),
+      simCore::Coordinate(simCore::COORD_SYS_LLA, lla), 2e-3, 6e-2);
+  }
+  {
+    // ecef {6732.9272022769273, -4177.0642522461094, -1965.4578560947064}
+    // single iteration conv to lla:
+    // lla {0.040228923517666403, -0.55527991376127517, -6370264.5317185409}
+    // two iteration:
+    // lla(0.056567845937660635, -0.55527991376127517, -6370269.1599203711);
+
+    simCore::Vec3 ecef(6732.9272022769273, -4177.0642522461094, -1965.4578560947064);
+    // lla obtained by calculating from ecef using two-iterations
+    simCore::Vec3 lla(0.056567845937660635, -0.55527991376127517, -6370269.1599203711);
+    rv += ecefLlaEcef(cc, simCore::Coordinate(simCore::COORD_SYS_ECEF, ecef),
+      simCore::Coordinate(simCore::COORD_SYS_LLA, lla), 5e-3, 1e-1);
+  }
+  {
+    // {-4105.1847617285403, 1099.9809416857131, 2.5137006891796735e-13}
+    const simCore::Vec3 ecef(-4105.1847617285403, 1099.9809416857131, 2.5137006891796735e-13);
+    // lla obtained by calculating from ecef using two-iterations
+    const simCore::Vec3 lla(-6.5379787960762509e-18, 2.8797932657906440, -6373886.9999999944);
+    rv += ecefLlaEcef(cc, simCore::Coordinate(simCore::COORD_SYS_ECEF, ecef),
+      simCore::Coordinate(simCore::COORD_SYS_LLA, lla), 2e-3, 6e-2);
+  }
+  {
+    // {-4105.1849537113685, -1099.9802251957922, 2.5137008067352520e-13}
+    const simCore::Vec3 ecef(-4105.1849537113685, -1099.9802251957922, 2.5137008067352520e-13);
+    // lla obtained by calculating from ecef using two-iterations
+    const simCore::Vec3 lla(-6.5379791018309832e-18, -2.8797934403235690, -6373886.9999999944);
+    rv += ecefLlaEcef(cc, simCore::Coordinate(simCore::COORD_SYS_ECEF, ecef),
+      simCore::Coordinate(simCore::COORD_SYS_LLA, lla), 2e-3, 6e-2);
+  }
   return rv;
 }
 
@@ -885,7 +966,7 @@ int testScaledFlatEarth()
   int rv = 0;
   simCore::CoordinateConverter cc;
   cc.setReferenceOriginDegrees(22.119439197, -159.91949881, 0.);
-  simCore::Coordinate ecefPos;
+  simCore::Coordinate enuPos;
   simCore::Coordinate llaPos;
   simCore::Coordinate sfePos;
 
@@ -965,7 +1046,72 @@ int testScaledFlatEarth()
   rv += ccAqm.convert(llaPos, sfePos, simCore::COORD_SYS_NWU);
   rv += SDK_ASSERT(almostEqualCoord(posa, sfePos));
 
+
+  // SIM-11596, data fabricated to demonstrate issue
+  simCore::CoordinateConverter ccsim11596;
+  ccsim11596.setReferenceOriginDegrees(45, 161, 0.);
+  const simCore::Coordinate sim11596(simCore::COORD_SYS_LLA, simCore::Vec3(-45.1 * simCore::DEG2RAD, -162. * simCore::DEG2RAD, 100.));
+  // Validate conversion from and back to LLA works
+  rv += ccsim11596.convert(sim11596, enuPos, simCore::COORD_SYS_ENU);
+  rv += ccsim11596.convert(enuPos, sfePos, simCore::COORD_SYS_LLA);
+
+  // position-only comparison
+  rv += SDK_ASSERT(simCore::areAnglesEqual(sim11596.lat(), sfePos.lat()));
+  rv += SDK_ASSERT(simCore::areAnglesEqual(sim11596.lon(), sfePos.lon()));
+  rv += SDK_ASSERT(simCore::areEqual(sim11596.alt(), sfePos.alt()));
+
+
   std::cout << std::endl << "Scaled Flat Earth test case: ";
+  std::cout << (rv==0 ? "PASSED" : "FAILED") << std::endl;
+  return rv;
+}
+
+int testStringFunctions()
+{
+  int rv = 0;
+
+  // To-string testing
+  rv += SDK_ASSERT(simCore::coordinateSystemToString(simCore::COORD_SYS_NED) == "Topo_NED");
+  rv += SDK_ASSERT(simCore::coordinateSystemToString(simCore::COORD_SYS_NWU) == "Topo_NWU");
+  rv += SDK_ASSERT(simCore::coordinateSystemToString(simCore::COORD_SYS_ENU) == "Topo_ENU");
+  rv += SDK_ASSERT(simCore::coordinateSystemToString(simCore::COORD_SYS_LLA) == "LLA_DD");
+  rv += SDK_ASSERT(simCore::coordinateSystemToString(simCore::COORD_SYS_ECEF) == "ECEF_WGS84");
+  rv += SDK_ASSERT(simCore::coordinateSystemToString(simCore::COORD_SYS_ECI) == "ECI_WGS84");
+  rv += SDK_ASSERT(simCore::coordinateSystemToString(simCore::COORD_SYS_XEAST) == "TangentPlane_XEast");
+  rv += SDK_ASSERT(simCore::coordinateSystemToString(simCore::COORD_SYS_GTP) == "TangentPlane_Generic");
+
+  // From-string testing
+  simCore::CoordinateSystem coordSys;
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("Topo_NED", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_NED);
+  // Test capitalization
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("topo_ned", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_NED);
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("TOPO_NED", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_NED);
+
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("Topo_NWU", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_NWU);
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("Topo_ENU", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_ENU);
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("LLA_DD", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_LLA);
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("ECEF_WGS84", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_ECEF);
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("ECI_WGS84", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_ECI);
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("TangentPlane_XEast", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_XEAST);
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("TangentPlane_Generic", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_GTP);
+
+  // Test the oddball LLA legacy strings
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("LLA_DMD", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_LLA);
+  rv += SDK_ASSERT(simCore::coordinateSystemFromString("LLA_DMS", coordSys) == 0);
+  rv += SDK_ASSERT(coordSys == simCore::COORD_SYS_LLA);
+
+  std::cout << std::endl << "String Functions test case: ";
   std::cout << (rv==0 ? "PASSED" : "FAILED") << std::endl;
   return rv;
 }
@@ -991,7 +1137,7 @@ int CoordConvertLibTest(int _argc_, char *_argv_[])
        ++testCaseIterator)
   {
     TestCase* temp = *testCaseIterator;
-    if (temp != NULL)
+    if (temp != nullptr)
     {
       simCore::Coordinate inTSPI(temp->InputCoordinateSystem_,
           temp->InputPosition_, temp->InputEul_, temp->InputVelocity_, temp->InputAcc_);
@@ -1034,9 +1180,11 @@ int CoordConvertLibTest(int _argc_, char *_argv_[])
   }
   rv += testGtp();
   rv += testCC();
+  rv += testEcefLlaCenterOfEarth();
   rv += testExternalDataECI();
   rv += testGtpRotation();
   rv += testScaledFlatEarthPole();
   rv += testScaledFlatEarth();
+  rv += testStringFunctions();
   return rv;
 }

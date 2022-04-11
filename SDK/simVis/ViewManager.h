@@ -9,27 +9,28 @@
  *
  *
  * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
- *               EW Modeling & Simulation, Code 5773
+ *               EW Modeling and Simulation, Code 5770
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
+ ****************************************************************************
  *
  */
 #ifndef SIMVIS_VIEW_MANAGER_H
 #define SIMVIS_VIEW_MANAGER_H 1
 
-#include "simCore/Common/Common.h"
-
-#include "osg/ArgumentParser"
-#include <osg/ref_ptr>
-#include <osg/observer_ptr>
-#include "osgViewer/CompositeViewer"
-
+#include <functional>
 #include <vector>
+#include "osg/ref_ptr"
+#include "osg/observer_ptr"
+#include "osg/ArgumentParser"
+#include "osgViewer/CompositeViewer"
+#include "simCore/Common/Common.h"
 
 namespace simVis
 {
@@ -62,6 +63,16 @@ class View;
  *
  *   (b) Has no HUD stack.
  *
+ * If you are using multiple osg::GraphicsContext instances with the same scene
+ * and/or ViewManager, you may need to disable the image unref after apply, or you
+ * may see texture glitches in the multiple graphics windows.  For example:
+ *
+ * <code>
+ * // Prevent image data from being deleted on CPU after it's been sent to GPU, called at app startup:
+ * osgEarth::Registry::instance()->unRefImageDataAfterApply() = false;
+ * // Prevent image data from being deleted on CPU after sent to GPU, called once on the pager:
+ * view->getScene()->getDatabasePager()->setUnrefImageDataAfterApplyPolicy(true, false);
+ * </code>
  */
 class SDKVIS_EXPORT ViewManager : public osg::Referenced
 {
@@ -88,6 +99,28 @@ public:
     virtual ~Callback() {}
   };
 
+  /** Lambda callback; particularly useful when you register and don't need to unregister. */
+  class LambdaCallback : public Callback
+  {
+  public:
+    /**
+     * Instantiate with a lambda, e.g.:
+     * <code>
+     * new simVis::ViewManager::LambdaCallback([this](simVis::View* view, simVis::ViewManager::Callback::EventType evtType) {
+     *   std::cout << "Callback issued.\n"
+     * }));
+     * </code>
+     */
+    explicit LambdaCallback(const std::function<void(simVis::View*, Callback::EventType)>& func) : func_(func) { }
+    virtual void operator()(simVis::View* inset, const EventType& e) override { func_(inset, e); }
+
+  protected:
+    /// osg::Referenced-derived
+    virtual ~LambdaCallback() {}
+
+  private:
+    std::function<void(simVis::View*, Callback::EventType)> func_;
+  };
 
   class PostCameraEventHandler : public osg::Referenced
   {
@@ -129,6 +162,9 @@ public:
 
   /** Retrieves the first view matching the name provided. */
   simVis::View* getViewByName(const std::string& name) const;
+
+  /** Retrieves the topmost interactive view (not hidden, allowing event focus) at the mouse XY */
+  simVis::View* getViewByMouseXy(const osg::Vec2d& mouseXy) const;
 
   /** Retrieves the index of the view provided, or -1 if not found. */
   int getIndexOf(simVis::View* view) const;

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -43,6 +44,7 @@ class PlatformModelNode;
 class PlatformTspiFilterManager;
 class ProjectorNode;
 class RadialLOSNode;
+class TimeTicks;
 class TrackHistoryNode;
 class VelocityVector;
 
@@ -81,14 +83,14 @@ public:
     const simData::DataStore& dataStore,
     PlatformTspiFilterManager& manager,
     osg::Group* expireModeGroupAttach,
-    Locator* locator = NULL,
+    Locator* eciLocator = nullptr,
     int referenceYear = 1970);
 
   /**
-  * Access to the group that holds track history and vapor trail (to support expire mode)
+  * Gets or Creates the group that holds track history and vapor trail (to support expire mode)
   * @return expireModeGroup
   */
-  osg::Group* getExpireModeGroup() const;
+  osg::Group* getOrCreateExpireModeGroup();
 
   /**
   * Access to the node that renders the 3D model/icon
@@ -98,13 +100,13 @@ public:
 
   /**
   * The track history trail node
-  * @return track history node, or NULL if it doesn't exists yet
+  * @return track history node, or nullptr if it doesn't exists yet
   */
   TrackHistoryNode* getTrackHistory();
 
   /**
-  * Returns the Radar Cross Section of the platform.  Can be NULL.
-  * @return the Radar Cross Section of the platform.  Can be NULL.
+  * Returns the Radar Cross Section of the platform.  Can be nullptr.
+  * @return the Radar Cross Section of the platform.  Can be nullptr.
   */
   simCore::RadarCrossSectionPtr getRcs() const;
 
@@ -170,7 +172,7 @@ public: // EntityNode interface
 
   /**
   * Updates the entity based on the bound data store.
-  * @param updateSlice  Data store update slice (could be NULL
+  * @param updateSlice  Data store update slice (could be nullptr
   * @param force true to force the update to be applied; false only apply if logic dictates
   * @return true if update applied, false if not
   */
@@ -192,11 +194,8 @@ public: // EntityNode interface
   */
   virtual double range() const;
 
-  /// Accept textures from a projector.
-  void acceptProjector(ProjectorNode* projector);
-
-  /// Stop accepting textures from a projector.
-  void removeProjector(ProjectorNode* projector);
+  /** Override Entity::acceptProjectors() to handle Platform-specific scene layout */
+  virtual int acceptProjectors(const std::vector<ProjectorNode*>& projectors) override;
 
   /** Retrieve the object index tag for platforms. */
   virtual unsigned int objectIndexTag() const;
@@ -231,14 +230,14 @@ public: // EntityNode interface
 
   /**
   * Returns the last update for the platform; note this update has been filtered e.g. clamping has been applied
-  * @return the last update for the platform, or NULL if platform has no valid update
+  * @return the last update for the platform, or nullptr if platform has no valid update
   */
   const simData::PlatformUpdate* update() const;
 
   /**
   * Returns the update valid for displaying current values in labels, which could be the actual values from the last unfiltered update,
   * or the filtered values, depending on the label prefs useValues field
-  * @return the current update for the platform, or NULL if platform has no valid update
+  * @return the current update for the platform, or nullptr if platform has no valid update
   */
   const simData::PlatformUpdate* labelUpdate() const;
 
@@ -295,6 +294,7 @@ private:
   void updateHostBounds_(double scale);
   void updateLabel_(const simData::PlatformPrefs& prefs);
   bool createTrackHistoryNode_(const simData::PlatformPrefs& prefs);
+  bool createTimeTicks_(const simData::PlatformPrefs& prefs);
   void updateOrRemoveBodyAxis_(bool prefsDraw, const simData::PlatformPrefs& prefs);
   void updateOrRemoveInertialAxis_(bool prefsDraw, const simData::PlatformPrefs& prefs);
   void updateOrRemoveVelocityVector_(bool prefsDraw, const simData::PlatformPrefs& prefs);
@@ -317,12 +317,15 @@ private:
   double                          lastUpdateTime_;
   /// the time of the earliest history point that still exists in the data slice
   double                          firstHistoryTime_;
+  /// the ECI locator, which supports ECI track history, and provides the SRS for non-ECI locators
+  osg::ref_ptr<Locator>           eciLocator_;
   /// container for trackHistory and vaporTrail, which must be different from the platform node to support expiremode
   osg::ref_ptr<osg::Group> expireModeGroup_;
   /// scenegraph parent to the expireModeGroup_
   osg::observer_ptr<osg::Group> expireModeGroupAttach_;
   /// track history points
   osg::ref_ptr<TrackHistoryNode>  track_;
+  osg::ref_ptr<TimeTicks>         timeTicks_;
   osg::ref_ptr<LocalGridNode>     localGrid_;
   osg::ref_ptr<CompositeHighlightNode> highlight_;
   osg::ref_ptr<AxisVector>        bodyAxisVector_;

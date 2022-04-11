@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -21,6 +22,9 @@
  */
 #ifndef SIMCORE_CALC_COORDINATESYSTEM_H
 #define SIMCORE_CALC_COORDINATESYSTEM_H
+
+#include <string>
+#include "simCore/Common/Common.h"
 
 /// Container for enumerations and constants relating to coordinate system calculations and conversion
 namespace simCore
@@ -59,8 +63,8 @@ namespace simCore
 
   //---WGS-84 constants from NIMA TR8350.2, amendment 1, 3 Jan 2000
   const double WGS_A   = 6378137.0;                 ///< Semi-major axis of the earth (m)
-  const double WGS_E   = 0.0818191908426;           ///< Earth eccentricity of ellipsoid
-  const double WGS_ESQ = WGS_E * WGS_E;             ///< Ellipsoid eccentricity squared: E^2, also calculable as (A2-B2)/A2
+  const double WGS_E   = 0.081819190842622;         ///< Earth eccentricity of ellipsoid
+  const double WGS_ESQ = 0.00669437999014;          ///< Ellipsoid eccentricity squared: E^2, also calculable as (A2-B2)/A2
   const double WGS_F = 1.0/298.257223563;           ///< Earth flattening constant
   const double WGS_B = WGS_A * (1.0 - WGS_F);       ///< (m) Semi-minor axis of the earth: (1.0 - F)*A
   const double WGS_A2 = WGS_A * WGS_A;              ///< (m^2) Semi-major axis squared: A*A
@@ -72,6 +76,23 @@ namespace simCore
   const double EARTH_RADIUS = WGS_A;                    ///< (m) Spherical earth radius
   const double EARTH_ROTATION_RATE = 7292115.1467e-11;  ///< (rad/sec) Earth's rotation rate: International Astronomical Union (IAU) GRS 67
   const double LATLON_ERR_TOL_DOUBLE = 1.0e-10;         ///< floating point error tolerance for geodetic angle conversions
+
+  /**
+   * Given a coordinate system, returns an appropriate string constant.
+   * @param coordSystem Coordinate system to get string value; COORD_SYS_MAX and COORD_SYS_NONE not supported.
+   * @return String representation of the coordinate system
+   */
+  SDKCORE_EXPORT std::string coordinateSystemToString(simCore::CoordinateSystem coordSystem);
+
+  /**
+   * Given a coordinate system string constant, returns the appropriate system, returning 0 on success.
+   * Inverse of simCore::coordinateSystemToString(), accepting strings that it returns.
+   * @param str Coordinate string to process, from output of coordinateSystemToString().  Also accepts, for
+   *   legacy reasons, LLA_DMD and LLA_DMS, returning a valid COORD_SYS_LLA flag.
+   * @param outSystem Output parameter for the coordinate system string.
+   * @return 0 on success, non-zero on error.  In error conditions, outSystem is initialized to simCore::COORD_SYS_LLA.
+   */
+  SDKCORE_EXPORT int coordinateSystemFromString(const std::string& str, simCore::CoordinateSystem& outSystem);
 
 } // End of namespace simCore
 

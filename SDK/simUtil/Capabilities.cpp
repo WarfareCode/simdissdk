@@ -9,28 +9,26 @@
  *
  *
  * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
- *               EW Modeling and Simulation, Code 5770
+ *               EW Modeling & Simulation, Code 5773
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * For more information please send email to simdis@enews.nrl.navy.mil
- *
- * U.S. Naval Research Laboratory.
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
- ****************************************************************************
- *
  *
  */
 #include <cassert>
 #include "osg/GL"
 #include "osg/GLExtensions"
 #include "osg/Version"
-#include "osgEarth/Registry"
+#include "gdal_priv.h"
 #include "osgEarth/Capabilities"
+#include "osgEarth/Registry"
 #include "osgEarth/StringUtils"
-#include "simCore/String/Format.h"
+#include "osgEarth/Version"
 #include "simCore/String/Utils.h"
 #include "simUtil/Capabilities.h"
 
@@ -97,14 +95,6 @@ void Capabilities::init_()
   glVersion_ = extractGlVersion_(caps.getVersion());
   caps_.push_back(std::make_pair("Core Profile", toString_(caps.isCoreProfile())));
 
-  // Based on recommendation from https://www.khronos.org/opengl/wiki/OpenGL_Context#Context_information_queries
-  // Note that Mesa, Gallium, and Direct3D renderers are all potentially backed by a hardware
-  // acceleration, and do not necessarily imply software acceleration.
-  if (caps.getVendor().find("Microsoft") != std::string::npos)
-  {
-    recordUsabilityConcern_(USABLE_WITH_ARTIFACTS, "Software renderer detected; possibly no 3D acceleration; performance concerns");
-  }
-
   // OpenGL version must be usable.  OSG 3.6 with core profile support will not function
   // without support for VAO, which requires OpenGL 3.0, released in 2008.  Although we
   // require interface blocks from GLSL 3.3, we only absolutely require OpenGL features
@@ -113,6 +103,8 @@ void Capabilities::init_()
   {
     recordUsabilityConcern_(UNUSABLE, osgEarth::Stringify() << "OpenGL version below 3.0 (detected " << glVersion_ << ")");
   }
+
+  checkVendorOpenGlSupport_(caps.getVendor(), caps.getVersion());
 
   caps_.push_back(std::make_pair("Max FFP texture units", toString_(caps.getMaxFFPTextureUnits())));
   caps_.push_back(std::make_pair("Max GPU texture units", toString_(caps.getMaxGPUTextureUnits())));
@@ -166,7 +158,7 @@ void Capabilities::init_()
 
 void Capabilities::init_(osg::GraphicsContext& gc)
 {
-  osg::GLExtensions* ext = NULL;
+  osg::GLExtensions* ext = nullptr;
   if (gc.makeCurrent() && gc.getState())
     ext = osg::GLExtensions::Get(gc.getState()->getContextID(), true);
 
@@ -183,26 +175,22 @@ void Capabilities::init_(osg::GraphicsContext& gc)
   }
 
   const std::string vendorString = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+  caps_.push_back(std::make_pair("osgEarth Version", osgEarthGetVersion()));
+  caps_.push_back(std::make_pair("OSG Version", osgGetVersion()));
+#ifdef GDAL_RELEASE_NAME
+  caps_.push_back(std::make_pair("GDAL Version", GDAL_RELEASE_NAME));
+#endif
   caps_.push_back(std::make_pair("Vendor", vendorString));
   caps_.push_back(std::make_pair("Renderer", reinterpret_cast<const char*>(glGetString(GL_RENDERER))));
   const std::string glVersionString = reinterpret_cast<const char*>(glGetString(GL_VERSION));
   caps_.push_back(std::make_pair("OpenGL Version", glVersionString));
   glVersion_ = extractGlVersion_(glVersionString);
-  const unsigned int contextId = gc.getState()->getContextID();
 
   // Detect core profile by investigating GL_CONTEXT_PROFILE_MASK
   GLint profileMask = 0;
   glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profileMask);
   const bool isCoreProfile = (glVersion_ >= 3.2f && ((profileMask & GL_CONTEXT_CORE_PROFILE_BIT) != 0));
   caps_.push_back(std::make_pair("Core Profile", toString_(isCoreProfile)));
-
-  // Based on recommendation from https://www.khronos.org/opengl/wiki/OpenGL_Context#Context_information_queries
-  // Note that Mesa, Gallium, and Direct3D renderers are all potentially backed by a hardware
-  // acceleration, and do not necessarily imply software acceleration.
-  if (vendorString.find("Microsoft") != std::string::npos)
-  {
-    recordUsabilityConcern_(USABLE_WITH_ARTIFACTS, "Software renderer detected; possibly no 3D acceleration; performance concerns");
-  }
 
   // OpenGL version must be usable.  OSG 3.6 with core profile support will not function
   // without support for VAO, which requires OpenGL 3.0, released in 2008.  Although we
@@ -213,83 +201,7 @@ void Capabilities::init_(osg::GraphicsContext& gc)
     recordUsabilityConcern_(UNUSABLE, osgEarth::Stringify() << "OpenGL version below 3.0 (detected " << glVersion_ << ")");
   }
 
-#if OSG_MIN_VERSION_REQUIRED(3,6,0)
-  // OSG 3.6 auto-detects for us
-  GLint maxTextureUnits = ext->glMaxTextureUnits;
-  GLint maxTextureCoords = ext->glMaxTextureCoords;
-#else
-  // Follow th OSG 3.6 style of detection for texture units and coords
-  GLint maxTextureUnits = 1;
-  GLint maxTextureCoords = 1;
-  if (glVersion_ >= 2.0f || osg::isGLExtensionSupported(contextId, "GL_ARB_vertex_shader"))
-  {
-    glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &maxTextureUnits);
-#ifdef OSG_GL_FIXED_FUNCTION_AVAILABLE
-    // GL_MAX_TEXTURE_COORDS goes away in newer OpenGL
-    glGetIntegerv(GL_MAX_TEXTURE_COORDS, &maxTextureCoords);
-#else
-    maxTextureCoords = maxTextureUnits;
-#endif
-  }
-  else if (glVersion_ >= 1.3f || osg::isGLExtensionSupported(contextId, "GL_ARB_multitexture") || osg::isGLExtensionSupported(contextId, "GL_ARB_multitexture"))
-  {
-    // Fall back to multitexturing units for oldest OpenGL
-    glGetIntegerv(GL_MAX_TEXTURE_UNITS, &maxTextureUnits);
-    maxTextureCoords = maxTextureUnits;
-  }
-#endif
-  caps_.push_back(std::make_pair("Max GPU texture units", toString_(maxTextureUnits)));
-  caps_.push_back(std::make_pair("Max GPU texture coordinate sets", toString_(maxTextureCoords)));
-
-  // Need to query for maximum vertex attributes
-  GLint maxAttribs = 0;
-  glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxAttribs);
-  caps_.push_back(std::make_pair("Max GPU attributes", toString_(maxAttribs)));
-
-  // Continue pulling values out of ext
-  caps_.push_back(std::make_pair("Max texture size", toString_(ext->maxTextureSize)));
-  caps_.push_back(std::make_pair("GLSL", toString_(ext->isGlslSupported)));
-  if (ext->isGlslSupported)
-  {
-    caps_.push_back(std::make_pair("GLSL Version", toString_(ext->glslLanguageVersion)));
-    if (ext->glslLanguageVersion < 3.3f)
-      recordUsabilityConcern_(UNUSABLE, "GLSL version reported is under 3.30");
-  }
-  else
-    recordUsabilityConcern_(UNUSABLE, "GLSL is not supported.");
-  caps_.push_back(std::make_pair("Texture arrays", toString_(ext->isTexture2DArraySupported)));
-  caps_.push_back(std::make_pair("Multitexturing", toString_(ext->isMultiTexSupported)));
-  caps_.push_back(std::make_pair("Stencil wrap", toString_(ext->isStencilWrapSupported)));
-  caps_.push_back(std::make_pair("2-sided stencils", toString_(ext->isStencilTwoSidedSupported)));
-  caps_.push_back(std::make_pair("Depth-packed stencil", toString_(ext->isPackedDepthStencilSupported)));
-  caps_.push_back(std::make_pair("Occlusion query", toString_(ext->isOcclusionQuerySupported)));
-
-  // Need to query for uniform block size
-  GLint maxUniformBlockSize = 0;
-  glGetIntegerv(GL_MAX_UNIFORM_BLOCK_SIZE, &maxUniformBlockSize);
-  caps_.push_back(std::make_pair("Max uniform block size", toString_(maxUniformBlockSize)));
-
-  // Keep pulling values out of ext
-  caps_.push_back(std::make_pair("Uniform buffer objects", toString_(ext->isUniformBufferObjectSupported)));
-  caps_.push_back(std::make_pair("NPOT textures", toString_(ext->isNonPowerOfTwoTextureMipMappedSupported)));
-
-  // Reconstruct the supported compressions string
-  std::string compressionSupported;
-  if (ext->isTextureCompressionARBSupported)
-    compressionSupported += "ARB ";
-  if (ext->isTextureCompressionS3TCSupported)
-    compressionSupported += "S3 ";
-  if (ext->isTextureCompressionPVRTCSupported)
-    compressionSupported += "PVR ";
-  if (ext->isTextureCompressionETCSupported)
-    compressionSupported += "ETC1 ";
-  if (ext->isTextureCompressionRGTCSupported)
-    compressionSupported += "RG ";
-  if (compressionSupported.empty())
-    compressionSupported = "no";
-  else // Remove trailing space
-    compressionSupported = compressionSupported.substr(0, compressionSupported.length() - 1);
-  caps_.push_back(std::make_pair("Texture compression", compressionSupported));
+  checkVendorOpenGlSupport_(vendorString, glVersionString);
 }
 
 void Capabilities::recordUsabilityConcern_(Capabilities::Usability severity, const std::string& concern)
@@ -322,6 +234,54 @@ double Capabilities::extractGlVersion_(const std::string& glVersionString) const
   return atof(glVersionString.c_str());
 }
 
+void Capabilities::checkVendorOpenGlSupport_(const std::string& vendor, const std::string& glVersionString)
+{
+  // Based on recommendation from https://www.khronos.org/opengl/wiki/OpenGL_Context#Context_information_queries
+  // Note that Mesa, Gallium, and Direct3D renderers are all potentially backed by a hardware
+  // acceleration, and do not necessarily imply software acceleration.
+  if (vendor.find("Microsoft") != std::string::npos)
+  {
+    recordUsabilityConcern_(USABLE_WITH_ARTIFACTS, "Software renderer detected; possibly no 3D acceleration; performance concerns");
+    return;
+  }
+
+  if (vendor.find("NVIDIA") != std::string::npos)
+  {
+    // glVersionString is expected to look like: 3.3.0 NVIDIA major.minor
+    const std::string& nvidiaVersionStr = simCore::StringUtils::after(glVersionString, "NVIDIA");
+    const std::string& nvidiaMajorStr = simCore::StringUtils::before(nvidiaVersionStr, ".");
+    const std::string& nvidiaMinorStr = simCore::StringUtils::after(nvidiaVersionStr, ".");
+    if (nvidiaVersionStr.empty() || nvidiaMajorStr.empty() || nvidiaMinorStr.empty())
+    {
+      // nvidia driver that does not return version string as part of opengl version
+      // nothing to do
+      return;
+    }
+    const int nVidiaMajor = atoi(nvidiaMajorStr.c_str());
+    const int nVidiaMinor = atoi(nvidiaMinorStr.c_str());
+    // testing indicates that 304.125 and most drivers > 340 work
+    const bool usable = (nVidiaMajor >= 340) || (nVidiaMajor == 304 && nVidiaMinor >= 125);
+    if (usable)
+      return;
+    // testing indicates that:
+    // nvidia 331 drivers were not usable
+    // most drivers <= 340 had issues
+    const bool unusable = (nVidiaMajor == 331);
+    recordUsabilityConcern_((unusable ? UNUSABLE : USABLE_WITH_ARTIFACTS), osgEarth::Stringify() << "nVidia driver version " << nVidiaMajor << "." << nVidiaMinor);
+    return;
+  }
+
+  if (vendor.find("Intel") != std::string::npos)
+  {
+    if (glVersionString.find("9.18.10.3186") != std::string::npos)
+    {
+      // driver 9.18.10.3186 known to have issues
+      recordUsabilityConcern_(UNUSABLE, osgEarth::Stringify() << "Intel driver version 9.18.10.3186");
+    }
+    return;
+  }
+}
+
 Capabilities::Usability Capabilities::isUsable() const
 {
   return isUsable_;
@@ -331,5 +291,4 @@ std::vector<std::string> Capabilities::usabilityConcerns() const
 {
   return usabilityConcerns_;
 }
-
 }

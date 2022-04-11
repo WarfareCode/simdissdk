@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -49,18 +50,20 @@ class CustomRenderingNode;
 class LabelContentManager;
 class LaserNode;
 class LobGroupNode;
-class LocatorFactory;
+class Locator;
 class PlatformNode;
 class PlatformTspiFilterManager;
 class ProjectorManager;
 class ProjectorNode;
 class ScenarioTool;
 
+//----------------------------------------------------------------------------
+
 /**
 * Manages all scenario objects (platforms, beams, gates, etc) and their
 * visualization within the scene
 */
-class SDKVIS_EXPORT ScenarioManager : public osgEarth::LODScaleGroup // osg::Group
+class SDKVIS_EXPORT ScenarioManager : public osgEarth::LODScaleGroup
 {
   friend class SceneManager;
 public:
@@ -230,7 +233,7 @@ public:
   /**
   * Find an entity by its unique ID.
   * @param id Unique entity ID
-  * @return   Entity node, or NULL if not found
+  * @return   Entity node, or nullptr if not found
   */
   EntityNode* find(const simData::ObjectId &id) const;
 
@@ -238,14 +241,14 @@ public:
   * Returns the host platform for the given entity
   * If entity is a platform it will return itself
   * @param entity Need its host platform
-  * @return the host platform for the given entity, or NULL if not found (orphan)
+  * @return the host platform for the given entity, or nullptr if not found (orphan)
   */
   const EntityNode* getHostPlatform(const EntityNode* entity) const;
 
   /**
   * Find a node and casts it to the requested type (convenience function)
   * @param id Unique entity ID
-  * @return   Entity node, cast to the requested type, or NULL if not found.
+  * @return   Entity node, cast to the requested type, or nullptr if not found.
   */
   template<typename T>
   T* find(const simData::ObjectId &id) const
@@ -259,7 +262,7 @@ public:
   * @param x        X mouse coordinate
   * @param y        Y mouse coordinate
   * @param typeMask Traversal mask of node type to find, or ~0 to find anything
-  * @return         Entity node, or NULL if nothing was hit
+  * @return         Entity node, or nullptr if nothing was hit
   */
   EntityNode* find(osg::View *view, float x, float y, int typeMask = ~0) const;
 
@@ -279,9 +282,9 @@ public:
   /**
    * Remove entities from the scenario.
    * @param[in ] dataStore Remove entities that originated from this data store.
-   *             Pass in NULL to remove all entities regardless of origin.
+   *             Pass in nullptr to remove all entities regardless of origin.
    */
-  void clearEntities(simData::DataStore* dataStore = NULL);
+  void clearEntities(simData::DataStore* dataStore = nullptr);
 
   /**
    * Remove the entity referenced by 'id' from the entity list and from
@@ -329,7 +332,7 @@ public:
   void getAllEntities(EntityVector& out_vector) const;
 
   /**
-   * Gets or creates a new attach point for adding data to the scene graph
+   * Gets or creates a new attach point for adding data to the scene graph, not subject to horizon culling
    * @param name Name of the attach point
    * @return     New osg group
    */
@@ -349,10 +352,8 @@ public:
 
 public: // package protected
 
-  /** Creates a new ScenarioManager with the given locator factory and projector manager */
-  ScenarioManager(
-    LocatorFactory*   factory,
-    ProjectorManager* projMan);
+  /** Creates a new ScenarioManager with the given projector manager */
+  explicit ScenarioManager(ProjectorManager* projMan);
 
   /**
   * Check for scenario entity updates and applies them to the corresponding
@@ -386,11 +387,10 @@ protected:
   class AboveSurfaceClamping;
   class EntityRecord;
   class ScenarioLosCreator;
+  class SetRefYearCullCallback;
   class SimpleEntityGraph;
   class SurfaceClamping;
 
-  /** Generates locators for entities */
-  LocatorFactory*              locatorFactory_;
   /** Provides capability to process platform TSPI points */
   PlatformTspiFilterManager*   platformTspiFilterManager_;
   /** PlatformTspiFilter that provides surface clamping capabilities */
@@ -405,6 +405,8 @@ protected:
   osg::ref_ptr<SimpleEntityGraph> entityGraph_;
   /** Holds a map of all named attachment points added through getOrCreateAttachPoint(). */
   std::map<std::string, osg::observer_ptr<osg::Group> > customAttachPoints_;
+  /** Adds the reference year to cull callback for time based culling */
+  osg::ref_ptr<SetRefYearCullCallback> refYearCallback_;
 
   /** Observer to the current map */
   osg::observer_ptr<osgEarth::MapNode> mapNode_;
@@ -468,6 +470,14 @@ protected:
   void notifyToolsOfAdd_(EntityNode* node);
   /// informs the scenario tools of an entity removal
   void notifyToolsOfRemove_(EntityNode* node);
+  /// informs the scenario tools of a flush
+  void notifyToolsOfFlush_(simData::ObjectId flushedId);
+
+  /// locator that tracks earth rotation linked to sim time
+  osg::ref_ptr<Locator> scenarioEciLocator_;
+
+  /// node getter given to entity nodes on creation
+  std::function<EntityNode* (simData::ObjectId)> nodeGetter_ = [this](simData::ObjectId id) ->EntityNode* { return find(id); };
 
 private:
   /// Copy constructor, not implemented or available.

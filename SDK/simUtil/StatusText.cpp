@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -89,7 +90,12 @@ class StatusText::FrameEventHandler : public osgGA::GUIEventHandler
 {
 public:
   /** Constructor */
-  explicit FrameEventHandler(simUtil::StatusText* parent) : parent_(parent) {}
+  explicit FrameEventHandler(simUtil::StatusText* parent)
+  : parent_(parent),
+    widthPx_(-1),
+    heightPx_(-1)
+  {
+  }
   /** Handles frame updates and returns false so other handlers can process as well */
   bool handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa)
   {
@@ -99,8 +105,8 @@ public:
     {
       // Tell the text to resize if the screen size has changed
       const osg::View* view = aa.asView();
-      const osg::Camera* camera = (view) ? view->getCamera() : NULL;
-      const osg::Viewport* viewport = (camera) ? camera->getViewport() : NULL;
+      const osg::Camera* camera = (view) ? view->getCamera() : nullptr;
+      const osg::Viewport* viewport = (camera) ? camera->getViewport() : nullptr;
       if (viewport)
       {
         const int widthPx = static_cast<int>(viewport->width());
@@ -135,7 +141,7 @@ private:
 StatusText::StatusText(simVis::View* view, simCore::TextReplacerPtr textReplacer, Position pos)
   : StatusTextNode(textReplacer),
     view_(view),
-    frameEventHandler_(NULL),
+    frameEventHandler_(nullptr),
     position_(pos)
 {
   const osg::Viewport* vp = view->getCamera()->getViewport();
@@ -156,7 +162,7 @@ void StatusText::removeFromView()
     view_->removeEventHandler(frameEventHandler_);
     view_->getOrCreateHUD()->removeChild(this);
     removeChild(statusHudText_.get());
-    statusHudText_ = NULL;
+    statusHudText_ = nullptr;
   }
 }
 

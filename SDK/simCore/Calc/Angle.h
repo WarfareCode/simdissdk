@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -72,7 +73,10 @@ namespace simCore
   }
 
   /**
-  * Adjusts incoming angle to fit the range [-PI_2, PI_2]
+  * Clamps incoming angle to fit the range [-PI_2, PI_2]
+  * This is intended for use with latitude or elevation angle values that are already known to be valid.
+  * This routine does not ensure that inputs can be validly converted to [-PI_2, PI_2],
+  * and may have unintended outcomes if input is not validated before this is called.
   * @param[in ] in Input angle (rad)
   * @return equivalent angle between -PI_2 and PI_2 (rad)
   */
@@ -134,7 +138,10 @@ namespace simCore
   }
 
   /**
-  * Hard limits incoming angle to fit the range [-90, 90]
+  * Clamps incoming angle to fit the range [-90, 90]
+  * This is intended for use with latitude or elevation angle values that are already known to be valid.
+  * This routine does not ensure that inputs can be validly converted to [-90, 90],
+  * and may have unintended outcomes if input is not validated before this is called.
   * @param[in ] in angle (deg)
   * @return equivalent angle between -90 and 90 (deg)
   */
@@ -239,6 +246,29 @@ namespace simCore
    * @return Moduled angle in degrees based on requested output extents.
    */
   SDKCORE_EXPORT double angFixDegrees(double degreeAngle, AngleExtents extents);
+
+  /**
+   * Given two angles on a circle, calculates the angle difference between them.  The
+   * input values are projected onto a circle (i.e. wrapped), then compared.  The
+   * output is angle delta applied on "fromRad" to reach the equivalent angle "toRad",
+   * and will always be in the range (-PI,PI].  This method expects values in radians.
+   * @param fromRad From angle, in radians
+   * @param toRad To angle, in radians
+   * @return Radians value from (-PI,PI] that when added to fromRad will be an equivalent
+   *   angle to toRad.  For example, angleDifference(0.4, 0.1) == -0.3.
+   */
+  SDKCORE_EXPORT double angleDifference(double fromRad, double toRad);
+
+  /**
+   * Degrees-based convenience wrapper for angleDifference.  Calculates difference
+   * between two degree angles.
+   * @see simCore::angleDifference()
+   * @param fromDeg From angle, in degrees
+   * @param toDeg To angle, in degrees
+   * @return Degrees value from (-180,180] that when added to fromDeg will be an
+   *    equivalent angle to toDeg.  For example, angleDifferenceDeg(4.0, 1.0) == -3.0.
+   */
+  SDKCORE_EXPORT double angleDifferenceDeg(double fromDeg, double toDeg);
 
 } // End of namespace simCore
 

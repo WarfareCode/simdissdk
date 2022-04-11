@@ -1,25 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling and Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* U.S. Naval Research Laboratory.
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <map>
 #include "simCore/Common/SDKAssert.h"
 #include "simData/DataStoreProxy.h"
@@ -249,13 +249,13 @@ int testDataTableCollection()
   simData::DataTableManager& dtm = ds->dataTableManager();
   simData::DataTable* table0;
   rv += SDK_ASSERT(dtm.addDataTable(0, "Table 0", &table0).isSuccess());
-  rv += SDK_ASSERT(table0 != NULL);
+  rv += SDK_ASSERT(table0 != nullptr);
   simData::DataTable* table1;
   rv += SDK_ASSERT(dtm.addDataTable(plat1, "Table 1", &table1).isSuccess());
-  rv += SDK_ASSERT(table1 != NULL);
+  rv += SDK_ASSERT(table1 != nullptr);
   simData::DataTable* table2;
   rv += SDK_ASSERT(dtm.addDataTable(plat2, "Table 2", &table2).isSuccess());
-  rv += SDK_ASSERT(table2 != NULL);
+  rv += SDK_ASSERT(table2 != nullptr);
 
   // Create the table columns; plat1 gets 2 columns, rest get 1 column
   simData::TableColumn* col0_1;
@@ -410,7 +410,7 @@ int testDataStoreProxy()
   const auto& ds2UpdatesListener = ds2->newUpdatesListener();
   rv += SDK_ASSERT(&ds2->newUpdatesListener() == &ds2UpdatesListener);
   proxy.reset(ds2);
-  ds1 = NULL; // reset() will delete it
+  ds1 = nullptr; // reset() will delete it
   // Listener should have changed
   rv += SDK_ASSERT(&ds2->newUpdatesListener() == &ds1UpdatesListener);
   rv += SDK_ASSERT(&ds2->newUpdatesListener() != &ds2UpdatesListener);
@@ -433,7 +433,7 @@ int testDataStoreProxy()
   const auto& ds3UpdatesListener = ds3->newUpdatesListener();
   rv += SDK_ASSERT(&ds3->newUpdatesListener() == &ds3UpdatesListener);
   proxy.reset(ds3);
-  ds2 = NULL; // reset() will delete it
+  ds2 = nullptr; // reset() will delete it
   // Listener should have changed
   rv += SDK_ASSERT(&ds3->newUpdatesListener() == timeCollector.get());
   rv += SDK_ASSERT(&ds3->newUpdatesListener() != &ds3UpdatesListener);

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,10 +24,10 @@
 #define SIMVIS_RFPROP_BEARING_PROFILE_MAP_H
 
 #include <map>
-#include "simVis/RFProp/Profile.h"
 
 namespace simRF
 {
+class Profile;
 
 /** A map from bearing to an RF Profile. */
 class SDKVIS_EXPORT BearingProfileMap
@@ -53,7 +54,7 @@ public:
   /**
    * Retrieve the profile for the specified bearing
    * @param bearingR bearing in radians
-   * @return profile at specified bearing, or NULL if none
+   * @return profile at specified bearing, or nullptr if none
    */
   Profile* getProfileByBearing(double bearingR) const;
 

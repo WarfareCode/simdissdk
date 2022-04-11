@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,10 +29,6 @@
 #include "simVis/TargetDelegation.h"
 #include "simVis/Tool.h"
 #include "simVis/Types.h"
-
-namespace osg {
-  class Geode;
-}
 
 namespace simVis
 {
@@ -116,7 +113,7 @@ public: // internal
   void updateTargetGeometry(osg::MatrixTransform* xform, const osg::Vec3d& ecef);
 
 protected:
-  virtual ~PlatformAzimElevViewTool() { }
+  virtual ~PlatformAzimElevViewTool();
 
 private:
   osg::MatrixTransform* createAzElGrid_();

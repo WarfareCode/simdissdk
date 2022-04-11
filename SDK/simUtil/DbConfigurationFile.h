@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -27,8 +28,8 @@
 #include "osg/ref_ptr"
 #include "simCore/Common/Common.h"
 
-namespace osgEarth
-{
+namespace osg { class Node; }
+namespace osgEarth {
   class Map;
   class MapNode;
 }
@@ -66,7 +67,7 @@ public:
    * of load() that is only able to load legacy SIMDIS 9 files.
    * @param filename Full path to the configuration file to load (e.g. configDefault.txt)
    * @param quiet If false, errors and warnings are not reported using SIM_NOTIFY.
-   * @return NULL on inability to load.  Else returns a newly allocated osgEarth::Map.
+   * @return nullptr on inability to load.  Else returns a newly allocated osgEarth::Map.
    *    Remember to wrap the return value in an osg::ref_ptr.
    */
   static osgEarth::Map* loadLegacyConfigFile(const std::string& filename, bool quiet=false);
@@ -85,7 +86,7 @@ public:
    * @param filename Name of the file resource to load (should end in .earth).  Expected
    *   to be fully adjusted, e.g. using DbConfigurationFile::resolveFilePath().  Will
    *   be passed as-is to osgDB::readNodeFile().
-   * @return NULL on error, else newly allocated node from osgDB::readNodeFile() with default earth options
+   * @return nullptr on error, else newly allocated node from osgDB::readNodeFile() with default earth options
    */
   static osg::Node* readEarthFile(const std::string& filename);
 
@@ -95,9 +96,29 @@ public:
    * @param istream Input stream holding the .earth file contents
    * @param relativeTo Absolute path to a location used to help resolve relative paths.  Sometimes called "referrer",
    *   or the Database Path in OSG parlance.
-   * @return NULL on error, else newly allocated node from osgDB::ReaderWriter for earth files
+   * @return nullptr on error, else newly allocated node from osgDB::ReaderWriter for earth files
    */
   static osg::Node* readEarthFile(std::istream& istream, const std::string& relativeTo);
+
+  /**
+   * Helper method to append a .earth file to an already-existing Map.  Returns 0 on successful
+   * read of the earth file.  Layers are appended to the end of the provided map.
+   * @param filename Name of .earth file to append to the map
+   * @param toMap Map to host the earth files
+   * @return 0 on successful load of file, non-zero on error
+   */
+  static int appendEarthFile(const std::string& filename, osgEarth::Map& toMap);
+
+  /**
+   * Stream-based version of appendEarthFile().  Appends the .earth file from an input stream, using
+   * the provided referrer (relativeTo) to help resolve relative paths.
+   * @param istream Input stream holding the .earth file contents
+   * @param relativeTo Absolute path to a location used to help resolve relative paths.  Sometimes called "referrer",
+   *   or the Database Path in OSG parlance.
+   * @param toMap Map to host the earth files
+   * @return 0 on successful load of file, non-zero on error
+   */
+  static int appendEarthFile(std::istream& istream, const std::string& relativeTo, osgEarth::Map& toMap);
 
 private:
   /// does some error checking on the parsed tokens, returns false on error
@@ -114,13 +135,6 @@ private:
   static std::string findTokenValue_(const std::vector<std::string>& tokens, const std::string& keyword);
   /// convert QuadSphere levels to osgEarth levels
   static unsigned int getOsgEarthLevel_(unsigned int QSlevel);
-
-  /**
-  * Creates a default osgEarth::Map object with the EGM96 MSL globe
-  * Loads parts of a legacy .txt configuration file (typically consisting of .db files)
-  * @return the osgEarth::Map created
-  */
-  static osgEarth::Map* createDefaultMap_();
 };
 
 }

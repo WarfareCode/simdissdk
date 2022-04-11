@@ -13,12 +13,14 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
+#include <cassert>
 #include "OpenThreads/Mutex"
 #include "OpenThreads/ScopedLock"
 #include "osg/Version"
@@ -162,10 +164,12 @@ private:
 
 //----------------------------------------------------------------------------
 
+simVis::Registry* simVis::Registry::instance_ = nullptr;
+
 simVis::Registry::Registry()
   : modelCache_(new ModelCache),
     fileSearch_(new simCore::NoSearchFileSearch()),
-    sequenceTimeUpdater_(new simVis::SequenceTimeUpdater(NULL))
+    sequenceTimeUpdater_(new simVis::SequenceTimeUpdater(nullptr))
 {
   // Configure the model cache
   modelCache_->setSequenceTimeUpdater(sequenceTimeUpdater_.get());
@@ -191,6 +195,13 @@ simVis::Registry::Registry()
   modelExtensions_.push_back("bmp");
   modelExtensions_.push_back("jpg");
 
+  // Known OSG and SIMDIS pseudo loaders
+  pseudoLoaderExtensions_.insert("osgs"); // encode OSG file as filename
+  pseudoLoaderExtensions_.insert("pse"); // EW symbology
+  pseudoLoaderExtensions_.insert("rot"); // rotate model
+  pseudoLoaderExtensions_.insert("scale"); // scale model
+  pseudoLoaderExtensions_.insert("trans"); // translate model
+
   // initialize the default NOTIFY level from the environment variable
   const std::string val = simCore::getEnvVar("SIM_NOTIFY_LEVEL");
   if (!val.empty())
@@ -213,37 +224,47 @@ simVis::Registry::Registry()
   if (cantFindFont->getStateSet())
     cantFindFont->getStateSet()->removeAttribute(osg::StateAttribute::PROGRAM);
 #endif
+  // Should not be possible that this entry exists; note, this doesn't leak in either case.
+  assert(fontCache_.find(CANT_FIND_FONT) == fontCache_.end());
   fontCache_[CANT_FIND_FONT] = cantFindFont;
 
   // prime a default font which will be returned if the requested font cannot be found
   osgText::Font* defaultFont = getOrCreateFont(DEFAULT_FONT);
   osgEarth::Registry* osgEarthRegistry = osgEarth::Registry::instance();
-  if (osgEarthRegistry->getDefaultFont() == NULL)
+  if (osgEarthRegistry->getDefaultFont() == nullptr)
     osgEarthRegistry->setDefaultFont(defaultFont);
 }
 
 simVis::Registry::~Registry()
 {
   delete modelCache_;
-  modelCache_ = NULL;
+  modelCache_ = nullptr;
 }
 
 static OpenThreads::Mutex s_instMutex;
 
 simVis::Registry* simVis::Registry::instance()
 {
-  static Registry* s_inst = NULL;
-  if (!s_inst)
+  if (!instance_)
   {
     OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_instMutex);
     {
-      if (!s_inst) // double-check pattern
+      if (!instance_) // double-check pattern
       {
-        s_inst = new Registry();
+        instance_ = new Registry();
       }
     }
   }
-  return s_inst;
+  return instance_;
+}
+
+void simVis::Registry::destroy()
+{
+  if (!instance_)
+    return;
+  OpenThreads::ScopedLock<OpenThreads::Mutex> lock(s_instMutex);
+  delete instance_;
+  instance_ = nullptr;
 }
 
 bool simVis::Registry::isMemoryCheck() const
@@ -292,6 +313,16 @@ void simVis::Registry::setModelSearchExtensions(const FileExtensionList& list)
   modelExtensions_ = list;
 }
 
+void simVis::Registry::getPseudoLoaderExtensions(std::set<std::string>& out_list) const
+{
+  out_list = pseudoLoaderExtensions_;
+}
+
+void simVis::Registry::setPseudoLoaderExtensions(const std::set<std::string>& list)
+{
+  pseudoLoaderExtensions_ = list;
+}
+
 void simVis::Registry::setShareArticulatedIconModels(bool value)
 {
   modelCache_->setShareArticulatedIconModels(value);
@@ -299,7 +330,11 @@ void simVis::Registry::setShareArticulatedIconModels(bool value)
 
 std::string simVis::Registry::findModelFile(const std::string& name) const
 {
+#ifdef HAVE_OSGEARTH_THREADING
+  osgEarth::Threading::ScopedRecursiveMutexLock lock(fileSearchMutex_);
+#else
   osgEarth::Threading::ScopedMutexLock lock(fileSearchMutex_);
+#endif
 
   if (!name.empty())
   {
@@ -307,6 +342,14 @@ std::string simVis::Registry::findModelFile(const std::string& name) const
     FilenameCache::const_iterator it = modelFilenameCache_.find(name);
     if (it != modelFilenameCache_.end())
       return it->second;
+
+    // File extension might be in the pseudo-loader list, in which case we skip the search
+    const std::string& extension = osgDB::getFileExtension(name);
+    if (pseudoLoaderExtensions_.find(extension) != pseudoLoaderExtensions_.end())
+    {
+      modelFilenameCache_[name] = name;
+      return name;
+    }
 
     // First check the extension
     std::string fileSearchName = fileSearch_->findFile(name, simCore::FileSearch::MODEL);
@@ -322,7 +365,7 @@ std::string simVis::Registry::findModelFile(const std::string& name) const
     }
 
     // Now check via osgDB which has different search paths than fileSearch_
-    if (osgDB::getFileExtension(name).empty())
+    if (extension.empty())
     {
       // if the name has no extension, try tacking on extensions and trying to find the paths.
       for (FileExtensionList::const_iterator i = modelExtensions_.begin(); i != modelExtensions_.end(); ++i)
@@ -361,14 +404,14 @@ void simVis::Registry::clearModelCache()
 
 osg::Node* simVis::Registry::getOrCreateIconModel(const std::string& location, bool* pIsImage) const
 {
-  // if doing a memory check, return NULL to load in a box instead of a complex icon
+  // if doing a memory check, return nullptr to load in a box instead of a complex icon
   if (memoryChecking_)
-    return NULL;
+    return nullptr;
 
   // Attempt to locate the filename
   std::string uri = findModelFile(location);
   if (uri.empty())
-    return NULL;
+    return nullptr;
   return modelCache_->getOrCreateIconModel(uri, pIsImage);
 }
 
@@ -421,7 +464,11 @@ osgText::Font* simVis::Registry::getOrCreateFont(const std::string& name) const
 
 std::string simVis::Registry::findFontFile(const std::string& name) const
 {
+#ifdef HAVE_OSGEARTH_THREADING
+  osgEarth::Threading::ScopedRecursiveMutexLock lock(fileSearchMutex_);
+#else
   osgEarth::Threading::ScopedMutexLock lock(fileSearchMutex_);
+#endif
 
   if (!name.empty())
   {
@@ -447,10 +494,17 @@ std::string simVis::Registry::findFontFile(const std::string& name) const
     // Try to find it in the typical path list using SIMDIS_FONTPATH
     osgDB::FilePathList filePaths;
 
-    // search for font in the SIMDIS_FONTPATH directory, falling back on SIMDIS_SDK_FILE_PATH (/fonts)
+    // search for font in the SIMDIS_FONTPATH directory, falling back to SIMDIS_DIR/data/fonts if set
     std::string tempString = simCore::getEnvVar("SIMDIS_FONTPATH");
     if (!tempString.empty())
       filePaths.push_back(tempString);
+    else
+    {
+      tempString = simCore::getEnvVar("SIMDIS_DIR");
+      if (!tempString.empty())
+        filePaths.push_back(tempString + "/data/fonts");
+    }
+    // Add in SIMDIS_SDK_FILE_PATH fonts directory which may or may not exist
     tempString = simCore::getEnvVar("SIMDIS_SDK_FILE_PATH");
     if (!tempString.empty())
     {
@@ -490,7 +544,7 @@ osg::Referenced* simVis::Registry::getObject(const std::string& key) const
   if (i != weakObjectCache_.end())
     return i->second.get();
   else
-    return NULL;
+    return nullptr;
 }
 
 void simVis::Registry::setClock(simCore::Clock* clock)
@@ -505,9 +559,13 @@ simCore::Clock* simVis::Registry::getClock() const
 
 void simVis::Registry::setFileSearch(simCore::FileSearchPtr fileSearch)
 {
+#ifdef HAVE_OSGEARTH_THREADING
+  osgEarth::Threading::ScopedRecursiveMutexLock lock(fileSearchMutex_);
+#else
   osgEarth::Threading::ScopedMutexLock lock(fileSearchMutex_);
+#endif
 
-  if (fileSearch == NULL)
+  if (fileSearch == nullptr)
     fileSearch_.reset(new simCore::NoSearchFileSearch());
   else
     fileSearch_ = fileSearch;
@@ -515,8 +573,13 @@ void simVis::Registry::setFileSearch(simCore::FileSearchPtr fileSearch)
 
 std::string simVis::Registry::findFile_(const std::string& filename, simCore::FileSearch::SearchFileType fileType) const
 {
+#ifdef HAVE_OSGEARTH_THREADING
+  osgEarth::Threading::ScopedRecursiveMutexLock lock(fileSearchMutex_);
+#else
   osgEarth::Threading::ScopedMutexLock lock(fileSearchMutex_);
-  if (fileSearch_ == NULL)
+#endif
+
+  if (fileSearch_ == nullptr)
     return "";
   return fileSearch_->findFile(filename, fileType);
 }

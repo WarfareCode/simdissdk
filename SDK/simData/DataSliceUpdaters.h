@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -149,7 +150,7 @@ class Interpolator;
 
 /**
  * Update slices to the specified time, using interpolation as needed.
- * All pointers must point to valid values, NULL values are not valid.
+ * All pointers must point to valid values, nullptr values are not valid.
  */
 
 template <typename ForwardIterator, typename T, typename B>
@@ -160,8 +161,8 @@ T *computeTimeUpdate(ForwardIterator begin, ForwardIterator& currentIt, ForwardI
   if (begin == end)
   {
     *isInterpolated = false;
-    *bounds = B(static_cast<T*>(NULL), static_cast<T*>(NULL));
-    return NULL;
+    *bounds = B(static_cast<T*>(nullptr), static_cast<T*>(nullptr));
+    return nullptr;
   }
 
   currentIt = computeUpperBound<ForwardIterator, T>(begin, currentIt, end, time);
@@ -174,7 +175,7 @@ T *computeTimeUpdate(ForwardIterator begin, ForwardIterator& currentIt, ForwardI
     // Closest update is the last point
     T *current = *(--currentIt);
     *isInterpolated = false;
-    *bounds = B(static_cast<T*>(NULL), static_cast<T*>(NULL));
+    *bounds = B(static_cast<T*>(nullptr), static_cast<T*>(nullptr));
     return current;
   }
 
@@ -182,8 +183,8 @@ T *computeTimeUpdate(ForwardIterator begin, ForwardIterator& currentIt, ForwardI
   if (currentIt == begin)
   {
     *isInterpolated = false;
-    *bounds = B(static_cast<T*>(NULL), static_cast<T*>(NULL));
-    return NULL;
+    *bounds = B(static_cast<T*>(nullptr), static_cast<T*>(nullptr));
+    return nullptr;
   }
 
   // time is between points
@@ -194,7 +195,7 @@ T *computeTimeUpdate(ForwardIterator begin, ForwardIterator& currentIt, ForwardI
   if (simCore::areEqual(time, (*currentIt)->time()))
   {
     *isInterpolated = false;
-    *bounds = B(static_cast<T*>(NULL), static_cast<T*>(NULL));
+    *bounds = B(static_cast<T*>(nullptr), static_cast<T*>(nullptr));
     return (*currentIt);
   }
 

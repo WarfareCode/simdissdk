@@ -76,12 +76,6 @@ set (MEMORYTABLE_HEADERS
     ${DATA_INC}MemoryTable/DataLimitsProvider.h
 )
 
-if(ENABLE_DEPRECATED_SIMDISSDK_API)
-list(APPEND MEMORYTABLE_HEADERS
-    ${DATA_INC}MemoryTable/TimeContainerDeque.h
-)
-endif()
-
 set(MEMORYTABLE_SOURCES
     ${DATA_SRC}MemoryTable/TableManager.cpp
     ${DATA_SRC}MemoryTable/Table.cpp
@@ -89,12 +83,6 @@ set(MEMORYTABLE_SOURCES
     ${DATA_SRC}MemoryTable/DoubleBufferTimeContainer.cpp
     ${DATA_SRC}MemoryTable/DataColumn.cpp
 )
-
-if(ENABLE_DEPRECATED_SIMDISSDK_API)
-    list(APPEND MEMORYTABLE_SOURCES
-        ${DATA_INC}MemoryTable/TimeContainerDeque.cpp
-    )
-endif()
 
 set(MESSAGEVISITOR_HEADERS
     ${DATA_INC}MessageVisitor/Message.h
@@ -116,24 +104,19 @@ set(DATA_GENERATED_SOURCES
     ${CMAKE_CURRENT_BINARY_DIR}/simData.pb.cc
 )
 
-set(DATA_ALL_HEADER
-    ${DATA_INC}../simData.h
-)
-
 source_group(Headers FILES ${DATA_HEADERS})
-source_group(Sources FILES ${DATA_SOURCES})
+source_group("Source Files" FILES ${DATA_SOURCES})
 source_group(Headers\\MemoryTable FILES ${MEMORYTABLE_HEADERS})
-source_group(Sources\\MemoryTable FILES ${MEMORYTABLE_SOURCES})
+source_group("Source Files\\MemoryTable" FILES ${MEMORYTABLE_SOURCES})
 source_group(Headers\\CategoryData FILES ${CATEGORY_DATA_HEADERS})
-source_group(Sources\\CategoryData FILES ${CATEGORY_DATA_SOURCES})
+source_group("Source Files\\CategoryData" FILES ${CATEGORY_DATA_SOURCES})
 source_group(Headers\\MessageVisitor FILES ${MESSAGEVISITOR_HEADERS})
-source_group(Sources\\MessageVisitor FILES ${MESSAGEVISITOR_SOURCES})
+source_group("Source Files\\MessageVisitor" FILES ${MESSAGEVISITOR_SOURCES})
 source_group(Headers\\GeneratedCode
     FILES
         ${DATA_GENERATED_HEADERS}
         ${DATA_GENERATED_SOURCES}
 )
-source_group("" FILES ${DATA_ALL_HEADER})
 
 
 # Generate the .pb.cc and .pb.h file from protobuf
@@ -141,12 +124,12 @@ vsi_protobuf_generate(simData_protobuf_generation "${CMAKE_CURRENT_SOURCE_DIR}/G
     SIMDATA_PROTO_H SIMDATA_PROTO_CC =dllexport_decl=SDKDATA_EXPORT:.)
 set_target_properties(simData_protobuf_generation PROPERTIES
     FOLDER "SIMDIS SDK"
-    PROJECT_LABEL "SIMDIS SDK - Data Protobuf Generation")
+    PROJECT_LABEL "simData Protobuf Generation")
 
 # ----------------------------------------------------------------------
 
 set(DATA_PROJECT_FILES
-    ${DATA_HEADERS} ${DATA_SOURCES} ${DATA_GENERATED_HEADERS} ${DATA_ALL_HEADER}
+    ${DATA_HEADERS} ${DATA_SOURCES} ${DATA_GENERATED_HEADERS}
     ${MEMORYTABLE_HEADERS} ${MEMORYTABLE_SOURCES} ${CATEGORY_DATA_HEADERS} ${CATEGORY_DATA_SOURCES} ${MESSAGEVISITOR_HEADERS} ${MESSAGEVISITOR_SOURCES}
 )
 
@@ -159,7 +142,7 @@ endif()
 add_library(simData ${STATIC_OR_SHARED} ${DATA_PROJECT_FILES})
 set_target_properties(simData PROPERTIES
     FOLDER "SIMDIS SDK"
-    PROJECT_LABEL "SIMDIS SDK - Data"
+    PROJECT_LABEL "simData"
 )
 ApplySDKVersion(simData)
 # Need binary path for generated CMake files
@@ -224,10 +207,5 @@ if(INSTALL_HEADERS)
         FILES
             ${DATA_GENERATED_HEADERS}
         DESTINATION include/simData
-    )
-
-    # simData.h
-    install(FILES ${DATA_ALL_HEADER}
-        DESTINATION include
     )
 endif()

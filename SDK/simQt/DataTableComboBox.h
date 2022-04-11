@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -41,7 +42,7 @@ class SDKQT_EXPORT DataTableComboBox : public QWidget
 Q_OBJECT;
 public:
   /** Constructor */
-  explicit DataTableComboBox(QWidget* parent = NULL);
+  explicit DataTableComboBox(QWidget* parent = nullptr);
 
   /** Destructor */
   virtual ~DataTableComboBox();
@@ -66,7 +67,7 @@ public:
 
 signals:
   /**
-  * Emitted when a new table is selected.  Will pass NULL if combo box becomes empty
+  * Emitted when a new table is selected.  Will pass nullptr if combo box becomes empty
   * @param table  current selected table
   */
   void dataTableSelected(simData::DataTable* table);

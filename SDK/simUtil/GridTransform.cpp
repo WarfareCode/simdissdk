@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -384,17 +385,17 @@ const GridCell* GridTransform::childAt(int row, int column) const
   if (fixedByColumns_)
   {
     if (column < 0 || column >= userNum_)
-      return NULL;
+      return nullptr;
     const int idx = column + userNum_ * row;
     if (idx >= static_cast<int>(getNumChildren()))
-      return NULL;
+      return nullptr;
     return dynamic_cast<const GridCell*>(getChild(idx));
   }
   if (row < 0 || row >= userNum_)
-    return NULL;
+    return nullptr;
   const int idx = row + userNum_ * column;
   if (idx >= static_cast<int>(getNumChildren()))
-    return NULL;
+    return nullptr;
   return dynamic_cast<const GridCell*>(getChild(idx));
 }
 
@@ -403,17 +404,17 @@ GridCell* GridTransform::childAt(int row, int column)
   if (fixedByColumns_)
   {
     if (column < 0 || column >= userNum_)
-      return NULL;
+      return nullptr;
     const int idx = column + userNum_ * row;
     if (idx >= static_cast<int>(getNumChildren()))
-      return NULL;
+      return nullptr;
     return dynamic_cast<GridCell*>(getChild(idx));
   }
   if (row < 0 || row >= userNum_)
-    return NULL;
+    return nullptr;
   const int idx = row + userNum_ * column;
   if (idx >= static_cast<int>(getNumChildren()))
-    return NULL;
+    return nullptr;
   return dynamic_cast<GridCell*>(getChild(idx));
 }
 
@@ -471,7 +472,7 @@ int GridTransform::getDefaultWidth() const
   {
     // Skip child if it's not visible
     const GridCell* node = dynamic_cast<const GridCell*>(getChild(idx));
-    if (node == NULL || node->getNodeMask() == 0)
+    if (node == nullptr || node->getNodeMask() == 0)
       continue;
 
     // Get the current cell width
@@ -519,7 +520,7 @@ int GridTransform::getDefaultHeight() const
   {
     // Skip child if it's not visible
     const GridCell* node = dynamic_cast<const GridCell*>(getChild(idx));
-    if (node == NULL || node->getNodeMask() == 0)
+    if (node == nullptr || node->getNodeMask() == 0)
       continue;
 
     // Get the current cell height
@@ -586,7 +587,7 @@ float GridTransform::maxChildWidth_() const
   {
     // Skip child if it's not visible
     const GridCell* node = dynamic_cast<const GridCell*>(getChild(idx));
-    if (node == NULL || node->getNodeMask() == 0)
+    if (node == nullptr || node->getNodeMask() == 0)
       continue;
     if (node->fixedWidth())
       width = simCore::sdkMax(node->width(), width);
@@ -604,7 +605,7 @@ float GridTransform::maxChildHeight_() const
   {
     // Skip child if it's not visible
     const GridCell* node = dynamic_cast<const GridCell*>(getChild(idx));
-    if (node == NULL || node->getNodeMask() == 0)
+    if (node == nullptr || node->getNodeMask() == 0)
       continue;
     if (node->fixedHeight())
       height = simCore::sdkMax(node->height(), height);
@@ -684,7 +685,7 @@ void GridTransform::doLayout_()
   {
     // Skip child if it's not visible
     GridCell* node = dynamic_cast<GridCell*>(getChild(idx));
-    if (node == NULL || node->getNodeMask() == 0)
+    if (node == nullptr || node->getNodeMask() == 0)
       continue;
 
     // Figure out what our row/column is
@@ -850,7 +851,7 @@ void GridTransform::doLayout_()
   {
     // Skip child if it's not visible
     GridCell* node = dynamic_cast<GridCell*>(getChild(idx));
-    if (node == NULL || node->getNodeMask() == 0)
+    if (node == nullptr || node->getNodeMask() == 0)
       continue;
 
     // Figure out what our row/column is

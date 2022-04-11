@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,7 +24,6 @@
 #define SIMVIS_VELOCITY_VECTOR_H
 
 #include <osg/Group>
-#include <osg/Vec4f>
 #include "simCore/Common/Common.h"
 #include "simData/DataTypes.h"
 #include "simVis/LocatorNode.h"
@@ -38,12 +38,11 @@ class SDKVIS_EXPORT VelocityVector : public simVis::LocatorNode
 {
 public:
   /**
-   * Construct a new velocity vector graphic.
+   * Construct a new velocity vector graphic.  Color will be pulled from prefs.
    * @param hostLocator location of host platform
-   * @param vectorColor color for velocity vector, in osg format: r,g,b,a values 0.0-1.0
    * @param lineWidth width of axis vector lines, in pixels
    */
-  VelocityVector(Locator* hostLocator, const osg::Vec4f& vectorColor, float lineWidth = 2.0);
+  explicit VelocityVector(Locator* hostLocator, float lineWidth = 2.0);
 
   /**
    * Sets new preferences for this object.
@@ -75,12 +74,11 @@ private: // methods
   int rebuild_(const simData::PlatformPrefs& prefs);
 
   /// create the velocity vector line
-  void createVelocityVector_(const simData::PlatformPrefs& prefs, osg::Geode* geode) const;
+  void createVelocityVector_(const simData::PlatformPrefs& prefs, osg::Group* group) const;
 
   simData::PlatformPrefs               lastPrefs_;          ///< last prefs update
   bool                                 forceRebuild_;       ///< flag to force a rebuild
   float                                lineWidth_;          ///< width of velocity vector lines
-  osg::Vec4f                           vectorColor_;        ///< color for velocity vector, in osg format: r,g,b,a values 0.0-1.0
   simData::PlatformUpdate              lastUpdate_;         ///< Platform location and velocity
 };
 

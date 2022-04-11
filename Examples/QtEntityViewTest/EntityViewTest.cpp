@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -129,7 +130,7 @@ MainWindow::MainWindow(QWidget *parent) : QDialog(parent)
   connect(mainWindowGui_->testButton, SIGNAL(clicked()), this, SLOT(test_()));
   connect(mainWindowGui_->deleteButton, SIGNAL(clicked()), this, SLOT(deleteEntity_()));
 
-  entityTreeModel_ = new simQt::EntityTreeModel(NULL, dataStore_);
+  entityTreeModel_ = new simQt::EntityTreeModel(nullptr, dataStore_);
   entityTreeComposite_ = mainWindowGui_->entityTreeComposite;
   entityTreeComposite_->addEntityFilter(new simQt::EntityTypeFilter(*dataStore_, simData::ALL, true));
   entityTreeComposite_->setModel(entityTreeModel_);
@@ -197,7 +198,7 @@ int main(int argc, char* argv[])
 {
   QApplication app(argc, argv);
 
-  MainWindow* window = new MainWindow(NULL);
+  MainWindow* window = new MainWindow(nullptr);
   window->show();
 
   int rv = app.exec();

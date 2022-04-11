@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -148,7 +149,7 @@ std::vector<double> SquareMatrix::column(unsigned int col) const
 const double* SquareMatrix::data() const
 {
   if (dimension_ < 2)
-    return NULL;
+    return nullptr;
 
   return matrix_.data();
 }

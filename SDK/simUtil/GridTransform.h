@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -244,9 +245,9 @@ public:
   int rowOfChild(const GridCell* item) const;
   /** Returns -1 if child not found */
   int columnOfChild(const GridCell* item) const;
-  /** Returns child at index, or NULL if none */
+  /** Returns child at index, or nullptr if none */
   const GridCell* childAt(int row, int column) const;
-  /** Returns child at index, or NULL if none */
+  /** Returns child at index, or nullptr if none */
   GridCell* childAt(int row, int column);
 
   /** Override to update layout */

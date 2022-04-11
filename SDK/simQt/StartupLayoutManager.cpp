@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -63,7 +64,7 @@ void StartupLayoutManager::executeTasks(simQt::Settings& fromSettings)
     // Get the corresponding task by name from our registered tasks
     StartupLayoutTaskPtr task = tasks_.value(*it);
     // ... and execute it.
-    if (task != NULL)
+    if (task != nullptr)
       task->execute();
   }
 }
@@ -77,7 +78,7 @@ void StartupLayoutManager::saveToSettings(simQt::Settings& toSettings)
   {
     // Task itself knows whether it ought to be saved
     StartupLayoutTaskPtr task = tasks_.value(*it);
-    if (task != NULL && task->shouldExecuteOnNextStartup())
+    if (task != nullptr && task->shouldExecuteOnNextStartup())
       tasksToSave.push_back(*it);
   }
 

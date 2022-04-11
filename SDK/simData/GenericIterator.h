@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -35,14 +36,14 @@ public:
   virtual ~GenericIteratorImpl() {}
   /** Retrieves next element and increments iterator to position after that element
   * @return Element after original iterator position,
-  * or NULL if no such element
+  * or nullptr if no such element
   */
   virtual const ValueType next() = 0;
   /** Retrieves next element and does not change iterator position */
   virtual const ValueType peekNext() const = 0;
   /** Retrieves previous element and decrements iterator to position before that element
   * @return Element before original iterator position,
-  * or NULL if no such element
+  * or nullptr if no such element
   */
   virtual const ValueType previous() = 0;
   /** Retrieves previous element and does not change iterator position */
@@ -110,14 +111,14 @@ public:
 
   /** Retrieves next element and increments iterator to position after that element
   * @return Element after original iterator position,
-  * or NULL if no such element
+  * or nullptr if no such element
   */
   const ValueType next() {return impl_->next();}
   /** Retrieves next element and does not change iterator position */
   const ValueType peekNext() const {return impl_->peekNext();}
   /** Retrieves previous element and decrements iterator to position before that element
   * @return Element before original iterator position,
-  * or NULL if no such element
+  * or nullptr if no such element
   */
   const ValueType previous() {return impl_->previous();}
   /** Retrieves previous element and does not change iterator position */

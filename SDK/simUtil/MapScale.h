@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -25,6 +26,7 @@
 #include "osg/observer_ptr"
 #include "osg/ref_ptr"
 #include "osg/Group"
+#include "osg/Vec4"
 #include "simCore/Common/Common.h"
 
 namespace osgText { class Font; }
@@ -82,12 +84,12 @@ public:
   /** Retrieves the currently configured units provider.  This is never NULL. */
   UnitsProvider* unitsProvider() const;
 
-  /** Retrieves current total height in pixels. */
+  /** Retrieves current total height in pixels. This includes padding. */
   float height() const;
 
-  /** Changes the target width of the scale.  Note that text values may stray outside the bounds. */
+  /** Changes the target width of the scale.  Note that text values may stray outside the bounds.  This includes padding. */
   void setWidth(float widthPx);
-  /** Retrieves current width in pixels. */
+  /** Retrieves current width in pixels. This includes padding. */
   float width() const;
 
   /** Changes the color of the unit type text. */
@@ -96,6 +98,8 @@ public:
   void setUnitsFont(osgText::Font* font);
   /** Changes the character size (height) of the unit type text. */
   void setUnitsCharacterSize(float sizePx);
+  /** Sets the visible state for the unit text */
+  void setUnitsVisible(bool visible);
 
   /** Changes the color of the values text. */
   void setValuesColor(const osg::Vec4f& color);
@@ -110,6 +114,11 @@ public:
   void setBarColor1(const osg::Vec4f& color);
   /** Changes the second bar color. */
   void setBarColor2(const osg::Vec4f& color);
+
+  /** Sets the background color to use when drawing */
+  void setBackgroundColor(const osg::Vec4f& color);
+  /** Sets the padding in pixels for the background box.  These are expected positive values. */
+  void setPadding(float left, float right, float top, float bottom);
 
 protected:
   /** Derived from osg::Referenced */
@@ -134,10 +143,16 @@ private:
   /** Given a value, converts to a string with given precision. */
   std::string valueToString_(double value, unsigned int precision) const;
 
-  /** Internal, calculated height based on text height and bar height */
+  /** Calculates the right placement for the background box. */
+  void fixBackgroundPosition_();
+
+  /** Internal, calculated height based on text height and bar height, excluding any padding */
   float heightPx_;
-  /** User-provided width of the legend in pixels */
+  /** Width of the scale graphics content in pixels, excluding any padding */
   float widthPx_;
+
+  /** Top level group that adjusts based on padding */
+  osg::ref_ptr<osg::MatrixTransform> paddingGroup_;
 
   /** Geode holding the text and display data */
   osg::ref_ptr<osg::Geode> geode_;
@@ -155,6 +170,13 @@ private:
   osg::Vec4f barColor1_;
   /** Second color for the bar */
   osg::Vec4f barColor2_;
+
+  /** Holds the color for the background */
+  osg::ref_ptr<osg::Vec4Array> bgColorArray_;
+  /** Scales the background to the right size; might be set to 0 node mask if no alpha on color */
+  osg::ref_ptr<osg::MatrixTransform> bgMatrix_;
+  /** Interior padding values relative to edge of background. Expected positive. */
+  osg::Vec4f lrtbBgPadding_;
 
   /** View that provides the data required for determining the scale */
   osg::observer_ptr<simVis::View> view_;

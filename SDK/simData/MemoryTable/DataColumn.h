@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -39,7 +40,7 @@ class DataColumn : public simData::TableColumn
 {
 public:
   /** Instantiates a new data column. */
-  DataColumn(TimeContainer* timeContainer, const std::string& columnName, TableColumnId columnId, VariableType storageType, UnitType unitType);
+  DataColumn(TimeContainer* timeContainer, const std::string& columnName, TableId tableId, TableColumnId columnId, VariableType storageType, UnitType unitType);
   /** Columns contain no dynamic memory */
   virtual ~DataColumn();
 
@@ -64,8 +65,8 @@ public:
     return dataContainer_(freshContainer)->getValue(position, value);
   }
 
-  /** Removes a single entry from the data column based on position */
-  void erase(bool freshContainer, size_t position);
+  /** Removes entries from the data column based on position */
+  void erase(bool freshContainer, size_t position, size_t number = 1);
   /** Clears out the contents of the data container */
   simData::DelayedFlushContainerPtr flush();
   /** Retrieves the number of entries in the data column */
@@ -73,6 +74,8 @@ public:
   /** Returns true if there is no data in the data column */
   virtual bool empty() const;
 
+  /** Retrieves the ID of the table that owns this column. */
+  virtual TableId tableId() const;
   /** Retrieves the designated column ID for this data column. */
   virtual TableColumnId columnId() const;
   /** Retrieves the name of this column. */
@@ -142,6 +145,7 @@ private:
   DataContainer* staleData_;
 
   std::string name_;
+  TableId tableId_;
   TableColumnId id_;
   VariableType variableType_;
   UnitType unitType_;

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -348,6 +349,76 @@ class View;
 
     osg::observer_ptr<View> view_;
     osg::ref_ptr<BoxZoomMouseHandler> boxZoom_;
+  };
+
+  /**
+  * BuilderNavigationMode provides a similar navigation mode to Builder.
+  * Pass an instance of BuilderNavigationMode to
+  * EarthManipulator::applySettings in order to enable this navigation mode.<p>
+  * The mappings are:
+  * <ul>
+  * <li>Left mouse button: pan</li>
+  * <li>Left mouse button + shift: rotation</li>
+  * <li>Middle mouse button: zoom</li>
+  * <li>Right mouse button: rotation</li>
+  * <li>Scroll wheel: zoom</li>
+  * <li>Arrow keys: pan</li>
+  * <li>Arrow keys + ctrl: zoom</li>
+  * <li>Arrow keys + ctrl + shift: rotate</li>
+  * </ul>
+  */
+  class SDKVIS_EXPORT BuilderNavigationMode : public NavigationMode
+  {
+  public:
+    /**
+    * Initialize the Builder navigation mode.
+    * @param enableOverhead true to create the navigation mode with
+    * overhead enabled, false to create with perspective mode
+    * @param watchMode if true, no rotate actions will be applied, as
+    * rotation is disabled in watchMode
+    */
+    BuilderNavigationMode(bool enableOverhead, bool watchMode);
+
+  protected:
+    /// osg::Referenced-derived
+    virtual ~BuilderNavigationMode();
+
+  private:
+    /** Initializes the bindings given the parameters. */
+    void init_(bool enableOverhead, bool watchMode);
+  };
+
+  /**
+  * NgtsNavigationMode provides a similar navigation mode to Next Generation Threat System (NGTS.
+  * Pass an instance of NgtsNavigationMode to EarthManipulator::applySettings in order to enable
+  * this navigation mode.<p>
+  * The mappings are nearly identical to RotatePanNavigationMode with following notable exceptions:
+  * <ul>
+  * <li>Left mouse button: pan in overhead and perspective mode</li>
+  * <li>Right mouse button: zoom in overhead, rotate in perspective</li>
+  * </ul>
+  */
+  class SDKVIS_EXPORT NgtsNavigationMode : public RotatePanNavigationMode
+  {
+  public:
+    /**
+    * Initialize the NGTS navigation mode.
+    * @param enableOverhead true to create the navigation mode with
+    * overhead enabled, false to create with perspective mode
+    * @param watchMode if true, no rotate actions will be applied, as
+    * rotation is disabled in watchMode
+    */
+    NgtsNavigationMode(simVis::View* view, bool enableOverhead, bool watchMode);
+
+  protected:
+    /// osg::Referenced-derived
+    virtual ~NgtsNavigationMode();
+
+  private:
+    /// Initialize the mouse for overhead mode usage (not in watch mode)
+    void initOverhead_();
+    /// Initialize the mouse for perspective mode usage (not in watch mode)
+    void initPerspective_();
   };
 
 }

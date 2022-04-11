@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -58,16 +59,8 @@ class SDKQT_EXPORT CenterEntity : public QObject
 
 public:
   /** Constructor for a generic parent */
-  CenterEntity(simVis::FocusManager& focusManager, simVis::ScenarioManager& scenarioManager, QObject* parent=NULL);
+  CenterEntity(simVis::FocusManager& focusManager, simVis::ScenarioManager& scenarioManager, QObject* parent=nullptr);
   virtual ~CenterEntity();
-
-// use BindCenterEntityToEntityTreeComposite instead
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  /** Constructor for EntityTreeComposite parent with an automatic call to bindTo */
-  SDK_DEPRECATE(CenterEntity(simVis::FocusManager& focusManager, simVis::ScenarioManager& scenarioManager, EntityTreeComposite& tree), "Method will be removed in a future SDK release");
-  /** Auto configures the double click to center on platform and turns off the tree expansion on double click */
-  SDK_DEPRECATE(void bindTo(EntityTreeComposite& tree), "Method will be removed in a future SDK release");
-#endif
 
   /**
    * Sets the centroid manager for centering views
@@ -78,13 +71,17 @@ public:
   /**
    * Returns the view center-able node for the given id
    * @param id The entity to get a view center-able node
-   * @return A node that a view can be centered on; returns NULL on error.
+   * @return A node that a view can be centered on; returns nullptr on error.
    */
   simVis::EntityNode* getViewCenterableNode(uint64_t id) const;
 
 public slots:
-  /** Center the current view port on the given entity Unique ID */
-  void centerOnEntity(uint64_t id);
+  /**
+   * Center the current view port on the given entity Unique ID
+   * @param id The entity to center on
+   * @param force Center on an invalid entity with the expectation it will soon become valid
+   */
+  void centerOnEntity(uint64_t id, bool force = false);
   /** Center the current view port on the given list of entity unique IDs */
   void centerOnSelection(const QList<uint64_t>& ids);
 
@@ -103,7 +100,7 @@ class SDKQT_EXPORT BindCenterEntityToEntityTreeComposite : public QObject
   Q_OBJECT;
 
 public:
-  BindCenterEntityToEntityTreeComposite(CenterEntity& centerEntity, EntityTreeComposite& tree, simData::DataStore& dataStore, QObject* parent = NULL);
+  BindCenterEntityToEntityTreeComposite(CenterEntity& centerEntity, EntityTreeComposite& tree, simData::DataStore& dataStore, QObject* parent = nullptr);
   virtual ~BindCenterEntityToEntityTreeComposite();
 
   /**
@@ -123,14 +120,56 @@ private slots:
   void centerOnEntity_(uint64_t id);
 
 private:
-  /** Returns the closet TSPI time to the current time if the platform is active and has TSPI points.  Return -1.0 on error */
-  double getPlatformNearestTime_(uint64_t id) const;
-  /** Returns the closest draw data time to the current time if the custom rendering is active.  Return -1.0 on error */
-  double getCustomRenderingNearestTime_(uint64_t id) const;
+  /** Returns the closest TSPI time to the given time if the platform is active and has TSPI points.  Returns -1.0 on error. */
+  double getPlatformNearestTime_(double time, uint64_t id) const;
+  /** Returns the closest draw data time to the given time if the custom rendering is active.  Returns -1.0 on error. */
+  double getCustomRenderingNearestTime_(double time, uint64_t id) const;
   /** The valid time at or before the search time; returns -1.0 on error */
   double getCustomRenderingEarlierTime_(double searchTime, const simData::CustomRenderingCommandSlice* slice) const;
   /** The valid time at or after the search time; returns -1.0 on error */
   double getCustomRenderingLaterTime_(double searchTime, const simData::CustomRenderingCommandSlice* slice) const;
+  /** Returns the closest RAE time to the given time if the beam is active.  Returns -1.0 on error. */
+  double getBeamNearestTime_(double time, uint64_t id) const;
+  /** Returns the closest RAE time to the given time if the gate is active.  Returns -1.0 on error. */
+  double getGateNearestTime_(double time, uint64_t id) const;
+  /** Returns the closest RAE time to the given time if the laser is active.  Returns -1.0 on error. */
+  double getLaserNearestTime_(double time, uint64_t id) const;
+  /** Returns the closest RAE time to the given time if the LOB is active.  Returns -1.0 on error. */
+  double getLobGroupNearestTime_(double time, uint64_t id) const;
+  /** Returns the closest FOV time to the given time if the projector is active.  Returns -1.0 on error. */
+  double getProjectorNearestTime_(double time, uint64_t id) const;
+  /** Target beams need different processing so they get their own routine. Returns -1.0 on error. */
+  double getNearestTargetTime_(double searchTime, uint64_t id) const;
+  /** Returns the closest time in update with data draw on */
+  template<typename CommandSlice, typename UpdateSlice>
+  double getNearestDrawTime_(double time, uint64_t id, const CommandSlice* commands, const UpdateSlice* updates) const;
+  /** Returns the time closest to searchTime;  returns INVALID if both earlierTime and laterTime are invalid */
+  double getNearestTime_(double searchTime, double earlierTime, double laterTime) const;
+
+  /** Gets the draw state of host of id; returns 0 on success. */
+  int getHostDrawState_(uint64_t id, std::map<double, bool>& hostDrawState) const;
+  /** Gets the draw state of a target beam by its targets; returns 0 on success. */
+  int getTargetDrawState_(uint64_t id, std::map<double, bool>& drawState) const;
+  /** Gets the draw state from the given commands; returns 0 on success.*/
+  template<typename CommandSlice>
+  int getEntityDrawState_(const CommandSlice* commands, std::map<double, bool>& drawState) const;
+
+  /** Gets the time range of id as limited by its data and the life span of its host; returns 0 on success. */
+  int getHostTimeRange_(uint64_t id, double& beginTime, double& endTime) const;
+  /** Gets the time range of id as limited by its data, if static returns the time span of the scenario; returns 0 on success. */
+  int getPlatformTimeRange_(uint64_t id, double& beginTime, double& endTime) const;
+  /** Gets the time range based on the beam's targets */
+  int getTargetTimeRange_(uint64_t id, double& beginTime, double& endTime) const;
+  /** Gets the time range of id as limited by its data; returns 0 on success. */
+  template<typename UpdateSlice>
+  int getTimeRange_(uint64_t id, double& beginTime, double& endTime, const UpdateSlice* updates) const;
+
+  /** Returns true if time is active for the given time. */
+  bool isActive_(double time, const std::map<double, bool>& drawState) const;
+  /** Returns true if time is between the beginTime and the endTime */
+  bool inHostedTimeRange_(double time, double beginTime, double endTime) const;
+  /** Returns true if the given id is a target beam */
+  bool isTargetBeam_(uint64_t id) const;
 
   CenterEntity& centerEntity_;
   EntityTreeComposite& tree_;
@@ -138,7 +177,7 @@ private:
   std::unique_ptr<simCore::TimeFormatterRegistry> timeFormatter_;
   simCore::TimeFormat timeFormat_;
   unsigned short precision_;
-  double newTime_;  ///< If not -1, it represents the time (seconds since reference year) needed to make the entity valid for a view center
+  double newTime_;  ///< If not INVALID_TIME, it represents the time (seconds since reference year) needed to make the entity valid for a view center
 };
 
 }

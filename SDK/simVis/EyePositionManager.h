@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -183,7 +184,7 @@ public:
   virtual std::string insetString(simVis::View *viewport) { return ""; }
   virtual void cycleEyeView(simVis::View *viewport, bool forwardCycle) { }
   // Treated as an opaque pointer by consumers
-  virtual simVis::EyePosition* eyePositionByName(const std::string &eyePositionName) { return NULL; }
+  virtual simVis::EyePosition* eyePositionByName(const std::string &eyePositionName) { return nullptr; }
   virtual void applyEyePositionToPort(simVis::EyePosition *eyePosition, simVis::View *viewport) { }
   virtual void removeEyePosition(simVis::EyePosition *eyePosition) { }
   virtual void removeEyePosition(const std::string& name) { }

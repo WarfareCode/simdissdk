@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -162,7 +163,7 @@ public:
     /**@name callbacks for each event type
      *@{
      */
-    virtual void onModeChange(Clock::Mode newMode) = 0;
+    virtual void onModeChange(simCore::Clock::Mode newMode) = 0;
     virtual void onDirectionChange(simCore::TimeDirection newDirection) = 0;
     virtual void onScaleChange(double newValue) = 0;
     virtual void onBoundsChange(const simCore::TimeStamp& start, const simCore::TimeStamp& end) = 0;

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,12 +31,10 @@ class simQtDesignerPlugins : public QObject, public QDesignerCustomWidgetCollect
 {
   Q_OBJECT
   Q_INTERFACES(QDesignerCustomWidgetCollectionInterface)
-#if(QT_VERSION >= QT_VERSION_CHECK(5, 0, 0))
   Q_PLUGIN_METADATA(IID "mil.navy.nrl.simdis.SIMDIS_SDK.simQtDesignerPlugins")
-#endif
 
 public:
-  explicit simQtDesignerPlugins(QObject* parent = NULL);
+  explicit simQtDesignerPlugins(QObject* parent = nullptr);
 
 public: // QDesignerCustomWidgetCollectionInterface API
   virtual QList<QDesignerCustomWidgetInterface*> customWidgets() const;

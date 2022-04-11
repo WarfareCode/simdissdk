@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -39,6 +40,7 @@ class QAction;
 namespace simQt {
 
 class ColorWidget;
+class FileSelectorWidget;
 
 /**
  * Abstract base class for a number of bound settings, based on variable type.  The
@@ -295,6 +297,13 @@ public:
    * @param populateToolTip If true, replace the existing tool tip on the widget with the value from Settings MetaData
    */
   void bindTo(QLineEdit* lineEdit, bool populateToolTip=true);
+
+  /**
+   * Helper routine to bind a FileSelectorWidget to the BoundStringSetting.
+   * @param fileSelector FileSelectorWidget to bind to
+   * @param populateToolTip If true, replace the existing tool tip on the widget with the value from Settings MetaData
+   */
+  void bindTo(FileSelectorWidget* fileSelector, bool populateToolTip=true);
 
 public slots:
   /** Change the data value in Settings (and the cache); might emit valueChanged() */

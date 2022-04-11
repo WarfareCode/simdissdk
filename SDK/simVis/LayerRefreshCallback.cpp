@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,12 +24,15 @@
 #include "osgEarth/MapNode"
 #include "osgEarth/TerrainEngineNode"
 #include "simNotify/Notify.h"
+#include "simCore/Time/Utils.h"
 #include "simVis/LayerRefreshCallback.h"
 
 namespace simVis {
 
 /** Custom osgEarth tag for a layer, to indicate it should trigger automatic refreshes */
 static const std::string REFRESH_TAG = "refresh";
+/** Custom osgEarth tag for a layer, to indicate last refresh time */
+static const std::string LAST_REFRESH_TIME_TAG = "lastRefreshTime";
 
 /** Callback that notifies its parent of when to watch or forget a layer. */
 class LayerRefreshCallback::MapUpdatedCallback : public osgEarth::MapCallback
@@ -42,32 +46,32 @@ public:
   /** Watch a TerrainLayer when it's added */
   virtual void onLayerAdded(osgEarth::Layer* layer, unsigned index)
   {
-    const osgEarth::TerrainLayer* terrainLayer = dynamic_cast<const osgEarth::TerrainLayer*>(layer);
-    if (terrainLayer != NULL)
+    osgEarth::TileLayer* terrainLayer = dynamic_cast<osgEarth::TileLayer*>(layer);
+    if (terrainLayer != nullptr)
       parent_.watchLayer_(terrainLayer);
   }
 
   /** Forget a TerrainLayer when it's removed */
   virtual void onLayerRemoved(osgEarth::Layer* layer, unsigned index)
   {
-    const osgEarth::TerrainLayer* terrainLayer = dynamic_cast<const osgEarth::TerrainLayer*>(layer);
-    if (terrainLayer != NULL)
+    osgEarth::TileLayer* terrainLayer = dynamic_cast<osgEarth::TileLayer*>(layer);
+    if (terrainLayer != nullptr)
       parent_.forgetLayer_(terrainLayer);
   }
 
   /** Watch a TerrainLayer when it's enabled */
   virtual void onLayerEnabled(osgEarth::Layer* layer)
   {
-    const osgEarth::TerrainLayer* terrainLayer = dynamic_cast<const osgEarth::TerrainLayer*>(layer);
-    if (terrainLayer != NULL)
+    osgEarth::TileLayer* terrainLayer = dynamic_cast<osgEarth::TileLayer*>(layer);
+    if (terrainLayer != nullptr)
       parent_.watchLayer_(terrainLayer);
   }
 
   /** Forget a TerrainLayer when it's disabled */
   virtual void onLayerDisabled(osgEarth::Layer* layer)
   {
-    const osgEarth::TerrainLayer* terrainLayer = dynamic_cast<const osgEarth::TerrainLayer*>(layer);
-    if (terrainLayer != NULL)
+    osgEarth::TileLayer* terrainLayer = dynamic_cast<osgEarth::TileLayer*>(layer);
+    if (terrainLayer != nullptr)
       parent_.forgetLayer_(terrainLayer);
   }
 
@@ -92,7 +96,7 @@ LayerRefreshCallback::LayerRefreshCallback(const LayerRefreshCallback& rhs, cons
 
 LayerRefreshCallback::~LayerRefreshCallback()
 {
-  setMapNode(NULL);
+  setMapNode(nullptr);
 }
 
 void LayerRefreshCallback::setMapNode(osgEarth::MapNode* mapNode)
@@ -113,7 +117,7 @@ void LayerRefreshCallback::setMapNode(osgEarth::MapNode* mapNode)
   if (mapNode_.valid() && mapNode_->getMap())
     mapNode_->getMap()->addMapCallback(mapUpdatedCallback_.get());
 
-  enabled_ = (mapNode_ != NULL);
+  enabled_ = (mapNode_ != nullptr);
 }
 
 bool LayerRefreshCallback::run(osg::Object* object, osg::Object* data)
@@ -132,14 +136,20 @@ void LayerRefreshCallback::runImpl_()
   if (!mapNode_.lock(mapNode) || !mapNode->getTerrainEngine() || !mapNode->getMap())
     return;
 
-  osgEarth::TerrainEngineNode* terrainEngine = mapNode->getTerrainEngine();
+  double sysTime = simCore::getSystemTime();
+
+  auto* terrainEngine = mapNode->getTerrainEngine();
   // Loop through all watched layers
   for (auto it = watchedLayers_.begin(); it != watchedLayers_.end(); ++it)
   {
-    osg::observer_ptr<const osgEarth::TerrainLayer> layer = (*it).layer;
+    osg::observer_ptr<osgEarth::TileLayer> layer = (*it).layer;
+#if OSGEARTH_SOVERSION >= 127
+    if (!layer.valid() || !layer->getOpenAutomatically())
+#else
     if (!layer.valid() || !layer->getEnabled())
+#endif
     {
-      assert(0); // Should not be watching a NULL or disabled layer
+      assert(0); // Should not be watching a nullptr or disabled layer
       continue;
     }
 
@@ -157,8 +167,12 @@ void LayerRefreshCallback::runImpl_()
     SIM_DEBUG_FP << "simVis::LayerRefreshCallback::run() attempting to refresh layer \"" << layer->getName() << "\".\n";
 
     const auto extents = layer->getDataExtents();
+    std::vector<const osgEarth::Layer*> layerVec;
+    layerVec.push_back(layer.get());
     for (const auto& extent : extents)
-      terrainEngine->invalidateLayerRegion(layer.get(), extent);
+      terrainEngine->invalidateRegion(layerVec, extent);
+
+    layer->setUserValue(LAST_REFRESH_TIME_TAG, sysTime);
 
     // Reset the timer for this layer
     it->elapsedTime.reset();
@@ -167,9 +181,9 @@ void LayerRefreshCallback::runImpl_()
   // NOTE: A call to terrainEngine->dirtyTerrain() is NOT required here
 }
 
-void LayerRefreshCallback::watchLayer_(const osgEarth::TerrainLayer* layer)
+void LayerRefreshCallback::watchLayer_(osgEarth::TileLayer* layer)
 {
-  if (layer == NULL)
+  if (layer == nullptr)
     return;
 
   LayerInfo info;
@@ -178,9 +192,9 @@ void LayerRefreshCallback::watchLayer_(const osgEarth::TerrainLayer* layer)
   watchedLayers_.push_back(info);
 }
 
-void LayerRefreshCallback::forgetLayer_(const osgEarth::TerrainLayer* layer)
+void LayerRefreshCallback::forgetLayer_(osgEarth::TileLayer* layer)
 {
-  if (layer == NULL)
+  if (layer == nullptr)
     return;
 
   for (auto it = watchedLayers_.begin(); it != watchedLayers_.end(); ++it)
@@ -192,7 +206,7 @@ void LayerRefreshCallback::forgetLayer_(const osgEarth::TerrainLayer* layer)
   }
 }
 
-double LayerRefreshCallback::getIntervalForLayer_(const osgEarth::Layer* layer) const
+double LayerRefreshCallback::getIntervalForLayer_(osgEarth::Layer* layer) const
 {
   int refreshValue = 0;
   const auto& cfg = layer->getConfig();

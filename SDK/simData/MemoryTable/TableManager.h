@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -88,7 +89,7 @@ public:
     virtual void onNewRowData(simData::DataTable& table, simData::ObjectId id, double dataTime) {}
   };
 
-  /** Sets the new-row data listener for when new table rows are added; use NULL to remove. */
+  /** Sets the new-row data listener for when new table rows are added; use nullptr to remove. */
   void setNewRowDataListener(NewRowDataListenerPtr listener);
 
   /** Internal method for Table to use to alert on new row data */

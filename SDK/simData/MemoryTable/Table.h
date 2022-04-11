@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -39,7 +40,7 @@ class DataLimitsProvider;
  * a single entity (or the scenario, if owner ID is 0).  A single entity may have multiple tables
  * (represented by a simData::TableList), but a single data table is associated with only one owner.
  *
- * Tables might have NULL values.  For performance, the in-memory solution subdivides itself into SubTable
+ * Tables might have nullptr values.  For performance, the in-memory solution subdivides itself into SubTable
  * instances.  Each SubTable is null-less.  So this Table implementation is a collection of SubTable
  * instances.
  */
@@ -73,8 +74,10 @@ public:
   virtual void accept(DataTable::ColumnVisitor& visitor) const;
   /** Adds a row to the table. */
   virtual TableStatus addRow(const TableRow& row);
-  /** Clears data out of all columns */
-  virtual DelayedFlushContainerPtr flush();
+  /** Clears data out of the given column or all columns if given -1 */
+  virtual DelayedFlushContainerPtr flush(TableColumnId id = -1);
+  /** Remove rows in the given time range; up to but not including endTime */
+  virtual void flush(double startTime, double endTime);
   /** Add an observer for notification when rows or columns are added or removed */
   virtual void addObserver(TableObserverPtr callback);
   /** Remove an observer */

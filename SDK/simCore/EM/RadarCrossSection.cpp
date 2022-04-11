@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -33,6 +34,7 @@
 
 #include "simCore/String/Tokenizer.h"
 #include "simCore/String/Format.h"
+#include "simCore/String/UtfUtils.h"
 #include "simCore/String/Utils.h"
 #include "simCore/String/ValidNumber.h"
 #include "simCore/Calc/Interpolation.h"
@@ -217,8 +219,8 @@ RCSLUT::RCSLUT()
   for (unsigned int i = 0; i < 2; ++i)
   {
     lastElev_[i] = std::numeric_limits<float>::max();
-    loTable_[i] = NULL;
-    hiTable_[i] = NULL;
+    loTable_[i] = nullptr;
+    hiTable_[i] = nullptr;
   }
 }
 
@@ -237,9 +239,9 @@ RCSTable *RCSLUT::getTable_(float freq, float elev, PolarityType pol, bool creat
   POLARITY_FREQ_ELEV_MAP::iterator pfeiter;
   FREQ_ELEV_MAP::iterator feiter;
   ELEV_RCSTABLE_MAP::iterator eiter;
-  RCSTable *rcsTable = NULL;
-  FREQMAP* fm = NULL;
-  ELEVMAP* em = NULL;
+  RCSTable *rcsTable = nullptr;
+  FREQMAP* fm = nullptr;
+  ELEVMAP* em = nullptr;
 
   // look for specified polarization
   pfeiter = rcsMap_.find(pol);
@@ -307,8 +309,8 @@ float RCSLUT::calcTableRCS_(float freq, double azim, double elev, PolarityType p
     return final_rcs;
   }
 
-  RCSTable *rcstabLo = NULL;
-  RCSTable *rcstabHi = NULL;
+  RCSTable *rcstabLo = nullptr;
+  RCSTable *rcstabHi = nullptr;
   bool foundInCache = false;
   if (simCore::areEqual(lastFreq_, freq, 0.1) && pol == lastPolarity_)
   {
@@ -428,8 +430,8 @@ float RCSLUT::calcTableRCS_(float freq, double azim, double elev, PolarityType p
     else
     {
       // freq or polarization changed, cached elev/table values are no longer valid
-      loTable_[1] = NULL;
-      hiTable_[1] = NULL;
+      loTable_[1] = nullptr;
+      hiTable_[1] = nullptr;
       lastElev_[1] = std::numeric_limits<float>::max();
     }
 
@@ -442,9 +444,9 @@ float RCSLUT::calcTableRCS_(float freq, double azim, double elev, PolarityType p
   }
 
   // either both tables are NULL, or both are non-NULL
-  assert((rcstabLo == NULL && rcstabHi == NULL) || (rcstabLo && rcstabHi));
+  assert((rcstabLo == nullptr && rcstabHi == nullptr) || (rcstabLo && rcstabHi));
 
-  if (rcstabLo == NULL && rcstabHi == NULL)
+  if (rcstabLo == nullptr && rcstabHi == nullptr)
   {
     // we didn't find any matching tables
     final_rcs = dB2Linear(mean_);
@@ -533,7 +535,7 @@ float RCSLUT::RCSsm(float freq, double azim, double elev, PolarityType pol)
 int RCSLUT::loadXPATCHRCSFile_(std::istream &inFile)
 {
   int rv = 1;
-  RCSTable *rcsTable = NULL;
+  RCSTable *rcsTable = nullptr;
   std::vector<float> medianVec;
   float freq = 0;
   float elev = 0;
@@ -1228,7 +1230,7 @@ void RCSLUT::computeStatistics_(std::vector<float>* medianVec)
 {
   if (!medianVec)
   {
-    // the argument cannot be NULL
+    // the argument cannot be nullptr
     assert(0);
     return;
   }
@@ -1287,8 +1289,8 @@ void RCSLUT::reset_()
   for (unsigned int i = 0; i < 2; ++i)
   {
     lastElev_[i] = std::numeric_limits<float>::max();
-    loTable_[i] = NULL;
-    hiTable_[i] = NULL;
+    loTable_[i] = nullptr;
+    hiTable_[i] = nullptr;
   }
   mean_ = 0.;
   median_ = SMALL_DB_VAL;
@@ -1308,7 +1310,7 @@ int RCSLUT::loadRCSFile(const std::string& fname)
 
   // find file
   std::fstream inFile;
-  inFile.open(fname.c_str(), std::ios::in);
+  inFile.open(simCore::streamFixUtf8(fname), std::ios::in);
   if (inFile.is_open())
   {
     setFilename(fname);
@@ -1353,13 +1355,13 @@ int RCSLUT::loadRCSFile(std::istream& istream)
 RadarCrossSection* RcsFileParser::loadRCSFile(const std::string& fname)
 {
   if (fname.empty())
-    return NULL;
+    return nullptr;
 
   RCSLUT* rcsdata = new RCSLUT();
   if (rcsdata->loadRCSFile(fname) != 0)
   {
     delete rcsdata;
-    rcsdata = NULL;
+    rcsdata = nullptr;
   }
 
   return rcsdata;

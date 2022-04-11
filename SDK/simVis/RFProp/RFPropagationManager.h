@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,6 +24,8 @@
 #define SIMVIS_RFPROPAGATIONMANAGER_H
 
 #include <memory>
+#include <string>
+#include <vector>
 #include "simCore/Common/Common.h"
 #include "simData/ObjectId.h"
 
@@ -37,18 +40,26 @@ public:
   virtual ~RFPropagationManager() {}
 
   /**
-    * Returns an existing RFPropagationFacade object for the specified beam entity
-    * @param beamId ID of a beam to retrieve RF Propagation data
-    * @return RFPropagationData object pointer, NULL if specified beamId does not have a RFPropagationFacade Object
+    * Returns an existing RFPropagationFacade object for the specified platform or beam
+    * @param hostId ID of a platform or beam to retrieve RF Propagation data
+    * @return RFPropagationData object pointer, nullptr if specified hostId does not have a RFPropagationFacade Object
     */
-  virtual RFPropagationFacade* getRFPropagation(simData::ObjectId beamId) const = 0;
+  virtual RFPropagationFacade* getRFPropagation(simData::ObjectId hostId) const = 0;
 
   /**
-   * Returns existing or newly created RFPropagationFacade object for the specified beam entity, new objects are owned by this manager
-   * @param beamId ID of a beam to retrieve RF Propagation data
-   * @return RFPropagationData object pointer, NULL if specified beamId is not a beam entity ID
+   * Returns existing or newly created RFPropagationFacade object for the specified platform or beam, new objects are owned by this manager
+   * @param hostId ID of a platform or beam to retrieve RF Propagation data
+   * @return RFPropagationData object pointer, nullptr if specified hostId is not a platform or beam ID
    */
-  virtual RFPropagationFacade* getOrCreateRFPropagation(simData::ObjectId beamId) = 0;
+  virtual RFPropagationFacade* getOrCreateRFPropagation(simData::ObjectId hostId) = 0;
+
+  /**
+  * Loads the specified files for the specified platform or beam, which must already exist
+  * @param hostId ID of a platform or beam to receive RF Propagation data
+  * @param files vector of filenames to load
+  * @return 0 on success, !0 on error loading the files
+  */
+  virtual int loadFiles(simData::ObjectId beamId, const std::vector<std::string>& files) = 0;
 };
 
 typedef std::shared_ptr<simRF::RFPropagationManager> RFPropagationManagerPtr;
@@ -63,11 +74,15 @@ public:
   }
   virtual simRF::RFPropagationFacade* getRFPropagation(simData::ObjectId id) const
   {
-    return NULL;
+    return nullptr;
   }
   virtual simRF::RFPropagationFacade* getOrCreateRFPropagation(simData::ObjectId id)
   {
-    return NULL;
+    return nullptr;
+  }
+  virtual int loadFiles(simData::ObjectId beamId, const std::vector<std::string>& files)
+  {
+    return 1;
   }
 };
 

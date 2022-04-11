@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -907,7 +908,7 @@ int CoordinateConverter::convert(const Coordinate &inCoord, Coordinate &outCoord
 
 /// convert geodetic projection (LLA) to flat earth projection (NED/NWU/ENU)
 ///@pre flatCoord valid, ref origin set, in coord is LLA, system is NED/NWU/ENU, llaCoord does not alias flatCoord
-int CoordinateConverter::convertGeodeticToFlat_(const Coordinate &llaCoord, Coordinate &flatCoord, CoordinateSystem system) const
+int CoordinateConverter::convertGeodeticToFlat_(const Coordinate& llaCoord, Coordinate& flatCoord, CoordinateSystem system) const
 {
   // Test for same input/output -- this function cannot handle case of llaCoord == flatCoord
   if (&llaCoord == &flatCoord)
@@ -952,14 +953,14 @@ int CoordinateConverter::convertGeodeticToFlat_(const Coordinate &llaCoord, Coor
   // input lat and lon in radians, alt in meters, output values in meters
   if (system == COORD_SYS_NED)
   {
-    Vec3 llaPos(llaCoord.position());
-    //  (North East Down system)
+    const Vec3& llaPos(llaCoord.position());
+    // meters (North East Down system)
     // +X is North, Latitude is North-South
-    double x = angFixPI2(llaPos.lat() - referenceOrigin_.lat()) * latRadius_;
+    const double x = angFixPI(llaPos.lat() - referenceOrigin_.lat()) * latRadius_;
     // +Y is East, Longitude is East-West
-    double y = angFixPI(llaPos.lon() - referenceOrigin_.lon()) * lonRadius_;
+    const double y = angFixPI(llaPos.lon() - referenceOrigin_.lon()) * lonRadius_;
     // +Z is down, Altitude (+Z) is up
-    double z = -(llaPos.alt() - referenceOrigin_.alt());
+    const double z = -(llaPos.alt() - referenceOrigin_.alt());
 
     flatCoord.setPosition(x, y, z);
 
@@ -981,14 +982,14 @@ int CoordinateConverter::convertGeodeticToFlat_(const Coordinate &llaCoord, Coor
   }
   else if (system == COORD_SYS_ENU)
   {
-    Vec3 llaPos(llaCoord.position());
+    const Vec3& llaPos(llaCoord.position());
     // meters (East North Up system)
     // +X is East, Longitude is East-West
-    double x = angFixPI(llaPos.lon() - referenceOrigin_.lon()) * lonRadius_;
+    const double x = angFixPI(llaPos.lon() - referenceOrigin_.lon()) * lonRadius_;
     // +Y is North, Latitude is North-South
-    double y = angFixPI2(llaPos.lat() - referenceOrigin_.lat()) * latRadius_;
+    const double y = angFixPI(llaPos.lat() - referenceOrigin_.lat()) * latRadius_;
     // +Z is up, Altitude (+Z) is up
-    double z =  llaPos.alt() - referenceOrigin_.alt();
+    const double z = llaPos.alt() - referenceOrigin_.alt();
 
     flatCoord.setPosition(x, y, z);
 
@@ -1005,14 +1006,14 @@ int CoordinateConverter::convertGeodeticToFlat_(const Coordinate &llaCoord, Coor
   }
   else if (system == COORD_SYS_NWU)
   {
-    Vec3 llaPos(llaCoord.position());
+    const Vec3& llaPos(llaCoord.position());
     // meters (North West Up system)
     // +X is North, Latitude is North-South
-    double x =  angFixPI2(llaPos.lat() - referenceOrigin_.lat()) * latRadius_;
+    const double x = angFixPI(llaPos.lat() - referenceOrigin_.lat()) * latRadius_;
     // +Y is West, Longitude is East-West
-    double y = -angFixPI(llaPos.lon() - referenceOrigin_.lon()) * lonRadius_;
+    const double y = -angFixPI(llaPos.lon() - referenceOrigin_.lon()) * lonRadius_;
     // +Z is up, Altitude (+Z) is up
-    double z =   llaPos.alt() - referenceOrigin_.alt();
+    const double z = llaPos.alt() - referenceOrigin_.alt();
 
     flatCoord.setPosition(x, y, z);
 
@@ -1040,7 +1041,7 @@ int CoordinateConverter::convertGeodeticToFlat_(const Coordinate &llaCoord, Coor
 ///@param[out] llaCoord output
 ///@return 0 on success, !0 on failure
 ///@pre llaCoord valid, ref origin calculated, in coord is NED/NWU/ENU, llaCoord does not alias flatCoord
-int CoordinateConverter::convertFlatToGeodetic_(const Coordinate &flatCoord, Coordinate &llaCoord) const
+int CoordinateConverter::convertFlatToGeodetic_(const Coordinate& flatCoord, Coordinate& llaCoord) const
 {
   // Test for same input/output -- this function cannot handle case of llaCoord == flatCoord
   if (&llaCoord == &flatCoord)
@@ -1967,7 +1968,7 @@ void CoordinateConverter::convertEciEcef_(const Coordinate &inCoord, Coordinate 
   assert(inCoord.coordinateSystem() != outCoord.coordinateSystem());
   assert(&inCoord != &outCoord);
 
-  // if converting to eci to ecef, then rotation is negative
+  // if converting from eci to ecef, then rotation is negative
   const double rotationRate = (outCoord.coordinateSystem() == COORD_SYS_ECEF) ? -EARTH_ROTATION_RATE : EARTH_ROTATION_RATE;
   // z axis rotation of omega
   const double eciRotation = angFix2PI(rotationRate * inCoord.elapsedEciTime());
@@ -2130,28 +2131,39 @@ int CoordinateConverter::convertEcefToGeodeticPos(const Vec3 &ecefPos, Vec3 &lla
   const double Z = FUKUSHIMA_eP * fabs(ecefPos.z()) / WGS_A;
   double S = Z;
   double C = WGS_ESQC * PP;
+  double Cc = C * FUKUSHIMA_eP;
 
-  // iterative section, Halley's iterative formula
+  for (int i = 0; i < 2; ++i)
   {
-    const double A = sqrt(S * S + C * C);
-    const double B = 1.5 * WGS_ESQ * S * C * C * ((PP * S - Z * C) * A - WGS_ESQ * S * C);
-    const double D = Z * A * A * A + WGS_ESQ * S * S * S;
-    const double F = PP * A * A * A - WGS_ESQ * C * C * C;
-    S = D * F - B * S;
-    C = F * F - B * C;
-  }
-  // end
+    // iterative section, Halley's iterative formula
+    {
+      const double A = sqrt(S * S + C * C);
+      const double B = 1.5 * WGS_ESQ * S * C * C * ((PP * S - Z * C) * A - WGS_ESQ * S * C);
+      const double D = Z * A * A * A + WGS_ESQ * S * S * S;
+      const double F = PP * A * A * A - WGS_ESQ * C * C * C;
+      S = D * F - B * S;
+      C = F * F - B * C;
+    }
 
-  // C == 0 should be equivalent to x == 0 && y == 0, which is handled by polar/center-of-earth code above
-  if (C == 0.0)
-  {
-    assert(0);
-    return 1;
-  }
+    // C == 0 should be equivalent to x == 0 && y == 0, which is handled by polar/center-of-earth code above
+    if (C == 0.0)
+    {
+      assert(0);
+      return 1;
+    }
 
-  const double Cc = C * FUKUSHIMA_eP;
-  // it is believed that S/Cc is always positive and the angle returned is always first-quadrant
-  assert(S == 0.0 || sign(S) == sign(Cc));
+    Cc = C * FUKUSHIMA_eP;
+    if (S == 0.0 || sign(S) == sign(Cc))
+    {
+      // testing suggests that one iteration is sufficient for cases when
+      // S/Cc is positive and the atan(S / Cc) is first-quadrant.
+      break;
+    }
+    //else
+    // SIM-13615 provided test cases with points near center-of-earth
+    // where one-iteration condition was not met. testing suggests that
+    // 2 iterations produces an acceptable result in these cases.
+  }
   const double lat = sign(ecefPos.z()) * atan(S / Cc);
   const double num = Cc * p + fabs(ecefPos.z()) * S - WGS_B * (sqrt(C * C + S * S));
   const double den = sqrt(Cc * Cc + S * S);

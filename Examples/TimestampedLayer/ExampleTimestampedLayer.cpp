@@ -13,43 +13,52 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
 
+#include "osgDB/ReadFile"
 #include "osgEarth/Map"
 #include "osgEarth/MapNode"
 #include "osgEarth/VisibleLayer"
 #include "osgEarth/DateTime"
-#include "osgEarth/Controls"
 #include "simNotify/Notify.h"
 #include "simCore/Common/Version.h"
 #include "simVis/SceneManager.h"
 #include "simVis/Viewer.h"
 #include "simUtil/ExampleResources.h"
 
+#ifdef HAVE_IMGUI
+#include "BaseGui.h"
+#include "OsgImGuiHandler.h"
+#else
+#include "osgEarth/Controls"
 namespace ui = osgEarth::Util::Controls;
+#endif
 
 
 // Structure that holds all our application data.
 struct App
 {
   App()
-    : timeSlider_(NULL),
-      clockLabel_(NULL),
-      activeLayer_(NULL),
+    : activeLayer_(nullptr),
       firstTime_(INT_MAX),
       lastTime_(0),
       now_(0)
   {
   }
 
+#ifndef HAVE_IMGUI
   // UI controls
-  ui::HSliderControl* timeSlider_;
-  ui::LabelControl*   clockLabel_;
+  ui::HSliderControl* timeSlider_ = nullptr;
+  ui::LabelControl* clockLabel_ = nullptr;
+#endif
+
+  std::string timeLabel_;
 
   // Table that holds all timestamped layers, sorted by time:
   typedef std::map<osgEarth::TimeStamp, osg::ref_ptr<osgEarth::VisibleLayer> > LayerTable;
@@ -62,18 +71,23 @@ struct App
   osgEarth::TimeStamp firstTime_, lastTime_;
 
   // Current clock time.
-  double now_;
+  float now_;
 
   // Set a new clock time.
   void setTime(double t)
   {
     now_ = t;
-    timeSlider_->setValue(t, false);
 
     // If we had a DataStore, we could call dataStore->update(t) here.
 
     osgEarth::DateTime dt(t);
-    clockLabel_->setText(dt.asISO8601());
+
+    timeLabel_ = dt.asISO8601();
+
+#ifndef HAVE_IMGUI
+    timeSlider_->setValue(t, false);
+    clockLabel_->setText(timeLabel_);
+#endif
 
     // Make the appropriate layer visible.
     LayerTable::const_iterator i = layers_.lower_bound(t);
@@ -92,6 +106,48 @@ struct App
     }
   }
 };
+
+#ifdef HAVE_IMGUI
+
+class ControlPanel : public GUI::BaseGui
+{
+public:
+  explicit ControlPanel(App& app)
+    : GUI::BaseGui("Timestamped Layer Example"),
+    app_(app)
+  {
+  }
+
+  void draw(osg::RenderInfo& ri) override
+  {
+    ImGui::SetNextWindowPos(ImVec2(15, 15));
+    ImGui::SetNextWindowBgAlpha(.6f);
+    ImGui::Begin(name(), 0, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove);
+
+    if (ImGui::BeginTable("table", 2))
+    {
+      ImGui::TableNextColumn(); ImGui::Text("Time:"); ImGui::TableNextColumn(); ImGui::SetNextItemWidth(200.f);
+      // Min Range
+      float time = app_.now_;
+      ImGui::SliderFloat("##Time", &time, app_.firstTime_, app_.lastTime_, "", ImGuiSliderFlags_AlwaysClamp);
+      if (time != app_.now_)
+        app_.setTime(time);
+
+      ImGui::TableNextColumn(); ImGui::Text("Clock:"); ImGui::TableNextColumn();
+      if (!app_.timeLabel_.empty())
+        ImGui::Text(app_.timeLabel_.c_str());
+
+      ImGui::EndTable();
+    }
+
+    ImGui::End();
+  }
+
+private:
+  App& app_;
+};
+
+#else
 
 // Callback to set the current clock using the slider
 struct ChangeTime : public ui::ControlEventHandler
@@ -132,13 +188,15 @@ ui::Control* createUI(App& app)
   return grid;
 }
 
+#endif
+
 
 // Loads an earth file and installs its map in the viewer.
 bool loadEarthFile(const std::string& earthFile, simVis::Viewer* viewer)
 {
   osg::ref_ptr<osg::Node> node = osgDB::readNodeFile(earthFile);
   osgEarth::MapNode* mapNode = osgEarth::MapNode::get(node.get());
-  if (mapNode == NULL)
+  if (mapNode == nullptr)
     return false;
 
   viewer->setMapNode(mapNode);
@@ -240,8 +298,16 @@ int main(int argc, char** argv)
     return -1;
   }
 
+#ifdef HAVE_IMGUI
+  // Pass in existing realize operation as parent op, parent op will be called first
+  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
+  GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
+  viewer->getMainView()->getEventHandlers().push_front(gui);
+  gui->add(new ControlPanel(app));
+#else
   // Install the time slider UI:
   viewer->getMainView()->addOverlayControl(createUI(app));
+#endif
 
   // Set the initial time to the time of the first timestamped layer:
   app.setTime(app.firstTime_);

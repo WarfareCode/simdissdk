@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -245,7 +246,10 @@ void ClockImpl::setStartTime(const simCore::TimeStamp& timeVal)
   else
     beginTime_ = timeVal;
   notifyBoundsChange_(startTime(), endTime());
-  setTime(clamp_(currentTime()));
+  // Check for time change
+  auto clampedTime = clamp_(currentTime());
+  if (clampedTime != currentTime())
+    setTime(clampedTime);
 }
 
 void ClockImpl::setEndTime(const simCore::TimeStamp& timeVal)
@@ -261,7 +265,10 @@ void ClockImpl::setEndTime(const simCore::TimeStamp& timeVal)
   else
     endTime_ = timeVal;
   notifyBoundsChange_(startTime(), endTime());
-  setTime(clamp_(currentTime()));
+  // Check for time change
+  auto clampedTime = clamp_(currentTime());
+  if (clampedTime != currentTime())
+    setTime(clampedTime);
 }
 
 void ClockImpl::setCanLoop(bool fl)
@@ -317,6 +324,8 @@ void ClockImpl::setMode(Clock::Mode newMode, const simCore::TimeStamp& liveStart
     setStartTime(liveStartTime);
     setEndTime(liveStartTime);
     setTime(liveStartTime);
+    // SIM-12714 - force scale to 1 when entering MODE_FREEWHEEL
+    realScale_ = 1.0;
     playForward();
   }
   else if (newMode == Clock::MODE_SIMULATION)
@@ -736,8 +745,11 @@ public:
 
   virtual void onModeChange(Clock::Mode newMode)
   {
-    // Dev error, should always be in Live Mode
-    assert(false);
+    // Dev error, should always be in File Mode
+    assert((newMode != MODE_FREEWHEEL) && (newMode != MODE_SIMULATION));
+
+    if (!parent_.lockToDataClock_)
+      parent_.notifyModeChange_(newMode);
   }
 
   virtual void onDirectionChange(simCore::TimeDirection newDirection)
@@ -825,11 +837,14 @@ void VisualizationClock::setLockedToDataClock(bool lock)
 
     lockToDataClock_ = lock;
 
-    localClock_->setTime(dataClock_.currentTime());
     localClock_->setStartTime(dataClock_.startTime());
     localClock_->setEndTime(dataClock_.endTime());
+    localClock_->setTime(dataClock_.currentTime());
     localClock_->setControlsDisabled(false);
   }
+
+  for (auto observer : visClockObservers_)
+    observer->onLockChanged(lockToDataClock_);
 }
 
 bool VisualizationClock::isLockedToDataClock() const
@@ -1065,11 +1080,34 @@ void VisualizationClock::increaseScale()
     localClock_->increaseScale();
 }
 
+void VisualizationClock::registerModeChangeCallback(Clock::ModeChangeObserverPtr p)
+{
+  ClockWithObservers::registerModeChangeCallback(p);
+  auto replayPtr = std::dynamic_pointer_cast<VisualizationClockObserver>(p);
+  if (replayPtr != nullptr)
+  {
+    auto i = std::find(visClockObservers_.begin(), visClockObservers_.end(), p);
+    if (i == visClockObservers_.end())
+      visClockObservers_.push_back(replayPtr);
+  }
+}
+
+void VisualizationClock::removeModeChangeCallback(Clock::ModeChangeObserverPtr p)
+{
+  ClockWithObservers::removeModeChangeCallback(p);
+  auto replayPtr = std::dynamic_pointer_cast<VisualizationClockObserver>(p);
+  if (replayPtr != nullptr)
+  {
+    auto i = std::find(visClockObservers_.begin(), visClockObservers_.end(), replayPtr);
+    if (i != visClockObservers_.end())
+      visClockObservers_.erase(i);
+  }
+}
+
 void VisualizationClock::idle()
 {
   if (!lockToDataClock_)
     localClock_->idle();
-  //TODO: SIM-10602 I don't think we want to call dataClock_.idle() here
 }
 
 }

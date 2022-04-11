@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -218,6 +219,9 @@ std::string getAngleString(double radianAngle, GeodeticFormat format, bool allNu
       }
     }
 
+    // degreeAngle was floor() above so just checking for 360 is OK
+    if (degreeAngle == 360.0)
+      degreeAngle = 0.0;
     degreeAngle = (negative && printNegativeSign) ? -degreeAngle : degreeAngle;
 
     std::stringstream strDeg;
@@ -257,6 +261,9 @@ std::string getAngleString(double radianAngle, GeodeticFormat format, bool allNu
       }
     }
 
+    // degreeAngle was floor() above so just checking for 360 is OK
+    if (degreeAngle == 360.0)
+      degreeAngle = 0.0;
     degreeAngle = (negative && printNegativeSign) ? -degreeAngle : degreeAngle;
 
     std::stringstream strDeg;
@@ -285,6 +292,9 @@ std::string getAngleString(double radianAngle, GeodeticFormat format, bool allNu
   case FMT_DEGREES:
   default:
   {
+    const double rounding = 5.0 / pow(10.0, precision + 1.0);
+    if ((degreeAngle + rounding > 360.0) || simCore::areEqual(degreeAngle + rounding, 360.0))
+      degreeAngle = 0.0;
     degreeAngle = (negative && printNegativeSign) ? -degreeAngle : degreeAngle;
     std::stringstream str;
     str.setf(std::ios::fixed, std::ios::floatfield);

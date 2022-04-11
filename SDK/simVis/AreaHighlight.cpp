@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -256,13 +257,12 @@ void LineDrawableHighlightNode::init_()
   osg::StateSet* stateSet = getOrCreateStateSet();
   // Disable lighting
   simVis::setLighting(stateSet, osg::StateAttribute::OFF);
-  // Places the highlight in a low-priority bin, and turn off depth writes to prevent it from covering other models
+  // Places the highlight in a low-priority bin
   stateSet->setRenderBinDetails(BIN_AREA_HIGHLIGHT, BIN_GLOBAL_SIMSDK);
-  stateSet->setAttributeAndModes(new osg::Depth(osg::Depth::LESS, 0, 1, false));
-  // Tells OpenGL to use the default blend function
+  // Protect depth changes, since Overhead Mode does OVERRIDE on an osg::Depth.  Turn off depth read/writes
+  // since this appears on the overlay and shouldn't be obscured.
+  stateSet->setMode(GL_DEPTH_TEST, osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
   stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
-  // Turn off backface culling
-  stateSet->setMode(GL_CULL_FACE, osg::StateAttribute::OFF);
 
   // Billboard the shape
   billboard_ = new osg::AutoTransform();
@@ -421,7 +421,7 @@ void CompositeHighlightNode::setShape(simData::CircleHilightShape shape)
 
   // Clear out child_, but hold onto it for the scope of this function
   osg::ref_ptr<HighlightNode> oldNode = child_;
-  child_ = NULL;
+  child_ = nullptr;
 
   // Most types are line geometry; try to cast up to avoid deleting
   LineDrawableHighlightNode* asLineDrawable = dynamic_cast<LineDrawableHighlightNode*>(oldNode.get());

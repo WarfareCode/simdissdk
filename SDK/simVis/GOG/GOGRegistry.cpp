@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,9 +31,11 @@
 #include "simVis/GOG/GOGNode.h"
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/Hemisphere.h"
+#include "simVis/GOG/ImageOverlay.h"
 #include "simVis/GOG/LatLonAltBox.h"
 #include "simVis/GOG/Line.h"
 #include "simVis/GOG/LineSegs.h"
+#include "simVis/GOG/Orbit.h"
 #include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Points.h"
 #include "simVis/GOG/Polygon.h"
@@ -40,6 +43,7 @@
 #include "simVis/GOG/Utils.h"
 #include "simVis/GOG/GOGRegistry.h"
 
+#undef LC
 #define LC "[GOG::GOGRegistry] "
 
 namespace simVis { namespace GOG {
@@ -83,6 +87,8 @@ GOGRegistry::GOGRegistry(osgEarth::MapNode* mapNode)
   add("polygon",      new SF<Polygon>());
   add("points",       new SF<Points>());
   add("sphere",       new SF<Sphere>());
+  add("imageoverlay", new SF<ImageOverlay>());
+  add("orbit",        new SF<Orbit>());
 }
 
 GOGRegistry::GOGRegistry(const GOGRegistry& rhs)
@@ -101,14 +107,14 @@ GogNodeInterface* GOGRegistry::createGOG(const ParsedShape& parsedShape, const G
   const osgEarth::Style& overrideStyle, const GOGContext& context, const GogMetaData& metaData,
   GogFollowData& followData) const
 {
-  GogNodeInterface* result = NULL;
+  GogNodeInterface* result = nullptr;
   std::string key = osgEarth::toLower(parsedShape.shape());
 
   // don't allow attached GOGs with absolute values
   if (nodeType == GOGNODE_HOSTED && parsedShape.hasValue(GOG_ABSOLUTE))
   {
     SIM_WARN << "Attempting to load attached GOG with absolute points\n";
-    return NULL;
+    return nullptr;
   }
   DeserializerTable::const_iterator i = deserializers_.find(key);
   if (i != deserializers_.end())

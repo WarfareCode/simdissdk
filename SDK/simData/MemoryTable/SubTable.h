@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -51,7 +52,7 @@ class SDKDATA_EXPORT SubTable
 {
 public:
   /// Creates a sub table using the time container strategy provided
-  SubTable(TimeContainer* newTimeContainer);
+  SubTable(TimeContainer* newTimeContainer, TableId tableId);
   virtual ~SubTable();
 
   /** Number of rows in the time container of this subtable */
@@ -139,7 +140,10 @@ public:
   /**
    * Removes all rows from the subtable.
    */
-  simData::DelayedFlushContainerPtr flush();
+  simData::DelayedFlushContainerPtr flush(TableColumnId id = -1, SplitObserverPtr splitObserver = SplitObserverPtr());
+
+  /** Remove rows in the given time range; up to but not including endTime */
+  void flush(double startTime, double endTime);
 
   /** Performs data limiting */
   void limitData(size_t maxPoints, double latestInvalidTime, DataTable* table, const std::vector<DataTable::TableObserverPtr>& observers);
@@ -196,16 +200,20 @@ private:
   std::map<TableColumnId, DataColumn*> columnMap_;
   /// Orders the time values and deque contents
   TimeContainer* timeContainer_;
+  /// Owning Table ID, specified on construction
+  TableId tableId_;
 
   /// Initializes a subtable using the columns provided, with our time map (minus "withoutTimeStamp")
-  SubTable(const TimeContainer& copyTimes, const std::vector<DataColumn*>& withColumns, double withoutTimeStamp);
+  SubTable(const TimeContainer& copyTimes, const std::vector<DataColumn*>& withColumns, double withoutTimeStamp, TableId tableId);
 
-  /// Finds a column based on ID, returning NULL if none
+  /// Finds a column based on ID, returning nullptr if none
   DataColumn* findColumn_(TableColumnId columnId) const;
   /// Removes but does not delete, used in splits to maintain null-less table
   TableStatus removeColumn_(TableColumnId columnId);
   /// Fills a row with our contents (but does not set the time), at the specified time
   void fillRow_(const TimeContainer::IteratorData& timeIdxData, TableRow& row) const;
+  /// Takes ownership of a previously existing column
+  void takeColumn_(DataColumn* column);
 };
 
 } }

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -82,6 +83,38 @@ namespace simCore
   T sdkMin(const T &a, const T& b)
   {
     return (a < b) ? a : b;
+  }
+
+  /**
+  * Return a value that is clamped between the inclusive range [a,b].  operator< must be defined for T.
+  * Order of parameters a and b do not matter; this method works for a < b and b < a.
+  * @param[in ] value Value to clamp
+  * @param[in ] a First side of the inclusive range inside which to clamp
+  * @param[in ] b Second side of the inclusive range inside which to clamp
+  * @return value clamped between range [a,b]
+  */
+  template<typename T>
+  T clamp(T value, T a, T b)
+  {
+    return a < b ?
+      ((value < a) ? a : (b < value) ? b : value) :
+      ((value < b) ? b : (a < value) ? a : value);
+  }
+
+  /**
+  * Return true if value is an inclusive range [a,b].  operator< must be defined for T.
+  * Order of parameters a and b do not matter; this method works for a < b and b < a.
+  * @param[in ] value Value to test
+  * @param[in ] a First side of the inclusive range inside which to test for inclusion
+  * @param[in ] b Second side of the inclusive range inside which to test for inclusion
+  * @return True if value is inside the range [a,b].
+  */
+  template<typename T>
+  bool isBetween(T value, T a, T b)
+  {
+    return a < b ?
+      (!(value < a) && !(b < value)) :
+      (!(value < b) && !(a < value));
   }
 
   /**
@@ -199,7 +232,7 @@ namespace simCore
    * Breaks up value into a mantissa (or significand) and exponent value, for base 10
    * values.  Returns mantissa such that mantissa * pow(10.0, exp) == value.
    * @param value Argument to represent in scientific notation.
-   * @param exp If non-NULL, will receive the exponent portion of the value.
+   * @param exp If not nullptr, will receive the exponent portion of the value.
    * @return Mantissa value.  Will be 0.0 for input of 0.0.  Otherwise, is a value with
    *   an absolute value between [+1.0, +10.0) with a sign set appropriately.  Negative
    *   input values result in a negative return value.
@@ -500,6 +533,25 @@ namespace simCore
   * @pre quaternion valid
   */
   SDKCORE_EXPORT void d3QtoEuler(const double q[4], Vec3 &ea);
+
+  /**
+   * Given a number and number of digits of significance, returns a number X, such that [floor|ceil](num * 10^X) / 10^X
+   * will have "precision" significant digits.  This value is useful for rounding ranges to round numbers, and is used
+   * by simCore::roundRanges() to generate bounds relevant and near to the input values.
+   * @param num Number to do the function on
+   * @param significance Number of digits of significance desired, post-formula (1200 = 2 digits, 500 = 1 digit, 0.0304 = 3 digits)
+   * @return X, so that [floor|ceil](num * 10^X) / 10^X will have the desired significance
+   */
+  SDKCORE_EXPORT int getPowerOfTenForSignificance(double num, unsigned int significance);
+
+  /**
+   * Performs a "round ranges" on the given values.  Given an input range value, generates
+   * a pair of rounded ranges that encompasses the values.  For example, providing ranges
+   * [0.5, 19.7] might round up to [0.0, 20.0].
+   * @param[inout] minValue Minimum value for the new range
+   * @param[inout] maxValue Maximum value for the new range
+   */
+  SDKCORE_EXPORT void roundRanges(double& minValue, double& maxValue);
 
 } // End of namespace simCore
 

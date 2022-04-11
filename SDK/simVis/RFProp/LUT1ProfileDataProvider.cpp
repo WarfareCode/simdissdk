@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -60,7 +61,7 @@ LUT1ProfileDataProvider::LUT1ProfileDataProvider(simCore::LUT::LUT1<short> *lut,
 {
   // LUT1ProfileDataProvider is taking ownership of the lut
   assert(lut);
-  if (lut == NULL)
+  if (lut == nullptr)
   {
     SIM_ERROR << "Attempting to assign a NULL LUT to the LUT1ProfileDataProvider" << std::endl;
   }
@@ -72,7 +73,7 @@ LUT1ProfileDataProvider::LUT1ProfileDataProvider(simCore::LUT::LUT1<short> *lut,
 {
   // LUT1ProfileDataProvider is taking ownership of the lut
   assert(lut);
-  if (lut == NULL)
+  if (lut == nullptr)
   {
     SIM_ERROR << "Attempting to assign a NULL LUT to the LUT1ProfileDataProvider" << std::endl;
   }

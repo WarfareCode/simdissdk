@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -121,18 +122,6 @@ public:
   */
   int getFocusActions() const;
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  /**
-  * @deprecated
-  * Sets the mode for allowing/not allowing for the creation of a inset.
-  * @param add True mean allow for the adding of an inset
-  */
-  SDK_DEPRECATE(void setAddInsetMode(bool add), "Use simVis::CreateInsetEventHandler instead.");
-
-  /** @deprecated  Returns true when Add-Insert mode is active. */
-  SDK_DEPRECATE(bool isAddInsetMode() const, "Use simVis::CreateInsetEventHandler instead.");
-#endif
-
   // osgGA::GUIEventHandler
 
   /** Manages dragging for creating insets using the mouse */
@@ -152,10 +141,6 @@ private:
   osg::observer_ptr<simVis::View> host_;
   osg::ref_ptr<osgGA::GUIEventHandler> focusDetector_;
   osg::ref_ptr<ViewManager::Callback> viewListener_;
-
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  osg::ref_ptr<CreateInsetEventHandler> createInset_;
-#endif
 
   /** Adds the listener to any views as required */
   void ensureViewListenerInstalled_();

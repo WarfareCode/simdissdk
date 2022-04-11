@@ -1,28 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling and Simulation, Code 5770
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* For more information please send email to simdis@enews.nrl.navy.mil
-*
-* U.S. Naval Research Laboratory.
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-****************************************************************************
-*
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <cassert>
 #include <set>
 #include "simCore/String/Format.h"
@@ -245,30 +242,30 @@ void UnitsComboBox::addUnitsItem_(QComboBox& comboBox, const simCore::Units& uni
 
 UnitsSelectorComboBox::UnitsSelectorComboBox(QWidget* parent)
   : QComboBox(parent),
-    registry_(NULL),
+    registry_(nullptr),
     registryOwned_(true)
 {
-  setUnitsRegistry(NULL);
+  setUnitsRegistry(nullptr);
   connect(this, SIGNAL(currentIndexChanged(int)), this, SLOT(emitUnitsOnCurrentChange_(int)));
 }
 
 void UnitsSelectorComboBox::setUnitsRegistry(const simCore::UnitsRegistry* registry)
 {
-  if (registry != NULL && registry == registry_)
+  if (registry != nullptr && registry == registry_)
     return;
 
   if (registryOwned_)
     delete registry_;
-  registry_ = NULL;
+  registry_ = nullptr;
 
-  if (registry != NULL)
+  if (registry != nullptr)
   {
     registry_ = registry;
     registryOwned_ = false;
     return;
   }
 
-  // Always have a non-NULL units registry
+  // Always have a non-nullptr units registry
   simCore::UnitsRegistry* nonConst = new simCore::UnitsRegistry;
   nonConst->registerDefaultUnits();
   registry_ = nonConst;

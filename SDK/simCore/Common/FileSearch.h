@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -26,6 +27,7 @@
 #include <memory>
 #include <string>
 #include <fstream>
+#include "simCore/String/UtfUtils.h"
 
 namespace simCore
 {
@@ -74,7 +76,7 @@ namespace simCore
     virtual std::string findFile(const std::string& filename, SearchFileType type)
     {
       // Attempt to load the file as-is
-      std::fstream ifs(filename.c_str(), std::ios::in);
+      std::fstream ifs(simCore::streamFixUtf8(filename), std::ios::in);
       if (ifs.good())
         return filename;
       return "";

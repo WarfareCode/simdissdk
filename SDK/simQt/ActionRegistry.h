@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,11 +23,12 @@
 #ifndef SIMQT_ACTIONREGISTRY_H
 #define SIMQT_ACTIONREGISTRY_H
 
-#include <QObject>
-#include <QString>
+#include <QKeySequence>
 #include <QList>
 #include <QMap>
-#include <QKeySequence>
+#include <QObject>
+#include <QPointer>
+#include <QString>
 #include "simCore/Common/Common.h"
 
 class QAction;
@@ -44,7 +46,7 @@ class ToolTipUpdater : public QObject
 {
   Q_OBJECT
 public:
-  explicit ToolTipUpdater(QObject* parent = NULL);
+  explicit ToolTipUpdater(QObject* parent = nullptr);
 public slots:
   /** Add an action to the list of actions waiting to have their tool tip updated. */
   void addPending(simQt::Action* action);
@@ -94,7 +96,7 @@ private:
   ActionRegistry* registry_;
   QString group_;
   QString description_;
-  QAction* action_;
+  QPointer<QAction> action_;
 };
 
 /// Manager for all registered actions

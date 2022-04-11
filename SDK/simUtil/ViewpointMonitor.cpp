@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -110,10 +111,10 @@ void EyePositionState::fillFromView_(simVis::View* view)
 {
   view_ = view;
 
-  if (view_ == NULL)
+  if (view_ == nullptr)
   {
-    tetherNode_ = NULL;
-    watchedNode_ = NULL;
+    tetherNode_ = nullptr;
+    watchedNode_ = nullptr;
     isTethered_ = false;
     isWatching_ = false;
     isOverheadMode_ = false;
@@ -135,7 +136,7 @@ void EyePositionState::fillFromView_(simVis::View* view)
   isWatching_ = watchedNode_.valid();
 
   // If watching, then the tether node returned from view may be wrong (it may be
-  // NULL due to how Watch is implemented).  Return instead the watcher node.
+  // nullptr due to how Watch is implemented).  Return instead the watcher node.
   if (isWatching_)
   {
     isTethered_ = true;
@@ -144,13 +145,13 @@ void EyePositionState::fillFromView_(simVis::View* view)
 
   // Tether mode comes from the Earth Manipulator
   const osgEarth::Util::EarthManipulator* manip = dynamic_cast<const osgEarth::Util::EarthManipulator*>(view_->getCameraManipulator());
-  if (manip == NULL || manip->getSettings() == NULL)
+  if (manip == nullptr || manip->getSettings() == nullptr)
     tetherMode_ = osgEarth::Util::EarthManipulator::TETHER_CENTER;
   else
     tetherMode_ = manip->getSettings()->getTetherMode();
   // Lock settings come from the simVis::EarthManipulator
   const simVis::EarthManipulator* svManip = dynamic_cast<const simVis::EarthManipulator*>(manip);
-  if (svManip == NULL)
+  if (svManip == nullptr)
     headingLocked_ = pitchLocked_ = false;
   else
   {
@@ -165,7 +166,7 @@ void EyePositionState::fillFromView_(simVis::View* view)
   // Pull out az/el from the manipulator directly
   double azToEye = 0.0;
   double elToEye = 0.0;
-  if (manip != NULL)
+  if (manip != nullptr)
     manip->getCompositeEulerAngles(&azToEye, &elToEye);
   else
   {
@@ -278,7 +279,7 @@ ViewpointMonitor::ViewpointMonitor(simVis::View* mainView)
 
   // Initialize all the view eye position states
   simVis::ViewManager* viewManager = mainView_->getViewManager();
-  if (viewManager != NULL)
+  if (viewManager != nullptr)
   {
     // Add an observer so we know when views are added or removed
     viewManager->addCallback(viewManagerObserver_.get());
@@ -320,7 +321,7 @@ const EyePositionState* ViewpointMonitor::eyePositionState(simVis::View* view) c
 {
   std::map<simVis::View*, EyePositionState*>::const_iterator i = eyeStates_.find(view);
   if (i == eyeStates_.end())
-    return NULL;
+    return nullptr;
   return i->second;
 }
 

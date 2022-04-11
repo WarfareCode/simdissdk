@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -43,7 +44,7 @@ namespace simVis
 
     virtual osg::Object* cloneType() const { return new Text(); }
     virtual osg::Object* clone(const osg::CopyOp& copyop) const { return new Text(*this,copyop); }
-    virtual bool isSameKindAs(const osg::Object* obj) const { return dynamic_cast<const Text*>(obj)!=NULL; }
+    virtual bool isSameKindAs(const osg::Object* obj) const { return dynamic_cast<const Text*>(obj)!=nullptr; }
     virtual const char* className() const { return "Text"; }
     virtual const char* libraryName() const { return "simVis"; }
 

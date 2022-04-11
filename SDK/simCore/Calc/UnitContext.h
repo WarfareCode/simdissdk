@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -65,7 +66,7 @@ public:
   virtual MagneticVariance magneticVariance() const = 0;
   virtual VerticalDatum verticalDatum() const = 0;
   virtual int referenceYear() const = 0;
-  /** Note that return value may be NULL */
+  /** Note that return value may be nullptr */
   virtual simCore::DatumConvertPtr datumConvert() const = 0;
   ///@}
 

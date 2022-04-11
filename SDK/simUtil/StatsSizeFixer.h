@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -100,7 +101,7 @@ private:
     static const double STATS_HEIGHT = 1024;
 
     osg::Camera* camera = stats_->getCamera();
-    if (camera->getGraphicsContext() == NULL)
+    if (camera->getGraphicsContext() == nullptr)
       return;
     camera->setProjectionMatrixAsOrtho2D(0, windowWidth / sizeMultiplier_,
       STATS_HEIGHT - windowHeight * SCREEN_RATIO / sizeMultiplier_, STATS_HEIGHT);

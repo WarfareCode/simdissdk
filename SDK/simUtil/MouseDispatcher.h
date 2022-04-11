@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #ifndef SIMUTIL_MOUSEDISPATCHER_H
 #define SIMUTIL_MOUSEDISPATCHER_H
 
@@ -66,9 +67,9 @@ public:
 
   /** Activates a single exclusive manipulator, deactivating all other mutually exclusive manipulators. */
   int activateExclusive(MouseManipulatorPtr manipulator);
-  /** Deactivates an exclusive manipulator.  If it was active, then the active exclusive manipulator is set to NULL. */
+  /** Deactivates an exclusive manipulator.  If it was active, then the active exclusive manipulator is set to nullptr. */
   int deactivateExclusive(MouseManipulatorPtr manipulator);
-  /** Retrieves the currently active exclusive manipulator; might be NULL */
+  /** Retrieves the currently active exclusive manipulator; might be nullptr */
   MouseManipulatorPtr activeExclusiveManipulator() const;
 
   /** Observable events on the Mouse Dispatcher */
@@ -76,7 +77,7 @@ public:
   {
   public:
     virtual ~Observer() {}
-    /** Manipulator has changed.  May be NULL. */
+    /** Manipulator has changed.  May be nullptr. */
     virtual void activeExclusiveManipulatorChanged(MouseManipulatorPtr active, MouseManipulatorPtr oldActive) = 0;
   };
 

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -109,7 +110,7 @@ MainWindow::MainWindow(QWidget *parent, simData::DataStore* dataStore) : QDialog
   connect(mainWindowGui_->deleteButton, SIGNAL(clicked()), this, SLOT(delete_()));
   connect(mainWindowGui_->renameButton, SIGNAL(clicked()), this, SLOT(rename_()));
 
-  entityTreeModel_ = new simQt::EntityTreeModel(NULL, dataStore_);
+  entityTreeModel_ = new simQt::EntityTreeModel(nullptr, dataStore_);
   entityTreeModel_->setToListView();
   mainWindowGui_->entityLine->setModel(entityTreeModel_, simData::PLATFORM);
   connect(mainWindowGui_->entityLine, SIGNAL(itemSelected(uint64_t)), this, SLOT(itemSelected_(uint64_t)));
@@ -121,7 +122,7 @@ void MainWindow::itemSelected_(uint64_t id)
 
 MainWindow::~MainWindow()
 {
-  mainWindowGui_->entityLine->setModel(NULL, simData::PLATFORM);
+  mainWindowGui_->entityLine->setModel(nullptr, simData::PLATFORM);
   delete mainWindowGui_;
   delete entityTreeModel_;
 }
@@ -170,7 +171,7 @@ int main(int argc, char* argv[])
   QApplication app(argc, argv);
 
   simData::MemoryDataStore* dataStore = new simData::MemoryDataStore();
-  MainWindow* window = new MainWindow(NULL, dataStore);
+  MainWindow* window = new MainWindow(nullptr, dataStore);
   window->show();
 
   int rv = app.exec();

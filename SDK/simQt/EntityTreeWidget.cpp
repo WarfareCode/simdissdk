@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,10 +23,12 @@
 
 #include <cassert>
 #include <set>
+#include <QHeaderView>
 #include <QSortFilterProxyModel>
 #include <QTreeWidget>
 #include <QTimer>
 #include "simNotify/Notify.h"
+#include "simCore/Time/Utils.h"
 #include "simQt/ScopedSignalBlocker.h"
 #include "simQt/AbstractEntityTreeModel.h"
 #include "simQt/EntityTreeWidget.h"
@@ -55,12 +58,14 @@ private:
 EntityTreeWidget::EntityTreeWidget(QTreeView* view)
   : QObject(view),
     view_(view),
-    model_(NULL),
-    proxyModel_(NULL),
+    model_(nullptr),
+    proxyModel_(nullptr),
     settings_(SettingsPtr()),
     treeView_(false),
     pendingSendNumItems_(false),
-    emitSelectionChanged_(true)
+    processSelectionModelSignals_(true),
+    countEntityTypes_(simData::ALL),
+    lastSelectionChangedTime_(0.0)
 {
   proxyModel_ = new simQt::EntityProxyModel(this);
   proxyModel_->setDynamicSortFilter(true);
@@ -69,6 +74,10 @@ EntityTreeWidget::EntityTreeWidget(QTreeView* view)
   view_->sortByColumn(0, Qt::AscendingOrder);
   view_->setIndentation(4);  // The default indentation for a list view
 
+  emitItemsSelectedTimer_ = new QTimer(this);
+  emitItemsSelectedTimer_->setSingleShot(true);
+  emitItemsSelectedTimer_->setInterval(0); // instant, when event loop picks up
+
   connect(proxyModel_, SIGNAL(modelReset()), this, SLOT(selectionCleared_()));
   connect(proxyModel_, SIGNAL(modelReset()), this, SLOT(sendNumFilteredItems_()));
   connect(proxyModel_, SIGNAL(rowsInserted(QModelIndex, int, int)), this, SLOT(delaySend_()));
@@ -76,6 +85,7 @@ EntityTreeWidget::EntityTreeWidget(QTreeView* view)
   connect(proxyModel_, SIGNAL(filterSettingsChanged(QMap<QString, QVariant>)), this, SIGNAL(filterSettingsChanged(QMap<QString, QVariant>))); // Echo out the signal
   connect(view_->selectionModel(), SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)), this, SLOT(selectionChanged_(const QItemSelection&, const QItemSelection&)));
   connect(view_, SIGNAL(doubleClicked(const QModelIndex&)), this, SLOT(doubleClicked_(const QModelIndex&)));
+  connect(emitItemsSelectedTimer_, SIGNAL(timeout()), this, SLOT(emitItemsSelected_()));
 }
 
 EntityTreeWidget::~EntityTreeWidget()
@@ -103,17 +113,27 @@ QList<QWidget*> EntityTreeWidget::filterWidgets(QWidget* newWidgetParent) const
 
 void EntityTreeWidget::setModel(AbstractEntityTreeModel* model)
 {
-  if (model_ != NULL)
-  {
-    disconnect(model_, SIGNAL(rowsInserted(QModelIndex, int, int)), this, SLOT(delaySend_()));
-    disconnect(model_, SIGNAL(rowsRemoved(QModelIndex, int, int)), this, SLOT(delaySend_()));
-  }
+  if (model_ != nullptr)
+    disconnect(model_, nullptr, this, nullptr);
 
   model_ = model;
-  proxyModel_->setSourceModel(model_);
 
   connect(model_, SIGNAL(rowsInserted(QModelIndex, int, int)), this, SLOT(delaySend_()));
   connect(model_, SIGNAL(rowsRemoved(QModelIndex, int, int)), this, SLOT(delaySend_()));
+
+  connect(model_, SIGNAL(rowsAboutToBeInserted(QModelIndex, int, int)), this, SLOT(captureVisible_()));
+  connect(model_, SIGNAL(rowsAboutToBeRemoved(QModelIndex, int, int)), this, SLOT(captureVisible_()));
+  connect(model_, SIGNAL(rowsAboutToBeMoved(QModelIndex, int, int, QModelIndex, int)), this, SLOT(captureVisible_()));
+  /** Handle rename, since there is only one signal the slot needs to handle both capture and keep */
+  connect(model_, SIGNAL(dataChanged(QModelIndex, QModelIndex, QVector<int>)), this, SLOT(captureAndKeepVisible_()));
+
+  proxyModel_->setSourceModel(model_);
+
+  // Need to allow the view to update before checking if the selected item is still visible
+  auto keepVisibleOnTimer = [this]() { QTimer::singleShot(10, this, SLOT(keepVisible_())); };
+  connect(model_, &QAbstractItemModel::rowsInserted, this, keepVisibleOnTimer);
+  connect(model_, &QAbstractItemModel::rowsRemoved, this, keepVisibleOnTimer);
+  connect(model_, &QAbstractItemModel::rowsMoved, this, keepVisibleOnTimer);
 
   // new model set, update from our settings
   if (settings_)
@@ -129,6 +149,66 @@ void EntityTreeWidget::setModel(AbstractEntityTreeModel* model)
   view_->setColumnWidth(2, 45);
 }
 
+void EntityTreeWidget::captureAndKeepVisible_()
+{
+  /** There is no before or after signal for rename, just dataChanged.  Need to capture before the proxy and keep after everyone */
+  captureVisible_();
+  if (!setVisible_.empty())
+    QTimer::singleShot(10, this, SLOT(keepVisible_()));
+}
+
+void EntityTreeWidget::captureVisible_()
+{
+  // Temporary structure to sort the selected items by vertical location in the list
+  struct Entry
+  {
+    QRect rect;
+    QModelIndex index;
+    Entry(const QRect& inRect, const QModelIndex& inIndex)
+      : rect(inRect),
+        index(inIndex)
+    {}
+
+    bool operator<(const Entry& a) const
+    {
+      return rect.top() < a.rect.top();
+    }
+  };
+
+  std::vector<Entry> entries;
+  for (const auto& index : view_->selectionModel()->selectedRows())
+  {
+    auto rect = view_->visualRect(index);
+    // Contrary to the documentation, rect is not invalid if index is not visible.  Manually check if the index is visible.
+    auto height = view_->height() - view_->header()->height();
+    if (!rect.isValid() || (rect.bottom() < 0)  || (rect.top() > height))
+      continue;
+
+    entries.push_back(Entry(rect, index));
+  }
+
+  std::sort(entries.begin(), entries.end());
+  for (const auto& entry : entries)
+    setVisible_.push_back(model_->uniqueId(proxyModel_->mapToSource(entry.index)));
+}
+
+void EntityTreeWidget::keepVisible_()
+{
+  for (auto id : setVisible_)
+  {
+    auto index = proxyModel_->mapFromSource(model_->index(id));
+
+    // if the entity was deleted, continue to the next one
+    if (!index.isValid())
+      continue;
+
+    view_->scrollTo(index);
+    break;
+  }
+
+  setVisible_.clear();
+}
+
 void EntityTreeWidget::clearSelection()
 {
   // Since the world is telling us to change the selection, we do not need to tell the world the selection has changed.
@@ -138,79 +218,16 @@ void EntityTreeWidget::clearSelection()
   selectionSet_.clear();
 }
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-void EntityTreeWidget::setSelected(uint64_t id, bool selected, bool signalItemsSelected)
-{
-  if (model_ == NULL)
-    return;
-
-  // Pull out the index from the proxy
-  QModelIndex index = proxyModel_->mapFromSource(model_->index(id));
-  // If it's invalid, break out
-  if (index == QModelIndex())
-  {
-    // Make sure the item is not in the selection list (can happen in swap to tree list if
-    // a gate was selected and beams were filtered)
-    if (selectionSet_.remove(id))
-      selectionList_.removeOne(id);
-    return;
-  }
-
-  // If the item is already selected/deselected, then ignore the request
-  if (view_->selectionModel()->isSelected(index) == selected)
-  {
-    // Validate that our cache is consistent with this request
-    assert(selectionSet_.contains(id) == selected);
-    return;
-  }
-
-  // For internal consistency, update the selection_ cache BEFORE changing selection
-  if (selected)
-  {
-    // It's possible that this check could fail if swapping between tree and list, because
-    // in some cases signals can be blocked and we don't get the update on selections
-    if (!selectionSet_.contains(id))
-    {
-      selectionSet_.insert(id);
-      selectionList_.append(id);
-    }
-  }
-  else
-  {
-    // Assertion failure means the model thinks we had a selection, but we didn't cache it
-    assert(selectionSet_.contains(id));
-    // Only remove from list, if remove from set succeeds
-    if (selectionSet_.remove(id))
-      selectionList_.removeOne(id);
-  }
-  // Update our flag to match the signalItemsSelected flag. Do this so that selectionModel()->select()
-  // properly tells the view_ to update graphically, but so that we don't unnecessarily update in selectionChanged_()
-  emitSelectionChanged_ = signalItemsSelected;
-  // Update the selection
-  QItemSelectionModel::SelectionFlags flags = QItemSelectionModel::Rows | (selected ? QItemSelectionModel::Select : QItemSelectionModel::Deselect);
-  view_->selectionModel()->select(index, flags);
-  view_->selectionModel()->setCurrentIndex(index, flags);
-  // Restore the flag to true, so that single selections work as expected
-  emitSelectionChanged_ = true;
-}
-
-void EntityTreeWidget::setSelected(QList<uint64_t> list, bool selected)
-{
-  for (int ii = 0; ii < list.count(); ii++)
-    setSelected(list[ii], selected, ii == (list.count()-1));  // cause a GUI update on the last selection
-}
-#endif
-
 int EntityTreeWidget::setSelected(uint64_t id)
 {
-  if (model_ == NULL)
+  if (model_ == nullptr)
     return 1;
 
   if ((selectionList_.size() == 1) && (selectionList_.front() == id))
     return 1;
 
   // Ignore the signal so that selectionList_ does not get re-calculated
-  emitSelectionChanged_ = false;
+  processSelectionModelSignals_ = false;
 
   selectionSet_.clear();
   selectionList_.clear();
@@ -231,7 +248,7 @@ int EntityTreeWidget::setSelected(uint64_t id)
   }
 
   // Stop ignoring the signal
-  emitSelectionChanged_ = true;
+  processSelectionModelSignals_ = true;
 
   // Tell listeners about the new selections (could be empty list)
   emit itemsSelected(selectionList_);
@@ -240,7 +257,7 @@ int EntityTreeWidget::setSelected(uint64_t id)
 
 int EntityTreeWidget::setSelected(const QList<uint64_t>& list)
 {
-  if (model_ == NULL)
+  if (model_ == nullptr)
     return 1;
 
   QSet<uint64_t> newSet;  ///< Use new set to detected changes with selectionSet_
@@ -326,7 +343,7 @@ int EntityTreeWidget::setSelected(const QList<uint64_t>& list)
     return 1;
 
   // Ignore the signal so that selectionList_ does not get re-calculated
-  emitSelectionChanged_ = false;
+  processSelectionModelSignals_ = false;
 
   if (!newSet.empty())
   {
@@ -340,7 +357,7 @@ int EntityTreeWidget::setSelected(const QList<uint64_t>& list)
   }
 
   // Stop ignoring the signal
-  emitSelectionChanged_ = true;
+  processSelectionModelSignals_ = true;
 
   selectionSet_ = newSet;
   selectionList_.clear();
@@ -392,6 +409,20 @@ void EntityTreeWidget::setAlwaysShow(simData::ObjectId id)
 void EntityTreeWidget::getFilterSettings(QMap<QString, QVariant>& settings) const
 {
   proxyModel_->getFilterSettings(settings);
+}
+
+void EntityTreeWidget::setCountEntityType(simData::ObjectType type)
+{
+  if (countEntityTypes_ == type)
+    return;
+
+  countEntityTypes_ = type;
+  sendNumFilteredItems_();
+}
+
+simData::ObjectType EntityTreeWidget::countEntityTypes() const
+{
+  return countEntityTypes_;
 }
 
 void EntityTreeWidget::setFilterSettings(const QMap<QString, QVariant>& settings)
@@ -450,7 +481,7 @@ void EntityTreeWidget::setToTreeView()
   if (treeView_)
     return;
   treeView_ = true;
-  if (model_ == NULL)
+  if (model_ == nullptr)
     return;
 
   QList<uint64_t> entities = selectedItems();
@@ -467,7 +498,7 @@ void EntityTreeWidget::setToListView()
   if (!treeView_)
     return;
   treeView_ = false;
-  if (model_ == NULL)
+  if (model_ == nullptr)
     return;
 
   QList<uint64_t> entities = selectedItems();
@@ -490,7 +521,7 @@ void EntityTreeWidget::toggleTreeView(bool useTree)
   static const int LIST_INDENT = 4;
   view_->setIndentation(useTree ? TREE_INDENT : LIST_INDENT);
 
-  if (model_ == NULL)
+  if (model_ == nullptr)
     return;
 
   QList<uint64_t> entities = selectedItems();
@@ -506,7 +537,7 @@ void EntityTreeWidget::toggleTreeView(bool useTree)
 
 void EntityTreeWidget::forceRefresh()
 {
-  if (model_ == NULL)
+  if (model_ == nullptr)
     return;
 
   model_->forceRefresh();
@@ -522,17 +553,8 @@ void EntityTreeWidget::selectionCleared_()
   }
 }
 
-void EntityTreeWidget::selectionChanged_(const QItemSelection& selected, const QItemSelection& deselected)
+void EntityTreeWidget::emitItemsSelected_()
 {
-  // Because of blocked signals, we cannot trust that this is called
-  // as often as is needed.  As a result, selected/deselected cannot be trusted as the
-  // correct delta from one call to the next call.
-
-  // It is possible this is called while selecting multiple ids at once, so
-  // return early if our flag isn't set.
-  if (!emitSelectionChanged_)
-    return;
-
   // Clear out our selection
   selectionList_.clear();
   selectionSet_.clear();
@@ -543,8 +565,8 @@ void EntityTreeWidget::selectionChanged_(const QItemSelection& selected, const Q
   {
     // Pull out the item from the index, which contains the ID
     const QModelIndex index2 = proxyModel_->mapToSource(*it);
-    const AbstractEntityTreeItem *item = static_cast<AbstractEntityTreeItem*>(index2.internalPointer());
-    if (item == NULL)
+    const AbstractEntityTreeItem* item = static_cast<AbstractEntityTreeItem*>(index2.internalPointer());
+    if (item == nullptr)
       continue;
     // Add the ID to both lists
     const uint64_t id = item->id();
@@ -558,13 +580,45 @@ void EntityTreeWidget::selectionChanged_(const QItemSelection& selected, const Q
 
   // Tell listeners about the new selections (could be empty list)
   emit itemsSelected(selectionList_);
+  emitItemsSelectedTimer_->stop();
+  lastSelectionChangedTime_ = simCore::getSystemTime();
+}
+
+void EntityTreeWidget::selectionChanged_(const QItemSelection& selected, const QItemSelection& deselected)
+{
+  // Because of blocked signals, we cannot trust that this is called
+  // as often as is needed.  As a result, selected/deselected cannot be trusted as the
+  // correct delta from one call to the next call.
+
+  // It is possible this is called while selecting multiple ids at once, so
+  // return early if our flag isn't set.
+  if (!processSelectionModelSignals_)
+    return;
+
+  // Timer is running and call emitItemSelected_() correctly
+  if (emitItemsSelectedTimer_->isActive())
+    return;
+  // If the current time is too soon after the last time we got here, we might be in a tight loop.  If so,
+  // then start the timer, queueing up processing.
+  double now = simCore::getSystemTime();
+  if (now < lastSelectionChangedTime_ + 0.1)  // 100 millsecond tolerance
+  {
+    // Queue up the emitItemsSelected_
+    emitItemsSelectedTimer_->start();
+  }
+  else
+  {
+    emitItemsSelected_();
+  }
+  // Save the time so successive signals get grouped up
+  lastSelectionChangedTime_ = now;
 }
 
 void EntityTreeWidget::doubleClicked_(const QModelIndex& index)
 {
   QModelIndex index2 = proxyModel_->mapToSource(index);
   AbstractEntityTreeItem *item = static_cast<AbstractEntityTreeItem*>(index2.internalPointer());
-  if (item != NULL)
+  if (item != nullptr)
     emit itemDoubleClicked(item->id());
 }
 
@@ -586,8 +640,8 @@ void EntityTreeWidget::emitSend_()
 
 void EntityTreeWidget::sendNumFilteredItems_()
 {
-  if ((proxyModel_ != NULL) && (model_ != NULL))
-    emit numFilteredItemsChanged(proxyModel_->rowCount(), model_->rowCount());
+  if ((proxyModel_ != nullptr) && (model_ != nullptr))
+    emit numFilteredItemsChanged(proxyModel_->rowCount(), model_->countEntityTypes(countEntityTypes_));
 }
 
 }

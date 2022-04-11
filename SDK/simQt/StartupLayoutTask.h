@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -55,15 +56,15 @@ public:
 
   virtual ~StartupLayoutTask();
 
-  /** Returns true if the widget is non-NULL and visible at the time of query */
+  /** Returns true if the widget is non-nullptr and visible at the time of query */
   virtual bool shouldExecuteOnNextStartup() const;
   /** Emits the executed() signal */
   virtual void execute();
 
 public slots:
-  /** Sets a widget to monitor for visibility.  You may set to NULL when widget goes away. */
+  /** Sets a widget to monitor for visibility.  You may set to nullptr when widget goes away. */
   void setWidget(QWidget* widget);
-  /** Clears the widget; same behavior as setWidget(NULL) */
+  /** Clears the widget; same behavior as setWidget(nullptr) */
   void clearWidget();
 
 signals:

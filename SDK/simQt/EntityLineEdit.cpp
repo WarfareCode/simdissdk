@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -51,8 +52,8 @@ namespace {
 EntityDialog::EntityDialog(QWidget* parent, simQt::EntityTreeModel* entityTreeModel, simData::ObjectType type, simCore::Clock* clock, SettingsPtr settings)
   : QDialog(parent),
     entityTreeModel_(entityTreeModel),
-    entityStateFilter_(NULL),
-    centerBind_(NULL)
+    entityStateFilter_(nullptr),
+    centerBind_(nullptr)
 {
   setWindowTitle(tr("Select Entity"));
   setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
@@ -68,7 +69,7 @@ EntityDialog::EntityDialog(QWidget* parent, simQt::EntityTreeModel* entityTreeMo
   if (settings)
     tree_->setSettings(settings);
 
-  if (clock != NULL)
+  if (clock != nullptr)
   {
     entityStateFilter_ = new simQt::EntityStateFilter(*entityTreeModel_->dataStore(), *clock, true);
     tree_->addEntityFilter(entityStateFilter_);
@@ -78,7 +79,7 @@ EntityDialog::EntityDialog(QWidget* parent, simQt::EntityTreeModel* entityTreeMo
   tree_->addEntityFilter(new simQt::EntityCategoryFilter(entityTreeModel_->dataStore(), simQt::EntityCategoryFilter::SHOW_WIDGET));
 
   connect(tree_, SIGNAL(itemsSelected(QList<uint64_t>)), this, SLOT(setSelected_(QList<uint64_t>)));
-  connect(tree_, SIGNAL(itemDoubleClicked(uint64_t)), this, SLOT(accept())); // Have double click auto close the dialog
+  connect(tree_, SIGNAL(itemDoubleClicked(uint64_t)), this, SLOT(accept_())); // Have double click auto close the dialog
 
   QVBoxLayout* layout = new QVBoxLayout(this);
   layout->setMargin(0);
@@ -98,6 +99,10 @@ void EntityDialog::closeEvent(QCloseEvent* ev)
 
 void EntityDialog::setItemSelected(uint64_t id)
 {
+  auto ids = tree_->selectedItems();
+  if ((ids.size() == 1) && (ids.front() == id))
+    return;
+
   tree_->clearSelection();
   if (id != 0)
   {
@@ -108,7 +113,7 @@ void EntityDialog::setItemSelected(uint64_t id)
 
 void EntityDialog::setStateFilter(EntityStateFilter::State state)
 {
-  if (entityStateFilter_ != NULL)
+  if (entityStateFilter_ != nullptr)
   {
     entityStateFilter_->setStateFilter(state);
   }
@@ -116,7 +121,7 @@ void EntityDialog::setStateFilter(EntityStateFilter::State state)
 
 EntityStateFilter::State EntityDialog::stateFilter() const
 {
-  if (entityStateFilter_ != NULL)
+  if (entityStateFilter_ != nullptr)
     return entityStateFilter_->stateFilter();
 
   return EntityStateFilter::BOTH;
@@ -124,15 +129,15 @@ EntityStateFilter::State EntityDialog::stateFilter() const
 
 void EntityDialog::setCenterEntity(CenterEntity* centerEntity)
 {
-  if (centerBind_ != NULL)
+  if (centerBind_ != nullptr)
   {
     // Dev error, call only once
     assert(false);
     return;
   }
 
-  // OK to pass in a NULL
-  if (centerEntity == NULL)
+  // OK to pass in a nullptr
+  if (centerEntity == nullptr)
     return;
 
   centerBind_ = new BindCenterEntityToEntityTreeComposite(*centerEntity, *tree_, *entityTreeModel_->dataStore(), tree_);
@@ -140,7 +145,7 @@ void EntityDialog::setCenterEntity(CenterEntity* centerEntity)
   tree_->setShowCenterInMenu(true);
 }
 
-void EntityDialog::setSelected_(QList<uint64_t> ids)
+void EntityDialog::setSelected_(const QList<uint64_t>& ids)
 {
   if (!ids.isEmpty())
   {
@@ -148,6 +153,11 @@ void EntityDialog::setSelected_(QList<uint64_t> ids)
   }
 }
 
+void EntityDialog::accept_()
+{
+  accept();
+  emit closedGui();
+}
 
 //--------------------------------------------------------------------------------------------------
 
@@ -189,19 +199,19 @@ protected:
 
 EntityLineEdit::EntityLineEdit(QWidget* parent, simQt::EntityTreeModel* entityTreeModel, simData::ObjectType type)
 : QWidget(parent),
-  composite_(NULL),
-  entityTreeModel_(NULL), // set below with the setModel call
-  entityDialog_(NULL),
+  composite_(nullptr),
+  entityTreeModel_(nullptr), // set below with the setModel call
+  entityDialog_(nullptr),
   uniqueId_(0),
   unavailableId_(0),
   valid_(true),
   needToVerify_(false),
   type_(type),
-  clock_(NULL),
-  entityStateFilter_(NULL),
+  clock_(nullptr),
+  entityStateFilter_(nullptr),
   state_(EntityStateFilter::BOTH),
   settings_(SettingsPtr()),
-  centerEntity_(NULL)
+  centerEntity_(nullptr)
 {
   ResourceInitializer::initialize();  // Needs to be here so that Qt Designer works.
 
@@ -213,7 +223,7 @@ EntityLineEdit::EntityLineEdit(QWidget* parent, simQt::EntityTreeModel* entityTr
   connect(composite_->toolButton, SIGNAL(clicked()), this, SLOT(showEntityDialog_()));
   connect(composite_->lineEdit, SIGNAL(returnPressed()), this, SLOT(checkForReapply_()));
   connect(composite_->lineEdit, SIGNAL(editingFinished()), this, SLOT(editingFinished_()));
-  connect(composite_->lineEdit, SIGNAL(textEdited(const QString&)), this, SLOT(textEdited_(const QString&)));
+  connect(composite_->lineEdit, SIGNAL(textEdited(QString)), this, SLOT(textEdited_(QString)));
 
   setModel(entityTreeModel, type_);
   // Double clicking on an empty text field will display the Entity Dialog
@@ -222,7 +232,7 @@ EntityLineEdit::EntityLineEdit(QWidget* parent, simQt::EntityTreeModel* entityTr
 
 EntityLineEdit::~EntityLineEdit()
 {
-  if ((entityTreeModel_ != NULL) && (dataListenerPtr_ != NULL))
+  if ((entityTreeModel_ != nullptr) && (dataListenerPtr_ != nullptr))
     entityTreeModel_->dataStore()->removeListener(dataListenerPtr_);
   closeEntityDialog();
   delete composite_;
@@ -233,13 +243,13 @@ void EntityLineEdit::setModel(simQt::EntityTreeModel* model, simData::ObjectType
   type_ = type;
   clock_ = clock;
 
-  if (model != NULL)
+  if (model != nullptr)
   {
     entityTreeModel_ = model;
     entityTreeModel_->setToListView();
 
     proxy_ = new EntityProxyModel(this);
-    if (clock != NULL)
+    if (clock != nullptr)
     {
       entityStateFilter_ = new simQt::EntityStateFilter(*entityTreeModel_->dataStore(), *clock_);
       proxy_->addEntityFilter(entityStateFilter_);  // proxy takes ownership of entityStateFilter_
@@ -259,18 +269,18 @@ void EntityLineEdit::setModel(simQt::EntityTreeModel* model, simData::ObjectType
     // If the EntityLineEdit starts off disabled than the view is always disabled (Qt bug?); if forced enabled here then the view follows the EntityLineEdit enable/disable
     view->setEnabled(true);
 
-    connect(completer, SIGNAL(activated(const QModelIndex &)), this, SLOT(wasActived_(const QModelIndex &)));
+    connect(completer, SIGNAL(activated(QModelIndex)), this, SLOT(wasActivated_(QModelIndex)));
 
     composite_->lineEdit->setCompleter(completer);
 
     dataListenerPtr_ = simData::DataStore::ListenerPtr(new DataStoreListener(this));
     entityTreeModel_->dataStore()->addListener(dataListenerPtr_);
   }
-  else if (entityTreeModel_ != NULL)
+  else if (entityTreeModel_ != nullptr)
   {
     entityTreeModel_->dataStore()->removeListener(dataListenerPtr_);
     dataListenerPtr_.reset();
-    entityTreeModel_ = NULL;
+    entityTreeModel_ = nullptr;
   }
 }
 
@@ -281,10 +291,10 @@ void EntityLineEdit::setStateFilter(EntityStateFilter::State state)
 
   state_ = state;
 
-  if (entityStateFilter_ != NULL)
+  if (entityStateFilter_ != nullptr)
     entityStateFilter_->setStateFilter(state_);
 
-  if (entityDialog_ != NULL)
+  if (entityDialog_ != nullptr)
     entityDialog_->setStateFilter(state_);
 
   emit stateFilterChanged(state_);
@@ -295,9 +305,9 @@ EntityStateFilter::State EntityLineEdit::stateFilter() const
   return state_;
 }
 
-void EntityLineEdit::wasActived_(const QModelIndex & index)
+void EntityLineEdit::wasActivated_(const QModelIndex& index)
 {
-  if (entityTreeModel_ == NULL)
+  if (entityTreeModel_ == nullptr)
     return;
 
   QCompleter* completer = composite_->lineEdit->completer();
@@ -314,7 +324,7 @@ void EntityLineEdit::wasActived_(const QModelIndex & index)
   needToVerify_ = false;
   setTextStyle_(true);
   emit itemSelected(uniqueId_);
-  if (entityDialog_ != NULL)
+  if (entityDialog_ != nullptr)
     entityDialog_->setItemSelected(uniqueId_);
 }
 
@@ -334,7 +344,7 @@ QString EntityLineEdit::selectedName() const
 
 int EntityLineEdit::setSelected(uint64_t id)
 {
-  if (entityTreeModel_ == NULL || id == uniqueId_)
+  if (entityTreeModel_ == nullptr || id == uniqueId_)
     return 1;
 
   bool doEmit = (uniqueId_ != id);
@@ -346,7 +356,7 @@ int EntityLineEdit::setSelected(uint64_t id)
     uniqueId_ = id;
     needToVerify_ = true;
     setTextStyle_(false);
-    if (entityDialog_ != NULL)
+    if (entityDialog_ != nullptr)
       entityDialog_->setItemSelected(uniqueId_);
     if (doEmit)
       emit itemSelected(uniqueId_);
@@ -362,7 +372,7 @@ int EntityLineEdit::setSelected(uint64_t id)
   uniqueId_ = id;
   needToVerify_ = false;
   setTextStyle_(true);
-  if (entityDialog_ != NULL)
+  if (entityDialog_ != nullptr)
     entityDialog_->setItemSelected(uniqueId_);
   if (doEmit)
     emit itemSelected(uniqueId_);
@@ -381,10 +391,10 @@ void EntityLineEdit::setCenterEntity(CenterEntity* centerEntity)
 
 void EntityLineEdit::showEntityDialog_()
 {
-  if (entityTreeModel_ == NULL)
+  if (entityTreeModel_ == nullptr)
     return;
 
-  if (entityDialog_ == NULL)
+  if (entityDialog_ == nullptr)
   {
     entityDialog_ = new EntityDialog(this, entityTreeModel_, type_, clock_, settings_);
     entityDialog_->setStateFilter(state_);
@@ -404,7 +414,7 @@ void EntityLineEdit::closeEntityDialog()
   {
     entityDialog_->hide();
     entityDialog_->deleteLater();
-    entityDialog_ = NULL;
+    entityDialog_ = nullptr;
   }
 }
 
@@ -424,7 +434,7 @@ void EntityLineEdit::checkForReapply_()
 
 void EntityLineEdit::editingFinished_()
 {
-  if (entityTreeModel_ == NULL)
+  if (entityTreeModel_ == nullptr)
     return;
 
   // Clearing out the line Edit is a special case
@@ -434,7 +444,7 @@ void EntityLineEdit::editingFinished_()
     uniqueId_ = 0;
     needToVerify_ = true;
     setTextStyle_(false);
-    if (entityDialog_ != NULL)
+    if (entityDialog_ != nullptr)
       entityDialog_->setItemSelected(uniqueId_);
     if (doEmit)
       emit itemSelected(uniqueId_);
@@ -451,7 +461,7 @@ void EntityLineEdit::editingFinished_()
     else
     {
       setTextStyle_(true);
-      if (entityDialog_ != NULL)
+      if (entityDialog_ != nullptr)
         entityDialog_->setItemSelected(uniqueId_);
     }
     if (oldId != uniqueId_)
@@ -459,7 +469,7 @@ void EntityLineEdit::editingFinished_()
   }
 }
 
-void EntityLineEdit::textEdited_(const QString & text)
+void EntityLineEdit::textEdited_(const QString& text)
 {
   needToVerify_ = true;
   setTextStyle_(true);

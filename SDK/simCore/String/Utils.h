@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -303,6 +304,23 @@ SDKCORE_EXPORT std::string expandEnv(const std::string& val);
 * @return value of env, with trailing carriage return (\r) chars trimmed, otherwise an empty string if it does not exist
 */
 SDKCORE_EXPORT std::string getEnvVar(const std::string &env);
+
+/**
+ * Sets an environment variable.
+ * @param key Environment variable to set
+ * @param value Value to set the variable to
+ * @param overrideExisting If false, then current setting is kept if one exists
+ * @return 0 on success, non-zero on error
+ */
+SDKCORE_EXPORT int setEnvVar(const std::string& key, const std::string& value, bool overrideExisting);
+
+/**
+ * Remove trailing zeros
+ * @param str String from which to remove trailing zeros
+ * @param leaveDecimal If true, the decimal will not be removed with trailing zeros
+ * @return The resulting string with trailing zeros removed
+ */
+SDKCORE_EXPORT std::string removeTrailingZeros(const std::string& str, bool leaveDecimal = false);
 
 } // namespace simCore
 

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -41,7 +42,7 @@ public:
 
 signals:
   /** One of the values in the provided unit context has changed.  Emitted after individual changes. */
-  void unitsChanged(simQt::UnitContext* context=NULL);
+  void unitsChanged(simQt::UnitContext* context=nullptr);
 
   void timeFormatChanged(simCore::TimeFormat fmt=simCore::TIMEFORMAT_ORDINAL);
   void timePrecisionChanged(unsigned int prec=3);
@@ -63,7 +64,7 @@ signals:
   void datumConvertPtrChanged(simCore::DatumConvertPtr datum);
 
 protected:
-  UnitContext(QObject* parent=NULL) : QObject(parent) {}
+  UnitContext(QObject* parent=nullptr) : QObject(parent) {}
 };
 
 /** Adapter class to the UnitContext that provides simple gets and sets for each field. */
@@ -71,7 +72,7 @@ class UnitContextAdapter : public simQt::UnitContext
 {
   Q_OBJECT;
 public:
-  UnitContextAdapter(QObject* parent=NULL);
+  UnitContextAdapter(QObject* parent=nullptr);
   virtual ~UnitContextAdapter();
 
   // Getters for various unit types
@@ -145,7 +146,7 @@ class UnitContextProxy : public simQt::UnitContext
 {
   Q_OBJECT;
 public:
-  UnitContextProxy(simQt::UnitContext* subject=NULL);
+  UnitContextProxy(simQt::UnitContext* subject=nullptr);
   virtual ~UnitContextProxy();
 
   /** Changes the underlying subject of this proxy. */

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -104,7 +105,7 @@ public:
    * committed or has gone out of scope.  An attempt to enforce this behavior
    * has been made by requiring the reference to the object associated with the
    * transaction to be provided as an argument when releasing or canceling a
-   * transaction, so that it may be set to NULL.
+   * transaction, so that it may be set to nullptr.
    */
   class SDKDATA_EXPORT Transaction
   {
@@ -129,9 +130,9 @@ public:
     template <typename T>
     void release(T **operand)
     {
-      assert(transaction_.get() != NULL);
+      assert(transaction_.get() != nullptr);
       transaction_->release();
-      *operand = NULL;
+      *operand = nullptr;
     }
 
     /// complete the transaction by committing it and releasing it; equivalent to commit followed by release
@@ -158,11 +159,17 @@ public:
     /// entity with the given id and type will be removed after all notifications are processed
     virtual void onRemoveEntity(DataStore *source, ObjectId removedId, simData::ObjectType ot) = 0;
 
+    /// entity with the given id and type has been removed
+    virtual void onPostRemoveEntity(DataStore *source, ObjectId removedId, simData::ObjectType ot) = 0;
+
     /// prefs for the given entity have been changed
     virtual void onPrefsChange(DataStore *source, ObjectId id) = 0;
 
-    /// current time has been changed
-    virtual void onTimeChange(DataStore *source) = 0;
+    /// properties for the given entity have been changed
+    virtual void onPropertiesChange(DataStore *source, ObjectId id) = 0;
+
+    /// data store has changed, this includes both time change and/or data change; called a max of once per frame
+    virtual void onChange(DataStore *source) = 0;
 
     /// something has changed in the entity category data
     virtual void onCategoryDataChange(DataStore *source, ObjectId changedId, simData::ObjectType ot) = 0;
@@ -190,11 +197,17 @@ public:
     /// entity with the given id and type will be removed after all notifications are processed
     virtual void onRemoveEntity(DataStore *source, ObjectId removedId, simData::ObjectType ot) {}
 
+    /// entity with the given id and type has been removed
+    virtual void onPostRemoveEntity(DataStore *source, ObjectId removedId, ObjectType ot) {}
+
     /// prefs for the given entity have been changed
     virtual void onPrefsChange(DataStore *source, ObjectId id) {}
 
-    /// current time has been changed
-    virtual void onTimeChange(DataStore *source) {}
+    /// properties for the given entity have been changed
+    virtual void onPropertiesChange(DataStore *source, ObjectId id) {}
+
+    /// data store has changed
+    virtual void onChange(DataStore *source) {}
 
     /// something has changed in the entity category data
     virtual void onCategoryDataChange(DataStore *source, ObjectId changedId, simData::ObjectType ot) {}
@@ -304,10 +317,56 @@ public: // methods
   /// Types of flushes supported by the flush method
   enum FlushType
   {
-    NON_RECURSIVE,   ///< Flush only the supplied entity and keep any static point
-    NON_RECURSIVE_TSPI_STATIC, ///< Flush only the supplied PLATFORM and flush any static TSPI point
-    RECURSIVE, ///< Flush the supplied entity and any children and keep any static point
-    NON_RECURSIVE_TSPI_ONLY  ///< Flush TSPI only including static points, keep category data, generic data and data tables
+    /**
+     * Flush only the supplied entity and keep any static point
+     * Flushes Static points: No
+     * Flushes Commands: Yes
+     * Flushes Data Tables: No
+     * Flushes Generic Data: Yes
+     * Flushes Category Data: Yes
+     * Applies same operation to Children: No
+    */
+    NON_RECURSIVE,
+    /**
+    * Flush only the supplied entity and flush any static point
+    * Flushes Static points: Yes
+    * Flushes Commands: Yes
+    * Flushes Data Tables: No
+    * Flushes Generic Data: Yes
+    * Flushes Category Data: Yes
+    * Applies same operation to Children: No
+    */
+    NON_RECURSIVE_TSPI_STATIC,
+    /**
+     * Flush the supplied entity and any children and keep any static point
+     * Flushes Static points: No
+     * Flushes Commands: Yes
+     * Flushes Data Tables: Yes
+     * Flushes Generic Data: Yes
+     * Flushes Category Data: Yes
+     * Applies same operation to Children: Yes
+    */
+    RECURSIVE,
+    /**
+     * Flush TSPI only including static points, keep category data, generic data and data tables
+     * Flushes Static points: Yes
+     * Flushes Commands: No
+     * Flushes Data Tables: No
+     * Flushes Generic Data: No
+     * Flushes Category Data: No
+     * Applies same operation to Children: No
+    */
+    NON_RECURSIVE_TSPI_ONLY,
+    /**
+     * Flushes points and commands for the supplied entity.  Does not flush category data, generic data or data tables.
+     * Flushes Static points: Yes
+     * Flushes Commands: Yes
+     * Flushes Data Tables: No
+     * Flushes Generic Data: No
+     * Flushes Category Data: No
+     * Applies same operation to Children: No
+    */
+    NON_RECURSIVE_DATA
   };
 
   /**
@@ -315,6 +374,33 @@ public: // methods
    * if 0 is passed in flushes the entire scenario, except for static entities
    */
   virtual void flush(ObjectId flushId, FlushType type = NON_RECURSIVE) = 0;
+
+  /// The scope of the flush
+  enum FlushScope
+  {
+    FLUSH_RECURSIVE = 0,  ///< Flush the fields for the given entity and its children
+    FLUSH_NONRECURSIVE   ///< Flush only the fields for the given entity
+  };
+
+  /// Which fields are flushed
+  enum FlushFields
+  {
+    FLUSH_UPDATES = 0x1,
+    FLUSH_COMMANDS = 0x2,
+    FLUSH_CATEGORY_DATA = 0x4,
+    FLUSH_GENERIC_DATA = 0x8,
+    FLUSH_DATA_TABLES = 0x10,
+
+    FLUSH_EXCLUDE_MINUS_ONE = 0x80000000, ///< Keep data with time tag of -1, applies only to platform updates and category data
+
+    FLUSH_ALL = 0x000FFFFF
+  };
+
+  /** Removes all the specified data */
+  virtual int flush(ObjectId id, FlushScope scope, FlushFields fields) = 0;
+
+  /** Removes a range of data from startTime up to but not including the endTime */
+  virtual int flush(ObjectId id, FlushScope scope, FlushFields fields, double startTime, double endTime) = 0;
 
   /**
   * clear out the data store of all scenario specific data, including all entities and category data names.
@@ -341,7 +427,7 @@ public: // methods
   /// Specify the interpolator to use
   virtual void setInterpolator(Interpolator *interpolator) = 0;
 
-  /// Get the current interpolator (NULL if disabled)
+  /// Get the current interpolator (nullptr if disabled)
   virtual Interpolator* interpolator() const = 0;
   ///@}
 
@@ -386,14 +472,14 @@ public: // methods
   ///@}
 
   /**@name Scenario Properties
-   * @note should always return a valid object (never NULL)
+   * @note should always return a valid object (never nullptr)
    * @{
    */
   virtual const  ScenarioProperties*          scenarioProperties(Transaction *transaction) const = 0;
   virtual        ScenarioProperties*  mutable_scenarioProperties(Transaction *transaction) = 0;
 
   /**@name Object Properties
-   * @note will return NULL if no object is associated with the specified id
+   * @note will return nullptr if no object is associated with the specified id
    * @{
    */
   virtual const  PlatformProperties*          platformProperties(ObjectId id, Transaction *transaction) const = 0;
@@ -413,7 +499,7 @@ public: // methods
   ///@}
 
   /**@name Object Preferences
-   * @note will return NULL if no object is associated with the specified id
+   * @note will return nullptr if no object is associated with the specified id
    * @{
    */
   virtual const  PlatformPrefs*          platformPrefs(ObjectId id, Transaction *transaction) const = 0;
@@ -496,7 +582,7 @@ public: // methods
   virtual int removeGenericDataTag(ObjectId id, const std::string& tag) = 0;
 
   /**@name Add data update, command, generic data, or category data
-   *@note Returns NULL if platform for specified ID does not exist
+   *@note Returns nullptr if platform for specified ID does not exist
    * @{
    */
   virtual  PlatformUpdate *   addPlatformUpdate(ObjectId id, Transaction *transaction) = 0;
@@ -540,6 +626,7 @@ public: // methods
 
   /**
    * Modify commands for a given platform
+   * Does not support modifying acceptsProjectors
    * @param id Platform that needs commands modified
    * @param modifier The object to modify the commands
    * @return 0 on success
@@ -548,6 +635,7 @@ public: // methods
 
   /**
    * Modify commands for a given custom rendering entity
+   * Does not support modifying acceptsProjectors
    * @param id Custom rendering entity that needs commands modified
    * @param modifier The object to modify the commands
    * @return 0 on success
@@ -573,7 +661,7 @@ public: // methods
   /**@name NewUpdatesListener
   * @{
   */
-  /// Sets a listener for when entity updates are added; use NULL to remove.
+  /// Sets a listener for when entity updates are added; use nullptr to remove.
   virtual void setNewUpdatesListener(NewUpdatesListenerPtr callback) = 0;
   ///@}
 

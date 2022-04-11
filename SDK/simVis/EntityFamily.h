@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -77,6 +78,13 @@ public:
    * @return Entity set.
    */
   EntityObserverSet& members() { return entities_; }
+
+  /**
+   * Returns true if ID is part of the family.
+   * @param[in ] id  ID to check
+   * @return True if ID is in the family, false otherwise
+   */
+  bool isMember(simData::ObjectId id) const;
 
 private:
   osg::observer_ptr<EntityNode>  host_;

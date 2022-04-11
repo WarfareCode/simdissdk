@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -27,11 +28,9 @@
 #include "osgEarth/Revisioning"
 #include "simCore/Common/Common.h"
 #include "simCore/Calc/MultiFrameCoordinate.h"
+#include "simData/DataTypes.h"
 
-namespace osgEarth {
-  class LineDrawable;
-  class LineGroup;
-}
+namespace osgEarth { class LineDrawable; }
 
 namespace simVis
 {
@@ -169,13 +168,24 @@ namespace simVis
      */
     float getLineWidth() const;
 
+    /**
+     * Sets the line bending mode
+     * @param[in ] bending Bending mode
+     */
+    void setLineBending(simData::AnimatedLineBend bending);
+
+    /**
+     * Gets the line bending mode
+     * @return Bending mode
+     */
+    simData::AnimatedLineBend getLineBending() const;
+
     /** Return the proper library name */
     virtual const char* libraryName() const { return "simVis"; }
 
     /** Return the class name */
     virtual const char* className() const { return "AnimatedLineNode"; }
 
-  public: // osg::Node
     /** On the UPDATE_VISITOR traversal, calls update_() to animate the line */
     virtual void traverse(osg::NodeVisitor& nv);
 
@@ -192,6 +202,7 @@ namespace simVis
     osgEarth::Util::SimpleMutable<osg::Vec4> colorOverride_;
     bool useOverrideColor_;
     float lineWidth_;
+    simData::AnimatedLineBend bending_;
 
     osg::ref_ptr<const Locator> firstLocator_;
     osgEarth::Util::Revision firstLocatorRevision_;
@@ -211,10 +222,40 @@ namespace simVis
     /** Coordinate converter that is used to put secondCoord_ in a valid (Geo) frame */
     simCore::CoordinateConverter* coordinateConverter_;
 
-    // access to the geode so we can properly dirty the geometries' bounds
-    osg::ref_ptr<osgEarth::LineGroup> geode_;
-    osg::ref_ptr<osgEarth::LineDrawable> line1_;
-    osg::ref_ptr<osgEarth::LineDrawable> line2_;
+    osg::ref_ptr<osg::Group> lineGroup_;
+
+    /**
+     * Lines longer than 100 kilometers can show significant jitter at the second point.
+     * This is due to using the first point as a reference (location (0,0,0)) and the second point
+     * is drawn relative to the first point with floating point resolution (32 bits).  A
+     * user zooms in on the second point and sees the line "dance" around the second point.
+     * The solution is to divide the line into two halves.  The first half goes from the
+     * first point to the mid point.  The second half goes from the second point to the mid
+     * point.  The two points are the references to their own line and consequently there
+     * is no "dancing" of the line around either point.  The mid points may not line up and
+     * may "dance" independently.
+     */
+    struct HalfALine
+    {
+      osg::ref_ptr<osg::MatrixTransform> matrix;
+      osg::ref_ptr<osgEarth::LineDrawable> line1; ///< Point 1 to midpoint
+      osg::ref_ptr<osgEarth::LineDrawable> line2; ///< Point 2 to midpoint
+
+      HalfALine();
+      virtual ~HalfALine();
+
+      /**
+       * Calculates the vertices from lastPoint (ECEF) to (0, 0, 0) with given number of segments.
+       * @param numSegments Number of segments between last point and (0, 0, 0)
+       * @param lastPoint The last point in ECEF
+       * @param forward If true add the vertices from (0, 0, 0) to last point, if false reverse the order
+       */
+      void fillSlantLine(unsigned int numSegments, const osg::Vec3d& lastPoint, bool forward);
+    };
+
+    // Need continuous start to end for stipple to work correctly
+    HalfALine firstHalf_;  ///< Start to Midpoint
+    HalfALine secondHalf_;  ///< Midpoint to End
 
     // track time deltas for smooth animation
     double timeLastShift_;
@@ -226,9 +267,6 @@ namespace simVis
 
     void initializeGeometry_();
     void update_(double t);
-
-    /** Dirty the bounding box of all geometries */
-    void dirtyGeometryBounds_();
 
     /** Returns true if a slant between two coordinates intersects earth surface */
     bool doesLineIntersectEarth_(const simCore::MultiFrameCoordinate& coord1, const simCore::MultiFrameCoordinate& coord2) const;

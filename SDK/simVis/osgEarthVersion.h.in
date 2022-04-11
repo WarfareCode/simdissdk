@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -29,6 +30,9 @@
 // Flags that impact the detection of osgEarthTriton and osgEarthSilverLining
 #cmakedefine HAVE_TRITON_NODEKIT
 #cmakedefine HAVE_SILVERLINING_NODEKIT
+
+// osgEarth post-3.0 1f5f57c1d9c renamed headers and classes
+#cmakedefine HAVE_OSGEARTH_THREADING
 
 /** Detected osgearth-simdis-sdk version */
 

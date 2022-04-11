@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -63,7 +64,9 @@ VaporTrailStorage::~VaporTrailStorage()
   // remove the vaporTrails from the scene graph
   for (std::map<Key, osg::ref_ptr<simVis::VaporTrail> >::iterator it = vaporTrailsByKey_.begin(); it != vaporTrailsByKey_.end(); ++it)
   {
-    it->second = NULL;
+    // Removing a vaporTrail from vaporTrailsByKey_ should immediately lead to ~vaporTrail().
+    // VaporTrail destructor is responsible for removing vaporTrail from scenegraph.
+    it->second = nullptr;
   }
   vaporTrailsByKey_.clear();
   idsByPlatform_.clear();
@@ -102,7 +105,7 @@ int VaporTrailStorage::addVaporTrail(simData::ObjectId platId, unsigned int id, 
     return 1;
   }
   // get the scenegraph attachment mgr for expiremode items
-  osg::ref_ptr<osg::Group> expireModeGroup = hostPlat->getExpireModeGroup();
+  osg::ref_ptr<osg::Group> expireModeGroup = hostPlat->getOrCreateExpireModeGroup();
   if (!expireModeGroup.valid())
   {
     // see PlatformNode, which creates the ExpireModeManager for each platform
@@ -111,16 +114,17 @@ int VaporTrailStorage::addVaporTrail(simData::ObjectId platId, unsigned int id, 
     return 1;
   }
 
-  if (dataStoreListener_ == NULL)
+  if (dataStoreListener_ == nullptr)
   {
     dataStoreListener_.reset(new DataStoreListener(*this));
     dataStore_.addListener(dataStoreListener_);
   }
 
   // create a new VaporTrail
+  // using osg::ref_ptr as simple smart ptr, VaporTrail is not in the scenegraph (its VaporTrailGroup child is)
   osg::ref_ptr<simVis::VaporTrail> newTrail = new simVis::VaporTrail(dataStore_, expireModeGroup.get(), *hostPlat, vaporTrailData, vaporPuffData, textures);
   idsByPlatform_.insert(std::make_pair(platId, id));
-  vaporTrailsByKey_[key] = newTrail;
+  vaporTrailsByKey_[key] = newTrail.get();
   return 0;
 }
 
@@ -142,6 +146,8 @@ void VaporTrailStorage::removeVaporTrailsForPlatform(simData::ObjectId removedId
   VaporTrailIdByPlatform::iterator iter;
   for (iter = ranges.first; iter != ranges.second; ++iter)
   {
+    // Removing a vaporTrail from vaporTrailsByKey_ should immediately lead to ~VaporTrail();
+    // VaporTrail destructor is responsible for removal from scenegraph
     vaporTrailsByKey_.erase(Key(removedId, iter->second));
   }
   idsByPlatform_.erase(removedId);

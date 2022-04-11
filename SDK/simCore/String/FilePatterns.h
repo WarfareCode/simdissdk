@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -29,10 +30,10 @@ namespace simCore
 {
 
 /** All SIMDIS file patterns, separated by commas */
-static const std::string ALL_SIMDIS_FILE_PATTERNS = "*.fct,*.asi,*.spy,*.discn,*.csv,*.tle,*.kp,*.gpx,*.otg,*.wam,*.pet,*.zip";
+static const std::string ALL_SIMDIS_FILE_PATTERNS = "*.fct,*.asi,*.spy,*.discn,*.csv,*.tle,*.kp,*.gpx,*.wam,*.zip";
 /** Dialog-oriented user-friendly list of SIMDIS file patterns */
 static const std::string SIMDIS_FILE_PATTERNS =
-  "All Supported SIMDIS Formats (*.fct,*.asi,*.spy,*.discn,*.csv,*.tle,*.kp,*.gpx,*.otg,*.wam,*.pet,*.zip)\n"
+  "All Supported SIMDIS Formats (*.fct,*.asi,*.spy,*.discn,*.csv,*.tle,*.kp,*.gpx,*.wam,*.zip)\n"
   "SIMDIS Binary (*.fct)\n"
   "SIMDIS ASCII (*.asi)\n"
   "SIMDIS Script (*.spy)\n"
@@ -41,25 +42,21 @@ static const std::string SIMDIS_FILE_PATTERNS =
   "NORAD Two-Line Element (*.tle)\n"
   "Kepler Propagation (*.kp)\n"
   "GPS Exchange Format (*.gpx)\n"
-  "OTG Format (*.otg)\n"
   "WAM Format (*.wam)\n"
-  "PET Format (*.pet)\n"
   "ZIP Archive of supported formats (*.zip)\n"
   "All Files (*)";
 
 /** SIMDIS ASCII file patterns, separated by commas */
-static const std::string ALL_SIMDIS_ASCII_FILE_PATTERNS = "*.asi,*.discn,*.csv,*.tle,*.gpx,*.otg,*.wam,*.pet,*.zip";
+static const std::string ALL_SIMDIS_ASCII_FILE_PATTERNS = "*.asi,*.discn,*.csv,*.tle,*.gpx,*.wam,*.zip";
 /** Dialog-oriented user-friendly list of SIMDIS ASCII file patterns */
 static const std::string SIMDIS_ASCII_FILE_PATTERNS =
-  "All Supported ASCII Formats (*.asi,*.discn,*.csv,*.tle,*.gpx,*.otg,*.wam,*.pet,*.zip)\n"
+  "All Supported ASCII Formats (*.asi,*.discn,*.csv,*.tle,*.gpx,*.wam,*.zip)\n"
   "SIMDIS ASCII (*.asi)\n"
   "SIMDIS Data Initialization Scenario (*.discn)\n"
   "SCORE & PMRF Comma Separated Value (*.csv)\n"
   "NORAD Two-Line Element (*.tle)\n"
   "GPS Exchange Format (*.gpx)\n"
-  "OTG Format (*.otg)\n"
   "WAM Format (*.wam)\n"
-  "PET Format (*.pet)\n"
   "ZIP Archive of supported formats (*.zip)\n"
   "All Files (*)";
 
@@ -141,7 +138,7 @@ static const std::string SIMDIS10_IMAGERY_CONFIG_SAVE_PATTERNS =
 /** SIMDIS supported model format file patterns, separated by commas. */
 static const std::string ALL_SIMDIS_MODEL_FILE_PATTERNS = "*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.ac,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst";
 /** SIMDIS supported texture file format file patterns, separated by commas */
-static const std::string ALL_SIMDIS_TEXTURE_FILE_PATTERNS = "*.png,*.gif,*.jpg,*.jpeg,*.rgba,*.rgb,*.tiff,*.tif,*.bmp,*.bw,*.inta,*.int,*.raw,*.pgm";
+static const std::string ALL_SIMDIS_TEXTURE_FILE_PATTERNS = "*.png,*.gif,*.jpg,*.jpeg,*.rgba,*.rgb,*.tif,*.tiff,*.bmp,*.bw,*.inta,*.int,*.raw,*.pgm";
 /** Dialog-oriented user-friendly list of SIMDIS supported model format patterns. */
 static const std::string SIMDIS_MODEL_FILE_PATTERNS =
   "All Supported Formats (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.ac,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst)\n"
@@ -191,10 +188,10 @@ static const std::string ANTENNA_FILE_PATTERNS =
   "All Files (*)\n";
 
 /** SIMDIS GOG Overlay Format patterns, separated by commas */
-static const std::string ALL_GOG_FILE_PATTERNS = "*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct";
+static const std::string ALL_GOG_FILE_PATTERNS = "*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct,*.geojson";
 /** Dialog-oriented user-friendly list of SIMDIS GOG Overlay Format files */
 static const std::string GOG_FILE_PATTERNS =
-  "All Supported GOG Formats (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct)\n"
+  "All Supported GOG Formats (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct,*.geojson)\n"
   "GOG Files (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz)\n"
   "Misc GOG (*.gog)\nxygeo (*.ll,*.lla)\nxygeo and crossplot (*.xy,*.xyz)\n"
   "Relative xygeo and crossplot (*.rxy,*.rxyz)\n"
@@ -203,6 +200,7 @@ static const std::string GOG_FILE_PATTERNS =
   "LATR GEO Files (*.lgf)\n"
   "GCCS OVLY Files (*.ovl)\n"
   "JDS ASC Files (*.asc)\n"
+  "GeoJSON Files (*.geojson)\n"
   "All Files (*)";
 
 /** Dialog-oriented user-friendly list of SIMDIS absolute GOG Overlay Format files */
@@ -292,19 +290,27 @@ static const std::string UDP_CAPTURE_FILE_PATTERNS =
   "Data Storage (*.dstor)\n"
   "All Files (*)";
 
-/** Dialog-oriented user-friendly list of SIMDIS 10 Settings files */
+/** Dialog-oriented user-friendly list of SIMDIS 10 Settings files, for loading */
+static const std::string SIMDIS10_SETTINGS_FILE_LOAD_PATTERNS =
+  "SIMDIS 10 Configuration Files (*.ini, *.ini.bak)\n"
+  "All Files (*)";
+/** Dialog-oriented user-friendly list of SIMDIS 10 Settings files, for saving */
 static const std::string SIMDIS10_SETTINGS_FILE_PATTERNS =
   "SIMDIS 10 Configuration Files (*.ini)\n"
   "All Files (*)";
 
-/** Dialog-oriented user-friendly list of Plot-XY Settings files */
+/** Dialog-oriented user-friendly list of Plot-XY Settings files, for loading */
+static const std::string PLOT_SETTINGS_FILE_LOAD_PATTERNS =
+  "Plot-XY Configuration Files (*.ini, *.ini.bak)\n"
+  "All Files (*)";
+/** Dialog-oriented user-friendly list of Plot-XY Settings files, for saving */
 static const std::string PLOT_SETTINGS_FILE_PATTERNS =
   "Plot-XY Configuration Files (*.ini)\n"
   "All Files (*)";
 
 /** Combination of all data file patterns */
 static const std::string ALL_DATA_FILE_PATTERNS = ALL_SIMDIS_FILE_PATTERNS +
-  std::string(",.prefs,.rul,.view,.rcs,.hdf5,") +
+  std::string(",*.prefs,*.rul,*.view,*.svml,*.rcs,*.hdf5,") +
   ALL_GOG_FILE_PATTERNS + std::string(",") +
   ALL_SIMDIS_TEXTURE_FILE_PATTERNS + std::string(",") +
   ALL_MEDIA_FILE_PATTERNS + std::string(",") +
@@ -316,7 +322,7 @@ static const std::string ALL_DATA_FILE_PATTERNS = ALL_SIMDIS_FILE_PATTERNS +
 
 /** GDAL files for osgEarth GDAL driver image and elevation layers */
 static const std::string GDAL_IMAGE_LAYER_FILE_PATTERNS =
-  "GDAL Files (*.tif,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil,*.hgt)\n"
+  "GDAL Files (*.tif,*.tiff,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil,*.hgt)\n"
   "All Files (*)";
 
 /** MBTiles files for osgEarth MBTiles driver image layers */
@@ -324,20 +330,26 @@ static const std::string MBTILES_IMAGE_LAYER_FILE_PATTERNS =
   "MBTiles Files (*.mbtiles)\n"
   "All Files (*)";
 
-/** Pattern for GDAL, DB, MBTiles files -- image file layer pattern */
+/** JSON files for osgEarth MapBox GL Image driver image layers */
+static const std::string MAPBOX_GL_IMAGE_LAYER_FILE_PATTERNS =
+  "MapBox GL Image Style Files (*.json)\n"
+  "All Files (*)";
+
+/** Pattern for GDAL, DB, MBTiles, MapBox GL files -- image file layer pattern */
 static const std::string FILEBASED_IMAGE_LAYER_FILE_PATTERNS =
-  "All Layer Files (*.mbtiles,*.db,*.tif,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil)\n"
+  "All Layer Files (*.mbtiles,*.db,*.tif,*.tiff,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil,*.json)\n"
   "MBTiles Files (*.mbtiles)\n"
   "DB Files (*.db)\n"
-  "GDAL Files (*.tif,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil)\n"
+  "GDAL Files (*.tif,*.tiff,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil)\n"
+  "MapBox GL Image Style Files (*.json)\n"
   "All Files (*)";
 
 /** Pattern for GDAL, DB, MBTiles files -- elevation file layer pattern */
 static const std::string FILEBASED_ELEVATION_LAYER_FILE_PATTERNS =
-  "All Layer Files (*.mbtiles,*.db,*.tif,*.sid,*.jp2,*.bil,*.hgt,*.dt0,*.dt1,*.dt2)\n"
+  "All Layer Files (*.mbtiles,*.db,*.tif,*.tiff,*.sid,*.jp2,*.bil,*.hgt,*.dt0,*.dt1,*.dt2)\n"
   "MBTiles Files (*.mbtiles)\n"
   "DB Files (*.db)\n"
-  "GDAL Files (*.tif,*.sid,*.jp2,*.bil,*.hgt)\n"
+  "GDAL Files (*.tif,*.tiff,*.sid,*.jp2,*.bil,*.hgt)\n"
   "DTED Elevation Files (*.dt0,*.dt1,*.dt2)\n"
   "All Files (*)";
 

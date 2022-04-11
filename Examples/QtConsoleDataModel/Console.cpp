@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -38,11 +39,7 @@ Console::Console(simQt::ConsoleDataModel& dataModel, QWidget* parent)
 
   // These commands must come after the setModel()
   ui_->consoleView->header()->setStretchLastSection(false);
-#if(QT_VERSION >= QT_VERSION_CHECK(5,0,0))
   ui_->consoleView->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
-#else
-  ui_->consoleView->header()->setResizeMode(QHeaderView::ResizeToContents);
-#endif
 
   // Sync the GUI settings to the state of the data model
   ui_->colorTextCheck->setChecked(dataModel.colorizeText());

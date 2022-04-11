@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,13 +23,16 @@
 #ifndef SIMDATA_CATEGORY_DATA_H
 #define SIMDATA_CATEGORY_DATA_H
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
 #include "simCore/Common/Common.h"
-#include "simData/DataTypes.h"
 
 namespace simData {
+
+// Forward declare; implemented in simData/DataTypes.h
+class CategoryData;
 
 /** interface to category data
  *
@@ -44,6 +48,9 @@ public:
   virtual ~CategoryDataPair()
   {
   }
+
+  ///@return Time of validity for the category data pair
+  virtual double time() const = 0;
 
   ///@return the category name as a string
   virtual std::string name() const = 0;

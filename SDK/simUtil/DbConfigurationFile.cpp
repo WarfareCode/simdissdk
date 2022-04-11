@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -31,10 +32,10 @@
 #include "simCore/Common/Exception.h"
 #include "simCore/String/Format.h"
 #include "simCore/String/Tokenizer.h"
+#include "simCore/String/UtfUtils.h"
 #include "simCore/String/Utils.h"
 #include "simCore/String/ValidNumber.h"
 #include "simVis/AlphaColorFilter.h"
-#include "simVis/DBOptions.h"
 #include "simVis/DBFormat.h"
 #include "simVis/SceneManager.h"
 #include "simVis/Utils.h"
@@ -81,7 +82,7 @@ int DbConfigurationFile::load(osg::ref_ptr<osgEarth::MapNode>& mapNode, const st
     {
       SIM_ERROR << "Could not resolve filename " << configFile << "\n";
     }
-    mapNode = NULL;
+    mapNode = nullptr;
     return 1;
   }
 
@@ -89,7 +90,7 @@ int DbConfigurationFile::load(osg::ref_ptr<osgEarth::MapNode>& mapNode, const st
   // is this a .earth file?
   if (osgDB::getFileExtensionIncludingDot(configFile) == earthFileSuffix)
   {
-    mapNode = NULL;
+    mapNode = nullptr;
     SAFETRYBEGIN;
 
     // Load the map, wrap Node in a ref_ptr to get rid of the memory when done, after switching to Viewer::setMap method
@@ -103,12 +104,14 @@ int DbConfigurationFile::load(osg::ref_ptr<osgEarth::MapNode>& mapNode, const st
   }
   else // probably a SIMDIS 9 config file
   {
-    mapNode = NULL;
+    mapNode = nullptr;
     SAFETRYBEGIN;
     osg::ref_ptr<osgEarth::Map> map = simUtil::DbConfigurationFile::loadLegacyConfigFile(adjustedConfigFile, quiet);
-
-    mapNode = new osgEarth::MapNode(map.get());
-    simVis::SceneManager::initializeTerrainOptions(mapNode);
+    if (map.valid())
+    {
+      mapNode = new osgEarth::MapNode(map.get());
+      simVis::SceneManager::initializeTerrainOptions(mapNode.get());
+    }
 
     SAFETRYEND((std::string("legacy SIMDIS 9 .txt processing of file ") + configFile));
   }
@@ -124,7 +127,7 @@ int DbConfigurationFile::load(osg::ref_ptr<osgEarth::MapNode>& mapNode, const st
   }
 
   // set the map's name
-  if (mapNode->getMap() != NULL)
+  if (mapNode->getMap() != nullptr)
     mapNode->getMap()->setMapName(osgDB::getSimpleFileName(adjustedConfigFile));
   return 0;
 }
@@ -147,7 +150,7 @@ osgEarth::Map* DbConfigurationFile::loadLegacyConfigFile(const std::string& file
     {
       SIM_ERROR << "Unable to open file (" << filename << ").\n";
     }
-    return NULL;
+    return nullptr;
   }
 
   std::string sdTerrainDirStr;
@@ -155,8 +158,8 @@ osgEarth::Map* DbConfigurationFile::loadLegacyConfigFile(const std::string& file
   if (configFilename.find("/") != std::string::npos)
     sdTerrainDirStr = configFilename.substr(0, configFilename.rfind("/") + 1);
 
-  // Configure a NULL map at first
-  osgEarth::Map* map = NULL;
+  // Configure a nullptr map at first
+  osgEarth::Map* map = nullptr;
 
   // set up names for the loaded layers
   int imageLayerCount = 1;
@@ -186,8 +189,8 @@ osgEarth::Map* DbConfigurationFile::loadLegacyConfigFile(const std::string& file
       if (!gotValidFirstLine)
       {
         // Programming error if assert fires; indicates memory leak
-        assert(map == NULL);
-        return NULL;
+        assert(map == nullptr);
+        return nullptr;
       }
       continue;
     }
@@ -196,7 +199,7 @@ osgEarth::Map* DbConfigurationFile::loadLegacyConfigFile(const std::string& file
     gotValidFirstLine = true;
     if (!map)
     {
-      map = DbConfigurationFile::createDefaultMap_();
+      map = new osgEarth::Map();
       map->beginUpdate();
     }
 
@@ -377,23 +380,30 @@ void DbConfigurationFile::parseLayers_(const std::vector<std::string>& tokens, o
 
           imageLayer->setOpacity(opacity);
           imageLayer->setVisible(active);
+#if OSGEARTH_SOVERSION >= 127
+          imageLayer->setOpenAutomatically(active);
+#else
           imageLayer->setEnabled(active);
+#endif
+          imageLayer->setName(layerName);
           map->addLayer(imageLayer);
         }
-        if (altitudeSet)
+        else if (altitudeSet)
         {
           simVis::DBElevationLayer* newLayer = new simVis::DBElevationLayer();
           newLayer->setURL(fullDbFileName);
 
           // add a no data value to elevation layers, default is 0
           float noDataValue = 0.0f;
-          std::string noDataValueStr = DbConfigurationFile::findTokenValue_(tokens, noDataValue_keyword);
+          const std::string& noDataValueStr = DbConfigurationFile::findTokenValue_(tokens, noDataValue_keyword);
           if (!noDataValueStr.empty())
           {
             std::istringstream iStr(noDataValueStr);
             iStr >> noDataValue;
           }
           newLayer->setNoDataValue(noDataValue);
+          newLayer->setName(layerName);
+          map->addLayer(newLayer);
         }
       }
     }
@@ -420,7 +430,11 @@ void DbConfigurationFile::parseCloudLayers_(const std::vector<std::string>& toke
       imageLayer->setName(layerName);
 
       imageLayer->setVisible(false);
+#if OSGEARTH_SOVERSION >= 127
+      imageLayer->setOpenAutomatically(false);
+#else
       imageLayer->setEnabled(false);
+#endif
       map->addLayer(imageLayer);
 
       // process the cloud processing thresholds
@@ -496,19 +510,11 @@ std::string DbConfigurationFile::findTokenValue_(const std::vector<std::string>&
   return std::string();
 }
 
-osgEarth::Map* DbConfigurationFile::createDefaultMap_()
-{
-  // configure an EGM96 MSL globe.for the Map
-  osgEarth::Map* map = new osgEarth::Map();
-  map->setProfile(osgEarth::Profile::create("wgs84", "egm96"));
-  return map;
-}
-
 osg::Node* DbConfigurationFile::readEarthFile(std::istream& istream, const std::string& relativeTo)
 {
   osg::ref_ptr<osgDB::ReaderWriter> readWrite = osgDB::Registry::instance()->getReaderWriterForExtension("earth");
   if (!readWrite.valid())
-    return NULL;
+    return nullptr;
 
   osg::ref_ptr<osgDB::Options> dbOptions = new osgDB::Options();
   dbOptions->setDatabasePath(relativeTo);
@@ -529,10 +535,46 @@ osg::Node* DbConfigurationFile::readEarthFile(std::istream& istream, const std::
 
 osg::Node* DbConfigurationFile::readEarthFile(const std::string& filename)
 {
-  std::fstream istream(filename.c_str(), std::ios::in);
+  std::fstream istream(simCore::streamFixUtf8(filename), std::ios::in);
   if (!istream)
-    return NULL;
+    return nullptr;
   return DbConfigurationFile::readEarthFile(istream, filename);
+}
+
+int DbConfigurationFile::appendEarthFile(std::istream& istream, const std::string& relativeTo, osgEarth::Map& toMap)
+{
+  osg::ref_ptr<osgDB::ReaderWriter> readWrite = osgDB::Registry::instance()->getReaderWriterForExtension("earth");
+  if (!readWrite.valid())
+    return 1;
+
+  osg::ref_ptr<osgDB::Options> dbOptions = new osgDB::Options();
+  dbOptions->setDatabasePath(relativeTo);
+  dbOptions->setPluginStringData("osgEarth::URIContext::referrer", relativeTo);
+  osgDB::ReaderWriter::ReadResult result = readWrite->readNode(istream, dbOptions.get());
+
+  if (!result.success())
+    return 1;
+
+  osgEarth::MapNode* mapNode = osgEarth::MapNode::get(result.getNode());
+  if (!mapNode)
+    return 1;
+  osgEarth::Map* map = mapNode->getMap();
+  if (!map)
+    return 1;
+
+  std::vector<osg::ref_ptr<osgEarth::Layer> > layers;
+  map->getLayers(layers);
+  for (auto iter = layers.begin(); iter != layers.end(); ++iter)
+    toMap.addLayer((*iter).get());
+  return 0;
+}
+
+int DbConfigurationFile::appendEarthFile(const std::string& filename, osgEarth::Map& toMap)
+{
+  std::fstream ifs(simCore::streamFixUtf8(filename), std::ios::in);
+  if (!ifs)
+    return 1;
+  return DbConfigurationFile::appendEarthFile(ifs, filename, toMap);
 }
 
 }

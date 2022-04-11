@@ -13,27 +13,26 @@ Supported Systems/Compilers
 ===========================
 Operating systems officially supported by the SIMDIS SDK:
 
-* Windows 7/8/10
-* Red Hat Enterprise Linux 6/7
+* Windows 10
+* Red Hat Enterprise Linux 7
 
 Compilers officially supported by the SIMDIS SDK:
 
 * Windows compilers:
-  - Microsoft Visual C++ 2013 (VC-12.0)
-  - Microsoft Visual C++ 2015 (VC-14.0)
   - Microsoft Visual C++ 2017 (VC-14.1)
   - Microsoft Visual C++ 2019 (VC-14.2)
+  - Microsoft Visual C++ 2022 (VC-14.3)
 * Linux compilers:
-  - GCC, minimum 4.4
+  - GCC, minimum 8.3
 
 Other compiler combinations may work, or could work with minimal improvements
 to the CMake configuration.  This is only a list of the systems that we internally
 are able to support.  We are glad to accept pull requests supporting new
 compilers.
 
-C++-11 support will be mandatory for SIMDIS SDK compilers starting after
-September 2019, after the 1.11 release.  This will eliminate support for
-GCC 4.4.  RHEL 6 users can continue to build the SIMDIS SDK by using the
+C++-11 support is be mandatory for SIMDIS SDK compilers starting as of
+September 2019, after the 1.11 release.  This eliminated support for
+GCC 4.4.  RHEL 7 users can continue to build the SIMDIS SDK by using the
 devtoolset package from the RHEL SCL, in order to use an ABI-compatible
 compiler with newer language support.
 
@@ -42,11 +41,14 @@ Third Party Dependencies
 ========================
 The SIMDIS SDK depends on the following third party libraries:
 
+- [GLEW 2.1+](http://glew.sourceforge.net/)
 - [OpenSceneGraph 3.6+](http://www.openscenegraph.org)
-- [osgEarth 2.10+](http://www.osgearth.org)
+- [osgEarth 3.2+](http://www.osgearth.org)
 - [protobuf 2.6+](http://code.google.com/p/protobuf)
+- [Python 3.6+](https://www.python.org/)
 - [Qt 5.5+](http://qt-project.org)
 - [SQLite 3.8+](http://www.sqlite.org)
+- [SWIG 4.0+](http://www.swig.org/)
 
 
 While other versions may also work, we can only support the configurations
@@ -68,12 +70,11 @@ If you build OpenSceneGraph yourself, we recommend
 [building OpenSceneGraph with GL3 support](https://github.com/openscenegraph/OpenSceneGraph/blob/master/examples/osgsimplegl3/osgsimplegl3.cpp#L121).
 
 We also maintain a "Third Party Pack" for each supported architecture on the
-SIMDIS website.  This is a set of precompiled binaries for each dependency,
-in a directory layout that is automatically detected by CMake.  To download
-the Third Party Pack for your platform, visit the [SIMDIS website](https://simdis.nrl.navy.mil).
-We host Third Party Packs for each major release, and on the current
-[nightly build page](https://simdis.nrl.navy.mil/NightlySDK.aspx) too.  A
-free SIMDIS account is required to access this download.
+[Releases page](https://github.com/USNavalResearchLaboratory/simdissdk/releases).
+
+
+SWIG and Python are only required if you intend to build the Python modules
+in the swig/ subdirectory.  This feature is disabled by default.
 
 **NOTE:** Both OpenSceneGraph and osgEarth have additional third party
 dependencies.  More information about these dependencies can be found at the
@@ -203,4 +204,3 @@ these values globally by adding them to the "Include files" and "Library files"
 lists found in the "VC++ Directories" section of the "Projects and Solutions"
 section of the Options dialog.  The Options dialog is accessed through the
 Microsoft Visual Studio Tools menu.
-

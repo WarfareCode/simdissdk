@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -297,7 +298,7 @@ DownRangeMeasurement::DownRangeMeasurement()
 double DownRangeMeasurement::value(RangeToolState& state) const
 {
   double dr;
-  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, state.earthModel_, &state.coordConv_, &dr, NULL, NULL);
+  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, state.earthModel_, &state.coordConv_, &dr, nullptr, nullptr);
   return dr;
 }
 
@@ -315,7 +316,7 @@ CrossRangeMeasurement::CrossRangeMeasurement()
 double CrossRangeMeasurement::value(RangeToolState& state) const
 {
   double cr;
-  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, state.earthModel_, &state.coordConv_, NULL, &cr, NULL);
+  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, state.earthModel_, &state.coordConv_, nullptr, &cr, nullptr);
   return cr;
 }
 
@@ -333,7 +334,7 @@ DownRangeCrossRangeDownValueMeasurement::DownRangeCrossRangeDownValueMeasurement
 double DownRangeCrossRangeDownValueMeasurement::value(RangeToolState& state) const
 {
   double dv;
-  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, state.earthModel_, &state.coordConv_, NULL, NULL, &dv);
+  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, state.earthModel_, &state.coordConv_, nullptr, nullptr, &dv);
   return dv;
 }
 
@@ -351,7 +352,7 @@ GeoDownRangeMeasurement::GeoDownRangeMeasurement()
 double GeoDownRangeMeasurement::value(RangeToolState& state) const
 {
   double dr;
-  simCore::calculateGeodesicDRCR(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, &dr, NULL);
+  simCore::calculateGeodesicDRCR(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, &dr, nullptr);
   return dr;
 }
 
@@ -369,7 +370,7 @@ GeoCrossRangeMeasurement::GeoCrossRangeMeasurement()
 double GeoCrossRangeMeasurement::value(RangeToolState& state) const
 {
   double cr;
-  simCore::calculateGeodesicDRCR(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, NULL, &cr);
+  simCore::calculateGeodesicDRCR(state.beginEntity_->lla_, state.beginEntity_->ypr_.x(), state.endEntity_->lla_, nullptr, &cr);
   return cr;
 }
 
@@ -387,7 +388,7 @@ TrueAzimuthMeasurement::TrueAzimuthMeasurement()
 double TrueAzimuthMeasurement::value(RangeToolState& state) const
 {
   double az;
-  calculateTrueAngles_(state, &az, NULL, NULL);
+  calculateTrueAngles_(state, &az, nullptr, nullptr);
   return az;
 }
 
@@ -405,7 +406,7 @@ TrueElevationMeasurement::TrueElevationMeasurement()
 double TrueElevationMeasurement::value(RangeToolState& state) const
 {
   double el;
-  calculateTrueAngles_(state, NULL, &el, NULL);
+  calculateTrueAngles_(state, nullptr, &el, nullptr);
   return el;
 }
 
@@ -423,7 +424,7 @@ TrueCompositeAngleMeasurement::TrueCompositeAngleMeasurement()
 double TrueCompositeAngleMeasurement::value(RangeToolState& state) const
 {
   double cmp;
-  calculateTrueAngles_(state, NULL, NULL, &cmp);
+  calculateTrueAngles_(state, nullptr, nullptr, &cmp);
   return cmp;
 }
 
@@ -443,7 +444,7 @@ MagneticAzimuthMeasurement::MagneticAzimuthMeasurement(std::shared_ptr<simCore::
 double MagneticAzimuthMeasurement::value(RangeToolState& state) const
 {
   double az;
-  calculateTrueAngles_(state, &az, NULL, NULL);
+  calculateTrueAngles_(state, &az, nullptr, nullptr);
   az = datumConvert_->convertMagneticDatum(state.beginEntity_->lla_, state.timeStamp_, az, simCore::COORD_SYS_LLA, simCore::MAGVAR_TRUE, simCore::MAGVAR_WMM, 0.0);
   return az;
 }
@@ -689,7 +690,7 @@ double VelAzimDownRangeMeasurement::value(RangeToolState& state) const
   double downRng = 0;
   simCore::Vec3 fpa;
   simCore::calculateFlightPathAngles(vel, fpa);
-  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, fpa[0], state.endEntity_->lla_, state.earthModel_, &state.coordConv_, &downRng, NULL, NULL);
+  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, fpa[0], state.endEntity_->lla_, state.earthModel_, &state.coordConv_, &downRng, nullptr, nullptr);
   return downRng;
 }
 
@@ -713,7 +714,7 @@ double VelAzimCrossRangeMeasurement::value(RangeToolState& state) const
   double crossRng = 0;
   simCore::Vec3 fpa;
   simCore::calculateFlightPathAngles(vel, fpa);
-  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, fpa[0], state.endEntity_->lla_, state.earthModel_, &state.coordConv_, NULL, &crossRng, NULL);
+  simCore::calculateDRCRDownValue(state.beginEntity_->lla_, fpa[0], state.endEntity_->lla_, state.earthModel_, &state.coordConv_, nullptr, &crossRng, nullptr);
   return crossRng;
 }
 
@@ -737,7 +738,7 @@ double VelAzimGeoDownRangeMeasurement::value(RangeToolState& state) const
   double downRng = 0;
   simCore::Vec3 fpa;
   simCore::calculateFlightPathAngles(vel, fpa);
-  simCore::calculateGeodesicDRCR(state.beginEntity_->lla_, fpa[0], state.endEntity_->lla_, &downRng, NULL);
+  simCore::calculateGeodesicDRCR(state.beginEntity_->lla_, fpa[0], state.endEntity_->lla_, &downRng, nullptr);
   return downRng;
 }
 
@@ -761,7 +762,7 @@ double VelAzimGeoCrossRangeMeasurement::value(RangeToolState& state) const
   double crossRng = 0;
   simCore::Vec3 fpa;
   simCore::calculateFlightPathAngles(vel, fpa);
-  simCore::calculateGeodesicDRCR(state.beginEntity_->lla_, fpa[0], state.endEntity_->lla_, NULL, &crossRng);
+  simCore::calculateGeodesicDRCR(state.beginEntity_->lla_, fpa[0], state.endEntity_->lla_, nullptr, &crossRng);
   return crossRng;
 }
 

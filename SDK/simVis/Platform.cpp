@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -37,6 +38,7 @@
 #include "simVis/PlatformModel.h"
 #include "simVis/RadialLOSNode.h"
 #include "simVis/Registry.h"
+#include "simVis/TimeTicks.h"
 #include "simVis/TrackHistory.h"
 #include "simVis/Utils.h"
 #include "simVis/VelocityVector.h"
@@ -44,6 +46,7 @@
 #include "simVis/Projector.h"
 #include "simVis/Shaders.h"
 
+#undef LC
 #define LC "[PlatformNode] "
 
 namespace simVis
@@ -55,7 +58,6 @@ static const simVis::Color BODY_AXIS_Z_COLOR = simVis::Color::Aqua;
 static const simVis::Color INERTIAL_AXIS_X_COLOR = simVis::Color::Red;
 static const simVis::Color INERTIAL_AXIS_Y_COLOR = simVis::Color::Lime;
 static const simVis::Color INERTIAL_AXIS_Z_COLOR = simVis::Color::Blue;
-static const simVis::Color VELOCITY_VECTOR_COLOR = osg::Vec4f(1.0f, 0.5f, 0.0f, 1.0f); // SIMDIS_ORANGE
 static const simVis::Color MOON_VECTOR_COLOR = simVis::Color::White;
 static const simVis::Color SUN_VECTOR_COLOR = simVis::Color::Yellow;
 
@@ -82,7 +84,7 @@ public:
   virtual bool run(osg::Object* object, osg::Object* data)
   {
     AxisVector* vector = dynamic_cast<AxisVector*>(object);
-    if (vector != NULL && platform_.valid())
+    if (vector != nullptr && platform_.valid())
     {
       const float axisScale = platform_->getPrefs().axisscale();
       const float lineLength = VectorScaling::lineLength(platform_->getModel(), axisScale);
@@ -112,7 +114,7 @@ public:
   {
     CompositeHighlightNode* area = dynamic_cast<CompositeHighlightNode*>(object);
     // Scale down the radius by a small amount -- 80% -- to reduce highlight size
-    if (area != NULL && platform_.valid())
+    if (area != nullptr && platform_.valid())
       area->setRadius(VectorScaling::lineLength(platform_->getModel(), 0.8));
     return traverse(object, data);
   }
@@ -152,38 +154,34 @@ PlatformNode::PlatformNode(const simData::PlatformProperties& props,
                            const simData::DataStore& dataStore,
                            PlatformTspiFilterManager& manager,
                            osg::Group* expireModeGroupAttach,
-                           Locator* locator, int referenceYear) :
-EntityNode(simData::PLATFORM, locator),
-ds_(dataStore),
-platformTspiFilterManager_(manager),
-lastUpdateTime_(-std::numeric_limits<float>::max()),
-firstHistoryTime_(std::numeric_limits<float>::max()),
-expireModeGroupAttach_(expireModeGroupAttach),
-track_(NULL),
-localGrid_(NULL),
-bodyAxisVector_(NULL),
-inertialAxisVector_(NULL),
-scaledInertialTransform_(new PlatformInertialTransform),
-velocityAxisVector_(NULL),
-ephemerisVector_(NULL),
-model_(NULL),
-losCreator_(NULL),
-opticalLosNode_(NULL),
-radioLosNode_(NULL),
-frontOffset_(0.0),
-valid_(false),
-lastPrefsValid_(false),
-forceUpdateFromDataStore_(false),
-queuedInvalidate_(false)
+                           Locator* eciLocator,
+                           int referenceYear)
+  : EntityNode(simData::PLATFORM, new CachingLocator()),
+  ds_(dataStore),
+  platformTspiFilterManager_(manager),
+  lastUpdateTime_(-std::numeric_limits<float>::max()),
+  firstHistoryTime_(std::numeric_limits<float>::max()),
+  eciLocator_(eciLocator),
+  expireModeGroupAttach_(expireModeGroupAttach),
+  track_(nullptr),
+  timeTicks_(nullptr),
+  localGrid_(nullptr),
+  bodyAxisVector_(nullptr),
+  inertialAxisVector_(nullptr),
+  scaledInertialTransform_(new PlatformInertialTransform),
+  velocityAxisVector_(nullptr),
+  ephemerisVector_(nullptr),
+  model_(nullptr),
+  losCreator_(nullptr),
+  opticalLosNode_(nullptr),
+  radioLosNode_(nullptr),
+  frontOffset_(0.0),
+  valid_(false),
+  lastPrefsValid_(false),
+  forceUpdateFromDataStore_(false),
+  queuedInvalidate_(false)
 {
-  // create a container for platform-related objects that can be rendered even when platform is no longer valid.
-  // platform manages the visibility of the group.
-  // any class that adds a child is reponsible for removing that child.
-  expireModeGroup_ = new osg::Group;
-  if (expireModeGroupAttach_.valid())
-    expireModeGroupAttach_->addChild(expireModeGroup_);
-
-  model_ = new PlatformModelNode(new Locator(locator));
+  model_ = new PlatformModelNode(new Locator(getLocator()));
   addChild(model_);
   model_->addCallback(new BoundsUpdater(this));
 
@@ -193,7 +191,7 @@ queuedInvalidate_(false)
 
   setNodeMask(simVis::DISPLAY_MASK_NONE);
 
-  localGrid_ = new LocalGridNode(locator, this, referenceYear);
+  localGrid_ = new LocalGridNode(getLocator(), this, referenceYear);
   addChild(localGrid_);
 
   scaledInertialTransform_->setLocator(getLocator());
@@ -202,13 +200,19 @@ queuedInvalidate_(false)
 
 PlatformNode::~PlatformNode()
 {
+  if (!expireModeGroup_.valid())
+    return;
+
   if (track_.valid())
     expireModeGroup_->removeChild(track_);
-  track_ = NULL;
+  track_ = nullptr;
+  if (timeTicks_.valid())
+    expireModeGroup_->removeChild(timeTicks_);
+  timeTicks_ = nullptr;
 
   if (expireModeGroupAttach_.valid())
     expireModeGroupAttach_->removeChild(expireModeGroup_);
-  expireModeGroup_ = NULL;
+  expireModeGroup_ = nullptr;
 }
 
 void PlatformNode::setProperties(const simData::PlatformProperties& props)
@@ -236,7 +240,7 @@ void PlatformNode::setRcsPrefs_(const simData::PlatformPrefs& prefs)
       if (!uri.empty())
       {
         rcs_.reset(simCore::RcsFileParser::loadRCSFile(uri));
-        if (rcs_ == NULL)
+        if (rcs_ == nullptr)
         {
           SIM_WARN << LC << "Failed to load RCS file \"" << uri << "\"" << std::endl;
         }
@@ -264,6 +268,23 @@ void PlatformNode::setPrefs(const simData::PlatformPrefs& prefs)
     updateLabel_(prefs);
   }
 
+  if (expireModeGroup_.valid() &&
+    (!lastPrefsValid_ || PB_FIELD_CHANGED((&lastPrefs_), (&prefs), ecidatamode)))
+  {
+    // on change of eci data mode, track and timeticks need to be completely recreated
+    if (track_.valid())
+    {
+      expireModeGroup_->removeChild(track_);
+      track_ = nullptr;
+    }
+    if (timeTicks_.valid())
+    {
+      expireModeGroup_->removeChild(timeTicks_);
+      timeTicks_ = nullptr;
+    }
+    forceUpdateFromDataStore_ = true;
+  }
+
   updateOrRemoveBodyAxis_(prefsDraw, prefs);
   updateOrRemoveInertialAxis_(prefsDraw, prefs);
   updateOrRemoveVelocityVector_(prefsDraw, prefs);
@@ -273,18 +294,41 @@ void PlatformNode::setPrefs(const simData::PlatformPrefs& prefs)
 
   setRcsPrefs_(prefs);
 
-  // manage visibility of track and trail group
-  expireModeGroup_->setNodeMask(showTrackTrail_(prefs) ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
+  // manage visibility of expireModeGroup (track, timeticks and vaporTrail)
+  if (expireModeGroup_.valid())
+    expireModeGroup_->setNodeMask(showTrackTrail_(prefs) ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
 
   // remove or create track history
   if (showTrack_(prefs))
   {
+    // first check time ticks
+    if (prefs.trackprefs().timeticks().drawstyle() != simData::TimeTickPrefs::NONE)
+    {
+      if (!timeTicks_.valid())
+        createTimeTicks_(prefs);
+      // creating timeticks must also ensure that there is a valid group
+      assert(expireModeGroup_.valid());
+    }
+    else if (timeTicks_.valid())
+    {
+      // can't have valid timeticks without also having its group
+      assert(expireModeGroup_.valid());
+      expireModeGroup_->removeChild(timeTicks_);
+      timeTicks_ = nullptr;
+    }
+
     if (!track_.valid())
+    {
       createTrackHistoryNode_(prefs);
+      // creating track history must also ensure that there is a valid group
+      assert(expireModeGroup_.valid());
+    }
     else
     {
       // normal processing: update the track history data
       track_->setPrefs(prefs, lastProps_);
+      if (timeTicks_.valid())
+        timeTicks_->setPrefs(prefs, lastProps_);
 
       // track_ cannot be valid without having had platform prefs set at least once;
       // if assert fails, check whether prefs are initialized correctly when platform is created
@@ -296,15 +340,25 @@ void PlatformNode::setPrefs(const simData::PlatformPrefs& prefs)
         // track history is constrained by platform data limiting
         track_->reset();
         track_->update();
+        // time ticks follows data limiting same as track history
+        if (timeTicks_.valid())
+        {
+          timeTicks_->reset();
+          timeTicks_->update();
+        }
       }
-      if (track_.valid())
-        track_->setNodeMask(prefsDraw ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
+      track_->setNodeMask(prefsDraw ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
+      if (timeTicks_.valid())
+        timeTicks_->setNodeMask(prefsDraw ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
     }
   }
-  else
+  else if (expireModeGroup_.valid())
   {
     expireModeGroup_->removeChild(track_);
-    track_ = NULL;
+    track_ = nullptr;
+    // time ticks is always hidden if track history is hidden
+    expireModeGroup_->removeChild(timeTicks_);
+    timeTicks_ = nullptr;
   }
 
   // validate localgrid prefs changes that might provide user notifications
@@ -342,6 +396,8 @@ void PlatformNode::setPrefs(const simData::PlatformPrefs& prefs)
     forceUpdateFromDataStore_ = true;
   }
 
+  applyProjectorPrefs_(lastPrefs_.commonprefs(), prefs.commonprefs());
+
   lastPrefs_ = prefs;
   lastPrefsValid_ = true;
 }
@@ -375,8 +431,21 @@ void PlatformNode::updateHostBounds()
   updateHostBounds_(lastPrefs_.scale());
 }
 
-osg::Group* PlatformNode::getExpireModeGroup() const
+osg::Group* PlatformNode::getOrCreateExpireModeGroup()
 {
+  // Container for platform-related objects that can be rendered even when platform is no longer valid.
+  // Platform manages the visibility of the group.
+  // Any class that adds a child is reponsible for removing that child.
+
+  if (!expireModeGroup_.valid())
+  {
+    // lazy creation of expireModeGroup, SIM-12258
+    expireModeGroup_ = new osg::Group;
+    expireModeGroup_->setName("PlatformNode Expire Mode Group");
+
+    if (expireModeGroupAttach_.valid())
+      expireModeGroupAttach_->addChild(expireModeGroup_);
+  }
   return expireModeGroup_.get();
 }
 
@@ -426,6 +495,8 @@ bool PlatformNode::updateFromDataStore(const simData::DataSliceBase* updateSlice
   const simData::PlatformUpdateSlice* updateSlice = static_cast<const simData::PlatformUpdateSlice*>(updateSliceBase);
   assert(updateSlice);
 
+  firstHistoryTime_ = (updateSlice->numItems() == 0) ? std::numeric_limits<float>::max() : updateSlice->firstTime();
+
   // apply the queued invalidate first, so the state can then be further arbitrated by any new data points
   if (queuedInvalidate_)
   {
@@ -434,7 +505,7 @@ bool PlatformNode::updateFromDataStore(const simData::DataSliceBase* updateSlice
   }
 
   // in file mode, a platform is not valid until time reaches its first datapoint time.
-  // standard interfaces will return NULL or a sentinel value to indicate that the platform does not have a valid position.
+  // standard interfaces will return nullptr or a sentinel value to indicate that the platform does not have a valid position.
   // but there are cases where it is useful to know the position the platform will have when it becomes valid.
   // as an example, you may want to create a viewport to show the moment the platform becomes valid and starts to move.
   // to best show this, you want to be able to create the viewport's eyeposition based on that position in advance.
@@ -479,15 +550,24 @@ bool PlatformNode::updateFromDataStore(const simData::DataSliceBase* updateSlice
     }
   }
 
-  if (!updateSlice->hasChanged() && !force && !forceUpdateFromDataStore_)
+  // check if time changed based on last data store update time, ignoring static platforms
+  const bool timeChanged = (lastUpdateTime_ != -1.0) && (ds_.updateTime() != lastUpdateTime_);
+
+  // Time can completely jump over the life span of the platform.
+  // The method updateSlice->hasChanged() will indicate no change, but the code should not kick out early.
+  const bool timeJumpOverLifeSpan = (timeChanged && (updateSlice->numItems() != 0) &&
+    (((lastUpdateTime_ <= updateSlice->firstTime()) && (ds_.updateTime() >= updateSlice->lastTime())) ||
+    ((ds_.updateTime() <= updateSlice->firstTime()) && (lastUpdateTime_ >= updateSlice->lastTime()))));
+
+  if (!updateSlice->hasChanged() && !timeJumpOverLifeSpan && !force && !forceUpdateFromDataStore_)
   {
+    if (timeTicks_.valid())
+      timeTicks_->update();
     // Even if the platform has not changed, the label can still change - entity name could change as a result of category data, for example.
     updateLabel_(lastPrefs_);
     return false;
   }
 
-  // check if time changed based on last data store update time, ignoring static platforms
-  bool timeChanged = (lastUpdateTime_ != -1.0) && (ds_.updateTime() != lastUpdateTime_);
   lastUpdateTime_ = ds_.updateTime();
 
   if (updateSlice->current())
@@ -508,7 +588,6 @@ bool PlatformNode::updateFromDataStore(const simData::DataSliceBase* updateSlice
     // need to update lastUpdate_ and lastUpdateTime_ before calling updateLocator which will reference them and expect them to be up to date
     lastUpdate_ = current;
     lastUpdateTime_ = current.time();
-    firstHistoryTime_ = updateSlice->firstTime();
     updateLocator_(current);
 
     // update only if entity should be visible
@@ -522,27 +601,41 @@ bool PlatformNode::updateFromDataStore(const simData::DataSliceBase* updateSlice
   }
   else
   {
-    // a NULL update means the platform should be disabled
+    // a nullptr update means the platform should be disabled
     setInvalid_();
   }
 
   // manage visibility of track and trail group
-  expireModeGroup_->setNodeMask(showTrackTrail_(lastPrefs_) ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
+  if (expireModeGroup_.valid())
+    expireModeGroup_->setNodeMask(showTrackTrail_(lastPrefs_) ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
 
   // remove or create track history
   if (showTrack_(lastPrefs_))
   {
     if (!track_.valid())
       createTrackHistoryNode_(lastPrefs_);
-    else if (timeChanged || updateSlice->hasChanged())
-      track_->update();
+    else
+    {
+      if (timeChanged || updateSlice->hasChanged())
+        track_->update();
+      // always update time ticks
+      if (timeTicks_.valid())
+        timeTicks_->update();
+    }
   }
-  else if (track_.valid())
+  else if (expireModeGroup_.valid())
   {
-    expireModeGroup_->removeChild(track_);
-    track_ = NULL;
+    if (track_.valid())
+    {
+      expireModeGroup_->removeChild(track_);
+      track_ = nullptr;
+    }
+    if (timeTicks_.valid())
+    {
+      expireModeGroup_->removeChild(timeTicks_);
+      timeTicks_ = nullptr;
+    }
   }
-
   // avoid applying a null update over and over
   if (!updateSlice->current() && getNodeMask() == DISPLAY_MASK_NONE && !valid_)
     return false;
@@ -599,14 +692,57 @@ bool PlatformNode::createTrackHistoryNode_(const simData::PlatformPrefs& prefs)
 {
   // if assert fails, check that callers only call on !valid() condition
   assert(!track_.valid());
+
   // create the Track History "on demand" if requested
-  track_ = new TrackHistoryNode(ds_, getLocator()->getSRS(), platformTspiFilterManager_, getId());
-  expireModeGroup_->addChild(track_);
+  if (prefs.ecidatamode())
+  {
+    // trackhistory for an ECI platform gets a locator derived from the scenario ECI locator
+    // dev error to construct a platform with a nullptr locator
+    assert(eciLocator_);
+    if (eciLocator_)
+      track_ = new TrackHistoryNode(ds_, eciLocator_.get(), platformTspiFilterManager_, getId());
+  }
+  // trackhistory for platform in ecef datamode gets a new empty locator
+  if (!track_.valid())
+    track_ = new TrackHistoryNode(ds_, new Locator(), platformTspiFilterManager_, getId());
+
+  getOrCreateExpireModeGroup()->addChild(track_);
   track_->setPrefs(prefs, lastProps_, true);
   updateHostBounds_(prefs.scale());
   track_->update();
+
   const bool prefsDraw = lastPrefs_.commonprefs().datadraw() && prefs.commonprefs().draw();
   track_->setNodeMask(prefsDraw ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
+
+  // check to see if we need to create time ticks, since time ticks, like track history, can be turned on before platform is actually valid
+  if ((prefs.trackprefs().timeticks().drawstyle() != simData::TimeTickPrefs::NONE) && !timeTicks_.valid())
+    createTimeTicks_(prefs);
+
+  return true;
+}
+
+bool PlatformNode::createTimeTicks_(const simData::PlatformPrefs& prefs)
+{
+  // if assert fails, check that callers only call on !valid() condition
+  assert(!timeTicks_.valid());
+
+  if (prefs.ecidatamode())
+  {
+    // dev error to construct a platform with a nullptr locator argument
+    assert(eciLocator_);
+    if (eciLocator_)
+      timeTicks_ = new TimeTicks(ds_, eciLocator_.get(), platformTspiFilterManager_, getId());
+  }
+  // for non-ECI platform use a new empty locator
+  if (!timeTicks_.valid())
+    timeTicks_ = new TimeTicks(ds_, new Locator(), platformTspiFilterManager_, getId());
+  getOrCreateExpireModeGroup()->addChild(timeTicks_);
+  timeTicks_->setPrefs(prefs, lastProps_, true);
+  timeTicks_->update();
+
+  const bool prefsDraw = lastPrefs_.commonprefs().datadraw() && prefs.commonprefs().draw();
+  timeTicks_->setNodeMask(prefsDraw ? simVis::DISPLAY_MASK_TRACK_HISTORY : simVis::DISPLAY_MASK_NONE);
+
   return true;
 }
 
@@ -615,6 +751,8 @@ void PlatformNode::updateClockMode(const simCore::Clock* clock)
   // notify the track history of a change in time direction
   if (track_.valid())
     track_->updateClockMode(clock);
+  if (timeTicks_.valid())
+    timeTicks_->updateClockMode(clock);
 }
 
 void PlatformNode::flush()
@@ -641,12 +779,12 @@ double PlatformNode::range() const
 
 const simData::PlatformUpdate* PlatformNode::update() const
 {
-  return isActive() ? &lastUpdate_ : NULL;
+  return isActive() ? &lastUpdate_ : nullptr;
 }
 
 const simData::PlatformUpdate* PlatformNode::labelUpdate() const
 {
-  return isActive() ? labelUpdate_(lastPrefs_) : NULL;
+  return isActive() ? labelUpdate_(lastPrefs_) : nullptr;
 }
 
 const std::string PlatformNode::getEntityName(EntityNode::NameType nameType, bool allowBlankAlias) const
@@ -756,7 +894,7 @@ void PlatformNode::updateOrRemoveBodyAxis_(bool prefsDraw, const simData::Platfo
   else if (bodyAxisVector_.valid()) // remove if present
   {
     model_->removeScaledChild(bodyAxisVector_.get());
-    bodyAxisVector_ = NULL;
+    bodyAxisVector_ = nullptr;
   }
 }
 
@@ -778,7 +916,7 @@ void PlatformNode::updateOrRemoveInertialAxis_(bool prefsDraw, const simData::Pl
   else if (inertialAxisVector_.valid()) // remove if present
   {
     scaledInertialTransform_->removeChild(inertialAxisVector_);
-    inertialAxisVector_ = NULL;
+    inertialAxisVector_ = nullptr;
   }
 }
 
@@ -791,7 +929,7 @@ void PlatformNode::updateOrRemoveVelocityVector_(bool prefsDraw, const simData::
       velocityAxisVector_->setPrefs(prefs.drawvelocityvec(), prefs, PB_FIELD_CHANGED(&lastPrefs_, &prefs, drawvelocityvec));
     else
     {
-      velocityAxisVector_ = new VelocityVector(getLocator(), VELOCITY_VECTOR_COLOR);
+      velocityAxisVector_ = new VelocityVector(getLocator());
       addChild(velocityAxisVector_);
       // force rebuild
       velocityAxisVector_->update(lastUpdate_);
@@ -801,7 +939,7 @@ void PlatformNode::updateOrRemoveVelocityVector_(bool prefsDraw, const simData::
   else if (velocityAxisVector_.valid()) // remove if present
   {
     removeChild(velocityAxisVector_);
-    velocityAxisVector_ = NULL;
+    velocityAxisVector_ = nullptr;
   }
 }
 
@@ -825,7 +963,7 @@ void PlatformNode::updateOrRemoveEphemerisVector_(bool prefsDraw, const simData:
   else if (ephemerisVector_.valid()) // remove if present
   {
     scaledInertialTransform_->removeChild(ephemerisVector_);
-    ephemerisVector_ = NULL;
+    ephemerisVector_ = nullptr;
   }
 }
 
@@ -846,7 +984,7 @@ void PlatformNode::updateOrRemoveCircleHighlight_(bool prefsDraw, const simData:
   else if (highlight_.valid()) // remove if present
   {
     scaledInertialTransform_->removeChild(highlight_);
-    highlight_ = NULL;
+    highlight_ = nullptr;
   }
 }
 
@@ -858,7 +996,7 @@ void PlatformNode::updateOrRemoveHorizons_(const simData::PlatformPrefs& prefs, 
 
 void PlatformNode::updateOrRemoveHorizon_(simCore::HorizonCalculations horizonType, const simData::PlatformPrefs& prefs, bool force)
 {
-  RadialLOSNode* los = NULL;
+  RadialLOSNode* los = nullptr;
   bool drawHorizon = false;
   switch (horizonType)
   {
@@ -958,8 +1096,7 @@ void PlatformNode::updateOrRemoveHorizon_(simCore::HorizonCalculations horizonTy
   // Make sure the position has been set
   if (platCoord.position() == simCore::Vec3(0.0, 0.0, 0.0))
   {
-    // Reactivate the LOS, undoing the setActive(false) above
-    los->setActive(true);
+    // No need to reactivate the LOS, it is not valid
     return;
   }
 
@@ -977,7 +1114,7 @@ void PlatformNode::updateOrRemoveHorizon_(simCore::HorizonCalculations horizonTy
     simCore::Coordinate losLlaCoord;
     converter.convert(losCoord, losLlaCoord, simCore::COORD_SYS_LLA);
 
-    rangeDist = simCore::calculateGroundDist(losLlaCoord.position(), platLlaCoord.position(), simCore::WGS_84, NULL);
+    rangeDist = simCore::calculateGroundDist(losLlaCoord.position(), platLlaCoord.position(), simCore::WGS_84, nullptr);
     altDist = fabs(losLlaCoord.alt() - platLlaCoord.alt());
   }
   else
@@ -1013,14 +1150,9 @@ unsigned int PlatformNode::objectIndexTag() const
   return model_->objectIndexTag();
 }
 
-void PlatformNode::acceptProjector(ProjectorNode* proj)
+int PlatformNode::acceptProjectors(const std::vector<ProjectorNode*>& projectors)
 {
-  proj->addProjectionToNode(model_->offsetNode());
-}
-
-void PlatformNode::removeProjector(ProjectorNode* proj)
-{
-  proj->removeProjectionFromNode(model_->offsetNode());
+  return acceptProjectors_(model_->offsetNode(), projectors);
 }
 
 }

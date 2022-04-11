@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -32,7 +33,7 @@ FunctionalProfileDataProvider::FunctionalProfileDataProvider(const ProfileDataPr
 
 FunctionalProfileDataProvider::~FunctionalProfileDataProvider()
 {
-  templateProvider_ = NULL;
+  templateProvider_ = nullptr;
 }
 
 unsigned int FunctionalProfileDataProvider::getNumRanges() const
@@ -92,7 +93,16 @@ double FunctionalProfileDataProvider::getRange_(unsigned int rangeIndex) const
     assert(false);
     rangeIndex = getNumRanges() - 1;
   }
-  assert(getMinRange() != 0.0);  // If zero, then not correctly set
   return getRangeStep() * rangeIndex + getMinRange();
+}
+
+double FunctionalProfileDataProvider::getHeight_(unsigned int heightIndex) const
+{
+  if (heightIndex >= getNumHeights())
+  {
+    assert(false);
+    heightIndex = getNumHeights() - 1;
+  }
+  return getHeightStep() * heightIndex + getMinHeight();
 }
 }

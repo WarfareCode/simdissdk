@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -42,21 +43,21 @@ MemoryCategoryDataSlice::TimeValues::~TimeValues()
 /* Gets the start of the deque */
 MemoryCategoryDataSlice::TimeValueIterator MemoryCategoryDataSlice::TimeValues::begin() const
 {
-  return entries.begin();
+  return entries_.begin();
 }
 
 /* Gets the end of the deque */
 MemoryCategoryDataSlice::TimeValueIterator MemoryCategoryDataSlice::TimeValues::end() const
 {
-  return entries.end();
+  return entries_.end();
 }
 
 /** Gets the upper bound from the deque */
 MemoryCategoryDataSlice::TimeValueIterator MemoryCategoryDataSlice::TimeValues::upper_bound(double time) const
 {
   lastPos_ = checkPosition_(lastPos_);
-  TimeValueIterator rv = upperBound_(entries.begin(), entries.begin() + lastPos_, entries.end(), time);
-  lastPos_ = rv - entries.begin();
+  TimeValueIterator rv = upperBound_(entries_.begin(), entries_.begin() + lastPos_, entries_.end(), time);
+  lastPos_ = rv - entries_.begin();
   return rv;
 }
 
@@ -64,46 +65,46 @@ MemoryCategoryDataSlice::TimeValueIterator MemoryCategoryDataSlice::TimeValues::
 MemoryCategoryDataSlice::TimeValueIterator MemoryCategoryDataSlice::TimeValues::find(double time) const
 {
   lastPos_ = checkPosition_(lastPos_);
-  TimeValueIterator rv = find_(entries.begin(), entries.begin() + lastPos_, entries.end(), time);
-  lastPos_ = rv - entries.begin();
+  TimeValueIterator rv = find_(entries_.begin(), entries_.begin() + lastPos_, entries_.end(), time);
+  lastPos_ = rv - entries_.begin();
   return rv;
 }
 
 /** Removes data from the deque */
 void MemoryCategoryDataSlice::TimeValues::erase(TimeValueIterator it)
 {
-  entries.erase(it);
+  entries_.erase(it);
 }
 
 /** Retrieves size of the entries */
 size_t MemoryCategoryDataSlice::TimeValues::size() const
 {
   // Note that this is O(1) complexity, safe to call
-  return entries.size();
+  return entries_.size();
 }
 
 /** Inserts data into the deque */
 void MemoryCategoryDataSlice::TimeValues::insert(double time, int value)
 {
   // First do initial condition
-  if (entries.empty())
+  if (entries_.empty())
   {
-    entries.push_back(TimeValuePair(time, value));
+    entries_.push_back(TimeValuePair(time, value));
     return;
   }
 
   // Second so the common case of appending to the end
-  if (entries.back().time < time)
+  if (entries_.back().time < time)
   {
-    entries.push_back(TimeValuePair(time, value));
+    entries_.push_back(TimeValuePair(time, value));
     return;
   }
 
   // Not appending to the end, so need to find the location
   TimeValueIterator it = upper_bound(time);
-  if (it == entries.begin())
+  if (it == entries_.begin())
   {
-    entries.push_front(TimeValuePair(time, value));
+    entries_.push_front(TimeValuePair(time, value));
     return;
   }
 
@@ -115,7 +116,7 @@ void MemoryCategoryDataSlice::TimeValues::insert(double time, int value)
     return;
   }
 
-  entries.insert(it, TimeValuePair(time, value));
+  entries_.insert(it, TimeValuePair(time, value));
 }
 
 void MemoryCategoryDataSlice::TimeValues::limitByPoints(uint32_t limitPoints)
@@ -123,19 +124,19 @@ void MemoryCategoryDataSlice::TimeValues::limitByPoints(uint32_t limitPoints)
   // The zero case should already be handled
   assert(limitPoints);
 
-  if (entries.size() <= limitPoints)
+  if (entries_.size() <= limitPoints)
     return;
 
   bool reinsertOldTime = false;
   int oldValue = 0;
-  if (entries.front().time == DEFAULT_TIME)
+  if (entries_.front().time == DEFAULT_TIME)
   {
-    oldValue = entries.front().value;
+    oldValue = entries_.front().value;
     reinsertOldTime = true;
   }
 
   // This algorithm is different than SIMDIS 9 in that any default value is NOT counted against limitPoints
-  size_t numToRemove = entries.size() - limitPoints;
+  size_t numToRemove = entries_.size() - limitPoints;
   if (reinsertOldTime)
   {
     // Break out early if only removing the -1 time
@@ -143,11 +144,28 @@ void MemoryCategoryDataSlice::TimeValues::limitByPoints(uint32_t limitPoints)
       return;
   }
 
-  entries.erase(entries.begin(), entries.begin() + numToRemove);
+  entries_.erase(entries_.begin(), entries_.begin() + numToRemove);
 
   // Re-add the -1 time value
   if (reinsertOldTime)
-    entries.push_front(TimeValuePair(DEFAULT_TIME, oldValue));
+    entries_.push_front(TimeValuePair(DEFAULT_TIME, oldValue));
+}
+
+void MemoryCategoryDataSlice::TimeValues::completeFlush()
+{
+  entries_.clear();
+}
+
+void MemoryCategoryDataSlice::TimeValues::flush(double startTime, double endTime)
+{
+  auto start = std::lower_bound(entries_.begin(), entries_.end(), TimeValuePair(startTime, 0));
+  if ((start == entries_.end()) || (start->time >= endTime))
+    return;
+
+  // endTime is non-inclusive
+  auto end = std::lower_bound(start, entries_.end(), TimeValuePair(endTime, 0));
+
+  entries_.erase(start, end);
 }
 
 void MemoryCategoryDataSlice::TimeValues::limitByTime(double timeLimit)
@@ -155,49 +173,49 @@ void MemoryCategoryDataSlice::TimeValues::limitByTime(double timeLimit)
   // The zero case should already be handle
   assert(timeLimit > 0.0);
 
-  if (entries.size() < 2)
+  if (entries_.size() < 2)
     return;
 
   bool reinsertOldTime = false;
   int oldValue = 0;
-  if (entries.front().time == DEFAULT_TIME)
+  if (entries_.front().time == DEFAULT_TIME)
   {
-    oldValue = entries.front().value;
+    oldValue = entries_.front().value;
     reinsertOldTime = true;
-    if (entries.size() < 3)
+    if (entries_.size() < 3)
       return;
   }
 
-  double lastTime = entries.rbegin()->time;
+  double lastTime = entries_.rbegin()->time;
   double limitPointsBeforeTime = lastTime - simCore::sdkMax(0.0, static_cast<double>(timeLimit));
-  TimeValueIterator dataIter = std::lower_bound(entries.begin(), entries.end(), TimeValuePair(limitPointsBeforeTime, 0));
-  if (dataIter == entries.end())
+  TimeValueIterator dataIter = std::lower_bound(entries_.begin(), entries_.end(), TimeValuePair(limitPointsBeforeTime, 0));
+  if (dataIter == entries_.end())
   {
     // no element was found with a timestamp >= limitPointsBeforeTime
     // all elements have timestamps < limitPointsBeforeTime
-    entries.clear();
+    entries_.clear();
   }
   else
   {
     // dataIter is the first element in dataContainer with a timestamp >= limitPointsBeforeTime
     // all elements before dataIter have timestamps < limitPointsBeforeTime
-    if (dataIter != entries.begin())
+    if (dataIter != entries_.begin())
     {
-      entries.erase(entries.begin(), dataIter);
+      entries_.erase(entries_.begin(), dataIter);
     }
   }
 
   // Re-add the -1 time value
   if (reinsertOldTime)
-    entries.push_front(TimeValuePair(DEFAULT_TIME, oldValue));
+    entries_.push_front(TimeValuePair(DEFAULT_TIME, oldValue));
 }
 
 /** Returns a validated position */
 size_t MemoryCategoryDataSlice::TimeValues::checkPosition_(size_t pos) const
 {
-  if (entries.empty())
+  if (entries_.empty())
     return 0;
-  return pos >= entries.size() ? (entries.size() - 1) : pos;
+  return pos >= entries_.size() ? (entries_.size() - 1) : pos;
 }
 
 /**
@@ -300,42 +318,51 @@ class MemoryCategoryDataSlice::MemoryCategoryDataPair : public CategoryDataPair
 public:
   /**
    * Public constructor for MemoryCategoryDataSlice
+   * @param[in] timeValue Time of the category data point
    * @param[in] catInt key for the category name
    * @param[in] valInt key for the category value
    * @param[in] categoryNameManager Used to dereference category and value
    */
-  MemoryCategoryDataPair(int catInt, int valInt, CategoryNameManager& categoryNameManager)
-    : catInt_(catInt),
+  MemoryCategoryDataPair(double timeValue, int catInt, int valInt, CategoryNameManager& categoryNameManager)
+    : time_(timeValue),
+    catInt_(catInt),
     valInt_(valInt),
     categoryNameManager_(categoryNameManager)
   {
   }
 
+  ///@return Time of validity for the category data pair
+  virtual double time() const override
+  {
+    return time_;
+  }
+
   ///@return the category name as a string
-  virtual std::string name() const
+  virtual std::string name() const override
   {
     return categoryNameManager_.nameIntToString(catInt_);
   }
 
   ///@return the string value for the current category
-  virtual std::string value() const
+  virtual std::string value() const override
   {
     return categoryNameManager_.valueIntToString(valInt_);
   }
 
   ///@return the integer key for the category name
-  virtual int nameInt() const
+  virtual int nameInt() const override
   {
     return catInt_;
   }
 
   ///@return the integer key for the value for the current category
-  virtual int valueInt() const
+  virtual int valueInt() const override
   {
     return valInt_;
   }
 
 private:
+  double time_;
   int catInt_;
   int valInt_;
   CategoryNameManager& categoryNameManager_;
@@ -470,6 +497,7 @@ private: // methods
   {
     int catInt = CategoryNameManager::NO_CATEGORY_NAME;
     int valInt = CategoryNameManager::NO_CATEGORY_VALUE;
+    double timeValue = -1.0;
     if (iter != parent_.data_.end())
     {
       catInt = iter->first;
@@ -479,10 +507,11 @@ private: // methods
       {
         --i;
         valInt = i->value;
+        timeValue = i->time;
       }
     }
 
-    return std::shared_ptr<CategoryDataPair>(new MemoryCategoryDataPair(catInt, valInt, *parent_.categoryNameManager_));
+    return std::shared_ptr<CategoryDataPair>(new MemoryCategoryDataPair(timeValue, catInt, valInt, *parent_.categoryNameManager_));
   }
 
 private: // methods
@@ -533,7 +562,7 @@ private: // data
 //----------------------------------------------------------------------------
 MemoryCategoryDataSlice::MemoryCategoryDataSlice(double timeStamp)
   : lastUpdateTime_(timeStamp),
-  categoryNameManager_(NULL),
+  categoryNameManager_(nullptr),
   sliceSize_(0)
 {
 }
@@ -699,6 +728,23 @@ void MemoryCategoryDataSlice::limitByPrefs(const CommonPrefs &prefs)
 void MemoryCategoryDataSlice::flush()
 {
   limitByPoints_(1);
+}
+
+void MemoryCategoryDataSlice::completeFlush()
+{
+  sliceSize_ = 0;
+  for (EntityData::iterator i = data_.begin(); i != data_.end(); ++i)
+    i->second.data.completeFlush();
+}
+
+void MemoryCategoryDataSlice::flush(double startTime, double endTime)
+{
+  sliceSize_ = 0;
+  for (EntityData::iterator i = data_.begin(); i != data_.end(); ++i)
+  {
+    i->second.data.flush(startTime, endTime);
+    sliceSize_ += i->second.data.size();
+  }
 }
 
 std::unique_ptr<CategoryDataSlice::IteratorImpl> MemoryCategoryDataSlice::iterator_() const

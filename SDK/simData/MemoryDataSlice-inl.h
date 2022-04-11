@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -36,7 +37,7 @@ namespace MemorySliceHelper
 {
 template<typename T>
 SafeDequeIterator<T>::SafeDequeIterator()
-: deque_(NULL),
+: deque_(nullptr),
   val_(0)
 {
 }
@@ -51,7 +52,7 @@ SafeDequeIterator<T>::SafeDequeIterator(typename std::deque<T>* deque, typename 
 template<typename T>
 void SafeDequeIterator<T>::invalidate()
 {
-  if (deque_ != NULL)
+  if (deque_ != nullptr)
     val_ = static_cast<typename std::deque<T>::difference_type>(deque_->size());
   else
     val_ = 0;
@@ -60,7 +61,7 @@ void SafeDequeIterator<T>::invalidate()
 template<typename T>
 typename std::deque<T>::iterator SafeDequeIterator<T>::get() const
 {
-  if (deque_ == NULL)
+  if (deque_ == nullptr)
     return typename std::deque<T>::iterator();
 
   if (val_ > static_cast<typename std::deque<T>::difference_type>(deque_->size()))
@@ -130,6 +131,23 @@ int flush(std::deque<T*> &updates, bool keepStatic)
   return 0;
 }
 
+template<typename T>
+int flush(std::deque<T*> &updates, double startTime, double endTime)
+{
+  auto start = std::lower_bound(updates.begin(), updates.end(), startTime, UpdateComp<T>());
+  if ((start == updates.end()) || ((*start)->time() >= endTime))
+    return 1;
+
+  // endTime is non-inclusive
+  auto end = std::lower_bound(start, updates.end(), endTime, UpdateComp<T>());
+
+  for (auto it = start; it != end; ++it)
+    delete *it;
+
+  updates.erase(start, end);
+  return 0;
+}
+
 } // namespace MemorySliceHelper
 
 template <class T>
@@ -144,7 +162,7 @@ template <class T>
 const T* const VectorIterator<T>::next()
 {
   if (!hasNext())
-    return NULL;
+    return nullptr;
 
   return (*vec_)[nextIndex_++];
 }
@@ -153,7 +171,7 @@ template <class T>
 const T* const VectorIterator<T>::peekNext() const
 {
   if (!hasNext())
-    return NULL;
+    return nullptr;
 
   return (*vec_)[nextIndex_];
 }
@@ -162,7 +180,7 @@ template <class T>
 const T* const VectorIterator<T>::previous()
 {
   if (!hasPrevious())
-    return NULL;
+    return nullptr;
 
   return (*vec_)[--nextIndex_];
 }
@@ -171,7 +189,7 @@ template <class T>
 const T* const VectorIterator<T>::peekPrevious() const
 {
   if (!hasPrevious())
-    return NULL;
+    return nullptr;
   return (*vec_)[(nextIndex_ - 1)];
 }
 
@@ -218,9 +236,9 @@ template<typename T>
 MemoryDataSlice<T>::MemoryDataSlice()
 : mdsHasChanged_(false),
   dirty_(false),
-  current_(NULL),
+  current_(nullptr),
   interpolated_(false),
-  bounds_(static_cast<T*>(NULL), static_cast<T*>(NULL)),
+  bounds_(static_cast<T*>(nullptr), static_cast<T*>(nullptr)),
   fastUpdate_(&updates_, updates_.end())
 {
 }
@@ -235,7 +253,15 @@ template<typename T>
 void MemoryDataSlice<T>::flush(bool keepStatic)
 {
   if (MemorySliceHelper::flush(updates_, keepStatic) == 0)
-    current_ = NULL;
+    current_ = nullptr;
+  dirty_ = true;
+}
+
+template<typename T>
+void MemoryDataSlice<T>::flush(double startTime, double endTime)
+{
+  if (MemorySliceHelper::flush(updates_, startTime, endTime) == 0)
+    current_ = nullptr;
   dirty_ = true;
 }
 
@@ -355,7 +381,7 @@ void MemoryDataSlice<T>::update(double time)
   clearChanged();
 
   // early out when there are no changes to this slice
-  if (!dirty_ && (current_ != NULL) && ((current_->time() == time) || (current_->time() == -1.0)))
+  if (!dirty_ && (current_ != nullptr) && ((current_->time() == time) || (current_->time() == -1.0)))
     return;
 
   dirty_ = false;
@@ -365,7 +391,7 @@ void MemoryDataSlice<T>::update(double time)
   if (fastUpdate_.get() != updates_.end())
     setCurrent(*fastUpdate_.get());
   else
-    setCurrent(NULL);
+    setCurrent(nullptr);
 }
 
 template<typename T>
@@ -375,7 +401,7 @@ void MemoryDataSlice<T>::update(double time, Interpolator *interpolator)
   clearChanged();
 
   // early out when there are no changes to this slice
-  if (!dirty_ && (current_ != NULL) && ((current_->time() == time) || (current_->time() == -1.0)))
+  if (!dirty_ && (current_ != nullptr) && ((current_->time() == time) || (current_->time() == -1.0)))
     return;
 
   // update is processing the changes to the slice, clear the flag
@@ -404,7 +430,7 @@ void MemoryDataSlice<T>::insert(T *data)
       {
         // NULL the current ptr, if we are replacing the update it aliases; current will become valid upon update
         if (current_ == *iter)
-          setCurrent(NULL);
+          setCurrent(nullptr);
 
         delete *iter;
         *iter = data;
@@ -519,7 +545,7 @@ const CommandType* MemoryCommandSlice<CommandType, PrefType>::current() const
   typename std::deque<CommandType*>::const_iterator i =
     std::upper_bound(updates_.begin(), updates_.end(), lastUpdateTime_, UpdateComp<CommandType>());
 
-  return (i != updates_.begin()) ? *(i-1) : NULL;
+  return (i != updates_.begin()) ? *(i-1) : nullptr;
 }
 
 template<class CommandType, class PrefType>
@@ -540,7 +566,9 @@ void MemoryCommandSlice<CommandType, PrefType>::modify(typename DataSlice<Comman
   {
     if (modifier->modify(*(updates_[index])) < 0)
     {
-      updates_.erase(updates_.begin() + index);
+      auto it = updates_.begin() + index;
+      delete *it;
+      updates_.erase(it);
       --size;
     }
     else
@@ -555,6 +583,13 @@ template<class CommandType, class PrefType>
 void MemoryCommandSlice<CommandType, PrefType>::flush()
 {
   MemorySliceHelper::flush(updates_);
+  earliestInsert_ = std::numeric_limits<double>::max();
+}
+
+template<class CommandType, class PrefType>
+void MemoryCommandSlice<CommandType, PrefType>::flush(double startTime, double endTime)
+{
+  MemorySliceHelper::flush(updates_, startTime, endTime);
   earliestInsert_ = std::numeric_limits<double>::max();
 }
 
@@ -585,6 +620,8 @@ void MemoryCommandSlice<CommandType, PrefType>::insert(CommandType *data)
   }
   else
   {
+    // Must clear out the shared fields in target, that are repeated and non-empty
+    conditionalClearRepeatedFields_((*iter)->mutable_updateprefs(), data->mutable_updateprefs());
     // merge into existing command at same time
     (*iter)->MergeFrom(*data);
     // in this case, deque does not take ownership of the (committed) data item; we need to delete it.
@@ -639,15 +676,8 @@ template<class CommandType, class PrefType>
 void MemoryCommandSlice<CommandType, PrefType>::update(DataStore *ds, ObjectId id, double time)
 {
   clearChanged();
-  if (updates_.empty())
-  {
-    reset_();
-    return;
-  }
 
-  // if requested time is before the beginning
-  const CommandType *first = updates_.front();
-  if (time < first->time())
+  if (updates_.empty() || (time < updates_.front()->time()))
   {
     reset_();
     return;
@@ -655,9 +685,9 @@ void MemoryCommandSlice<CommandType, PrefType>::update(DataStore *ds, ObjectId i
 
   // process all command updates in one prefs transaction
   DataStore::Transaction t;
-  PrefType* prefs = NULL;
+  PrefType* prefs = nullptr;
   simData::getPreference(ds, id, &prefs, &t);
-  if (prefs == NULL)
+  if (prefs == nullptr)
     return;
 
   const CommandType *lastCommand = current();
@@ -668,6 +698,9 @@ void MemoryCommandSlice<CommandType, PrefType>::update(DataStore *ds, ObjectId i
 
     // time moved forward: execute all commands from startTime to new current time
     hasChanged_ = advance_(startTime, time);
+
+    // Check for repeated scalars in the command, forcing complete replacement instead of add-value
+    conditionalClearRepeatedFields_(prefs, &commandPrefsCache_);
 
     // apply the current command state at every update, even if no change in command state occurred with this update; commands override prefs settings
     prefs->MergeFrom(commandPrefsCache_);
@@ -682,10 +715,12 @@ void MemoryCommandSlice<CommandType, PrefType>::update(DataStore *ds, ObjectId i
     // reset lastUpdateTime_
     reset_();
 
-    // advance time forward, execute all commands from 0.0 (use -0.5 since we need a time before 0.0) to new current time
-    advance_(-0.5, time);
+    // advance time forward, execute all commands from 0.0 (use -1.0 since we need a time before 0.0) to new current time
+    advance_(-1.0, time);
+    conditionalClearRepeatedFields_(prefs, &commandPrefsCache_);
 
     hasChanged_ = true;
+
     prefs->MergeFrom(commandPrefsCache_);
     t.complete(&prefs);
   }
@@ -782,6 +817,8 @@ bool MemoryCommandSlice<CommandType, PrefType>::advance_(double startTime, doubl
       }
       else
       {
+        // Check for repeated scalars in the command, forcing complete replacement instead of add-value
+        conditionalClearRepeatedFields_(&commandPrefsCache_, &cmd->updateprefs());
         // execute the command
         commandPrefsCache_.MergeFrom(cmd->updateprefs());
       }
@@ -802,6 +839,24 @@ void MemoryCommandSlice<CommandType, PrefType>::reset_()
   earliestInsert_ = std::numeric_limits<double>::max();
 }
 
+template<class CommandType, class PrefType>
+bool MemoryCommandSlice<CommandType, PrefType>::hasRepeatedFields_(const PrefType* prefs) const
+{
+  return prefs->commonprefs().acceptprojectorids_size() != 0;
+}
+
+template<class CommandType, class PrefType>
+void MemoryCommandSlice<CommandType, PrefType>::clearRepeatedFields_(PrefType* prefs) const
+{
+  prefs->mutable_commonprefs()->mutable_acceptprojectorids()->Clear();
+}
+
+template<class CommandType, class PrefType>
+void MemoryCommandSlice<CommandType, PrefType>::conditionalClearRepeatedFields_(PrefType* prefs, const PrefType* condition) const
+{
+  if (hasRepeatedFields_(condition))
+    clearRepeatedFields_(prefs);
+}
 
 namespace {
 /// Implementation of the Visitor interface that finds only fields that are set, adding them to the specified fieldList

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -75,7 +76,7 @@ namespace simNotify
       severityLimit_ = severity;
     }
 
-    /** Retrieves the handler for the given severity, never NULL */
+    /** Retrieves the handler for the given severity, never nullptr */
     NotifyHandlerPtr handler(NotifySeverity severity) const
     {
       assert(severity >= simNotify::NOTIFY_ALWAYS && severity <= simNotify::NOTIFY_DEBUG_FP);
@@ -90,8 +91,8 @@ namespace simNotify
       assert(severity >= simNotify::NOTIFY_ALWAYS && severity <= simNotify::NOTIFY_DEBUG_FP);
       if (severity >= simNotify::NOTIFY_ALWAYS && severity <= simNotify::NOTIFY_DEBUG_FP)
       {
-        // Avoid NULL assignments
-        if (handler == NULL)
+        // Avoid nullptr assignments
+        if (handler == nullptr)
           handler = nullNotifyHandler_;
         handlers_[severity] = handler;
       }
@@ -100,8 +101,8 @@ namespace simNotify
     /** Changes the handler for all severities */
     void setNotifyHandlers(NotifyHandlerPtr handler)
     {
-      assert(handler != NULL);
-      if (handler == NULL)
+      assert(handler != nullptr);
+      if (handler == nullptr)
         return;
       for (std::vector<NotifyHandlerPtr>::iterator i = handlers_.begin(); i != handlers_.end(); ++i)
         *i = handler;
@@ -175,7 +176,10 @@ namespace simNotify
 
   NotifyHandlerPtr notifyHandler(NotifySeverity severity)
   {
-    return notifyContext_->handler(severity);
+    NotifyHandlerPtr rv = notifyContext_->handler(severity);
+    if (rv)
+      rv->setSeverity(severity);
+    return rv;
   }
 
   void setNotifyHandler(NotifySeverity severity, NotifyHandlerPtr handler)
@@ -194,7 +198,7 @@ namespace simNotify
     if (isNotifyEnabled(severity))
     {
       NotifyHandlerPtr handler = notifyContext_->handler(severity);
-      if (handler != NULL)
+      if (handler != nullptr)
       {
         handler->setSeverity(severity);
         handler->notifyPrefix();
@@ -263,7 +267,7 @@ namespace simNotify
 
   void installNotifyContext(NotifyContext* const context)
   {
-    if (context != NULL)
+    if (context != nullptr)
       notifyContext_ = context;
   }
 

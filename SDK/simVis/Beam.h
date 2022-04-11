@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,6 +29,7 @@
 #include "simVis/Constants.h"
 #include "simVis/Entity.h"
 #include "simVis/LocatorNode.h"
+#include "simVis/SphericalVolume.h"
 
 namespace osg { class MatrixTransform; }
 
@@ -38,10 +40,9 @@ namespace simVis
   class EntityLabelNode;
   class LocalGridNode;
   class Locator;
-  class ScenarioManager;
 
   /// Scene graph node representing the Beam volume
-  class SDKVIS_EXPORT BeamVolume : public osg::Group
+  class SDKVIS_EXPORT BeamVolume : public SphericalVolume
   {
   public:
     /** Constructor */
@@ -61,14 +62,16 @@ namespace simVis
     /** Return the class name */
     virtual const char* className() const { return "BeamVolume"; }
 
+  protected:
+    /// osg::Referenced-derived
+    virtual ~BeamVolume() {}
+
   private:
-    /// build the osg volume
-    osg::MatrixTransform* createBeamSV_(const simData::BeamPrefs& prefs, const simData::BeamUpdate& update);
+    /// build the spherical volume
+    void createBeamSV_(const simData::BeamPrefs& prefs, const simData::BeamUpdate& update);
 
     /// apply the beam scale pref to the specified node
     void setBeamScale_(double beamScale);
-
-    osg::ref_ptr<osg::MatrixTransform> beamSV_;
   };
 
 
@@ -80,14 +83,13 @@ namespace simVis
   public:
     /**
     * Construct a new node that displays a Beam.
-    * @param scenario ScenarioManager that is managing this beam
     * @param props Initial beam properties
     * @param locator Parent locator from which this beam's locator should inherit
     * @param host This beam's host entity
     * @param referenceYear The calculation for the Speed Rings Fixed Time preference needs the scenario reference year
     */
-    BeamNode(const ScenarioManager* scenario, const simData::BeamProperties& props, Locator* locator = NULL,
-      const simVis::EntityNode* host = NULL, int referenceYear = 1970);
+    explicit BeamNode(const simData::BeamProperties& props, Locator* locator = nullptr,
+      const simVis::EntityNode* host = nullptr, int referenceYear = 1970);
 
     /**
     * Access the properties object currently representing this beam.
@@ -146,7 +148,7 @@ namespace simVis
     void removeUpdateOverride(const std::string& id);
 
     /**
-     * Gets a pointer to the last data store update, or NULL if
+     * Gets a pointer to the last data store update, or nullptr if
      * none have been applied.
      */
     const simData::BeamUpdate* getLastUpdateFromDS() const;
@@ -158,6 +160,9 @@ namespace simVis
     * @return The distance in meters between the beam and toLla
     */
     double getClosestPoint(const simCore::Vec3& toLla, simCore::Vec3& closestLLa) const;
+
+    /** Retrieves the currently visible end points, used for picking */
+    void getVisibleEndPoints(std::vector<osg::Vec3d>& ecefVec) const;
 
     /**
     * Returns the antenna gain
@@ -220,7 +225,7 @@ namespace simVis
 
     /**
     * Updates the entity based on the bound data store.
-    * @param updateSlice  Data store update slice (could be NULL)
+    * @param updateSlice  Data store update slice (could be nullptr)
     * @param force true to force the update to be applied; false allows entity to use its own internal logic to decide whether the update should be applied
     * @return true if update applied, false if not
     */
@@ -236,13 +241,13 @@ namespace simVis
     */
     virtual double range() const;
 
-    /** This entity type is, at this time, unpickable. */
+    /** Retrieve the object index tag for beams. */
     virtual unsigned int objectIndexTag() const;
 
     /**
     * Gets the world position for this beam's origin. This is a convenience
     * function that extracts the Position information (not rotation) from the underlying locatorNode matrix.
-    * @param[out] out_position If not NULL, resulting position stored here, in coordinate system as specified by coordsys
+    * @param[out] out_position If not nullptr, resulting position stored here, in coordinate system as specified by coordsys
     * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
     * @return 0 if the output parameter is populated successfully, nonzero on failure
     */
@@ -251,8 +256,8 @@ namespace simVis
     /**
     * Gets the world position & orientation for this beam's origin. This is a convenience
     * function that extracts the Position information and rotation from the underlying locatorNode matrix.
-    * @param[out] out_position If not NULL, resulting position stored here, in coordinate system as specified by coordsys
-    * @param[out] out_orientation If not NULL, resulting orientation stored here, in coordinate system as specified by coordsys
+    * @param[out] out_position If not nullptr, resulting position stored here, in coordinate system as specified by coordsys
+    * @param[out] out_orientation If not nullptr, resulting orientation stored here, in coordinate system as specified by coordsys
     * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
     * @return 0 if the output parameter is populated successfully, nonzero on failure
     */
@@ -280,13 +285,6 @@ namespace simVis
   private: // methods
     /** Copy constructor, not implemented or available. */
     BeamNode(const BeamNode&);
-
-    /**
-    * Activate/Deactivate this beam, to be applied when a transition in state of isActive() occurs.
-    * note that a beam can be active (datadraw) without being drawn
-    * @param active if true, beam will be activated; if false beam will be deactivated
-    */
-    void setActive_(bool active);
 
     /// update the geometry based on changes in update or preferences.
     void apply_(
@@ -362,8 +360,9 @@ namespace simVis
     std::map<std::string, simData::BeamPrefs> prefsOverrides_;
     std::map<std::string, simData::BeamUpdate> updateOverrides_;
     osg::ref_ptr<EntityLabelNode> label_;
-    osg::observer_ptr<const ScenarioManager> scenario_;
     osg::ref_ptr<BeamPulse> beamPulse_;
+
+    unsigned int objectIndexTag_;
   };
 
 } //namespace simVis

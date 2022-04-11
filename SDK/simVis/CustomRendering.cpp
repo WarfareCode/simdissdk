@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -38,27 +39,15 @@ namespace simVis
 {
 
 CustomRenderingNode::CustomRenderingNode(const ScenarioManager* scenario, const simData::CustomRenderingProperties& props, const EntityNode* host, int referenceYear)
-  : EntityNode(simData::CUSTOM_RENDERING),
+  : EntityNode(simData::CUSTOM_RENDERING, new Locator()),
     scenario_(scenario),
     host_(host),
     lastProps_(props),
     hasLastPrefs_(false),
     customActive_(false),
+    isLine_(false),
     objectIndexTag_(0)
 {
-  if (host)
-  {
-    // Independent of the host like a LOB
-    setLocator(new Locator(host->getLocator()->getSRS()));
-  }
-  else if (scenario)
-    setLocator(new Locator(scenario->mapNode()->getMapSRS()));
-  else
-  {
-    // Must have valid scenario
-    assert(false);
-    setLocator(NULL);
-  }
   setName("CustomRenderingNode");
 
   localGrid_ = new LocalGridNode(getLocator(), host, referenceYear);
@@ -67,19 +56,18 @@ CustomRenderingNode::CustomRenderingNode(const ScenarioManager* scenario, const 
   label_ = new EntityLabelNode(getLocator());
   addChild(label_);
 
-  // horizon culling:
+  // if hosted, note that horizon culling on host may also cull the custom rendering
+  // horizon culling: entity culling based on bounding sphere
   addCullCallback(new osgEarth::HorizonCullCallback());
-
+  // labels are culled based on entity center point
   osgEarth::HorizonCullCallback* callback = new osgEarth::HorizonCullCallback();
   callback->setCullByCenterPointOnly(true);
-  callback->setHorizon(new osgEarth::Horizon(*getLocator()->getSRS()->getEllipsoid()));
   callback->setProxyNode(this);
   label_->addCullCallback(callback);
 
   // create the locator node that will parent our geometry
   customLocatorNode_ = new LocatorNode(getLocator());
-  // Locator node starts turned off until an update is received to turn it on
-  customLocatorNode_->setNodeMask(0);
+  customLocatorNode_->setEntityToMonitor(this);
   addChild(customLocatorNode_);
 
   // Apply the override color shader to the container
@@ -173,7 +161,7 @@ void CustomRenderingNode::setPrefs(const simData::CustomRenderingPrefs& prefs)
 {
   const bool prefsDraw = prefs.commonprefs().datadraw() && prefs.commonprefs().draw();
   // Visibility is determined by both customActive_ and draw state preferences
-  setNodeMask_((customActive_ && prefsDraw) ? simVis::DISPLAY_MASK_CUSTOM_RENDERING : simVis::DISPLAY_MASK_NONE);
+  setNodeMask((customActive_ && prefsDraw) ? simVis::DISPLAY_MASK_CUSTOM_RENDERING : simVis::DISPLAY_MASK_NONE);
 
   if (prefsDraw)
     updateLabel_(prefs);
@@ -189,9 +177,20 @@ void CustomRenderingNode::setPrefs(const simData::CustomRenderingPrefs& prefs)
   }
 
   updateOverrideColor_(prefs);
+  applyProjectorPrefs_(lastPrefs_.commonprefs(), prefs.commonprefs());
 
   lastPrefs_ = prefs;
   hasLastPrefs_ = true;
+}
+
+bool CustomRenderingNode::isLine() const
+{
+  return isLine_;
+}
+
+void CustomRenderingNode::setIsLine(bool isLine)
+{
+  isLine_ = isLine;
 }
 
 void CustomRenderingNode::updateOverrideColor_(const simData::CustomRenderingPrefs& prefs)
@@ -242,7 +241,7 @@ const std::string CustomRenderingNode::getEntityName(EntityNode::NameType nameTy
 
 bool CustomRenderingNode::updateFromDataStore(const simData::DataSliceBase* updateSliceBase, bool force)
 {
-  if (updateCallback_ == NULL)
+  if (updateCallback_ == nullptr)
     return false;
 
   if (updateCallback_->update(updateSliceBase, force))
@@ -262,7 +261,7 @@ bool CustomRenderingNode::updateFromDataStore(const simData::DataSliceBase* upda
 
 void CustomRenderingNode::flush()
 {
-  setNodeMask_(DISPLAY_MASK_NONE);
+  setNodeMask(DISPLAY_MASK_NONE);
 }
 
 int CustomRenderingNode::getPosition(simCore::Vec3* out_position, simCore::CoordinateSystem coordsys) const
@@ -297,7 +296,7 @@ void CustomRenderingNode::setCustomActive(bool value)
   if (hasLastPrefs_)
     prefsDraw = lastPrefs_.commonprefs().datadraw() && lastPrefs_.commonprefs().draw();
   // Visibility is determined by both customActive_ and draw state preferences
-  setNodeMask_((customActive_ && prefsDraw) ? DISPLAY_MASK_CUSTOM_RENDERING : DISPLAY_MASK_NONE);
+  setNodeMask((customActive_ && prefsDraw) ? DISPLAY_MASK_CUSTOM_RENDERING : DISPLAY_MASK_NONE);
 }
 
 LocatorNode* CustomRenderingNode::locatorNode() const
@@ -334,12 +333,6 @@ void CustomRenderingNode::getPickingPoints(std::vector<osg::Vec3d>& ecefVec) con
     return;
 
   ecefVec.push_back(osg::Vec3d(locatorNodeEcef.x(), locatorNodeEcef.y(), locatorNodeEcef.z()));
-}
-
-void CustomRenderingNode::setNodeMask_(unsigned int mask)
-{
-  setNodeMask(mask);
-  customLocatorNode_->setNodeMask(mask == 0 ? 0 : ~0);
 }
 
 }

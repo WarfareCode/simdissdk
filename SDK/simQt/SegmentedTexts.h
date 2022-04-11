@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -228,12 +229,12 @@ public:
   size_t getFirstCharacterLocation(const SegmentedText* inputPart) const;
   /** Calculates the next tab stop after the given Line Segment
   * @param[in] inputPart Given line segment
-  * @return The next tab stop after inputPart, can return NULL if walked off the end
+  * @return The next tab stop after inputPart, can return nullptr if walked off the end
   */
   SegmentedText* nextTabStop(const SegmentedText* inputPart) const;
   /** Calculates the previous tab stop after the given Line Segment
   * @param[in] inputPart Given line segment
-  * @return The previous tab stop after inputPart, can return NULL if walked off the front
+  * @return The previous tab stop after inputPart, can return nullptr if walked off the front
   */
   SegmentedText* previousTabStop(const SegmentedText* inputPart) const;
 
@@ -257,11 +258,6 @@ protected:
   bool inRange_(const simCore::TimeStamp& current, bool limitBeforeStart, bool limitAfterEnd) const;
   /// Creates the fraction part accounting for the precision.  Cannot be const.
   NumberText* createFactionOfSeconds_(int precision);
-
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  /// Replaces the fraction part with a new fraction part of the given precision.
-  SDK_DEPRECATE(NumberText* updateFactionOfSeconds_(int precision), "Method will be removed in future SDK release.");
-#endif /* USE_DEPRECATED_SIMDISSDK_API */
 
   /// convert the fractional part of Seconds (# of ns) to a field representation
   int fractionToField_(const simCore::Seconds& secondsRounded) const;

@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 
 #ifndef SIMCORE_CALC_MGRS_H
 #define SIMCORE_CALC_MGRS_H
@@ -52,7 +53,7 @@ public:
   * @param[out] err Optional pointer to error string
   * @return 0 if conversion is successful, non-zero otherwise
   */
-  static int convertMgrsToGeodetic(const std::string& mgrs, double& lat, double& lon, std::string* err = NULL);
+  static int convertMgrsToGeodetic(const std::string& mgrs, double& lat, double& lon, std::string* err = nullptr);
 
   /**
   * Breaks an MGRS coordinate string into its components.
@@ -66,7 +67,7 @@ public:
   * @return 0 if conversion is successful, non-zero otherwise
   */
   static int breakMgrsString(const std::string& mgrs, int& zone, std::string& gzdLetters, double& easting,
-    double& northing, std::string* err = NULL);
+    double& northing, std::string* err = nullptr);
 
   /**
   * Converts an MGRS coordinate to geodetic coordinates.
@@ -83,8 +84,8 @@ public:
   * @param[out] err Optional pointer to error string
   * @return 0 if conversion is successful, non-zero otherwise
   */
-  static int convertMgrstoUtm(int zone, const std::string& gzdLetters, double mgrsEasting, double mgrsNorthing,
-    bool& northPole, double& utmEasting, double& utmNorthing, std::string* err = NULL);
+  static int convertMgrsToUtm(int zone, const std::string& gzdLetters, double mgrsEasting, double mgrsNorthing,
+    bool& northPole, double& utmEasting, double& utmNorthing, std::string* err = nullptr);
 
   /**
   * Converts a UTM coordinate to geodetic coordinates.
@@ -101,7 +102,7 @@ public:
   * @param[out] err Optional pointer to error string
   * @return 0 if conversion is successful, non-zero otherwise
   */
-  static int convertUtmToGeodetic(int zone, bool northPole, double easting, double northing, double& lat, double& lon, std::string* err = NULL);
+  static int convertUtmToGeodetic(int zone, bool northPole, double easting, double northing, double& lat, double& lon, std::string* err = nullptr);
 
   /**
   * Converts an MGRS coordinate to UPS coordinates.
@@ -118,7 +119,7 @@ public:
   * @return 0 if conversion is successful, non-zero otherwise
   */
   static int convertMgrsToUps(const std::string& gzdLetters, double mgrsEasting, double mgrsNorthing,
-    bool& northPole, double& upsEasting, double& upsNorthing, std::string* err = NULL);
+    bool& northPole, double& upsEasting, double& upsNorthing, std::string* err = nullptr);
 
   /**
   * Converts a UPS coordinate to geodetic coordinates.
@@ -133,7 +134,7 @@ public:
   * @param[out] err Optional pointer to error string
   * @return 0 if conversion is successful, non-zero otherwise
   */
-  static int convertUpsToGeodetic(bool northPole, double easting, double northing, double& lat, double& lon, std::string* err = NULL);
+  static int convertUpsToGeodetic(bool northPole, double easting, double northing, double& lat, double& lon, std::string* err = nullptr);
 
 private:
 
@@ -186,7 +187,7 @@ private:
 
   /// The hypotenuse function avoiding underflow and overflow.
   static double hypot_(double x, double y);
- 
+
   /// Computes tan chi in terms of tan phi.
   static double taupf_(double tau);
 

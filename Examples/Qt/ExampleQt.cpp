@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -74,7 +75,7 @@ struct FrameRateAction : public QAction
 // custom action for File->Exit menu :)
 struct ExitAction : public QAction
 {
-  explicit ExitAction(QMainWindow* win) : QAction(tr("Exit"), NULL), win_(win)
+  explicit ExitAction(QMainWindow* win) : QAction(tr("Exit"), nullptr), win_(win)
   {
     connect(this, SIGNAL(triggered()), win_, SLOT(close()));
   }

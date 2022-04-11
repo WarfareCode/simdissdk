@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -106,7 +107,7 @@ inline void applyMesaGeometryShaderFix(osg::GraphicsContext* graphicsContext)
     return;
   graphicsContext->makeCurrent();
   const char* glVersionString = reinterpret_cast<const char*>(glGetString(GL_VERSION));
-  if (glVersionString == NULL)
+  if (glVersionString == nullptr)
     return;
 
   // Only apply the fix to Mesa.  It might apply to non-Mesa drivers too, but we'll just fix Mesa for
@@ -142,10 +143,11 @@ inline void applyMesaGlVersionOverride()
   osg::DisplaySettings* instance = osg::DisplaySettings::instance().get();
   if (instance->getGLContextVersion() == "1.0")
     instance->setGLContextVersion("3.3");
-#ifdef __linux__
+// el6/mesa needed this; el7/mesa/nouveau does not
+#if defined(__linux__) && defined(RHEL6_MESA)
   // To compound the problem, certain MESA drivers on Linux have an additional requirement of setting
   // the MESA_GL_VERSION_OVERRIDE environment variable, else we get a bad version.
-  if (getenv("MESA_GL_VERSION_OVERRIDE") == NULL)
+  if (getenv("MESA_GL_VERSION_OVERRIDE") == nullptr)
     setenv("MESA_GL_VERSION_OVERRIDE", instance->getGLContextVersion().c_str(), 1);
 #endif
 #endif
@@ -162,7 +164,7 @@ inline void applyMesaGlVersionOverride()
 class Gl3RealizeOperation : public osg::Operation
 {
 public:
-  explicit Gl3RealizeOperation(osg::Operation* nested = NULL)
+  explicit Gl3RealizeOperation(osg::Operation* nested = nullptr)
     : nested_(nested)
   {
   }

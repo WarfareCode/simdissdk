@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -109,7 +110,9 @@ void ColorButton::paintColoredSquare(QPainter* painter, const QRect& rect, const
 
   // Note that if Anti-aliasing is disabled, then a regular (not rounded) rect should be drawn.
   painter->setRenderHint(QPainter::Antialiasing);
+#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
   painter->setRenderHint(QPainter::HighQualityAntialiasing);
+#endif
 
   // Paints the square
   painter->drawRoundedRect(rect, 2, 2);

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -55,8 +56,8 @@ public:
   virtual bool acceptEntity(simData::ObjectId id) const;
 
   /**
-  * Inherited from EntityFilter, always returns NULL, as this class currently doesn't create a widget
-  * @param newWidgetParent QWidget parent, useful for memory management purposes; may be NULL if desired
+  * Inherited from EntityFilter, always returns nullptr, as this class currently doesn't create a widget
+  * @param newWidgetParent QWidget parent, useful for memory management purposes; may be nullptr if desired
   * @return QWidget used for changing filter settings
   */
   virtual QWidget* widget(QWidget* newWidgetParent) const;
@@ -66,6 +67,9 @@ public:
 
   /** @copydoc EntityFilter::setFilterSettings() */
   virtual void setFilterSettings(const QMap<QString, QVariant>& settings);
+
+  /** Returns the filter's QRegExp*/
+  QRegExp regExp() const;
 
   /** Connect to the specified widget for updating and receiving reg exp filter */
   void bindToWidget(EntityFilterLineEdit* widget);

@@ -13,70 +13,68 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
-#ifndef SIMQT_CATEGORY_TREE_MODEL_H
-#define SIMQT_CATEGORY_TREE_MODEL_H
+#ifndef SIMQT_CATEGORYTREEMODEL_H
+#define SIMQT_CATEGORYTREEMODEL_H
 
-#include <QTreeWidgetItem>
+#include <map>
+#include <memory>
+#include <vector>
+#include <QAbstractItemModel>
 #include <QSortFilterProxyModel>
-
 #include "simCore/Common/Common.h"
 #include "simData/CategoryData/CategoryFilter.h"
-#include "simData/CategoryData/CategoryNameManager.h"
+#include "simData/ObjectId.h"
 
-namespace simData { class DataStore; }
+namespace simData {
+  class CategoryFilter;
+  class DataStore;
+}
 
 namespace simQt {
 
-/// represent either one category name or on category value
-class SDKQT_EXPORT CategoryTreeItem
+struct CategoryCountResults;
+class Settings;
+
+/**
+* Container class that keeps track of a set of pointers.  The container is indexed to
+* provide O(lg n) responses to indexOf() while maintaining O(1) on access-by-index.
+* The trade-off is a second internal container that maintains a list of indices.
+*
+* This is a template container.  Typename T can be any type that can be deleted.
+*
+* This class is particularly useful for Abstract Item Models that need to know things like
+* the indexOf() for a particular entry.
+*/
+template <typename T>
+class SDKQT_EXPORT IndexedPointerContainer
 {
 public:
-  /// constructor
-  CategoryTreeItem(const QString& text, const QString& sortText, int categoryIndex, CategoryTreeItem *parent = NULL);
-  virtual ~CategoryTreeItem();
+  IndexedPointerContainer();
+  virtual ~IndexedPointerContainer();
 
-  /// Returns the category name or category value
-  QString text() const;
-  /// For sorting force "Unlisted Value" and "No Value" to the top
-  QString sortText() const;
-  /// Returns the index for the category name or category value
-  int categoryIndex() const;
-  /// Returns the check box state
-  Qt::CheckState state() const;
-  /// Sets the check box state
-  void setState(Qt::CheckState value);
-  /// Returns Checked, Unchecked, or PartiallyChecked to indicate whether children are uniformly checked
-  Qt::CheckState childrenState() const;
+  /** Retrieves the item at the given index.  Not range checked.  O(1). */
+  T* operator[](int index) const;
+  /** Retrieves the index of the given item.  Returns -1 on not-found.  O(lg n). */
+  int indexOf(const T* ptr) const;
+  /** Returns the number of items in the container. */
+  int size() const;
+  /** Adds an item into the container.  Must be a unique item. */
+  void push_back(T* item);
+  /** Convenience method to delete each item, then clear(). */
+  void deleteAll();
 
-  /**@name Tree management routines
-   *@{
-   */
-  void appendChild(CategoryTreeItem *item);
-  void removeChild(CategoryTreeItem *item);
-  CategoryTreeItem *child(int row);
-  int childCount() const;
-  CategoryTreeItem *parent();
-  int columnCount() const;
-  int row() const;
-  ///@}
-
-protected:
-  /// Update the numCheckedChildren_ value based on the provided value, which will increment or decrement the total
-  void updateNumCheckedChildren_(Qt::CheckState value);
-
-  QString text_;  ///< the category name or category value
-  QString sortText_; ///< If category value is "Unlisted Value" or "No Value" change to " "  and "  " to force them to the top of the sort
-  int categoryIndex_; ///< the index for the category name or category value
-  CategoryTreeItem *parentItem_;  ///< parent of the item.  Null if top item
-  Qt::CheckState state_; ///< the check box state
-  int numCheckedChildren_; ///< keep track of the number of checked children, to manage current check state
-  QList<CategoryTreeItem*> childItems_;  ///< Children of item, if any.  If no children, than item is a category value
+private:
+  /** Vector of pointers. */
+  typename std::vector<T*> vec_;
+  /** Maps pointers to their index in the vector. */
+  typename std::map<T*, int> itemToIndex_;
 };
 
 /// Used to sort and filter the CategoryTreeModel
@@ -86,11 +84,8 @@ class SDKQT_EXPORT CategoryProxyModel : public QSortFilterProxyModel
 
 public:
   /// constructor passes parent to QSortFilterProxyModel
-  CategoryProxyModel(QObject *parent = 0);
+  explicit CategoryProxyModel(QObject *parent = 0);
   virtual ~CategoryProxyModel();
-
-  /** Override setSourceModel() to detect the "All Items" model type */
-  virtual void setSourceModel(QAbstractItemModel* sourceModel);
 
 public slots:
   /// string to filter against
@@ -105,93 +100,102 @@ protected:
 private:
   /// string to filter against
   QString filter_;
-  /// Set true when "All Categories" is the root item (i.e. using CategoryTreeModel, not CategoryTreeModel2)
-  bool hasAllCategories_;
 };
 
-
-/// model (data representation) for a tree of Entities (Platforms, Beams, Gates, etc.)
+/** Single tier tree model that maintains and allows users to edit a simData::CategoryFilter. */
 class SDKQT_EXPORT CategoryTreeModel : public QAbstractItemModel
 {
-  Q_OBJECT
-
+  Q_OBJECT;
 public:
-  /// constructor
-  explicit CategoryTreeModel(QObject *parent = NULL, simData::DataStore* dataStore = NULL, simData::CategoryFilter* categoryFilter = NULL);
+  explicit CategoryTreeModel(QObject* parent = nullptr);
   virtual ~CategoryTreeModel();
 
-  /**
-   * Set providers
-   * @param dataStore The datastore
-   * @param categoryFilter The category filter
-   **/
-  void setProviders(simData::DataStore* dataStore, simData::CategoryFilter* categoryFilter);
-  /**
-   * Returns the text for the given index
-   * @param index The index
-   * @return The text for the given index, will be "" if index is invalid
-   **/
-  QString text(const QModelIndex &index) const;
+  /** Changes the data store, updating what categories and values are shown. */
+  void setDataStore(simData::DataStore* dataStore);
+  /** Retrieves the category filter.  Only call this if the Data Store has been set. */
+  const simData::CategoryFilter& categoryFilter() const;
+  /** Sets the settings and the key prefix for saving and loading the locked states */
+  void setSettings(Settings* settings, const QString& settingsKeyPrefix);
 
-  /** @copydoc QAbstractItemModel::columnCount() */
-  virtual int columnCount(const QModelIndex &parent) const;
-  /** @copydoc QAbstractItemModel::data() */
-  virtual QVariant data(const QModelIndex &index, int role) const;
-  /** @copydoc QAbstractItemModel::setData() */
-  virtual bool setData(const QModelIndex& index, const QVariant& value, int role);
-  /** @copydoc QAbstractItemModel::flags() */
+  /** Enumeration of user roles supported by data() */
+  enum {
+    ROLE_SORT_STRING = Qt::UserRole,
+    ROLE_EXCLUDE,
+    ROLE_CATEGORY_NAME,
+    ROLE_REGEXP_STRING,
+    ROLE_LOCKED_STATE
+  };
+
+  // QAbstractItemModel overrides
+  virtual QModelIndex index(int row, int column, const QModelIndex &parent = QModelIndex()) const;
+  virtual QModelIndex parent(const QModelIndex &child) const;
+  virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
+  virtual int columnCount(const QModelIndex &parent = QModelIndex()) const;
+  virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const;
+  virtual QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const;
   virtual Qt::ItemFlags flags(const QModelIndex& index) const;
-  /** @copydoc QAbstractItemModel::index() */
-  virtual QModelIndex index(int row, int column, const QModelIndex &parent) const;
-  /** @copydoc QAbstractItemModel::parent() */
-  virtual QModelIndex parent(const QModelIndex &index) const;
-  /** @copydoc QAbstractItemModel::rowCount() */
-  virtual int rowCount(const QModelIndex &parent) const;
+  virtual bool setData(const QModelIndex& index, const QVariant& value, int role = Qt::EditRole);
 
   /// data role for obtaining names that are remapped to force "Unlisted Value" and "No Value" to the top
   static const int SortRole = Qt::UserRole + 1;
 
 public slots:
-  /** Updates the contents of the frame */
-  virtual void forceRefresh();
-  /// Update the filter to the passed in filter
-  void setFilter(const simData::CategoryFilter& categoryFilter);
+  /** Changes the model state to match the values in the filter. */
+  void setFilter(const simData::CategoryFilter& filter);
+  /** Given results of a category count, updates the text for each category. */
+  void processCategoryCounts(const simQt::CategoryCountResults& results);
 
 signals:
-  /** Emitted whenever the underlying category filter changes */
-  void categoryFilterChanged(const simData::CategoryFilter& categoryFilter);
+  /** The internal filter has changed, possibly from user editing or programmatically. */
+  void filterChanged(const simData::CategoryFilter& filter);
+  /** The internal filter has changed from user editing. */
+  void filterEdited(const simData::CategoryFilter& filter);
+  /** Called when the match/exclude button changes.  Only emitted if filterChanged() is not emitted. */
+  void excludeEdited(int nameInt = 0, bool excludeMode = true);
 
 private:
-  class CategoryFilterListener;
+  class CategoryItem;
+  class ValueItem;
 
-  /** Helper function to create and add all the category value QTreeWidgetItems to the parent QTreeWidgetItem */
-  void addAllValues_(const simData::CategoryFilter::ValuesCheck& iter, CategoryTreeItem* nameItem, const simData::CategoryNameManager& categoryNameManager);
-  /** Sets the stat for the given item and all its children */
-  int setState_(CategoryTreeItem* item, Qt::CheckState state);
-  /** Updates user interface tree based on passed in value */
-  void addCategoryName_(int nameIndex);
-  /** Updates user interface tree based on passed in value; if rebuild is true then rebuild the category filter */
-  void addCategoryValue_(int nameIndex, int valueIndex, bool rebuild);
-  /** Clear all data */
-  void clear_();
-  /** Returns the item for the given index; may return NULL */
-  CategoryTreeItem* findCategoryName_(int nameIndex);
-  /** Returns the item for the given parent index; may return NULL */
-  CategoryTreeItem* findCategoryValue_(CategoryTreeItem* parent, int valueIndex);
-  /** Setup the tree */
-  void buildTree_();
-  /** Convert value into a sortable name */
-  QString valueSortName_(const QString& value) const;
+  /** Adds the category name into the tree structure. */
+  void addName_(int nameInt);
+  /** Adds the category value into the tree structure under the given name. */
+  void addValue_(int nameInt, int valueInt);
+  /** Remove all categories and values. */
+  void clearTree_();
+  /** Retrieve the CategoryItem representing the name provided. */
+  CategoryItem* findNameTree_(int nameInt) const;
+  /**
+  * Update the locked state of the specified category if its name appears in the lockedCategories list.
+  * This method should only be called on data that is updating, since it doesn't emit its own signal for a data change
+  */
+  void updateLockedState_(const QStringList& lockedCategories, CategoryItem& category);
+  /** Emits dataChanged() signal for all child entries (non-recursive) */
+  void emitChildrenDataChanged_(const QModelIndex& parent);
 
-  CategoryTreeItem *rootItem_;
-  CategoryTreeItem *allCategoriesItem_;
+  /** Quick-search vector of category tree items */
+  simQt::IndexedPointerContainer<CategoryItem> categories_;
+  /** Maps category int values to CategoryItem pointers */
+  std::map<int, CategoryItem*> categoryIntToItem_;
+
+  /** Data store providing the name manager we depend on */
   simData::DataStore* dataStore_;
-  simData::CategoryFilter* categoryFilter_;
-  simData::CategoryNameManager::ListenerPtr listenerPtr_;
+  /** Internal representation of the GUI settings in the form of a simData::CategoryFilter. */
+  simData::CategoryFilter* filter_;
+
+  /** Listens to CategoryNameManager to know when new categories and values are added. */
+  class CategoryFilterListener;
+  std::shared_ptr<CategoryFilterListener> listener_;
+
+  /** Font used for the Category Name tree items */
+  QFont* categoryFont_;
+
+  /** Ptr to settings for storing locked states */
+  Settings* settings_;
+  /** Key for accessing the setting */
+  QString settingsKey_;
 };
 
 }
 
-#endif
-
-
+#endif /* SIMQT_CATEGORYTREEMODEL_H */

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -41,10 +42,27 @@
 namespace simQt {
 
 const QString SETTING_NAME_FILTER = "/FilterSettings/";
+const QString FILTER_DIALOG_GEOMETRY = "/FilterDialogGeometry";
 
-FilterDialog::FilterDialog(QWidget* parent)
-  :QDialog(parent)
-{}
+FilterDialog::FilterDialog(SettingsPtr settings, QWidget* parent)
+  :QDialog(parent),
+   settings_(settings)
+{
+  // restore geometry if settings is valid
+  if (settings_)
+  {
+    QVariant geom = settings_->value(FILTER_DIALOG_GEOMETRY);
+    if (geom.isValid())
+      restoreGeometry(geom.toByteArray());
+  }
+}
+
+FilterDialog::~FilterDialog()
+{
+  // save geometry if settings is valid
+  if (settings_)
+    settings_->setValue(FILTER_DIALOG_GEOMETRY, saveGeometry());
+}
 
 void FilterDialog::closeEvent(QCloseEvent* ev)
 {
@@ -127,6 +145,7 @@ public:
 private:
   /** Declared but not defined to keep cppCheck warning free */
   ButtonActions(const ButtonActions& rhs);
+  ButtonActions& operator=(ButtonActions& rhs);
 
   /** Sets the text and tooltip on the "Load" button */
   void setLoadTextAndTooltips_(const QString& filterName)
@@ -167,7 +186,7 @@ public:
 
   virtual void onSettingChange(const QString& name, const QVariant& value)
   {
-    ButtonActions* actions = NULL;
+    ButtonActions* actions = nullptr;
     for (size_t index = 0; index < parent_.buttonActions_.size(); ++index)
     {
       if (parent_.buttonActions_[index]->settingsKey() == name)
@@ -193,11 +212,11 @@ private:
 
 EntityTreeComposite::EntityTreeComposite(QWidget* parent)
 : QWidget(parent),
-  composite_(NULL),
-  entityTreeWidget_(NULL),
-  model_(NULL),
-  nameFilter_(NULL),
-  filterDialog_(NULL),
+  composite_(nullptr),
+  entityTreeWidget_(nullptr),
+  model_(nullptr),
+  nameFilter_(nullptr),
+  filterDialog_(nullptr),
   useCenterAction_(false),
   treeViewUsable_(true),
   useEntityIcons_(true),
@@ -217,7 +236,7 @@ EntityTreeComposite::EntityTreeComposite(QWidget* parent)
   connect(entityTreeWidget_, SIGNAL(filterSettingsChanged(QMap<QString, QVariant>)), this, SIGNAL(filterSettingsChanged(QMap<QString, QVariant>))); // Echo out the signal
 
   // model is null at startup. Will be updated in the name filter in the call to setModel()
-  nameFilter_ = new EntityNameFilter(NULL);
+  nameFilter_ = new EntityNameFilter(nullptr);
   nameFilter_->bindToWidget(composite_->lineEdit);
   addEntityFilter(nameFilter_);
 
@@ -291,24 +310,8 @@ void EntityTreeComposite::setMargins(int left, int top, int right, int bottom)
   composite_->verticalLayout->layout()->setContentsMargins(left, top, right, bottom);
 }
 
-void EntityTreeComposite::addExternalAction(QAction* action)
-{
-  if ((action == NULL) || action->isSeparator())
-    return;
-
-  externalActions_.push_back(action);
-}
-
-void EntityTreeComposite::removeExternalActions()
-{
-  externalActions_.clear();
-}
-
 void EntityTreeComposite::makeAndDisplayMenu_(const QPoint& pos)
 {
-  // Give outside code a chance to update the menu before showing the menu
-  emit rightClickMenuRequested();
-
   QMenu* menu = new QMenu(composite_->treeView);
 
   menu->addAction(copyAction_);
@@ -317,14 +320,6 @@ void EntityTreeComposite::makeAndDisplayMenu_(const QPoint& pos)
 
   menu->addSeparator();
 
-  if (!externalActions_.empty())
-  {
-    for (auto it = externalActions_.begin(); it != externalActions_.end(); ++it)
-        menu->addAction(*it);
-
-    menu->addSeparator();
-  }
-
   if (showTreeOptionsInMenu_)
   {
     menu->addAction(toggleTreeViewAction_);
@@ -332,8 +327,15 @@ void EntityTreeComposite::makeAndDisplayMenu_(const QPoint& pos)
     menu->addAction(expandAllAction_);
   }
 
+  // Give outside code a chance to update the menu before showing the menu
+  emit rightClickMenuRequested(menu);
+
   // Show the menu with exec(), making sure the position is correctly relative
   menu->exec(composite_->treeView->viewport()->mapToGlobal(pos));
+
+  // Manually delete the menu, do not use SIGNAL(aboutToHide()).  The menu->execute() can call code
+  // that displays a progress dialog after the menu is hidden. The progress dialog can cause an
+  // event loop processing which will delete the hidden menu while it is still in use.
   delete menu;
 }
 
@@ -354,7 +356,7 @@ void EntityTreeComposite::addEntityFilter(EntityFilter* entityFilter)
 void EntityTreeComposite::setModel(AbstractEntityTreeModel* model)
 {
   // Must pass in a valid model
-  assert(model != NULL);
+  assert(model != nullptr);
 
   // SDK-120: If useEntityIcons_ is set, then apply it to the model
   model_ = model;
@@ -379,19 +381,6 @@ int EntityTreeComposite::setSelected(const QList<uint64_t>& list)
 {
   return entityTreeWidget_->setSelected(list);
 }
-
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-/** Sets/clears the selected ID in the entity list */
-void EntityTreeComposite::setSelected(uint64_t id, bool selected)
-{
-  entityTreeWidget_->setSelected(id, selected);
-}
-
-void EntityTreeComposite::setSelected(QList<uint64_t> list, bool selected)
-{
-  entityTreeWidget_->setSelected(list, selected);
-}
-#endif
 
 void EntityTreeComposite::scrollTo(uint64_t id, QAbstractItemView::ScrollHint hint)
 {
@@ -441,6 +430,16 @@ void EntityTreeComposite::setShowCenterInMenu(bool show)
 void EntityTreeComposite::setShowTreeOptionsInMenu(bool show)
 {
   showTreeOptionsInMenu_ = show;
+}
+
+void EntityTreeComposite::setCountEntityType(simData::ObjectType type)
+{
+  entityTreeWidget_->setCountEntityType(type);
+}
+
+simData::ObjectType EntityTreeComposite::countEntityTypes() const
+{
+  return entityTreeWidget_->countEntityTypes();
 }
 
 /** Clears all selections */
@@ -514,14 +513,14 @@ void EntityTreeComposite::setSettings(SettingsPtr settings)
   }
 
   // Can only set the setting once
-  assert(settings_ == NULL);
+  assert(settings_ == nullptr);
 
   settings_ = settings;
 
-  if (settings_ == NULL)
+  if (settings_ == nullptr)
     return;
 
-  if (observer_ == NULL)
+  if (observer_ == nullptr)
     observer_.reset(new Observer(*this));
 
   // Filter configuration buttons use signal mappers to convey index
@@ -586,7 +585,7 @@ void EntityTreeComposite::saveFilterConfig_(int index)
   FilterConfiguration newConfig(desc, variantMap);
   action->setFilterConfiguration(newConfig);
   // Save the value also to settings
-  if (settings_ != NULL)
+  if (settings_ != nullptr)
   {
     QVariant value;
     value.setValue(action->filterConfiguration());
@@ -599,7 +598,7 @@ void EntityTreeComposite::clearFilterConfig_(int index)
   ButtonActions* action = buttonActions_[index];
   FilterConfiguration emptyConfig;
   action->setFilterConfiguration(emptyConfig);
-  if (settings_ != NULL)
+  if (settings_ != nullptr)
   {
     QVariant value;
     value.setValue(action->filterConfiguration());
@@ -621,13 +620,13 @@ void EntityTreeComposite::rowsInserted_(const QModelIndex & parent, int start, i
 
 void EntityTreeComposite::showFilters_()
 {
-  if (filterDialog_ != NULL)
+  if (filterDialog_ != nullptr)
   {
     filterDialog_->show();
     return;
   }
   // create a new filter dialog, using the filter widgets from the EntityTreeWidget's proxy model
-  filterDialog_ = new FilterDialog(this);
+  filterDialog_ = new FilterDialog(settings_, this);
   QList<QWidget*> filterWidgets = entityTreeWidget_->filterWidgets(filterDialog_);
   filterDialog_->setMinimumWidth(200);
   filterDialog_->setWindowTitle(tr("Entity Filters"));
@@ -657,7 +656,7 @@ void EntityTreeComposite::closeFilters_()
   {
     filterDialog_->hide();
     filterDialog_->deleteLater();
-    filterDialog_ = NULL;
+    filterDialog_ = nullptr;
   }
 }
 
@@ -697,6 +696,14 @@ void EntityTreeComposite::setUseCenterAction(bool use, const QString& reason)
     centerAction_->setEnabled(false);
 }
 
+void EntityTreeComposite::setTreeView(bool useTreeView)
+{
+  if (!treeViewUsable_)
+    return;
+
+  setTreeView_(useTreeView);
+}
+
 void EntityTreeComposite::onItemsChanged_(const QList<uint64_t>& ids)
 {
   bool empty = ids.isEmpty();
@@ -709,7 +716,7 @@ void EntityTreeComposite::copySelection_()
 {
   QList<uint64_t> ids =  entityTreeWidget_->selectedItems();
 
-  if (ids.isEmpty() || (model_ == NULL))
+  if (ids.isEmpty() || (model_ == nullptr))
     return;
 
   QString clipboardText;
@@ -735,11 +742,17 @@ void EntityTreeComposite::centerOnSelection_()
 
 void EntityTreeComposite::setTreeView_(bool useTreeView)
 {
+  // Return early if nothing changed
+  if (entityTreeWidget_->isTreeView() == useTreeView && toggleTreeViewAction_->isChecked() == useTreeView)
+    return;
+
   // Toggle the tree view
   entityTreeWidget_->toggleTreeView(useTreeView);
   // Update related UI components
   toggleTreeViewAction_->setChecked(useTreeView);
   updateActionEnables_();
+
+  emit treeViewChanged(useTreeView);
 }
 
 void EntityTreeComposite::updateActionEnables_()

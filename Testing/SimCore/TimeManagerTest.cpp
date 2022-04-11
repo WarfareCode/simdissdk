@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -513,6 +514,11 @@ int realtimeTest()
   Sleep(1);
   clock.idle();
   rv += SDK_ASSERT(clock.currentTime() < simCore::TimeStamp(1970, 1500.0));
+
+  // SIM-12714 - test that scale resets to 1 when entering MODE_FREEWHEEL
+  rv += SDK_ASSERT(clock.timeScale() != 1.0);
+  clock.setMode(simCore::Clock::MODE_FREEWHEEL, simCore::TimeStamp(1970, 15.0));
+  rv += SDK_ASSERT(clock.timeScale() == 1.0);
 
   return rv;
 }

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -58,8 +59,8 @@ namespace simQt {
     virtual bool acceptEntity(simData::ObjectId id) const;
 
     /**
-    * Inherited from EntityFilter, returns a new instance of the widget to be displayed, otherwise returns NULL
-    * @param newWidgetParent QWidget parent, useful for memory management purposes; may be NULL if desired
+    * Inherited from EntityFilter, returns a new instance of the widget to be displayed, otherwise returns nullptr
+    * @param newWidgetParent QWidget parent, useful for memory management purposes; may be nullptr if desired
     * @return QWidget used for changing filter settings
     */
     virtual QWidget* widget(QWidget* newWidgetParent) const;

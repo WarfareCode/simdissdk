@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,6 +29,7 @@
 #include "simVis/Utils.h"
 #include "simVis/RadialLOSNode.h"
 
+#undef LC
 #define LC "[RadialLOSNode] "
 
 namespace simVis {
@@ -51,7 +53,10 @@ RadialLOSNode::RadialLOSNode(osgEarth::MapNode* mapNode)
   drapeable_ = new osgEarth::DrapeableNode();
   getPositionAttitudeTransform()->addChild(drapeable_);
   drapeable_->addChild(geode_);
+#if OSGEARTH_SOVERSION < 106
+  // Drapeable loses setMapNode() in osgEarth SOVERSION 106
   drapeable_->setMapNode(mapNode);
+#endif
 
   setMapNode(mapNode);
 }
@@ -71,7 +76,10 @@ void RadialLOSNode::setMapNode(osgEarth::MapNode* mapNode)
     mapNode->getTerrain()->addTerrainCallback(callbackHook_.get());
 
   GeoPositionNode::setMapNode(mapNode);
+#if OSGEARTH_SOVERSION < 106
+  // Drapeable loses setMapNode() in osgEarth SOVERSION 106
   drapeable_->setMapNode(mapNode);
+#endif
 
   // re-apply the position
   setCoordinate(coord_);
@@ -261,9 +269,9 @@ void RadialLOSNode::refreshGeometry_()
 
   unsigned int numVerts = 1u + radials.size() * samplesPerRadial;
 
-  osg::Vec3Array*        verts  = NULL;
-  osg::Vec4Array*        colors = NULL;
-  osg::DrawElementsUInt* tris   = NULL;
+  osg::Vec3Array*        verts  = nullptr;
+  osg::Vec4Array*        colors = nullptr;
+  osg::DrawElementsUInt* tris   = nullptr;
 
   if (rebuildGeometry)
   {

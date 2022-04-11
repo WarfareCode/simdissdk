@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,7 +31,6 @@
 #include "osgEarth/Sky"
 #include "osgEarth/Version"
 #include "simCore/Common/Common.h"
-#include "simVis/Locator.h"
 #include "simVis/Types.h"
 
 namespace simVis
@@ -56,8 +56,7 @@ namespace simVis
    *       +-projectorManager
    * </pre>
    */
-  class SDKVIS_EXPORT SceneManager : public osg::Group,
-                                     public simVis::LocatorFactory
+  class SDKVIS_EXPORT SceneManager : public osg::Group
   {
   public:
     /**
@@ -83,7 +82,7 @@ namespace simVis
     * The map displayed in this scene.
     * @return the Map
     */
-    osgEarth::Map* getMap() { return mapNode_.valid() ? mapNode_->getMap() : NULL; }
+    osgEarth::Map* getMap() { return mapNode_.valid() ? mapNode_->getMap() : nullptr; }
 
     /**
     * Sets the Map. This method actually will copy the layers from the provided
@@ -117,7 +116,7 @@ namespace simVis
     osg::Node* getManipulatorAttachPoint() const;
 
     /**
-    * Gets or creates a new attach point for adding data to the scene graph
+    * Gets or creates a new attach point for adding data to the scene graph, not subject to horizon culling
     * @param name Name of the attach point
     * @return     New osg group
     */
@@ -146,13 +145,6 @@ namespace simVis
 
     /** Return the class name */
     virtual const char* className() const { return "SceneManager"; }
-
-  public: // simVis::LocatorFactory
-
-    // internal - override
-    Locator* createLocator() const;
-    // internal - override
-    CachingLocator* createCachingLocator() const;
 
   protected:
     /// osg::Referenced-derived
@@ -195,8 +187,8 @@ namespace simVis
     void init_();
     /** Detects engine driver problems and sets internal state appropriately */
     void detectTerrainEngineDriverProblems_();
-    /** Returns the unique hash identifying the layer. Taken from osgEarth::TerrainLayer::setCache method */
-    std::string getLayerHash_(osgEarth::TerrainLayer* layer) const;
+    /** Returns the unique hash identifying the layer. Taken from osgEarth::TileLayer::setCache method */
+    std::string getLayerHash_(osgEarth::TileLayer* layer) const;
     /** Replace image layers in currentMap with image layers in newMap, unless the layer already exists in currentMap. Removes old layers not in newMap */
     void updateImageLayers_(const osgEarth::Map& newMap, osgEarth::Map* currentMap);
     /** Replace elevation layers in currentMap with image layers in newMap, unless the layer already exists in currentMap. Removes old layers not in newMap */

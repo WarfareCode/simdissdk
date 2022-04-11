@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -27,9 +28,15 @@
 #include "simCore/Common/Common.h"
 #include "simData/ObjectId.h"
 
+namespace osgEarth
+{
+  namespace Util { class EllipsoidIntersector; }
+}
 namespace simVis
 {
 class ProjectorNode;
+
+//-------------------------------------------------------------------------
 
 /** Responsible for managing projectors in the scene */
 class ProjectorManager : public osg::Group, public osgEarth::MapNodeObserver
@@ -58,6 +65,9 @@ public:
 
   /** Texture image unit used by projectors */
   static const int getTextureImageUnit();
+
+  /// Texture image unit for shadow map raster
+  static const int getShadowMapImageUnit();
 
 public: // MapNodeObserver
 
@@ -110,12 +120,15 @@ private:
   };
 
   /// Vector of projectorLayers that have been added to the mapNode
-  typedef std::vector<osg::ref_ptr<ProjectorLayer> > ProjectorLayerVector;
-  ProjectorLayerVector projectorLayers_;
+  typedef std::unordered_map<simData::ObjectId, osg::ref_ptr<ProjectorLayer> > ProjectorLayerTable;
+  ProjectorLayerTable projectorLayers_;
 
   /// A listener to detect new image layers and force projectors to be visible over them
   class MapListener;
   osg::ref_ptr<MapListener> mapListener_;
+
+  /// A class that provides calculation services to projectors
+  std::shared_ptr<osgEarth::Util::EllipsoidIntersector> ellipsoidIntersector_;
 
   /// A flag to mark when projector layers need to be moved to ensure visibility
   bool needReorderProjectorLayers_;

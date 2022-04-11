@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -69,7 +70,7 @@ private:
   /** Groups a TerrainLayer pointer and the elapsed time since last its refresh */
   struct LayerInfo
   {
-    osg::observer_ptr<const osgEarth::TerrainLayer> layer;
+    osg::observer_ptr<osgEarth::TileLayer> layer;
     osg::ElapsedTime elapsedTime;
   };
 
@@ -77,12 +78,12 @@ private:
   void runImpl_();
 
   /** Watch the given layer and refresh it when required a refresh is due */
-  void watchLayer_(const osgEarth::TerrainLayer* layer);
+  void watchLayer_(osgEarth::TileLayer* layer);
   /** Stop watching the given layer */
-  void forgetLayer_(const osgEarth::TerrainLayer* layer);
+  void forgetLayer_(osgEarth::TileLayer* layer);
 
   /** Get the interval for the given layer in seconds */
-  double getIntervalForLayer_(const osgEarth::Layer* layer) const;
+  double getIntervalForLayer_(osgEarth::Layer* layer) const;
 
   bool enabled_;
   osg::ref_ptr<MapUpdatedCallback> mapUpdatedCallback_;

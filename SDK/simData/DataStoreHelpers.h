@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -65,7 +66,7 @@ public:
   static std::string description(const simData::DataStore* dataStore);
   /// Adds a media file if not already in the dataStore, the argument fileName must be full path. Returns zero on success.
   static int addMediaFile(const std::string& fileName, simData::DataStore* dataStore);
-  /// Gets or creates a table for the given object with the given name;  returns NULL on error
+  /// Gets or creates a table for the given object with the given name;  returns nullptr on error
   static simData::DataTable* getOrCreateDataTable(ObjectId objectId, const std::string& tableName, simData::DataStore* dataStore);
   /// Gets or creates a column for the given table with the given name; return 0 on success
   static int getOrCreateColumn(simData::DataTable* table, const std::string& columnName, VariableType storageType, UnitType unitType, simData::DataStore* dataStore, simData::TableColumnId& id);
@@ -77,6 +78,31 @@ public:
   static bool isEntityActive(const simData::DataStore& dataStore, simData::ObjectId objectId, double atTime);
   /** Returns the user vertical datum value, in meters, for the given entity. */
   static double getUserVerticalDatum(const simData::DataStore& dataStore, simData::ObjectId id);
+
+  /** Replaces contents of repeated field with the contents of the provided vector. */
+  template <typename T>
+  static void vecToRepeated(typename google::protobuf::RepeatedField<T>* field, const typename std::vector<T>& vec)
+  {
+    if (!field)
+      return;
+    field->Clear();
+    for (const auto& value : vec)
+      field->Add(value);
+  }
+
+  /** Converts a protobuf RepeatedField into a std::vector of same type. */
+  template <typename T>
+  static typename std::vector<T> vecFromRepeated(const typename google::protobuf::RepeatedField<T>& field)
+  {
+    typename std::vector<T> rv;
+    if (!field.empty())
+    {
+      rv.reserve(field.size());
+      for (int k = 0; k < field.size(); ++k)
+        rv.emplace_back(field.Get(k));
+    }
+    return rv;
+  }
 };
 
 }

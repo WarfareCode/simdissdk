@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -34,7 +35,7 @@ int testUpperBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(!i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   const simData::PlatformUpdate* update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 1.0));
 
   // 1.0: upper bound should be 10
@@ -42,7 +43,7 @@ int testUpperBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 10.0));
 
   // 2.0: upper bound should be 10
@@ -50,7 +51,7 @@ int testUpperBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 10.0));
 
   // 10.0: upper bound should be 20
@@ -58,7 +59,7 @@ int testUpperBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 20.0));
 
   // 19.0: upper bound should be 20
@@ -66,7 +67,7 @@ int testUpperBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 20.0));
 
   // 20.0: upper bound should be [end]
@@ -74,14 +75,14 @@ int testUpperBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(!i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update == NULL);
+  rv += SDK_ASSERT(update == nullptr);
 
   // 21.0: upper bound should be [end]
   i = slice.upper_bound(21.0);
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(!i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update == NULL);
+  rv += SDK_ASSERT(update == nullptr);
 
   return rv;
 }
@@ -94,7 +95,7 @@ int testLowerBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(!i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   const simData::PlatformUpdate* update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 1.0));
 
   // 1.0: lower bound should be 1
@@ -102,7 +103,7 @@ int testLowerBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(!i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 1.0));
 
   // 2.0: lower bound should be 10
@@ -110,7 +111,7 @@ int testLowerBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 10.0));
 
   // 10.0: lower bound should be 10
@@ -118,7 +119,7 @@ int testLowerBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 10.0));
 
   // 19.0: lower bound should be 20
@@ -126,7 +127,7 @@ int testLowerBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 20.0));
 
   // 20.0: lower bound should be 20
@@ -134,7 +135,7 @@ int testLowerBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 20.0));
 
   // 21.0: lower bound should be [end]
@@ -142,7 +143,7 @@ int testLowerBound(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(!i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update == NULL);
+  rv += SDK_ASSERT(update == nullptr);
 
   return rv;
 }
@@ -156,7 +157,7 @@ int testSingleItem(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(!i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   const simData::PlatformUpdate* update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 10.0));
 
   // 9.0: upper bound should be 10.0
@@ -164,7 +165,7 @@ int testSingleItem(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(!i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 10.0));
 
   // 10.0: lower bound should be 10.0
@@ -172,7 +173,7 @@ int testSingleItem(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(!i.hasPrevious());
   rv += SDK_ASSERT(i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update != NULL);
+  rv += SDK_ASSERT(update != nullptr);
   rv += SDK_ASSERT(simCore::areEqual(update->time(), 10.0));
 
   // 10.0: upper bound should be [end]
@@ -180,21 +181,21 @@ int testSingleItem(const simData::PlatformUpdateSlice& slice)
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(!i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update == NULL);
+  rv += SDK_ASSERT(update == nullptr);
 
   // 11.0: lower bound should be [end]
   i = slice.lower_bound(11.0);
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(!i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update == NULL);
+  rv += SDK_ASSERT(update == nullptr);
 
   // 11.0: upper bound should be [end]
   i = slice.upper_bound(11.0);
   rv += SDK_ASSERT(i.hasPrevious());
   rv += SDK_ASSERT(!i.hasNext());
   update = i.next();
-  rv += SDK_ASSERT(update == NULL);
+  rv += SDK_ASSERT(update == nullptr);
 
   return rv;
 }
@@ -253,8 +254,8 @@ int TestSliceBounds(int argc, char* argv[])
   helper.addPlatformUpdate(10.0, id);
   helper.addPlatformUpdate(20.0, id);
   const simData::PlatformUpdateSlice* slice = helper.dataStore()->platformUpdateSlice(id);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL)
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr)
     return rv;
   // Test properties of the slice to make sure it's valid
   rv += SDK_ASSERT(slice->firstTime() == 1.0);
@@ -268,8 +269,8 @@ int TestSliceBounds(int argc, char* argv[])
   id = helper.addPlatform();
   helper.addPlatformUpdate(10.0, id);
   slice = helper.dataStore()->platformUpdateSlice(id);
-  rv += SDK_ASSERT(slice != NULL);
-  if (slice == NULL)
+  rv += SDK_ASSERT(slice != nullptr);
+  if (slice == nullptr)
     return rv;
   // Test properties of the slice to make sure it's valid
   rv += SDK_ASSERT(slice->firstTime() == 10.0);

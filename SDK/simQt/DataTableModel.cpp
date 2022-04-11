@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -21,6 +22,8 @@
  */
 #include <limits>
 #include "simCore/Calc/Math.h"
+#include "simCore/Calc/Units.h"
+#include "simUtil/UnitTypeConverter.h"
 #include "DataTableModel.h"
 
 namespace simQt {
@@ -83,7 +86,7 @@ private:
 //----------------------------------------------------------------------------
 DataTableModel::DataTableModel(QObject *parent, simData::DataTable* dataTable)
 :QAbstractItemModel(parent),
-dataTable_(NULL),
+dataTable_(nullptr),
 genericPrecision_(3)
 {
   setDataTable(dataTable);
@@ -95,7 +98,7 @@ DataTableModel::~DataTableModel()
 
 QVariant DataTableModel::data(const QModelIndex &index, int role) const
 {
-  if (!index.isValid() || dataTable_ == NULL)
+  if (!index.isValid() || dataTable_ == nullptr)
     return QVariant();
   if (!(columns_.size() > index.column()) || !(rows_.size() > index.row()))
     return QVariant();
@@ -118,7 +121,7 @@ QVariant DataTableModel::data(const QModelIndex &index, int role) const
     if (!cell.hasNext())
       return EMPTY_CELL;
 
-    // return NULL if we found no data at this time
+    // return nullptr if we found no data at this time
     if (cell.peekNext()->time() != time)
       return EMPTY_CELL;
 
@@ -138,7 +141,7 @@ QVariant DataTableModel::data(const QModelIndex &index, int role) const
     if (!cell.hasNext())
       return EMPTY_CELL;
 
-    // return NULL if we found no data at this time
+    // return nullptr if we found no data at this time
     if (cell.peekNext()->time() != time)
       return EMPTY_CELL;
 
@@ -152,7 +155,7 @@ QVariant DataTableModel::data(const QModelIndex &index, int role) const
       return Qt::AlignLeft;
     const simData::TableColumn* col = columns_[index.column()];
     simData::TableColumn::Iterator cell = col->findAtOrBeforeTime(time);
-    // this is a NULL block, left align
+    // this is a nullptr block, left align
     if (cell.next()->time() != time)
       return Qt::AlignLeft;
 
@@ -170,18 +173,33 @@ QVariant DataTableModel::data(const QModelIndex &index, int role) const
 
 QVariant DataTableModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
-  if (section >= 0 && orientation == Qt::Horizontal && role == Qt::DisplayRole)
+  if ((section < 0) || (section >= columns_.size()))
+    return QVariant();
+
+  if (orientation == Qt::Horizontal && role == Qt::DisplayRole)
   {
     // column 0 is special case, time column
     if (section == 0)
       return "Time";
 
-    if (columns_.size() <= section)
-      return EMPTY_CELL;
-
     const simData::TableColumn* col = columns_[section];
-    return QVariant(col->name().c_str());
+
+    if (unitTypeConverter_ != nullptr)
+    {
+      std::string name;
+      auto units = unitTypeConverter_->toCoreFromData(col->unitType());
+      if (units.isValid())
+        name = units.name();
+      if (name.empty())
+        name = "Unknown";
+      return QString::fromStdString(col->name() + "\n(" + name + ")");
+    }
+
+    return QString::fromStdString(col->name());
   }
+
+  if (role == Qt::TextAlignmentRole)
+    return Qt::AlignHCenter;
 
   // Isn't the bar across the top -- fall back to whatever QAIM does
   return QAbstractItemModel::headerData(section, orientation, role);
@@ -232,7 +250,7 @@ void DataTableModel::setDataTable(simData::DataTable* dataTable)
   dataTable_ = dataTable;
 
   // no table, update layout and return
-  if (dataTable_ == NULL)
+  if (dataTable_ == nullptr)
   {
     endResetModel();
     return;
@@ -251,7 +269,7 @@ void DataTableModel::setDataTable(simData::DataTable* dataTable)
   // use size() instead of size() - 1 because of the time column
   const int lastColIndex = cv.columns().size();
   beginInsertColumns(QModelIndex(), 0, lastColIndex);
-  columns_.push_back(NULL); // time column
+  columns_.push_back(nullptr); // time column
   columns_ += cv.columns();
   endInsertColumns();
 
@@ -266,6 +284,11 @@ void DataTableModel::setDataTable(simData::DataTable* dataTable)
 simData::DataTable* DataTableModel::dataTable() const
 {
   return dataTable_;
+}
+
+void DataTableModel::setUnitTypeConverter(std::shared_ptr<simUtil::UnitTypeConverter> converter)
+{
+  unitTypeConverter_ = converter;
 }
 
 void DataTableModel::setGenericPrecision(unsigned int digitsAfterDecimal)

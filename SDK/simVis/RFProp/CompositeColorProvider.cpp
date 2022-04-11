@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,8 +31,8 @@ namespace simRF
 const osg::Vec4f DEFAULT_ABOVE_COLOR = simVis::Color::Red;
 /// Below threshold color; use green for below, i.e. the area where host cannot detect
 const osg::Vec4f DEFAULT_BELOW_COLOR = simVis::Color::Green;
-/// assumes default type is POD threshold, values are percentages 0-99.9
-const float DEFAULT_THRESHOLD = 60.0f;
+/// assumes default type is Loss threshold, values are 0-300 dBsm
+const float DEFAULT_THRESHOLD = 150.0f;
 
 CompositeColorProvider::CompositeColorProvider()
  : colorMode_(COLORMODE_ABOVE_AND_BELOW),
@@ -184,7 +185,7 @@ void CompositeColorProvider::install(osg::StateSet* stateset)
 
 void CompositeColorProvider::uninstall(osg::StateSet* stateset)
 {
-  lastStateSet_ = NULL;
+  lastStateSet_ = nullptr;
   if (colorMode_ == COLORMODE_GRADIENT)
     gradientProvider_->uninstall(stateset);
   else

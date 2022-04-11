@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -185,9 +186,9 @@ public:
   /**
    * Retrieve the bounds used to compute the interpolated value
    * The bounds are represented as a std::pair containing const pointers
-   * If the value is not interpolated, the values in the pair could be NULL
+   * If the value is not interpolated, the values in the pair could be nullptr
    */
-  virtual Bounds interpolationBounds() const { return Bounds(static_cast<T*>(NULL), static_cast<T*>(NULL)); }
+  virtual Bounds interpolationBounds() const { return Bounds(static_cast<T*>(nullptr), static_cast<T*>(nullptr)); }
 
   /// Earliest time in the update slice, or DBL_MAX if none
   virtual double firstTime() const = 0;

@@ -15,7 +15,12 @@ endif()
 set(SDK_LIB_CMAKE_PATH ${INSTALLSETTINGS_LIBRARY_DIR}/cmake)
 
 # Gather a list of all possible imported libraries
-set(IMPLIBS PROTOBUF OSGQT GDAL OSGEARTH)
+set(IMPLIBS)
+foreach(LIB IN ITEMS PROTOBUF OSGQT GDAL GEOS GEOS_C OSGEARTH)
+    if(TARGET ${LIB})
+        list(APPEND IMPLIBS ${LIB})
+    endif()
+endforeach()
 list(APPEND IMPLIBS ${OSG_ALL_LIBDEPENDENCIES})
 
 # Keep a list of all the properties that need to transfer from our imported
@@ -107,7 +112,7 @@ configure_file(CMakeUtilities/ImportSIMDIS_SDK.cmake.in
 )
 install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/cmake/ImportSIMDIS_SDK.cmake
-        CMakeModules/EnableGccNewCxxFeatures.cmake
+        CMakeModules/EnableNewCxxFeatures.cmake
     DESTINATION share/ExternalSdkProject/CMakeModules/
     COMPONENT Exports
 )

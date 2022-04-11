@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,7 +31,8 @@ namespace simQt {
 
 CategoryFilterCounter::CategoryFilterCounter(QObject* parent)
   : QObject(parent),
-    dirtyFlag_(false)
+    dirtyFlag_(false),
+    objectTypes_(simData::ALL)
 {
 }
 
@@ -91,13 +93,21 @@ void CategoryFilterCounter::setFilter(const simData::CategoryFilter& filter)
   dirtyFlag_ = true;
 }
 
+void CategoryFilterCounter::setObjectTypes(simData::ObjectType objectTypes)
+{
+  if (objectTypes_ == objectTypes)
+    return;
+  objectTypes_ = objectTypes;
+  dirtyFlag_ = true;
+}
+
 void CategoryFilterCounter::idList_(std::vector<simData::ObjectId>& ids) const
 {
   ids.clear();
   const simData::DataStore* ds = filter_->getDataStore();
   if (!ds)
     return;
-  ds->idList(&ids);
+  ds->idList(&ids, objectTypes_);
 }
 
 void CategoryFilterCounter::testAllCategories()
@@ -173,8 +183,9 @@ void CategoryFilterCounter::testCategory_(int nameInt, CategoryCountResults::Val
 
 AsyncCategoryCounter::AsyncCategoryCounter(QObject* parent)
   : QObject(parent),
-    counter_(NULL),
-    retestPending_(false)
+    counter_(nullptr),
+    retestPending_(false),
+    objectTypes_(simData::ALL)
 {
 }
 
@@ -189,9 +200,18 @@ void AsyncCategoryCounter::setFilter(const simData::CategoryFilter& filter)
   asyncCountEntities();
 }
 
+void AsyncCategoryCounter::setObjectTypes(simData::ObjectType objectTypes)
+{
+  if (objectTypes_ == objectTypes)
+    return;
+  objectTypes_ = objectTypes;
+  retestPending_ = true;
+  asyncCountEntities();
+}
+
 void AsyncCategoryCounter::asyncCountEntities()
 {
-  if (counter_ != NULL)
+  if (counter_ != nullptr)
   {
     retestPending_ = true;
     return;
@@ -204,8 +224,9 @@ void AsyncCategoryCounter::asyncCountEntities()
   QFutureWatcher<void>* watcher = new QFutureWatcher<void>();
 
   counter_ = new CategoryFilterCounter(watcher);
-  if (nextFilter_ != NULL)
+  if (nextFilter_ != nullptr)
     counter_->setFilter(*nextFilter_);
+  counter_->setObjectTypes(objectTypes_);
   counter_->prepare();
 
   // Be sure to set up a connect() before setFuture() to avoid race.
@@ -222,8 +243,8 @@ void AsyncCategoryCounter::emitResults_()
   lastResults_ = counter_->results();
   emit resultsReady(lastResults_);
 
-  // just set to NULL, the deleteLater() for watcher will do the actual delete
-  counter_ = NULL;
+  // just set to nullptr, the deleteLater() for watcher will do the actual delete
+  counter_ = nullptr;
 
   // Retest now that it's safe to do so
   if (retestPending_)

@@ -13,13 +13,15 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
 #include "simCore/Calc/Angle.h"
+#include "simVis/RFProp/Profile.h"
 #include "simVis/RFProp/BearingProfileMap.h"
 
 namespace simRF
@@ -72,7 +74,7 @@ double BearingProfileMap::getSlotBearing(double bearingR) const
 Profile* BearingProfileMap::getProfileByBearing(double bearingR) const
 {
   BearingProfileMap::const_iterator itr = getSlot_(bearingR);
-  return (itr != profiles_.end()) ? itr->second.get() : NULL;
+  return (itr != profiles_.end()) ? itr->second.get() : nullptr;
 }
 
 BearingProfileMap::const_iterator BearingProfileMap::getSlot_(double bearingR) const

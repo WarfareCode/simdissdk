@@ -13,25 +13,31 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
+#include <cassert>
 #include "osgEarth/ElevationLayer"
 #include "osgEarth/FeatureModelLayer"
 #include "osgEarth/GDAL"
 #include "osgEarth/ImageLayer"
+#include "osgEarth/MapboxGLImageLayer"
 #include "osgEarth/MBTiles"
 #include "osgEarth/OGRFeatureSource"
 #include "simCore/Common/Exception.h"
 #include "simCore/String/Format.h"
 #include "simCore/String/Utils.h"
 #include "simVis/Constants.h"
-#include "simVis/DBFormat.h"
 #include "simVis/Types.h"
 #include "simUtil/LayerFactory.h"
+
+#ifdef SIM_HAVE_DB_SUPPORT
+#include "simVis/DBFormat.h"
+#endif
 
 namespace simUtil {
 
@@ -40,6 +46,11 @@ static const osgEarth::TimeSpan ONE_YEAR(365 * 86400);
 
 simVis::DBImageLayer* LayerFactory::newDbImageLayer(const std::string& fullPath) const
 {
+#ifndef SIM_HAVE_DB_SUPPORT
+  // Likely developer error unintended
+  assert(0);
+  return nullptr;
+#else
   osgEarth::Config config;
   config.setReferrer(fullPath);
 
@@ -54,6 +65,7 @@ simVis::DBImageLayer* LayerFactory::newDbImageLayer(const std::string& fullPath)
   layer->setCachePolicy(cachePolicy);
 
   return layer.release();
+#endif
 }
 
 osgEarth::MBTilesImageLayer* LayerFactory::newMbTilesImageLayer(const std::string& fullPath) const
@@ -65,7 +77,6 @@ osgEarth::MBTilesImageLayer* LayerFactory::newMbTilesImageLayer(const std::strin
   osg::ref_ptr<osgEarth::MBTilesImageLayer> layer = new osgEarth::MBTilesImageLayer(opts);
   layer->setName(LayerFactory::completeBaseName(fullPath));
   layer->setURL(fullPath);
-  layer->setComputeLevels(false);
 
   // mbtiles already have preprocessed data, no need to use cache
   layer->setCachePolicy(osgEarth::CachePolicy::USAGE_NO_CACHE);
@@ -95,8 +106,37 @@ osgEarth::GDALImageLayer* LayerFactory::newGdalImageLayer(const std::string& ful
   return layer.release();
 }
 
+osgEarth::MapBoxGLImageLayer* LayerFactory::newMapBoxGlImageLayer(const std::string& fullPath) const
+{
+  osgEarth::Config config;
+  config.setReferrer(fullPath);
+
+  osgEarth::MapBoxGLImageLayer::Options opts(config);
+  osg::ref_ptr<osgEarth::MapBoxGLImageLayer> layer = new osgEarth::MapBoxGLImageLayer(opts);
+  layer->setName(LayerFactory::completeBaseName(fullPath));
+  layer->setURL(fullPath);
+  layer->setTileSize(512u);
+#if OSGEARTH_SOVERSION >= 128
+  // A good rule of thumb is: (tile size / 256) * (FOV / 30). This results in a scale of 4.f
+  // for most SIMDIS cases, but this is still a bit small, so boost it up to 6.f.
+  layer->setPixelScale(6.f);
+#endif
+
+  // Use the same cache policy as GDAL
+  osgEarth::CachePolicy cachePolicy = osgEarth::CachePolicy::USAGE_READ_WRITE;
+  cachePolicy.maxAge() = ONE_YEAR;
+  layer->setCachePolicy(cachePolicy);
+
+  return layer.release();
+}
+
 simVis::DBElevationLayer* LayerFactory::newDbElevationLayer(const std::string& fullPath) const
 {
+#ifndef SIM_HAVE_DB_SUPPORT
+  // Likely developer error unintended
+  assert(0);
+  return nullptr;
+#else
   osgEarth::Config config;
   config.setReferrer(fullPath);
 
@@ -111,6 +151,7 @@ simVis::DBElevationLayer* LayerFactory::newDbElevationLayer(const std::string& f
   layer->setCachePolicy(cachePolicy);
 
   return layer.release();
+#endif
 }
 
 osgEarth::MBTilesElevationLayer* LayerFactory::newMbTilesElevationLayer(const std::string& fullPath) const
@@ -122,7 +163,6 @@ osgEarth::MBTilesElevationLayer* LayerFactory::newMbTilesElevationLayer(const st
   osg::ref_ptr<osgEarth::MBTilesElevationLayer> layer = new osgEarth::MBTilesElevationLayer(opts);
   layer->setName(LayerFactory::completeBaseName(fullPath));
   layer->setURL(fullPath);
-  layer->setComputeLevels(false);
 
   // mbtiles already have preprocessed data, no need to use cache
   layer->setCachePolicy(osgEarth::CachePolicy::USAGE_NO_CACHE);
@@ -175,7 +215,7 @@ osgEarth::FeatureModelLayer* LayerFactory::newFeatureLayer(const osgEarth::Featu
 
   // Error encountered
   SAFETRYEND("during LayerFactory::newFeatureLayer()");
-  return NULL;
+  return nullptr;
 }
 
 /////////////////////////////////////////////////////////////////
@@ -202,12 +242,16 @@ ShapeFileLayerFactory::~ShapeFileLayerFactory()
 osgEarth::FeatureModelLayer* ShapeFileLayerFactory::load(const std::string& url) const
 {
   osg::ref_ptr<osgEarth::FeatureModelLayer> layer = new osgEarth::FeatureModelLayer();
-  configureOptions(url, layer);
+  configureOptions(url, layer.get());
 
-  if (layer->getStatus().isError())
+  // check the feature source's status for errors, since the layer's status will be ResourceUnavailable until it is opened
+  if (!layer->getFeatureSource())
+    return nullptr;
+  osgEarth::Status status = layer->getFeatureSource()->getStatus();
+  if (status.isError())
   {
-    SIM_WARN << "ShapeFileLayerFactory::load(" << url << ") failed : " << layer->getStatus().message() << "\n";
-    layer = NULL;
+    SIM_WARN << "ShapeFileLayerFactory::load(" << url << ") failed : " << status.message() << "\n";
+    layer = nullptr;
   }
   return layer.release();
 }

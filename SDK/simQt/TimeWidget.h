@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -136,6 +137,7 @@ protected slots:
   void setOrdinal_(); ///< set time format to ordinal
   void setMonth_(); ///< set time format to month
   void setColorCode_(); ///< toggle the color code setting
+  void copyToClipboard_(); ///< copy time to the global clipboard
 
 private:
   /**
@@ -155,6 +157,8 @@ private:
   QMenu* rightMouseClickMenu_;
   /// Allows the user to toggle the color coding
   QAction* colorCodeAction_;
+  /// Allows the user to copy the time to the clipboard
+  QAction* copyAction_;
 
   /// Cache of the last scenario reference year
   int scenarioReferenceYear_;

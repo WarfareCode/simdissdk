@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -35,10 +36,11 @@
 namespace osgEarth {
   class Layer;
   class Map;
-  class TerrainLayer;
 }
+namespace simUtil { class VelocityParticleLayer; }
 
 typedef std::vector<osg::ref_ptr<osgEarth::FeatureModelLayer> > FeatureModelLayerVector;
+typedef std::vector<osg::ref_ptr<simUtil::VelocityParticleLayer> > VelocityParticleLayerVector;
 
 namespace simQt {
 
@@ -57,24 +59,28 @@ public:
   /** Destroys the map reindexer */
   virtual ~MapReindexer();
 
-  /** Retrieves the map image layers using a consistent interface */
+  /** Retrieves the map image layers using a consistent interface.  Omits Velocity layers. */
   static void getLayers(osgEarth::Map* map, osgEarth::ImageLayerVector& imageLayers);
   /** Retrieves the map elevation layers using a consistent interface */
   static void getLayers(osgEarth::Map* map, osgEarth::ElevationLayerVector& elevationLayers);
   /** Retrieves the map model layers using a consistent interface */
   static void getLayers(osgEarth::Map* map, FeatureModelLayerVector& modelLayers);
+  /** Retrieves the map velocity (wind, ocean) layers using a consistent interface. */
+  static void getLayers(osgEarth::Map* map, VelocityParticleLayerVector& velocityLayers);
   /** Retrieves all other map layers that aren't explicitly of type ImageLayer, ElevationLayer, or ModelLayer */
   static void getOtherLayers(osgEarth::Map* map, osgEarth::VisibleLayerVector& otherLayers);
 
   /** Sentinel value return for invalid index (layer not found) */
   static const unsigned int INVALID_INDEX;
 
-  /** Returns the layer index relative to other layers in getLayers(ImageVector&) */
+  /** Returns the layer index relative to other layers in getLayers(ImageLayerVector&) */
   unsigned int layerTypeIndex(osgEarth::ImageLayer* layer) const;
-  /** Returns the layer index relative to other layers in getLayers(ElevationVector&) */
+  /** Returns the layer index relative to other layers in getLayers(ElevationLayerVector&) */
   unsigned int layerTypeIndex(osgEarth::ElevationLayer* layer) const;
-  /** Returns the layer index relative to other layers in getLayers(FeatureModelVector&) */
+  /** Returns the layer index relative to other layers in getLayers(FeatureModelLayerVector&) */
   unsigned int layerTypeIndex(osgEarth::FeatureModelLayer* layer) const;
+  /** Returns the layer index relative to other layers in getLayers(VelocityParticleLayerVector&) */
+  unsigned int layerTypeIndex(simUtil::VelocityParticleLayer* layer) const;
   /** Returns the layer index relative to other layers in getOtherLayers(VisibleLayerVector&) */
   unsigned int otherLayerTypeIndex(osgEarth::VisibleLayer* layer) const;
 
@@ -99,7 +105,7 @@ public:
   explicit MapDataModel(QObject* parent=0);
   virtual ~MapDataModel();
 
-  /// Changes the underlying Map pointer (NULL is tolerated)
+  /// Changes the underlying Map pointer (nullptr is tolerated)
   void bindTo(osgEarth::Map* map);
   /// Retrieve the underlying map pointer
   osgEarth::Map* map() const;
@@ -128,17 +134,14 @@ public:
     CHILD_IMAGE = 0,
     CHILD_ELEVATION,
     CHILD_FEATURE,
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-    /// @deprecated Use CHILD_FEATURE instead
-    CHILD_MODEL = CHILD_FEATURE,
-#endif
+    CHILD_VELOCITY,
     CHILD_OTHER,
     CHILD_NONE
   };
 
-  /** data() returns the pointer to the layer, or NULL */
+  /** data() returns the pointer to the layer, or nullptr */
   static const int LAYER_POINTER_ROLE = Qt::UserRole + 0;
-  /** data() returns the type of node: image, elevation, feature, or none for top level MAP selection */
+  /** data() returns the type of node: image, elevation, feature, velocity, or none for top level MAP selection */
   static const int LAYER_TYPE_ROLE = Qt::UserRole + 1;
   /** data() returns the 'global' map index for the layer type */
   static const int LAYER_MAP_INDEX_ROLE = Qt::UserRole + 2;
@@ -155,12 +158,6 @@ signals:
   /** Qt signal as described by the signal name */
   void imageLayerOpacityChanged(osgEarth::ImageLayer* layer);
   /** Qt signal as described by the signal name */
-  void imageLayerColorFilterChanged(osgEarth::ImageLayer* layer);
-  /** Qt signal as described by the signal name */
-  void imageLayerVisibleRangeChanged(osgEarth::ImageLayer* layer);
-  /** Qt signal as described by the signal name */
-  void imageLayerAltitudeChanged(osgEarth::ImageLayer* layer);
-  /** Qt signal as described by the signal name */
   void imageLayerAdded(osgEarth::ImageLayer* layer);
   /** Qt signal as described by the signal name */
   void elevationLayerVisibleChanged(osgEarth::ElevationLayer* layer);
@@ -173,23 +170,12 @@ signals:
   /** Qt signal as described by the signal name */
   void featureLayerAdded(osgEarth::FeatureModelLayer* layer);
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  /**
-   * Qt signal as described by the signal name
-   * @deprecated Use featureLayerVisibleChanged() instead
-   */
-  void modelLayerVisibleChanged(osgEarth::FeatureModelLayer* layer);
-  /**
-  * Qt signal as described by the signal name
-  * @deprecated Use featureLayerOpacityChanged() instead
-  */
-  void modelLayerOpacityChanged(osgEarth::FeatureModelLayer* layer);
-  /**
-  * Qt signal as described by the signal name
-  * @deprecated Use featureLayerAdded() instead
-  */
-  void modelLayerAdded(osgEarth::FeatureModelLayer* layer);
-#endif
+  /** Qt signal as described by the signal name */
+  void velocityLayerVisibleChanged(simUtil::VelocityParticleLayer* layer);
+  /** Qt signal as described by the signal name */
+  void velocityLayerOpacityChanged(simUtil::VelocityParticleLayer* layer);
+  /** Qt signal as described by the signal name */
+  void velocityLayerAdded(simUtil::VelocityParticleLayer* layer);
 
   /** Qt signal as described by the signal name */
   void otherLayerVisibleChanged(osgEarth::VisibleLayer* layer);
@@ -220,10 +206,12 @@ private: // methods
   void addElevationLayer_(osgEarth::ElevationLayer* layer, unsigned int index);
   /** add a feature layer */
   void addFeatureLayer_(osgEarth::FeatureModelLayer* layer, unsigned int index);
+  /** add a velocity layer */
+  void addVelocityLayer_(simUtil::VelocityParticleLayer* layer, unsigned int index);
   /** add a layer other than image, elevation, or feature */
   void addOtherLayer_(osgEarth::VisibleLayer* layer, unsigned int index);
 
-  /** return the Item for the given index (NULL if it can't be represented) */
+  /** return the Item for the given index (nullptr if it can't be represented) */
   Item* itemAt_(const QModelIndex &index) const;
 
   /** return the Item for the imagery group */
@@ -232,6 +220,8 @@ private: // methods
   Item* elevationGroup_() const;
   /** return the Item for the feature group */
   Item* featureGroup_() const;
+  /** return the Item for the velocity group */
+  Item* velocityGroup_() const;
   /** return the Item for the other group */
   Item* otherGroup_() const;
 
@@ -253,12 +243,14 @@ private: // methods
   QIcon elevationIcon_;
   /** Icon for feature layer */
   QIcon featureIcon_;
+  /** Icon for velocity particle layer */
+  QIcon velocityIcon_;
   /** Icon for other layer */
   QIcon otherIcon_;
 
   /** Maps of terrain layer callbacks */
-  QMap<osgEarth::ImageLayer*, osg::ref_ptr<osgEarth::ImageLayerCallback> > imageCallbacks_;
-  QMap<osgEarth::ElevationLayer*, osg::ref_ptr<osgEarth::ElevationLayerCallback> > elevationCallbacks_;
+  QMap<osgEarth::ImageLayer*, osg::ref_ptr<osgEarth::TileLayerCallback> > imageCallbacks_;
+  QMap<osgEarth::ElevationLayer*, osg::ref_ptr<osgEarth::TileLayerCallback> > elevationCallbacks_;
   QMap<osgEarth::FeatureModelLayer*, osg::ref_ptr<osgEarth::VisibleLayerCallback> > featureCallbacks_;
   QMap<osgEarth::VisibleLayer*, osg::ref_ptr<osgEarth::VisibleLayerCallback> > otherCallbacks_;
 

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -40,7 +41,7 @@ class SDKUTIL_EXPORT DataStoreTestHelper
 {
 public:
   /** Will create a data store if none is passed in; passed-in memory still belongs to caller */
-  DataStoreTestHelper(simData::DataStore* dataStore = NULL);
+  DataStoreTestHelper(simData::DataStore* dataStore = nullptr);
   /** Deletes data store if data store was created inside constructor */
   virtual ~DataStoreTestHelper();
 
@@ -101,6 +102,15 @@ public:
   * @return uint64_t  the id for the entity
   */
   uint64_t addProjector(uint64_t hostId, uint64_t originalId = 0);
+
+  /**
+  * Add a custom rendering
+  * Uses the id to construct a name of 'customRendering<id>_<hostId>'
+  * @param hostId platform host
+  * @param originalId Original ID to use for entity
+  * @return uint64_t  the id for the entity
+  */
+  uint64_t addCustomRendering(uint64_t hostId, uint64_t originalId = 0);
 
   /**
   * Update platform prefs as with object specified, does a merge with prefs passed in
@@ -229,6 +239,13 @@ public:
   void addProjectorCommand(const simData::ProjectorCommand& command, uint64_t id);
 
   /**
+  * Adds the passed in command
+  * @param command
+  * @param id of entity
+  */
+  void addCustomRenderingCommand(const simData::CustomRenderingCommand& command, uint64_t id);
+    ;
+  /**
   * Adds the passed in Category Data
   * @param id of entity
   * @param key of category data
@@ -252,8 +269,9 @@ public:
   * @param entityId ID of the table owner
   * @param numRows Number of rows to generate
   * @param tableName Name of the table to create
+  * @return The table of ID of the newly created table
   */
-  void addDataTable(uint64_t entityId, int numRows = 2, const std::string& tableName = "");
+  uint64_t addDataTable(uint64_t entityId, int numRows = 2, const std::string& tableName = "");
 
 private:
   /** add a DataTable column with the specified number of rows.  Will set null or null-less based on id value */

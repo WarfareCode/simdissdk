@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -38,7 +39,7 @@ namespace {
 const simVis::View* getView(simVis::View* view)
 {
   if (!view)
-    return NULL;
+    return nullptr;
   const simVis::FocusManager* focusManager =view->getFocusManager();
   if (focusManager && focusManager->getFocusedView())
     return focusManager->getFocusedView();
@@ -90,13 +91,6 @@ AzimuthVariable::AzimuthVariable(simVis::View* mainView)
 {
 }
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-AzimuthVariable::AzimuthVariable(simVis::Viewer* viewer)
-  : mainView_(viewer == NULL ? NULL : viewer->getMainView())
-{
-}
-#endif
-
 std::string AzimuthVariable::getText() const
 {
   const simVis::View* view = getView(mainView_.get());
@@ -106,9 +100,9 @@ std::string AzimuthVariable::getText() const
   const osgEarth::Util::EarthManipulator* manip = view->getEarthManipulator();
   double azimuth = 0.0;
   // Prefer the azimuth from getCompositeEulerAngles on the manipulator
-  if (manip != NULL)
+  if (manip != nullptr)
   {
-    manip->getCompositeEulerAngles(&azimuth, NULL);
+    manip->getCompositeEulerAngles(&azimuth, nullptr);
     azimuth *= simCore::RAD2DEG; // format_() expects degrees
   }
   else // Fall back to the viewpoint
@@ -136,13 +130,6 @@ ElevationVariable::ElevationVariable(simVis::View* mainView)
 {
 }
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-ElevationVariable::ElevationVariable(simVis::Viewer* viewer)
-  : mainView_(viewer == NULL ? NULL : viewer->getMainView())
-{
-}
-#endif
-
 std::string ElevationVariable::getText() const
 {
   const simVis::View* view = getView(mainView_.get());
@@ -152,9 +139,9 @@ std::string ElevationVariable::getText() const
   const osgEarth::Util::EarthManipulator* manip = view->getEarthManipulator();
   double elevation = 0.0;
   // Prefer the azimuth from getCompositeEulerAngles on the manipulator
-  if (manip != NULL)
+  if (manip != nullptr)
   {
-    manip->getCompositeEulerAngles(NULL, &elevation);
+    manip->getCompositeEulerAngles(nullptr, &elevation);
     elevation = -elevation * simCore::RAD2DEG; // format_() expects degrees
   }
   else // Fall back to the viewpoint
@@ -186,14 +173,6 @@ LatitudeVariable::LatitudeVariable(simVis::View* mainView, int precision)
 {
 }
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-LatitudeVariable::LatitudeVariable(simVis::Viewer* viewer)
-  : mainView_(viewer == NULL ? NULL : viewer->getMainView()),
-    precision_(2)
-{
-}
-#endif
-
 std::string LatitudeVariable::getText() const
 {
   const simVis::View* view = getView(mainView_.get());
@@ -222,14 +201,6 @@ LongitudeVariable::LongitudeVariable(simVis::View* mainView, int precision)
 {
 }
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-LongitudeVariable::LongitudeVariable(simVis::Viewer* viewer)
-  : mainView_(viewer == NULL ? NULL : viewer->getMainView()),
-    precision_(2)
-{
-}
-#endif
-
 std::string LongitudeVariable::getText() const
 {
   const simVis::View* view = getView(mainView_.get());
@@ -256,13 +227,6 @@ AltitudeVariable::AltitudeVariable(simVis::View* mainView)
   : mainView_(mainView)
 {
 }
-
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-AltitudeVariable::AltitudeVariable(simVis::Viewer* viewer)
-  : mainView_(viewer == NULL ? NULL : viewer->getMainView())
-{
-}
-#endif
 
 std::string AltitudeVariable::getText() const
 {
@@ -305,10 +269,10 @@ std::string CenteredVariable::getText() const
 
     // Pull out the centered node; note that in a Watched view, the Watcher is considered centered
     // even though the tether is set (the tether in this case is the watched)
-    const simVis::EntityNode* entityNode = NULL;
+    const simVis::EntityNode* entityNode = nullptr;
     if (focusedView->isWatchEnabled())
       entityNode = focusedView->getWatcherNode();
-    else if (focusedView->getCameraTether() != NULL)
+    else if ((focusedView->getCameraTether() != nullptr) && !focusedView->getCameraTether()->getParents().empty())
       entityNode = dynamic_cast<simVis::EntityNode*>(focusedView->getCameraTether()->getParent(0));
 
     // Return the name
@@ -319,7 +283,7 @@ std::string CenteredVariable::getText() const
         rv = " ";
       return rv;
     }
-    else if (focusedView->getCameraTether() != NULL)
+    else if (focusedView->getCameraTether() != nullptr)
     {
       // See if the camera is tethered to a centroid
       const simVis::AveragePositionNode* centroid = dynamic_cast<simVis::AveragePositionNode*>(focusedView->getCameraTether());

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -42,30 +43,20 @@ MainWindow::MainWindow(simData::DataStore* dataStore, QWidget *parent)
   ui_ = new Ui_MainWindow();
   ui_->setupUi(this);
 
-  ui_->categoryFilterWidget->setProviders(dataStore);
   connect(ui_->smallButton, SIGNAL(clicked()), this, SLOT(addSmallAmount_()));
   connect(ui_->massiveButton, SIGNAL(clicked()), this, SLOT(addMassiveAmount_()));
   connect(ui_->togglePushButton, SIGNAL(clicked()), this, SLOT(toggleState_()));
-  connect(ui_->categoryFilterWidget, SIGNAL(categoryFilterChanged(simData::CategoryFilter)),
-    this, SLOT(categoryFilterChanged_(simData::CategoryFilter)));
-
-  connect(ui_->categoryFilterWidget, SIGNAL(categoryFilterChanged(simData::CategoryFilter)),
-    ui_->breadcrumbs, SLOT(setFilter(simData::CategoryFilter)));
-  connect(ui_->breadcrumbs, SIGNAL(filterEdited(simData::CategoryFilter)),
-    ui_->categoryFilterWidget, SLOT(setFilter(simData::CategoryFilter)));
-  connect(ui_->breadcrumbs, SIGNAL(filterEdited(simData::CategoryFilter)),
-    this, SLOT(categoryFilterChanged_(simData::CategoryFilter)));
 
   // Configure the new Category Filter Widget
-  ui_->categoryFilterWidget2->setDataStore(dataStore);
-  connect(ui_->categoryFilterWidget, SIGNAL(categoryFilterChanged(simData::CategoryFilter)),
-    ui_->categoryFilterWidget2, SLOT(setFilter(simData::CategoryFilter)));
-  connect(ui_->categoryFilterWidget2, SIGNAL(filterEdited(simData::CategoryFilter)),
+  ui_->categoryFilterWidget->setDataStore(dataStore);
+  connect(ui_->categoryFilterWidget, SIGNAL(filterChanged(simData::CategoryFilter)),
     ui_->breadcrumbs, SLOT(setFilter(simData::CategoryFilter)));
-  connect(ui_->categoryFilterWidget2, SIGNAL(filterEdited(simData::CategoryFilter)),
-    ui_->categoryFilterWidget, SLOT(setFilter(simData::CategoryFilter)));
   connect(ui_->breadcrumbs, SIGNAL(filterEdited(simData::CategoryFilter)),
-    ui_->categoryFilterWidget2, SLOT(setFilter(simData::CategoryFilter)));
+    ui_->categoryFilterWidget, SLOT(setFilter(simData::CategoryFilter)));
+  connect(ui_->categoryFilterWidget, SIGNAL(filterChanged(simData::CategoryFilter)),
+    this, SLOT(categoryFilterChanged_(simData::CategoryFilter)));
+  connect(ui_->breadcrumbs, SIGNAL(filterEdited(simData::CategoryFilter)),
+    this, SLOT(categoryFilterChanged_(simData::CategoryFilter)));
 }
 
 MainWindow::~MainWindow()
@@ -154,7 +145,7 @@ int main(int argc, char* argv[])
   QApplication app(argc, argv);
 
   simData::MemoryDataStore* dataStore = new simData::MemoryDataStore();
-  MainWindow* window = new MainWindow(dataStore, NULL);
+  MainWindow* window = new MainWindow(dataStore, nullptr);
   window->show();
 
   int rv = app.exec();

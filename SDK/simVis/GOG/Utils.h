@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -142,7 +143,11 @@ namespace simVis { namespace GOG
       static void configureStyleForClipping(osgEarth::Style& style);
 
       /** Converts an annotation string to a displayable string, de-encoding newlines and underscores */
-      static std::string decodeAnnotation(const std::string& anno);
+      SDK_DEPRECATE(static std::string decodeAnnotation(const std::string& anno),
+        "Use simCore::GOG::GogUtils::decodeAnnotation. This method will be removed in a future version.");
+
+      /** Attempts to read an image, given a filename or URL; attempts to resolve file:// references */
+      static osg::ref_ptr<osg::Image> readRefImage(const std::string& addr);
   };
 
   /**
@@ -331,8 +336,10 @@ namespace simVis { namespace GOG
     GOGContext                           context_; ///< Context
     osgEarth::Style                      style_; ///< Style
     osgEarth::optional<osg::Vec3d>       refPointLLA_; ///< Reference point in LLA
-    osgEarth::optional<osg::Vec3d>       centerXYZ_; ///< Center point in XXZ
+    osgEarth::optional<osg::Vec3d>       centerXYZ_; ///< Center point in XYZ
+    osgEarth::optional<osg::Vec3d>       centerXYZ2_; ///< Second center point in XYZ, only valid for some shapes
     osgEarth::optional<osg::Vec3d>       centerLLA_; ///< Center point in LLA
+    osgEarth::optional<osg::Vec3d>       centerLLA2_; ///< Second center point in LLA, only valid for some shapes
     osg::ref_ptr<osgEarth::Geometry>     geom_; ///< Geometry
     bool                                 geomIsLLA_; ///< If true than in LLA; if false in XYZ
     bool                                 geomIsRelative_; ///< If true than GOG is relative; if false GOG is absolute

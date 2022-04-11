@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -116,7 +117,7 @@ private:
 RocketBurnStorage::RocketBurnStorage(simData::DataStore &dataStore, simVis::ScenarioManager &scenarioManager)
   : scenarioManager_(scenarioManager),
   dataStore_(dataStore),
-  texture_(NULL)
+  texture_(nullptr)
 {
 }
 
@@ -142,7 +143,7 @@ void RocketBurnStorage::addBurnData(simData::ObjectId platId, uint64_t burnId, d
     }
 
     // lazy initialization of texture and other resources that are only needed if a rocketBurn is instantiated
-    if (texture_ == NULL)
+    if (texture_ == nullptr)
     {
       const std::string imageFile = simVis::Registry::instance()->findModelFile(BURN_TEXTURE_FILE);
       osg::ref_ptr<osg::Image> image;

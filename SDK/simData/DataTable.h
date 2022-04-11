@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -118,7 +119,7 @@ public:
    * if the table name already exists.
    * @param ownerId Owner ID of the table.
    * @param tableName Table name unique to the entity owner ID, must be non-empty.
-   * @param newTable Pointer to a data table, or NULL if there was an error.  This table may have been
+   * @param newTable Pointer to a data table, or nullptr if there was an error.  This table may have been
    *   created by this call, or created by a previous call if the name is not unique.  The return value
    *   will indicate isError() if the table already existed.
    * @return Status indicating success for a new table creation, or error if an existing table was
@@ -170,7 +171,7 @@ public:
    * exist for a given owner ID and table name combination.
    * @param ownerId Owner of the table being searched for
    * @param tableName Name of the table being searched for
-   * @return Table value associated with the owner ID and string name, or NULL if none found.
+   * @return Table value associated with the owner ID and string name, or nullptr if none found.
    */
   virtual DataTable* findTable(simData::ObjectId ownerId, const std::string& tableName) const = 0;
 
@@ -235,7 +236,7 @@ public:
 
   /** Entity owner ID associated with the list of tables */
   virtual simData::ObjectId ownerId() const = 0;
-  /** Retrieves the table (or NULL) associated with the given name. */
+  /** Retrieves the table (or nullptr) associated with the given name. */
   virtual DataTable* findTable(const std::string& tableName) const = 0;
   /** Returns the total number of tables in this list. */
   virtual size_t tableCount() const = 0;
@@ -272,7 +273,7 @@ public:
   /** Saves a flush container for later deletion. */
   void push_back(DelayedFlushContainerPtr ptr)
   {
-    if (ptr.get() != NULL)
+    if (ptr.get() != nullptr)
       deque_.push_back(ptr);
   }
 private:
@@ -281,7 +282,7 @@ private:
 
 /**
  * Data tables can contain any time stamped data in column arrangement, and permit both out-of-
- * order addition of elements and NULL cells.  Columns can be added after table creation, and
+ * order addition of elements and nullptr cells.  Columns can be added after table creation, and
  * can also be added even after some rows are added.  Tables should be created using the
  * DataTableManager::addDataTable() factory function.
  */
@@ -357,14 +358,14 @@ public:
   /**
    * Retrieves the column associated with the particular column ID provided.  Column IDs
    * are unique within the context of a single DataTable and will not change.
-   * @return NULL if column not found, or pointer to the column ID requested.
+   * @return nullptr if column not found, or pointer to the column ID requested.
    */
   virtual TableColumn* column(TableColumnId id) const = 0;
 
   /**
    * Retrieves the column associated with the particular column name provided.  Column names
    * are unique within the context of a single DataTable.
-   * @return NULL if column not found, or pointer to the column with the name requested.
+   * @return nullptr if column not found, or pointer to the column with the name requested.
    */
   virtual TableColumn* column(const std::string& name) const = 0;
 
@@ -419,14 +420,17 @@ public:
   virtual TableStatus addRow(const TableRow& row) = 0;
 
   /**
-   * Deletes all the data in the data table columns, leaving the columns empty.
+   * Deletes all the data in the specified data table column, leaving the column empty.
+   * @param id Column ID of the column to flush or -1 to flush all columns in the table
    * @return Container to all of the dynamic memory stored in the table.  When the
    *   smart pointer falls out of scope, the data gets deleted.  This enables a
    *   delayed flush mechanism that can be used to flush in a thread for improved
    *   performance and decreased application latency.
    */
-  virtual DelayedFlushContainerPtr flush() = 0;
+  virtual DelayedFlushContainerPtr flush(TableColumnId id = -1) = 0;
 
+  /** Remove rows in the given time range; up to but not including endTime */
+  virtual void flush(double startTime, double endTime) = 0;
 
   /**
   * Defines an observer interface to notify when rows or columns are added or removed.
@@ -557,6 +561,9 @@ public:
     virtual double interpolate(const TableColumn* column, double lowVal, double highVal, double tLow, double tVal, double tHigh) const = 0;
   };
 
+  /** Retrieves the ID of the table that owns this column. */
+  virtual TableId tableId() const = 0;
+
   /**
    * Retrieves the unique column identifier associated with this column.  Column identifiers
    * are unique to a given data table and should not change after construction, including
@@ -595,7 +602,7 @@ public:
    * Retrieves the value of the column at a given time, using the interpolator provided.
    * @param value Will contain the value interpolated at the requested time.
    * @param time Time value to seek for interpolating values.
-   * @param interpolator Instance of interpolator to calculate values; if NULL, then linearly interpolate.
+   * @param interpolator Instance of interpolator to calculate values; if nullptr, then linearly interpolate.
    * @return Status return value.  This function will not extrapolate, so
    *   searching for a value before the beginning or after the end is an error.
    */

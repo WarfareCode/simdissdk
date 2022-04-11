@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <algorithm>
 #include <cassert>
 #include "osgEarth/LogarithmicDepthBuffer"
@@ -131,7 +132,7 @@ ViewManagerLogDbAdapter::~ViewManagerLogDbAdapter()
 void ViewManagerLogDbAdapter::install(simVis::ViewManager* viewManager)
 {
   // Already installed?
-  if (viewManager == NULL || std::find(viewManagers_.begin(), viewManagers_.end(), viewManager) != viewManagers_.end())
+  if (viewManager == nullptr || std::find(viewManagers_.begin(), viewManagers_.end(), viewManager) != viewManagers_.end())
     return;
 
   // Retrieve the views and install on each
@@ -152,7 +153,7 @@ void ViewManagerLogDbAdapter::uninstall(simVis::ViewManager* viewManager)
 {
   // Already installed?
   ViewManagerList::iterator vmlIter = std::find(viewManagers_.begin(), viewManagers_.end(), viewManager);
-  if (viewManager == NULL || vmlIter == viewManagers_.end())
+  if (viewManager == nullptr || vmlIter == viewManagers_.end())
     return;
 
   // Remove it from lists first to avoid callbacks

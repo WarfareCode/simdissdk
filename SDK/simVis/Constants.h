@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -60,6 +61,11 @@ namespace simVis
   * reduce collision with surface.
   */
   static const float SUBDIVIDE_BY_GROUND_THRESHOLD = 10.f; // meters altitude
+
+  /** Conversion factor to convert a brightness pref value (0-100) to an ambient light value (from S9) */
+  static const float BRIGHTNESS_TO_AMBIENT = 0.022f;
+  /** Ambient light source 0 uniform name. */
+  static const std::string LIGHT0_AMBIENT_COLOR = "osg_LightSource[0].ambient";
 
   /** When doing file searches with osgDB, differentiate the search for Windows vs Linux */
 #ifdef WIN32

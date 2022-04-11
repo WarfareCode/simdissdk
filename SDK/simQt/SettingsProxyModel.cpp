@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -41,12 +42,11 @@ bool SettingsSearchFilter::filterAcceptsRow(int sourceRow, const QModelIndex &so
     return true;
   // Run regexp against children and parent text
   QModelIndex index1 = sourceModel()->index(sourceRow, 1, sourceParent);
-  return testRegExp_(index0, index1, sourceParent);
+  return testRegExp_(index0, index1, sourceParent, filterRegExp());
 }
 
-bool SettingsSearchFilter::testRegExp_(const QModelIndex& index0, const QModelIndex& index1, const QModelIndex& parentIndex) const
+bool SettingsSearchFilter::testRegExp_(const QModelIndex& index0, const QModelIndex& index1, const QModelIndex& parentIndex, const QRegExp& filterText) const
 {
-  QRegExp filterText = filterRegExp();
   if (filterText.isEmpty())
     return true;
   if (sourceModel()->data(index0).toString().contains(filterText) ||
@@ -73,6 +73,37 @@ void SettingsSearchFilter::setFilterText(const QString& filterText)
 QString SettingsSearchFilter::filterText() const
 {
   return filterRegExp().pattern();
+}
+
+QModelIndexList SettingsSearchFilter::match(const QModelIndex& start, int role, const QVariant& value, int hits, Qt::MatchFlags flags) const
+{
+  // Make a copy of the filter's regex to preserve case sensitivity and any other options it may have
+  QRegExp regex = filterRegExp();
+  regex.setPattern(value.toString());
+  QModelIndexList hitsList;
+  for (int row = start.row(); row < sourceModel()->rowCount(start.parent()); ++row)
+  {
+    QModelIndex candidate = sourceModel()->index(row, 0, start.parent());
+    if (testRegExp_(candidate, sourceModel()->index(row, 1, start.parent()), start.parent(), regex))
+    {
+      hitsList.push_back(mapFromSource(candidate));
+      if (hits > 0 && hitsList.size() >= hits)
+        return hitsList;
+    }
+
+    // Check the children of the candidate index
+    for (int i = 0; i < sourceModel()->rowCount(candidate); ++i)
+    {
+      if (testRegExp_(sourceModel()->index(i, 0, candidate), sourceModel()->index(i, 1, candidate), candidate, regex))
+      {
+        hitsList.push_back(mapFromSource(sourceModel()->index(i, 0, candidate)));
+        if (hits > 0 && hitsList.size() >= hits)
+          return hitsList;
+      }
+    }
+  }
+
+  return hitsList;
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -203,60 +234,50 @@ bool SettingsNoEmptyFoldersFilter::isFolder_(int sourceRow, const QModelIndex& s
 SettingsProxyModel::SettingsProxyModel(QAbstractItemModel* settingsModel, QWidget* parent)
   : QSortFilterProxyModel(parent)
 {
-  // Chain so that search>dataLevel>noempty
-  search_ = new SettingsSearchFilter(settingsModel, parent);
-  dataLevel_ = new SettingsDataLevelFilter(search_, parent);
-  noEmptyFolders_ = new SettingsNoEmptyFoldersFilter(dataLevel_, parent);
+  // Chain so that dataLevel>search>noempty
+  dataLevel_ = new SettingsDataLevelFilter(settingsModel, parent);
+  search_ = new SettingsSearchFilter(dataLevel_, parent);
+  noEmptyFolders_ = new SettingsNoEmptyFoldersFilter(search_, parent);
   setSourceModel(noEmptyFolders_);
 
-  connect(settingsModel, SIGNAL(rowsInserted(QModelIndex, int, int)), this, SLOT(invalidateAll_()));
-  connect(settingsModel, SIGNAL(rowsRemoved(QModelIndex, int, int)), this, SLOT(invalidateAll_()));
-  connect(settingsModel, SIGNAL(modelReset()), this, SLOT(invalidateAll_()));
+  connect(settingsModel, SIGNAL(rowsInserted(QModelIndex, int, int)), dataLevel_, SLOT(invalidate()));
+  connect(settingsModel, SIGNAL(rowsRemoved(QModelIndex, int, int)), dataLevel_, SLOT(invalidate()));
+  connect(settingsModel, SIGNAL(modelReset()), dataLevel_, SLOT(invalidate()));
 }
 
 SettingsProxyModel::~SettingsProxyModel()
 {
   delete noEmptyFolders_;
-  delete dataLevel_;
   delete search_;
+  delete dataLevel_;
 }
 
 void SettingsProxyModel::setFilterText(const QString& filterText)
 {
   if (filterText != search_->filterText())
-  {
     search_->setFilterText(filterText);
-    noEmptyFolders_->invalidate();
-    invalidateFilter();
-  }
 }
 
-void SettingsProxyModel::invalidateAll_()
+QModelIndexList SettingsProxyModel::match(const QModelIndex& start, int role, const QVariant& value, int hits, Qt::MatchFlags flags) const
 {
-  search_->invalidate();
-  dataLevel_->invalidate();
-  noEmptyFolders_->invalidate();
-  invalidateFilter();
+  auto searchList = search_->match(noEmptyFolders_->mapToSource(mapToSource(start)), role, value, hits, flags);
+  QModelIndexList rv;
+  for (auto index : searchList)
+    rv.push_back(mapFromSource(noEmptyFolders_->mapFromSource(index)));
+
+  return rv;
 }
 
 void SettingsProxyModel::setShowAdvanced(bool showAdvanced)
 {
   if (showAdvanced != dataLevel_->showAdvanced())
-  {
     dataLevel_->setShowAdvanced(showAdvanced);
-    noEmptyFolders_->invalidate();
-    invalidateFilter();
-  }
 }
 
 void SettingsProxyModel::setShowUnknown(bool showUnknown)
 {
   if (showUnknown != dataLevel_->showUnknown())
-  {
     dataLevel_->setShowUnknown(showUnknown);
-    noEmptyFolders_->invalidate();
-    invalidateFilter();
-  }
 }
 
 }

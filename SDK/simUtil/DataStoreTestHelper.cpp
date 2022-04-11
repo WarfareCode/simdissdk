@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -145,11 +146,26 @@ uint64_t DataStoreTestHelper::addProjector(uint64_t hostId, uint64_t originalId)
   return projProps->id();
 }
 
+uint64_t DataStoreTestHelper::addCustomRendering(uint64_t hostId, uint64_t originalId)
+{
+  simData::DataStore::Transaction t;
+  simData::CustomRenderingProperties* props = dataStore_->addCustomRendering(&t);
+  props->set_hostid(hostId);
+  props->set_originalid(originalId);
+  t.commit();
+  simData::CustomRenderingPrefs* prefs = dataStore_->mutable_customRenderingPrefs(props->id(), &t);
+  std::ostringstream name;
+  name << "customRendering" << props->id() << "_" << hostId;
+  prefs->mutable_commonprefs()->set_name(name.str());
+  t.commit();
+  return props->id();
+}
+
 void DataStoreTestHelper::updatePlatformPrefs(const simData::PlatformPrefs& prefs, uint64_t id)
 {
   simData::DataStore::Transaction t;
   simData::PlatformPrefs* p = dataStore_->mutable_platformPrefs(id, &t);
-  SDK_ASSERT(p != NULL);
+  SDK_ASSERT(p != nullptr);
   p->MergeFrom(prefs);
   t.commit();
 }
@@ -158,7 +174,7 @@ void DataStoreTestHelper::updateBeamPrefs(const simData::BeamPrefs& prefs, uint6
 {
   simData::DataStore::Transaction t;
   simData::BeamPrefs* p = dataStore_->mutable_beamPrefs(id, &t);
-  SDK_ASSERT(p != NULL);
+  SDK_ASSERT(p != nullptr);
   p->MergeFrom(prefs);
   t.commit();
 }
@@ -167,7 +183,7 @@ void DataStoreTestHelper::updateGatePrefs(const simData::GatePrefs& prefs, uint6
 {
   simData::DataStore::Transaction t;
   simData::GatePrefs* p = dataStore_->mutable_gatePrefs(id, &t);
-  SDK_ASSERT(p != NULL);
+  SDK_ASSERT(p != nullptr);
   p->MergeFrom(prefs);
   t.commit();
 }
@@ -176,7 +192,7 @@ void DataStoreTestHelper::updateLaserPrefs(const simData::LaserPrefs& prefs, uin
 {
   simData::DataStore::Transaction t;
   simData::LaserPrefs* p = dataStore_->mutable_laserPrefs(id, &t);
-  SDK_ASSERT(p != NULL);
+  SDK_ASSERT(p != nullptr);
   p->MergeFrom(prefs);
   t.commit();
 }
@@ -185,7 +201,7 @@ void DataStoreTestHelper::updateLOBPrefs(const simData::LobGroupPrefs& prefs, ui
 {
   simData::DataStore::Transaction t;
   simData::LobGroupPrefs* p = dataStore_->mutable_lobGroupPrefs(id, &t);
-  SDK_ASSERT(p != NULL);
+  SDK_ASSERT(p != nullptr);
   p->MergeFrom(prefs);
   t.commit();
 }
@@ -194,7 +210,7 @@ void DataStoreTestHelper::updateProjectorPrefs(const simData::ProjectorPrefs& pr
 {
   simData::DataStore::Transaction t;
   simData::ProjectorPrefs* p = dataStore_->mutable_projectorPrefs(id, &t);
-  SDK_ASSERT(p != NULL);
+  SDK_ASSERT(p != nullptr);
   p->MergeFrom(prefs);
   t.commit();
 }
@@ -203,7 +219,7 @@ void DataStoreTestHelper::addPlatformUpdate(double time, uint64_t id)
 {
   simData::DataStore::Transaction t;
   simData::PlatformUpdate *u = dataStore_->addPlatformUpdate(id, &t);
-  SDK_ASSERT(u != NULL);
+  SDK_ASSERT(u != nullptr);
   u->set_time(time);
   u->set_x(0.0 + time);
   u->set_y(1.0 + time);
@@ -215,7 +231,7 @@ void DataStoreTestHelper::addBeamUpdate(double time, uint64_t id)
 {
   simData::DataStore::Transaction t;
   simData::BeamUpdate *u = dataStore_->addBeamUpdate(id, &t);
-  SDK_ASSERT(u != NULL);
+  SDK_ASSERT(u != nullptr);
   u->set_time(time);
   u->set_azimuth(0.0 + time);
   u->set_elevation(1.0 + time);
@@ -227,7 +243,7 @@ void DataStoreTestHelper::addGateUpdate(double time, uint64_t id)
 {
   simData::DataStore::Transaction t;
   simData::GateUpdate *u = dataStore_->addGateUpdate(id, &t);
-  SDK_ASSERT(u != NULL);
+  SDK_ASSERT(u != nullptr);
   u->set_time(time);
   u->set_azimuth(0.0 + time);
   u->set_elevation(1.0 + time);
@@ -239,7 +255,7 @@ void DataStoreTestHelper::addLaserUpdate(double time, uint64_t id)
 {
   simData::DataStore::Transaction t;
   simData::LaserUpdate *u = dataStore_->addLaserUpdate(id, &t);
-  SDK_ASSERT(u != NULL);
+  SDK_ASSERT(u != nullptr);
   u->set_time(time);
   u->mutable_orientation()->set_yaw(0.0 + time);
   u->mutable_orientation()->set_pitch(1.0 + time);
@@ -251,7 +267,7 @@ void DataStoreTestHelper::addLOBUpdate(double time, uint64_t id)
 {
   simData::DataStore::Transaction t;
   simData::LobGroupUpdate *u = dataStore_->addLobGroupUpdate(id, &t);
-  SDK_ASSERT(u != NULL);
+  SDK_ASSERT(u != nullptr);
   u->set_time(time);
   simData::LobGroupUpdatePoint *up = u->mutable_datapoints()->Add();
   up->set_time(time);
@@ -270,7 +286,7 @@ void DataStoreTestHelper::addProjectorUpdate(double time, uint64_t id)
 {
   simData::DataStore::Transaction t;
   simData::ProjectorUpdate *u = dataStore_->addProjectorUpdate(id, &t);
-  SDK_ASSERT(u != NULL);
+  SDK_ASSERT(u != nullptr);
   u->set_time(time);
   u->set_fov(1.0 + time);
   t.commit();
@@ -280,7 +296,7 @@ void DataStoreTestHelper::addPlatformCommand(const simData::PlatformCommand& com
 {
   simData::DataStore::Transaction t;
   simData::PlatformCommand *c = dataStore_->addPlatformCommand(id, &t);
-  SDK_ASSERT(c != NULL);
+  SDK_ASSERT(c != nullptr);
   c->MergeFrom(command);
   t.commit();
 }
@@ -289,7 +305,7 @@ void DataStoreTestHelper::addBeamCommand(const simData::BeamCommand& command, ui
 {
   simData::DataStore::Transaction t;
   simData::BeamCommand *c = dataStore_->addBeamCommand(id, &t);
-  SDK_ASSERT(c != NULL);
+  SDK_ASSERT(c != nullptr);
   c->MergeFrom(command);
   t.commit();
 }
@@ -298,7 +314,7 @@ void DataStoreTestHelper::addGateCommand(const simData::GateCommand& command, ui
 {
   simData::DataStore::Transaction t;
   simData::GateCommand *c = dataStore_->addGateCommand(id, &t);
-  SDK_ASSERT(c != NULL);
+  SDK_ASSERT(c != nullptr);
   c->MergeFrom(command);
   t.commit();
 }
@@ -307,7 +323,7 @@ void DataStoreTestHelper::addLaserCommand(const simData::LaserCommand& command, 
 {
   simData::DataStore::Transaction t;
   simData::LaserCommand *c = dataStore_->addLaserCommand(id, &t);
-  SDK_ASSERT(c != NULL);
+  SDK_ASSERT(c != nullptr);
   c->MergeFrom(command);
   t.commit();
 }
@@ -316,7 +332,7 @@ void DataStoreTestHelper::addLOBCommand(const simData::LobGroupCommand& command,
 {
   simData::DataStore::Transaction t;
   simData::LobGroupCommand *c = dataStore_->addLobGroupCommand(id, &t);
-  SDK_ASSERT(c != NULL);
+  SDK_ASSERT(c != nullptr);
   c->MergeFrom(command);
   t.commit();
 }
@@ -325,7 +341,16 @@ void DataStoreTestHelper::addProjectorCommand(const simData::ProjectorCommand& c
 {
   simData::DataStore::Transaction t;
   simData::ProjectorCommand *c = dataStore_->addProjectorCommand(id, &t);
-  SDK_ASSERT(c != NULL);
+  SDK_ASSERT(c != nullptr);
+  c->MergeFrom(command);
+  t.commit();
+}
+
+void DataStoreTestHelper::addCustomRenderingCommand(const simData::CustomRenderingCommand& command, uint64_t id)
+{
+  simData::DataStore::Transaction t;
+  simData::CustomRenderingCommand *c = dataStore_->addCustomRenderingCommand(id, &t);
+  SDK_ASSERT(c != nullptr);
   c->MergeFrom(command);
   t.commit();
 }
@@ -334,8 +359,8 @@ void DataStoreTestHelper::addCategoryData(uint64_t id, const std::string& key, c
 {
   simData::DataStore::Transaction transaction;
   simData::CategoryData* catData = dataStore_->addCategoryData(id, &transaction);
-  SDK_ASSERT(catData != NULL);
-  if (catData == NULL)
+  SDK_ASSERT(catData != nullptr);
+  if (catData == nullptr)
     return;
 
   catData->set_time(startTime);
@@ -351,8 +376,8 @@ void DataStoreTestHelper::addGenericData(uint64_t id, const std::string& key, co
 {
   simData::DataStore::Transaction transaction;
   simData::GenericData* genData = dataStore_->addGenericData(id, &transaction);
-  SDK_ASSERT(genData != NULL);
-  if (genData == NULL)
+  SDK_ASSERT(genData != nullptr);
+  if (genData == nullptr)
     return;
 
   genData->set_time(static_cast<double>(startTime));
@@ -365,7 +390,7 @@ void DataStoreTestHelper::addGenericData(uint64_t id, const std::string& key, co
   transaction.complete(&genData);
 }
 
-void DataStoreTestHelper::addDataTable(uint64_t entityId, int numRows, const std::string& tableName)
+uint64_t DataStoreTestHelper::addDataTable(uint64_t entityId, int numRows, const std::string& tableName)
 {
   std::string name = tableName;
   // auto generate a unique name for the table if no name passed in
@@ -378,17 +403,18 @@ void DataStoreTestHelper::addDataTable(uint64_t entityId, int numRows, const std
   }
   simData::DataTable* newTable;
   if (dataStore_->dataTableManager().addDataTable(entityId, name, &newTable).isError())
-    return;
+    return simData::INVALID_TABLEID;
   addDataTableRows_(newTable, numRows, tableId_);
+  return newTable->tableId();
 }
 
 void DataStoreTestHelper::addDataTableRows_(simData::DataTable* table, int numRows, uint64_t id)
 {
   // now add 4 columns
-  simData::TableColumn* column1 = NULL;
-  simData::TableColumn* column2 = NULL;
-  simData::TableColumn* column3 = NULL;
-  simData::TableColumn* column4 = NULL;
+  simData::TableColumn* column1 = nullptr;
+  simData::TableColumn* column2 = nullptr;
+  simData::TableColumn* column3 = nullptr;
+  simData::TableColumn* column4 = nullptr;
   for (int i = 0; i < 4; i++)
   {
     std::ostringstream os;
@@ -416,7 +442,7 @@ void DataStoreTestHelper::addDataTableRows_(simData::DataTable* table, int numRo
   {
     simData::TableRow row;
     row.setTime(i + 1.0);
-    row.setValue(column1->columnId(), 345);
+    row.setValue(column1->columnId(), i + 1);
     row.setValue(column2->columnId(), 685454);
     if (id % 2)
       row.setValue(column3->columnId(), 458685);

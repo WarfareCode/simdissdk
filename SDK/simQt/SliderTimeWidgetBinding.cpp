@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -37,8 +38,8 @@ SliderTimeWidgetBinding::SliderTimeWidgetBinding(QSlider* slider, TimeWidget* ti
     timeWidget_(timeWidget)
 {
   // Must pass in slider and time widget
-  assert(slider_ != NULL);
-  assert(timeWidget_ != NULL);
+  assert(slider_ != nullptr);
+  assert(timeWidget_ != nullptr);
 
   slider_->setRange(0, MAX_RANGE);
   connect(slider_, SIGNAL(valueChanged(int)), this, SLOT(setTimeWidgetValue_(int)));

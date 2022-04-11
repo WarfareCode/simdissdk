@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -273,7 +274,7 @@ void CreateInsetEventHandler::completeNewInsetAction_(int mx, int my)
   inset->setViewpoint(host_->getViewpoint(), 0.0);
   if (host_->isOverheadEnabled())
     inset->enableOverheadMode(true);
-  if (host_->getCameraTether() != NULL)
+  if (host_->getCameraTether() != nullptr)
     inset->tetherCamera(host_->getCameraTether());
 
   // Do add after a complete build
@@ -296,9 +297,6 @@ void CreateInsetEventHandler::cancelNewInsetAction_()
 InsetViewEventHandler::InsetViewEventHandler(simVis::View* host)
   : focusActionsMask_(ACTION_HOVER),
     host_(host)
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  , createInset_(new CreateInsetEventHandler(host))
-#endif
 {
   // this callback will allow this object to listen to view events.
   focusDetector_ = new FocusDetector(host_->getFocusManager(), this);
@@ -348,18 +346,6 @@ simVis::View* InsetViewEventHandler::getView()
   return host_.get();
 }
 
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-void InsetViewEventHandler::setAddInsetMode(bool add)
-{
-  createInset_->setEnabled(add);
-}
-
-bool InsetViewEventHandler::isAddInsetMode() const
-{
-  return createInset_->isEnabled();
-}
-#endif
-
 void InsetViewEventHandler::setFocusActions(int mask)
 {
   focusActionsMask_ = mask;
@@ -372,15 +358,9 @@ int InsetViewEventHandler::getFocusActions() const
 
 bool InsetViewEventHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa)
 {
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  const bool handled = createInset_->handle(ea, aa);
-#else
-  const bool handled = false;
-#endif
-  if (!handled && ea.getEventType() == ea.FRAME)
+  if (ea.getEventType() == ea.FRAME)
     ensureViewListenerInstalled_();
-
-  return handled;
+  return false;
 }
 
 }

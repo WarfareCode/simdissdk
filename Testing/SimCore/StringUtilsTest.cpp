@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -24,12 +25,11 @@
 #include <string>
 #include <limits>
 #include "simCore/Common/SDKAssert.h"
+#include "simCore/Common/Version.h"
 #include "simCore/String/Format.h"
 #include "simCore/String/Utils.h"
 #include "simCore/String/Tokenizer.h"
 #include "simCore/String/TextReplacer.h"
-#include "simCore/Common/Version.h"
-#include "simCore/Common/SDKAssert.h"
 
 using namespace std;
 
@@ -423,7 +423,7 @@ int testTextReplacer()
 
   // Test a bunch of failures on addReplaceable
   rv += SDK_ASSERT(replacer.addReplaceable(new CustomReplaceable("", "foo")) != 0);
-  rv += SDK_ASSERT(replacer.addReplaceable(NULL) != 0);
+  rv += SDK_ASSERT(replacer.addReplaceable(nullptr) != 0);
   rv += SDK_ASSERT(replacer.addReplaceable(new CustomReplaceable("%VAR", "foo")) != 0);
   rv += SDK_ASSERT(replacer.addReplaceable(new CustomReplaceable("%VAR%", "foo")) == 0);
   rv += SDK_ASSERT(replacer.addReplaceable(new CustomReplaceable("VAR%", "foo")) != 0);
@@ -440,16 +440,16 @@ int testTextReplacer()
   rv += SDK_ASSERT(replacer.deleteReplaceable("VAR") != 0);
 
   // Test the deleteReplaceable() with pointers
-  rv += SDK_ASSERT(replacer.deleteReplaceable(NULL) != 0);
+  rv += SDK_ASSERT(replacer.deleteReplaceable(nullptr) != 0);
   auto* fooVariable = new CustomReplaceable("VAR", "foo");
   rv += SDK_ASSERT(replacer.addReplaceable(fooVariable) == 0);
-  rv += SDK_ASSERT(replacer.deleteReplaceable(NULL) != 0);
+  rv += SDK_ASSERT(replacer.deleteReplaceable(nullptr) != 0);
   rv += SDK_ASSERT(replacer.deleteReplaceable(fooVariable) == 0);
   // Should not stay in the list after last command
   rv += SDK_ASSERT(replacer.deleteReplaceable("VAR") != 0);
 
   // The memory in fooVariable is considered deleted and is now invalid
-  fooVariable = NULL;
+  fooVariable = nullptr;
   rv += SDK_ASSERT(replacer.format("test %VAR% 123") == "test %VAR% 123");
   rv += SDK_ASSERT(replacer.addReplaceable(new CustomReplaceable("VAR", "baz")) == 0);
   rv += SDK_ASSERT(replacer.format("test %VAR% 123") == "test baz 123");
@@ -520,6 +520,25 @@ int testTextReplacer()
   return rv;
 }
 
+int testRemoveTrailingZeros()
+{
+  int rv = 0;
+
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("100.000", false) == "100");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("100.000", true) == "100.");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("100.0001", false) == "100.0001");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("100.000100", false) == "100.0001");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros(".000", false) == "");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros(".000", true) == ".");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("100.", false) == "100");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("100.", true) == "100.");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("100", false) == "100");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("not a number", false) == "not a number");
+  rv += SDK_ASSERT(simCore::removeTrailingZeros("not a number", true) == "not a number");
+
+  return rv;
+}
+
 }
 
 int StringUtilsTest(int argc, char* argv[])
@@ -544,6 +563,8 @@ int StringUtilsTest(int argc, char* argv[])
 
   // TextReplacer testing
   rv += SDK_ASSERT(testTextReplacer() == 0);
+
+  rv += SDK_ASSERT(testRemoveTrailingZeros() == 0);
 
   std::cout << "simCore StringUtilsTest " << ((rv == 0) ? "passed" : "failed") << std::endl;
 

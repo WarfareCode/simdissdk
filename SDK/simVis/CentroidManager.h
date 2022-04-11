@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -47,7 +48,7 @@ public:
 
   /**
   * Create a centroid using the given nodes. Returns a pointer to the
-  * created centroid. Will return NULL if the given view is invalid or
+  * created centroid. Will return nullptr if the given view is invalid or
   * if nodes is empty or filled with invalid pointers.
   * @param inNodes Vector of EntityNodes about which to center the view
   * @param view View to tether to the centroid

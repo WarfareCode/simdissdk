@@ -24,10 +24,11 @@ set(SHADER_FILES
     Picker.vert.glsl
     Picker.frag.glsl
     PlatformAzimElevViewTool.vert.glsl
-    PointSize.vert.glsl
+    PlanetariumTexture.glsl
     PolygonStipple.frag.glsl
     Projector.vert.glsl
     Projector.frag.glsl
+    ProjectorOnEntity.glsl
     RF.LossToColor.Default.lib.glsl
     RF.LossToColor.Threshold.lib.glsl
     RF.Texture.vert.glsl
@@ -64,8 +65,6 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}CustomRendering.h
     ${VIS_INC}CylinderGeode.h
     ${VIS_INC}CylinderStorage.h
-    ${VIS_INC}DBFormat.h
-    ${VIS_INC}DBOptions.h
     ${VIS_INC}DisableDepthOnAlpha.h
     ${VIS_INC}DynamicScaleTransform.h
     ${VIS_INC}EarthManipulator.h
@@ -77,8 +76,11 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}EyePositionManager.h
     ${VIS_INC}Gate.h
     ${VIS_INC}GeoFence.h
-    ${VIS_INC}GlowHighlight.h
     ${VIS_INC}Gl3Utils.h
+    ${VIS_INC}GlDebugMessage.h
+    ${VIS_INC}GlowHighlight.h
+    ${VIS_INC}GradientShader.h
+    ${VIS_INC}Headless.h
     ${VIS_INC}InsetViewEventHandler.h
     ${VIS_INC}LabelContentManager.h
     ${VIS_INC}Laser.h
@@ -99,9 +101,9 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}Platform.h
     ${VIS_INC}PlatformAzimElevViewTool.h
     ${VIS_INC}PlatformFilter.h
+    ${VIS_INC}PlatformIconFactory.h
     ${VIS_INC}PlatformInertialTransform.h
     ${VIS_INC}PlatformModel.h
-    ${VIS_INC}PointSize.h
     ${VIS_INC}PolygonStipple.h
     ${VIS_INC}Popup.h
     ${VIS_INC}Projector.h
@@ -122,6 +124,8 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}SphericalVolume.h
     ${VIS_INC}TargetDelegation.h
     ${VIS_INC}Text.h
+    ${VIS_INC}TimeTicks.h
+    ${VIS_INC}TimeTicksChunk.h
     ${VIS_INC}Tool.h
     ${VIS_INC}TrackChunkNode.h
     ${VIS_INC}TrackHistory.h
@@ -137,22 +141,38 @@ set(VIS_HEADERS_CORE
     ${CMAKE_CURRENT_BINARY_DIR}/include/simVis/osgEarthVersion.h
 )
 
+set(VIS_HEADERS_DB
+    ${VIS_INC}DBFormat.h
+    ${VIS_INC}DBOptions.h
+)
+
+set(VIS_HEADERS_DB_PRIVATE
+    ${VIS_INC}DB/QSCommon.h
+    ${VIS_INC}DB/QSError.h
+    ${VIS_INC}DB/QSNodeID96.h
+    ${VIS_INC}DB/QSPosXYExtents.h
+    ${VIS_INC}DB/SQLiteDataBaseReadUtil.h
+    ${VIS_INC}DB/swapbytes.h
+)
+
 set(VIS_HEADERS_RFPROP
     ${VIS_INC}RFProp/ArepsLoader.h
     ${VIS_INC}RFProp/BearingProfileMap.h
     ${VIS_INC}RFProp/ColorProvider.h
     ${VIS_INC}RFProp/CompositeColorProvider.h
     ${VIS_INC}RFProp/CompositeProfileProvider.h
+    ${VIS_INC}RFProp/FallbackDataHelper.h
     ${VIS_INC}RFProp/FunctionalProfileDataProvider.h
     ${VIS_INC}RFProp/GradientColorProvider.h
     ${VIS_INC}RFProp/LUTProfileDataProvider.h
     ${VIS_INC}RFProp/LUT1ProfileDataProvider.h
     ${VIS_INC}RFProp/OneWayPowerDataProvider.h
     ${VIS_INC}RFProp/PODProfileDataProvider.h
+    ${VIS_INC}RFProp/PPFDataProvider.h
     ${VIS_INC}RFProp/Profile.h
+    ${VIS_INC}RFProp/ProfileContext.h
     ${VIS_INC}RFProp/ProfileDataProvider.h
     ${VIS_INC}RFProp/ProfileManager.h
-    ${VIS_INC}RFProp/RadarParameters.h
     ${VIS_INC}RFProp/RFPropagationFacade.h
     ${VIS_INC}RFProp/RFPropagationManager.h
     ${VIS_INC}RFProp/SNRDataProvider.h
@@ -169,15 +189,18 @@ set(VIS_HEADERS_GOG
     ${VIS_INC}GOG/Ellipse.h
     ${VIS_INC}GOG/Ellipsoid.h
     ${VIS_INC}GOG/ErrorHandler.h
-    ${VIS_INC}GOG/GOG.h
     ${VIS_INC}GOG/GOGNode.h
     ${VIS_INC}GOG/GogNodeInterface.h
     ${VIS_INC}GOG/GOGRegistry.h
     ${VIS_INC}GOG/Hemisphere.h
     ${VIS_INC}GOG/HostedLocalGeometryNode.h
+    ${VIS_INC}GOG/ImageOverlay.h
     ${VIS_INC}GOG/LatLonAltBox.h
     ${VIS_INC}GOG/Line.h
     ${VIS_INC}GOG/LineSegs.h
+    ${VIS_INC}GOG/Loader.h
+    ${VIS_INC}GOG/LoaderUtils.h
+    ${VIS_INC}GOG/Orbit.h
     ${VIS_INC}GOG/ParsedShape.h
     ${VIS_INC}GOG/Parser.h
     ${VIS_INC}GOG/Points.h
@@ -209,7 +232,6 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}CustomRendering.cpp
     ${VIS_SRC}CylinderGeode.cpp
     ${VIS_SRC}CylinderStorage.cpp
-    ${VIS_SRC}DBFormat.cpp
     ${VIS_SRC}DisableDepthOnAlpha.cpp
     ${VIS_SRC}DynamicScaleTransform.cpp
     ${VIS_SRC}EarthManipulator.cpp
@@ -220,7 +242,10 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}EphemerisVector.cpp
     ${VIS_SRC}Gate.cpp
     ${VIS_SRC}GeoFence.cpp
+    ${VIS_INC}GlDebugMessage.cpp
     ${VIS_SRC}GlowHighlight.cpp
+    ${VIS_SRC}GradientShader.cpp
+    ${VIS_SRC}Headless.cpp
     ${VIS_SRC}InsetViewEventHandler.cpp
     ${VIS_SRC}Laser.cpp
     ${VIS_SRC}LayerRefreshCallback.cpp
@@ -240,9 +265,9 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}Platform.cpp
     ${VIS_SRC}PlatformAzimElevViewTool.cpp
     ${VIS_SRC}PlatformFilter.cpp
+    ${VIS_SRC}PlatformIconFactory.cpp
     ${VIS_SRC}PlatformInertialTransform.cpp
     ${VIS_SRC}PlatformModel.cpp
-    ${VIS_SRC}PointSize.cpp
     ${VIS_SRC}PolygonStipple.cpp
     ${VIS_SRC}Popup.cpp
     ${VIS_SRC}Projector.cpp
@@ -263,6 +288,8 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}SphericalVolume.cpp
     ${VIS_SRC}TargetDelegation.cpp
     ${VIS_SRC}Text.cpp
+    ${VIS_SRC}TimeTicks.cpp
+    ${VIS_SRC}TimeTicksChunk.cpp
     ${VIS_SRC}TrackChunkNode.cpp
     ${VIS_SRC}TrackHistory.cpp
     ${VIS_SRC}Utils.cpp
@@ -273,6 +300,14 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}Viewer.cpp
     ${VIS_SRC}ViewManager.cpp
     ${VIS_SRC}ViewManagerLogDbAdapter.cpp
+)
+
+set(VIS_SOURCES_DB
+    ${VIS_INC}DBFormat.cpp
+    ${VIS_INC}DB/QSError.cpp
+    ${VIS_INC}DB/QSNodeID96.cpp
+    ${VIS_INC}DB/QSPosXYExtents.cpp
+    ${VIS_INC}DB/SQLiteDataBaseReadUtil.cpp
 )
 
 set(VIS_SOURCES_RFPROP
@@ -286,7 +321,9 @@ set(VIS_SOURCES_RFPROP
     ${VIS_SRC}RFProp/LUT1ProfileDataProvider.cpp
     ${VIS_SRC}RFProp/OneWayPowerDataProvider.cpp
     ${VIS_SRC}RFProp/PODProfileDataProvider.cpp
+    ${VIS_SRC}RFProp/PPFDataProvider.cpp
     ${VIS_SRC}RFProp/Profile.cpp
+    ${VIS_SRC}RFProp/ProfileContext.cpp
     ${VIS_SRC}RFProp/ProfileManager.cpp
     ${VIS_SRC}RFProp/RFPropagationFacade.cpp
     ${VIS_SRC}RFProp/SNRDataProvider.cpp
@@ -302,14 +339,17 @@ set(VIS_SOURCES_GOG
     ${VIS_SRC}GOG/Cylinder.cpp
     ${VIS_SRC}GOG/Ellipse.cpp
     ${VIS_SRC}GOG/Ellipsoid.cpp
-    ${VIS_SRC}GOG/GOG.cpp
     ${VIS_SRC}GOG/GOGNode.cpp
     ${VIS_SRC}GOG/GogNodeInterface.cpp
     ${VIS_SRC}GOG/GOGRegistry.cpp
     ${VIS_SRC}GOG/Hemisphere.cpp
+    ${VIS_SRC}GOG/ImageOverlay.cpp
     ${VIS_SRC}GOG/LatLonAltBox.cpp
     ${VIS_SRC}GOG/Line.cpp
     ${VIS_SRC}GOG/LineSegs.cpp
+    ${VIS_SRC}GOG/Loader.cpp
+    ${VIS_SRC}GOG/LoaderUtils.cpp
+    ${VIS_SRC}GOG/Orbit.cpp
     ${VIS_SRC}GOG/ParsedShape.cpp
     ${VIS_SRC}GOG/Parser.cpp
     ${VIS_SRC}GOG/Points.cpp
@@ -318,9 +358,12 @@ set(VIS_SOURCES_GOG
     ${VIS_SRC}GOG/Utils.cpp
 )
 
-set(VIS_ALL_HEADER
-    ${VIS_INC}../simVis.h
-)
+# simVis::GOG::Parser, deprecated code, depends on other deprecated code
+if(MSVC)
+    set_source_files_properties(${VIS_SRC}GOG/Parser.cpp PROPERTIES COMPILE_FLAGS -wd4996)
+else()
+    set_source_files_properties(${VIS_SRC}GOG/Parser.cpp PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
+endif()
 
 if(OSGEARTH_TRITON_SUPPORT STREQUAL NODEKIT)
     set(HAVE_TRITON_NODEKIT 1)
@@ -328,6 +371,14 @@ endif()
 if(OSGEARTH_SILVERLINING_SUPPORT STREQUAL NODEKIT)
     set(HAVE_SILVERLINING_NODEKIT 1)
 endif()
+
+# Detect the rename of osgEarth/ThreadingUtils to osgEarth/Threading
+if(EXISTS "${OSGEARTH_LIBRARY_INCLUDE_PATH}/osgEarth/Threading")
+    set(HAVE_OSGEARTH_THREADING 1)
+endif()
+# Detect change in ElevationPool::WorkingSet's LRU class, added in changeset (eed04b8a69)
+include(CheckOSGEarthMethodExists)
+check_osgearth_method_exists(HAVE_WORKINGSET_STRONGLRU "osgEarth/ElevationPool" "StrongLRU")
 
 # TODO Once OSGEarth master hits 3.0, test properly.  For now, hardcode
 set(SDK_OSGEARTH_DEVEL 1)
@@ -350,23 +401,36 @@ configure_shaders(Shaders.cpp.in Shaders.cpp ${SHADER_FILES})
 source_group(Shaders FILES ${VIS_SHADER_FILES})
 
 source_group(Headers FILES ${VIS_HEADERS_CORE})
-source_group(Sources FILES ${VIS_SOURCES_CORE})
+source_group("Source Files" FILES ${VIS_SOURCES_CORE})
 
 source_group(Headers\\RFProp FILES ${VIS_HEADERS_RFPROP})
-source_group(Sources\\RFProp FILES ${VIS_SOURCES_RFPROP})
+source_group("Source Files\\RFProp" FILES ${VIS_SOURCES_RFPROP})
 
 source_group(Headers\\GOG FILES ${VIS_HEADERS_GOG})
-source_group(Sources\\GOG FILES ${VIS_SOURCES_GOG})
-
-source_group("" FILES ${VIS_ALL_HEADER})
+source_group("Source Files\\GOG" FILES ${VIS_SOURCES_GOG})
 
 set(VIS_HEADERS ${VIS_HEADERS_CORE} ${VIS_HEADERS_RFPROP} ${VIS_HEADERS_GOG})
 set(VIS_SOURCES ${VIS_SOURCES_CORE} ${VIS_SOURCES_RFPROP} ${VIS_SOURCES_GOG} ${VIS_SHADER_FILES})
 
+# Add DB Format support to right MSVC folders and headers for installation
+if(SIM_HAVE_DB_SUPPORT)
+    source_group(Headers FILES ${VIS_HEADERS_DB})
+    source_group(Headers\\DB FILES ${VIS_HEADERS_DB_PRIVATE})
+    source_group("Source Files\\DB" FILES ${VIS_SOURCES_DB})
+
+    list(APPEND VIS_HEADERS_CORE ${VIS_HEADERS_DB})
+    list(APPEND VIS_HEADERS ${VIS_HEADERS_DB} ${VIS_HEADERS_DB_PRIVATE})
+    list(APPEND VIS_SOURCES ${VIS_SOURCES_DB})
+endif()
+
 # ----------------------------------------------------------------------
 
+# Avoid false MSVC 2017/2019 MSB8027 warning from Unity build on Utils.cpp and Angle.cpp
+set_source_files_properties(${VIS_SRC}Utils.cpp ${VIS_SRC}Headless.cpp ${VIS_SRC}GOG/Utils.cpp
+    PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
+
 set(VIS_PROJECT_FILES
-    ${VIS_HEADERS} ${VIS_SOURCES} ${VIS_ALL_HEADER}
+    ${VIS_HEADERS} ${VIS_SOURCES}
 )
 
 # Fix the library for static or shared
@@ -378,7 +442,7 @@ endif()
 add_library(simVis ${STATIC_OR_SHARED} ${VIS_PROJECT_FILES})
 set_target_properties(simVis PROPERTIES
     FOLDER "SIMDIS SDK"
-    PROJECT_LABEL "SIMDIS SDK - Vis"
+    PROJECT_LABEL "simVis"
 )
 ApplySDKVersion(simVis)
 target_include_directories(simVis PUBLIC
@@ -390,10 +454,25 @@ target_link_libraries(simVis PUBLIC simData simCore simNotify
     ${OSG_ALL_LIBDEPENDENCIES} OSGEARTH)
 target_link_libraries(simVis PRIVATE VSI::GL)
 
+if(SQLITE3_FOUND)
+    target_link_libraries(simVis PRIVATE SQLITE3)
+endif()
+
 if(SIMVIS_SHARED)
     target_compile_definitions(simVis PRIVATE simVis_LIB_EXPORT_SHARED)
 else()
     target_compile_definitions(simVis PUBLIC simVis_LIB_EXPORT_STATIC)
+endif()
+if(SIM_HAVE_DB_SUPPORT)
+    target_compile_definitions(simVis PRIVATE SIM_HAVE_DB_SUPPORT)
+    if(SDK_BIG_ENDIAN)
+        target_compile_definitions(simVis PRIVATE SIM_BIG_ENDIAN)
+    else()
+        target_compile_definitions(simVis PRIVATE SIM_LITTLE_ENDIAN)
+    endif()
+endif()
+if(HAVE_WORKINGSET_STRONGLRU)
+    target_compile_definitions(simVis PRIVATE HAVE_WORKINGSET_STRONGLRU)
 endif()
 
 if(INSTALL_SIMDIS_SDK_LIBRARIES)
@@ -422,6 +501,4 @@ if(INSTALL_HEADERS)
         DESTINATION include/simVis/RFProp)
     install(FILES ${VIS_HEADERS_GOG}
         DESTINATION include/simVis/GOG)
-    install(FILES ${VIS_ALL_HEADER}
-        DESTINATION include)
 endif()

@@ -1,24 +1,25 @@
 /* -*- mode: c++ -*- */
 /****************************************************************************
-*****                                                                  *****
-*****                   Classification: UNCLASSIFIED                   *****
-*****                    Classified By:                                *****
-*****                    Declassify On:                                *****
-*****                                                                  *****
-****************************************************************************
-*
-*
-* Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
-*               EW Modeling & Simulation, Code 5773
-*               4555 Overlook Ave.
-*               Washington, D.C. 20375-5339
-*
-* License for source code at https://simdis.nrl.navy.mil/License.aspx
-*
-* The U.S. Government retains all rights to use, duplicate, distribute,
-* disclose, or release this software.
-*
-*/
+ *****                                                                  *****
+ *****                   Classification: UNCLASSIFIED                   *****
+ *****                    Classified By:                                *****
+ *****                    Declassify On:                                *****
+ *****                                                                  *****
+ ****************************************************************************
+ *
+ *
+ * Developed by: Naval Research Laboratory, Tactical Electronic Warfare Div.
+ *               EW Modeling & Simulation, Code 5773
+ *               4555 Overlook Ave.
+ *               Washington, D.C. 20375-5339
+ *
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ *
+ * The U.S. Government retains all rights to use, duplicate, distribute,
+ * disclose, or release this software.
+ *
+ */
 #include <algorithm>
 #include <utility>
 #include "osgGA/GUIEventHandler"
@@ -116,9 +117,9 @@ MouseDispatcher::MouseDispatcher()
 
 MouseDispatcher::~MouseDispatcher()
 {
-  setViewManager(NULL);
-  viewObserver_ = NULL;
-  eventHandler_ = NULL;
+  setViewManager(nullptr);
+  viewObserver_ = nullptr;
+  eventHandler_ = nullptr;
 }
 
 void MouseDispatcher::setViewManager(simVis::ViewManager* viewManager)
@@ -132,7 +133,7 @@ void MouseDispatcher::setViewManager(simVis::ViewManager* viewManager)
     viewObserver_ = new simVis::AddEventHandlerToViews(eventHandler_.get());
 
   // Remove all observers and GUI handlers
-  if (viewManager_ != NULL)
+  if (viewManager_ != nullptr)
   {
     viewManager_->removeCallback(viewObserver_.get());
     viewObserver_->removeFromViews(*viewManager_);
@@ -140,7 +141,7 @@ void MouseDispatcher::setViewManager(simVis::ViewManager* viewManager)
   viewManager_ = viewManager;
 
   // Add back in the observers and GUI handlers to the new view manager
-  if (viewManager_ != NULL)
+  if (viewManager_ != nullptr)
   {
     viewManager_->addCallback(viewObserver_.get());
     viewObserver_->addToViews(*viewManager_);
@@ -154,16 +155,16 @@ osgGA::GUIEventHandler* MouseDispatcher::eventHandler() const
 
 void MouseDispatcher::addManipulator(int weight, MouseManipulatorPtr manipulator)
 {
-  // Don't add NULLs
-  if (manipulator == NULL)
+  // Don't add nullptrs
+  if (manipulator == nullptr)
     return;
   priorityMap_.insert(std::make_pair(weight, manipulator));
 }
 
 void MouseDispatcher::addExclusiveManipulator(MouseManipulatorPtr manipulator)
 {
-  // Don't add NULL and don't repeat
-  if (manipulator == NULL || allExclusive_.find(manipulator) != allExclusive_.end())
+  // Don't add nullptr and don't repeat
+  if (manipulator == nullptr || allExclusive_.find(manipulator) != allExclusive_.end())
     return;
   allExclusive_.insert(manipulator);
 }
@@ -194,14 +195,14 @@ int MouseDispatcher::activateExclusive(MouseManipulatorPtr manipulator)
     return 0; // not an error; it's still active
 
   // Return an error if this manipulator is not in our list of exclusive ones.
-  if (manipulator != NULL && allExclusive_.find(manipulator) == allExclusive_.end())
+  if (manipulator != nullptr && allExclusive_.find(manipulator) == allExclusive_.end())
   {
     SIM_WARN << "MouseDispatcher::activateExclusive(): Please register exclusive mouse mode before calling this method.\n";
     return 1;
   }
 
   // Deactivate the old one
-  if (oldSubject != NULL)
+  if (oldSubject != nullptr)
     oldSubject->deactivate();
   exclusiveProxy_->setSubject(manipulator);
   if (manipulator)
@@ -212,8 +213,8 @@ int MouseDispatcher::activateExclusive(MouseManipulatorPtr manipulator)
 
 int MouseDispatcher::deactivateExclusive(MouseManipulatorPtr manipulator)
 {
-  // Avoid deactivate on NULL (meaningless and dev error)
-  if (manipulator == NULL)
+  // Avoid deactivate on nullptr (meaningless and dev error)
+  if (manipulator == nullptr)
     return 1;
 
   // Return early if the manipulator is not active.  Perhaps someone

@@ -13,12 +13,14 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
+#include "osg/MatrixTransform"
 #include "osgEarth/GeoData"
 #include "osgEarth/Horizon"
 #include "osgEarth/ObjectIndex"
@@ -39,6 +41,7 @@
 #include "simVis/Utils.h"
 #include "simVis/LobGroup.h"
 
+#undef LC
 #define LC "[simVis::LobGroup] "
 
 namespace
@@ -50,7 +53,7 @@ static const std::string SIMVIS_FLASHING_ENABLE = "simvis_flashing_enable";
 /** Determines whether the new prefs will require new geometry */
 bool prefsRequiresRebuild(const simData::LobGroupPrefs* a, const simData::LobGroupPrefs* b)
 {
-  if (a == NULL || b == NULL)
+  if (!a || !b)
     return false; // simple case
 
   if (PB_SUBFIELD_CHANGED(a, b, commonprefs, useoverridecolor))
@@ -175,7 +178,7 @@ protected:
 };
 
 LobGroupNode::LobGroupNode(const simData::LobGroupProperties &props, EntityNode* host, CoordSurfaceClamping* surfaceClamping, simData::DataStore &ds)
-  : EntityNode(simData::LOB_GROUP, new CachingLocator(host->getLocator()->getSRS())), // lobgroup locator is independent of host locator
+  : EntityNode(simData::LOB_GROUP, new CachingLocator()), // lobgroup locator is independent of host locator
   lastProps_(props),
   hasLastUpdate_(false),
   lastPrefsValid_(false),
@@ -183,29 +186,40 @@ LobGroupNode::LobGroupNode(const simData::LobGroupProperties &props, EntityNode*
   coordConverter_(new simCore::CoordinateConverter()),
   ds_(ds),
   hostId_(host->getId()),
-  lineCache_(new Cache),
-  label_(NULL),
+  lineCache_(new Cache()),
+  label_(nullptr),
   lastFlashingState_(false),
   objectIndexTag_(0)
 {
   setName("LobGroup");
+
+  // locator node supports entity label and tether
+  xform_ = new osg::MatrixTransform();
+  addChild(xform_.get());
+
+  // lob group is off until prefs and update turn it on
+  setNodeMask(DISPLAY_MASK_NONE);
+
+  label_ = new EntityLabelNode();
+  // xform_ parents and positions the label
+  xform_->addChild(label_.get());
+
+  // create localGrid_ after xform_ so xform_ is found first in findAttachment() for tethering
   localGrid_ = new LocalGridNode(getLocator(), host, ds.referenceYear());
-  addChild(localGrid_);
+  addChild(localGrid_.get());
 
-  label_ = new EntityLabelNode(getLocator());
-  this->addChild(label_);
-
-  // horizon culling:
-  this->addCullCallback( new osgEarth::HorizonCullCallback() );
-
+  // horizon culling: entity culling based on bounding sphere
+  addCullCallback( new osgEarth::HorizonCullCallback() );
+  // labels are culled based on entity center point
   osgEarth::HorizonCullCallback* callback = new osgEarth::HorizonCullCallback();
   callback->setCullByCenterPointOnly(true);
-  callback->setHorizon(new osgEarth::Horizon(*getLocator()->getSRS()->getEllipsoid()));
   callback->setProxyNode(this);
   label_->addCullCallback(callback);
 
   // flatten in overhead mode.
   simVis::OverheadMode::enableGeometryFlattening(true, this);
+  // SIM-10724: Labels need to not be flattened to be displayed in overhead mode
+  simVis::OverheadMode::enableGeometryFlattening(false, label_.get());
 
   // Add a tag for picking
   objectIndexTag_ = osgEarth::Registry::objectIndex()->tagNode(this, this);
@@ -216,10 +230,10 @@ LobGroupNode::~LobGroupNode()
   osgEarth::Registry::objectIndex()->remove(objectIndexTag_);
 
   delete coordConverter_;
-  coordConverter_ = NULL;
+  coordConverter_ = nullptr;
   lineCache_->clearCache(this);
   delete lineCache_;
-  lineCache_ = NULL;
+  lineCache_ = nullptr;
 }
 
 void LobGroupNode::installShaderProgram(osg::StateSet* intoStateSet)
@@ -308,7 +322,8 @@ void LobGroupNode::setPrefs(const simData::LobGroupPrefs &prefs)
   if (!lastPrefsValid_ ||
       PB_FIELD_CHANGED(&lastPrefs_, &prefs, userangeoverride) ||
       (lastPrefs_.userangeoverride() && PB_FIELD_CHANGED(&lastPrefs_, &prefs, rangeoverridevalue)) ||
-      PB_FIELD_CHANGED(&lastPrefs_, &prefs, lobuseclampalt))
+      PB_FIELD_CHANGED(&lastPrefs_, &prefs, lobuseclampalt) ||
+      PB_FIELD_CHANGED(&lastPrefs_, &prefs, bending))
   {
     // rebuild all lines
     lineCache_->clearCache(this);
@@ -321,6 +336,8 @@ void LobGroupNode::setPrefs(const simData::LobGroupPrefs &prefs)
     }
   }
 
+  applyProjectorPrefs_(lastPrefs_.commonprefs(), prefs.commonprefs());
+
   lastPrefs_ = prefs;
   lastPrefsValid_ = true;
 
@@ -330,8 +347,8 @@ void LobGroupNode::setPrefs(const simData::LobGroupPrefs &prefs)
 
 void LobGroupNode::setLineDrawStyle_(double time, simVis::AnimatedLineNode& line, const simData::LobGroupPrefs& defaultValues)
 {
-  simData::DataTable* table = ds_.dataTableManager().findTable(getId(), simData::INTERNAL_LOB_DRAWSTYLE_TABLE);
-  if (table == NULL)
+  const simData::DataTable* table = ds_.dataTableManager().findTable(getId(), simData::INTERNAL_LOB_DRAWSTYLE_TABLE);
+  if (!table)
   {
     setLineValueFromPrefs_(line, defaultValues);
     return;
@@ -367,6 +384,7 @@ void LobGroupNode::setLineValueFromPrefs_(AnimatedLineNode& line, const simData:
   line.setLineWidth(prefs.lobwidth());
   line.setColor1(simVis::ColorUtils::RgbaToVec4(prefs.color1()));
   line.setColor2(simVis::ColorUtils::RgbaToVec4(prefs.color2()));
+  line.setLineBending(prefs.bending());
 
   if (prefs.commonprefs().useoverridecolor())
     line.setColorOverride(simVis::ColorUtils::RgbaToVec4(prefs.commonprefs().overridecolor()));
@@ -375,8 +393,8 @@ void LobGroupNode::setLineValueFromPrefs_(AnimatedLineNode& line, const simData:
 template <class T>
 int LobGroupNode::getColumnValue_(const std::string& columnName, const simData::DataTable& table, double time, T& value) const
 {
-  simData::TableColumn* column = table.column(columnName);
-  if (column == NULL)
+  const simData::TableColumn* column = table.column(columnName);
+  if (!column)
     return 1;
 
   simData::TableColumn::Iterator iter = column->findAtOrBeforeTime(time);
@@ -396,7 +414,7 @@ void LobGroupNode::updateCache_(const simData::LobGroupUpdate &update, const sim
 {
   const int numLines = update.datapoints_size();
   const simData::PlatformUpdateSlice *platformData = ds_.platformUpdateSlice(hostId_);
-  if ((numLines <= 0) || (platformData == NULL))
+  if ((numLines <= 0) || !platformData)
   {
     // no lines, clear out cache and remove all draw nodes
     lineCache_->clearCache(this);
@@ -433,7 +451,7 @@ void LobGroupNode::updateCache_(const simData::LobGroupUpdate &update, const sim
 
     // interpolation may be required for LOBs on a moving platform
     simData::PlatformUpdate interpolatedPlatformUpdate;
-    if (platformUpdate->time() != time && li != NULL && platformIter.hasNext())
+    if (platformUpdate->time() != time && li && platformIter.hasNext())
     {
       // defn of upper_bound previous()
       assert(platformUpdate->time() < time);
@@ -519,6 +537,9 @@ void LobGroupNode::updateCache_(const simData::LobGroupUpdate &update, const sim
       // Use position only, otherwise rendering will be adversely affected; locator notification is true now
       // note that if lob is clamped, localgrid will also be clamped
       getLocator()->setCoordinate(platformCoordPosOnly, time);
+
+      const osg::Vec3d& lobPos = convertToOSG(platformCoordPosOnly.position());
+      xform_->setMatrix(osg::Matrixd::translate(lobPos));
     }
   }
 }
@@ -555,11 +576,11 @@ bool LobGroupNode::updateFromDataStore(const simData::DataSliceBase *updateSlice
   const simData::LobGroupUpdateSlice *updateSlice = static_cast<const simData::LobGroupUpdateSlice*>(updateSliceBase);
   assert(updateSlice);
   const simData::LobGroupUpdate* current = updateSlice->current();
-  const bool lobChangedToActive = (current != NULL && !hasLastUpdate_);
+  const bool lobChangedToActive = (current && !hasLastUpdate_);
 
   // Do any necessary flashing
-  simData::DataTable* table = ds_.dataTableManager().findTable(getId(), simData::INTERNAL_LOB_DRAWSTYLE_TABLE);
-  if (table != NULL)
+  const simData::DataTable* table = ds_.dataTableManager().findTable(getId(), simData::INTERNAL_LOB_DRAWSTYLE_TABLE);
+  if (table)
   {
     bool flashing = false;
     uint8_t state;

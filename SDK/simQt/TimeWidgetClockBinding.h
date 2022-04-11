@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -116,8 +117,8 @@ class ReferenceYearCache : public QObject, public simData::DataStore::ScenarioLi
 {
   Q_OBJECT;
 public:
-  /** Initializes the cache from a given data store (could be NULL) */
-  ReferenceYearCache(simData::DataStore *dataStore=NULL);
+  /** Initializes the cache from a given data store (could be nullptr) */
+  ReferenceYearCache(simData::DataStore *dataStore=nullptr);
 
   /** Checks on reference year change and emits signal if needed */
   virtual void onScenarioPropertiesChange(simData::DataStore* source);

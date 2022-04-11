@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,6 +24,7 @@
 #define SIMQT_COLORWIDGET_H
 
 #include <QColor>
+#include <QColorDialog>
 #include <QString>
 #include <QWidget>
 #include "simCore/Common/Export.h"
@@ -31,6 +33,9 @@ class Ui_ColorWidget;
 class QLabel;
 
 namespace simQt {
+
+/** Dialog flag that detects when to avoid the native dialog */
+extern const QColorDialog::ColorDialogOption COLOR_DIALOG_OPTIONS;
 
 class ColorButton;
 
@@ -58,7 +63,7 @@ class SDKQT_EXPORT ColorWidget : public QWidget  // QDESIGNER_WIDGET_EXPORT
 
 public:
   /** Constructor */
-  ColorWidget(QWidget* parent = NULL);
+  ColorWidget(QWidget* parent = nullptr);
   virtual ~ColorWidget();
 
   /** returns the current color selection */
@@ -87,6 +92,8 @@ public slots:
   void setIncludeText(bool include);
   /** Sets a flag indicating whether clicking on the color well will display the color dialog */
   void setDialogEnable(bool value);
+  /** Retrieve the pointer to the color label */
+  QLabel* colorLabel() const;
 
 signals:
   /** emitted when a color selection is made */

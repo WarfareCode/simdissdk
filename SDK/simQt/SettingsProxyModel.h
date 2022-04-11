@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -36,12 +37,16 @@ class SDKQT_EXPORT SettingsSearchFilter : public QSortFilterProxyModel
   Q_OBJECT;
 public:
   /** Constructor */
-  SettingsSearchFilter(QAbstractItemModel* settingsModel, QWidget* parent=NULL);
+  SettingsSearchFilter(QAbstractItemModel* settingsModel, QWidget* parent=nullptr);
 
   /** Implements the QSortFilterProxyModel method to apply filtering to the row */
   virtual bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const;
   /** Returns the current filter text */
   QString filterText() const;
+
+  /** Implements the QAbstractItemModel method to find items matching a given value.  Flags argument is ignored */
+  virtual QModelIndexList match(const QModelIndex& start, int role, const QVariant& value, int hits = 1,
+    Qt::MatchFlags flags = Qt::MatchFlags(Qt::MatchStartsWith | Qt::MatchWrap)) const;
 
 public slots:
   /** Changes the filter text */
@@ -49,7 +54,7 @@ public slots:
 
 private:
   /** Apply the reg exp filtering, returns true if no regexp filter is set */
-  bool testRegExp_(const QModelIndex& index0, const QModelIndex& index1, const QModelIndex& parent) const;
+  bool testRegExp_(const QModelIndex& index0, const QModelIndex& index1, const QModelIndex& parent, const QRegExp& filter) const;
 };
 
 /**
@@ -61,7 +66,7 @@ class SDKQT_EXPORT SettingsDataLevelFilter : public QSortFilterProxyModel
   Q_OBJECT;
 public:
   /** Constructor */
-  SettingsDataLevelFilter(QAbstractItemModel* settingsModel, QWidget* parent=NULL);
+  SettingsDataLevelFilter(QAbstractItemModel* settingsModel, QWidget* parent=nullptr);
 
   /** Implements the QSortFilterProxyModel method to apply filtering to the row  */
   virtual bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const;
@@ -99,9 +104,9 @@ class SDKQT_EXPORT SettingsNoEmptyFoldersFilter : public QSortFilterProxyModel
   Q_OBJECT;
 public:
   /** Constructor */
-  SettingsNoEmptyFoldersFilter(QAbstractItemModel* settingsModel, QWidget* parent=NULL);
+  SettingsNoEmptyFoldersFilter(QAbstractItemModel* settingsModel, QWidget* parent=nullptr);
 
-  /** Implements the QSortFilterProxyModel method to apply filtering to the row  */
+  /** Implements the QSortFilterProxyModel method to apply filtering to the row */
   virtual bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const;
 
 private:
@@ -121,9 +126,13 @@ class SDKQT_EXPORT SettingsProxyModel : public QSortFilterProxyModel
   Q_OBJECT;
 public:
   /** Constructor */
-  SettingsProxyModel(QAbstractItemModel* settingsModel, QWidget* parent=NULL);
+  SettingsProxyModel(QAbstractItemModel* settingsModel, QWidget* parent=nullptr);
   /** Destructor */
   virtual ~SettingsProxyModel();
+
+  /** Implements the QAbstractItemModel method to find items matching a given value.  Flags argument is ignored */
+  virtual QModelIndexList match(const QModelIndex& start, int role, const QVariant& value, int hits = 1,
+    Qt::MatchFlags flags = Qt::MatchFlags(Qt::MatchStartsWith | Qt::MatchWrap)) const;
 
 public slots:
   /** Set the show advanced filter, which will show settings with the ADVANCED data level settings if true */
@@ -132,10 +141,6 @@ public slots:
   void setShowUnknown(bool showUnknown);
   /** Changes the filter text */
   void setFilterText(const QString& filterText);
-
-private slots:
-  /** Reacts to a change in the list of settings, such as when a new setting is registered */
-  void invalidateAll_();
 
 private:
   SettingsSearchFilter* search_;

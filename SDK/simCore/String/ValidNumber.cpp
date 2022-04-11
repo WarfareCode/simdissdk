@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -93,9 +94,9 @@ bool isValidNumber(const std::string& token, uint64_t& val, bool permitSign)
 
   errno = 0;
 #ifdef WIN32
-  val = _strtoui64(token.c_str(), NULL, 10);
+  val = _strtoui64(token.c_str(), nullptr, 10);
 #else
-  val = strtoull(token.c_str(), NULL, 10);
+  val = strtoull(token.c_str(), nullptr, 10);
 #endif
   if (errno != 0)
   {
@@ -112,7 +113,7 @@ bool isValidNumber(const std::string& token, uint32_t& val, bool permitPlusToken
   errno = 0;
   unsigned long longVal = strtoul(token.c_str(), &end, 10);
 
-  // Error conditions are: Failed to convert, failed to end on a NULL, or having leading white space or leading minus sign
+  // Error conditions are: Failed to convert, failed to end on a nullptr, or having leading white space or leading minus sign
   if ((errno != 0) || (end == start) || (*end != '\0') || isspace(*start) || (*start == '-'))
   {
     val = 0;
@@ -178,7 +179,7 @@ bool isValidNumber(const std::string& token, int64_t& val, bool permitPlusToken)
 #ifdef WIN32
   val = _atoi64(token.c_str());
 #else
-  val = strtoll(token.c_str(), NULL, 10);
+  val = strtoll(token.c_str(), nullptr, 10);
 #endif
   if (errno != 0)
   {
@@ -195,7 +196,7 @@ bool isValidNumber(const std::string& token, int32_t& val, bool permitPlusToken)
   errno = 0;
   long longVal = strtol(token.c_str(), &end, 10);
 
-  // Error conditions are: Failed to convert, failed to end on a NULL, or having leading white space
+  // Error conditions are: Failed to convert, failed to end on a nullptr, or having leading white space
   if ((errno != 0) || (end == start) || (*end != '\0') || isspace(*start))
   {
     val = 0;
@@ -257,7 +258,7 @@ bool isValidNumber(const std::string& token, double& val, bool permitPlusToken)
   char* end;
   val = std::strtod(start, &end);
 
-  // Error conditions are: Failed to convert, failed to end on a NULL, or having leading white space
+  // Error conditions are: Failed to convert, failed to end on a nullptr, or having leading white space
   if ((end == start) || (*end != '\0') || (isspace(*start)))
   {
     val = 0.0;
@@ -315,7 +316,7 @@ bool isValidHexNumber(const std::string& token, uint32_t& val, bool require0xPre
   errno = 0;
   unsigned long longVal = strtoul(token.c_str(), &end, 16);
 
-  // Error conditions are: Failed to convert, failed to end on a NULL, or having leading white space or leading minus sign
+  // Error conditions are: Failed to convert, failed to end on a nullptr, or having leading white space or leading minus sign
   if ((errno != 0) || (end == start) || (*end != '\0') || isspace(*start) || (*start == '-') || (*start == '+'))
   {
     val = 0;

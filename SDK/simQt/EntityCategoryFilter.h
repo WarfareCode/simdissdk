@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -33,7 +34,6 @@ namespace simData {
 namespace simQt {
 
 class CategoryFilterWidget;
-class CategoryFilterWidget2;
 class Settings;
 
 /**
@@ -47,12 +47,10 @@ public:
   /** Enumeration of different ways we can create/display a widget for this filter. */
   enum WidgetType
   {
-    /** widget() will return NULL, creating nothing when integrated into Qt. */
+    /** widget() will return nullptr, creating nothing when integrated into Qt. */
     NO_WIDGET,
-    /** widget() will return a CategoryFilterWidget2, the new style of category filtering. */
-    SHOW_WIDGET,
-    /** widget() will return a CategoryFilterWidget, the old legacy style of category filtering. */
-    SHOW_LEGACY_WIDGET
+    /** widget() will return a CategoryFilterWidget, the new style of category filtering. */
+    SHOW_WIDGET
   };
 
   /**
@@ -74,8 +72,8 @@ public:
   virtual bool acceptEntity(simData::ObjectId id) const;
 
   /**
-   * Inherited from EntityFilter, returns a new instance of the widget to be displayed, otherwise returns NULL
-   * @param newWidgetParent QWidget parent, useful for memory management purposes; may be NULL if desired
+   * Inherited from EntityFilter, returns a new instance of the widget to be displayed, otherwise returns nullptr
+   * @param newWidgetParent QWidget parent, useful for memory management purposes; may be nullptr if desired
    * @return QWidget used for changing filter settings
    */
   virtual QWidget* widget(QWidget* newWidgetParent) const;
@@ -87,17 +85,15 @@ public:
   virtual void setFilterSettings(const QMap<QString, QVariant>& settings);
 
   /**
-   * Bind this filter to a CategoryFilterWidget2 so that changes to either widget updates the other widget.
+   * Bind this filter to a CategoryFilterWidget so that changes to either widget updates the other widget.
    * @param widget to be bound
    */
-  void bindToWidget(CategoryFilterWidget2* widget) const;
-  /** Category Filter Widget (legacy style) variant of bindToWidget() */
   void bindToWidget(CategoryFilterWidget* widget) const;
 
   /** Retrieves the current category filter. */
   const simData::CategoryFilter& categoryFilter() const;
 
-  /** Set the settings object and key prefix that gets used by the CategoryFilterWidget2 */
+  /** Set the settings object and key prefix that gets used by the CategoryFilterWidget */
   void setSettings(Settings* settings, const QString& settingsKeyPrefix);
 
 public slots:
@@ -122,6 +118,8 @@ private slots:
   void setCategoryFilterFromGui_(const simData::CategoryFilter& categoryFilter);
 
 private:
+  /// Data store that we have been configured with
+  simData::DataStore* dataStore_;
   /// holds the current category filter
   simData::CategoryFilter* categoryFilter_;
   /// type of widget to create on call to widget(), if any

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -34,7 +35,6 @@ namespace simVis
 class CustomLabelContentCallback;
 class EntityLabelNode;
 class LocalGridNode;
-class Locator;
 class OverrideColor;
 class ScenarioManager;
 
@@ -52,7 +52,7 @@ public:
   * @param referenceYear The calculation for the Speed Rings Fixed Time preference needs the scenario reference year
   */
   CustomRenderingNode(const ScenarioManager* scenario, const simData::CustomRenderingProperties& props,
-    const simVis::EntityNode* host = NULL, int referenceYear = 1970);
+    const simVis::EntityNode* host = nullptr, int referenceYear = 1970);
 
   /**
   * Access the properties object currently representing this custom.
@@ -73,6 +73,18 @@ public:
   * @param prefs New preferences to apply
   */
   void setPrefs(const simData::CustomRenderingPrefs& prefs);
+
+  /**
+  * Returns true if the shape defined by this CustomRendering is a line
+  * @return true if shape is a line, false otherwise
+  */
+  bool isLine() const;
+
+  /**
+  * Set flag indicating if the shape defined by this CustomRendering is a line
+  * @paran isLine true if the shape should be treated as a line
+  */
+  void setIsLine(bool isLine);
 
   /**
     * This callback allows the external code to determine if the entity should be displayed.
@@ -153,7 +165,7 @@ public:
 
   /**
   * Updates the entity based on the bound data store.
-  * @param updateSlice  Data store update slice (could be NULL)
+  * @param updateSlice  Data store update slice (could be nullptr)
   * @param force true to force the update to be applied; false allows entity to use its own internal logic to decide whether the update should be applied
   * @return true if update applied, false if not
   */
@@ -171,7 +183,7 @@ public:
   /**
   * Gets the world position for this custom's origin. This is a convenience
   * function that extracts the Position information (not rotation) from the underlying locatorNode matrix.
-  * @param[out] out_position If not NULL, resulting position stored here, in coordinate system as specified by coordsys
+  * @param[out] out_position If not nullptr, resulting position stored here, in coordinate system as specified by coordsys
   * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
   * @return 0 if the output parameter is populated successfully, nonzero on failure
   */
@@ -180,8 +192,8 @@ public:
   /**
   * Gets the world position & orientation for this custom's origin. This is a convenience
   * function that extracts the Position information and rotation from the underlying locatorNode matrix.
-  * @param[out] out_position If not NULL, resulting position stored here, in coordinate system as specified by coordsys
-  * @param[out] out_orientation If not NULL, resulting orientation stored here, in coordinate system as specified by coordsys
+  * @param[out] out_position If not nullptr, resulting position stored here, in coordinate system as specified by coordsys
+  * @param[out] out_orientation If not nullptr, resulting orientation stored here, in coordinate system as specified by coordsys
   * @param[in ] coordsys Requested coord sys of the output position (only LLA, ECEF, or ECI supported)
   * @return 0 if the output parameter is populated successfully, nonzero on failure
   */
@@ -203,7 +215,7 @@ public:
   // Expose the locator node so an outside source can add graphics.
   LocatorNode* locatorNode() const;
 
-  /// Returns the host.  May be NULL if hosted under the scenario with no parent
+  /// Returns the host.  May be nullptr if hosted under the scenario with no parent
   const EntityNode* host() const;
 
   /*
@@ -244,12 +256,6 @@ private:
   */
   void updateOverrideColor_(const simData::CustomRenderingPrefs& prefs);
 
-  /**
-    * Set the node mask for this object and its locator
-    * @param mask Node mask to set on this object and its locator
-    */
-  void setNodeMask_(unsigned int mask);
-
   osg::observer_ptr<const ScenarioManager> scenario_;
   osg::observer_ptr<const EntityNode> host_;
   osg::ref_ptr<LabelContentCallback> contentCallback_;
@@ -262,6 +268,7 @@ private:
   simData::CustomRenderingPrefs lastPrefs_;
   bool hasLastPrefs_;
   bool customActive_;
+  bool isLine_;
   unsigned int objectIndexTag_;
 
   std::shared_ptr<AbstractPointPicker> pointPicker_;
@@ -270,4 +277,3 @@ private:
 } //namespace simVis
 
 #endif //SIMVIS_CUSTOM_H
-

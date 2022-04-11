@@ -13,21 +13,25 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
 #include <algorithm>
+#include "osg/ValueObject"
 #include "osgEarth/GeoData"
 #include "osgEarth/Horizon"
 #include "osgEarth/NodeUtils"
 #include "osgEarth/Registry"
+#include "osgEarth/Utils"
 
 #include "simNotify/Notify.h"
 #include "simCore/Common/Exception.h"
 #include "simCore/Calc/Angle.h"
+#include "simCore/Time/String.h"
 #include "simData/DataStore.h"
 
 #include "simVis/AlphaTest.h"
@@ -47,7 +51,6 @@
 #include "simVis/PlatformFilter.h"
 #include "simVis/Platform.h"
 #include "simVis/PlatformModel.h"
-#include "simVis/PointSize.h"
 #include "simVis/PolygonStipple.h"
 #include "simVis/Projector.h"
 #include "simVis/ProjectorManager.h"
@@ -59,6 +62,7 @@
 #include "simVis/View.h"
 #include "simVis/Scenario.h"
 
+#undef LC
 #define LC "[Scenario] "
 
 /// The highest available Level of Detail from ElevationPool
@@ -81,11 +85,20 @@ struct SetHorizonCullCallback : public osg::NodeCallback
 
   void operator()(osg::Node* node, osg::NodeVisitor* nv)
   {
+    // Do not move this declaration inside the if() statement.  The osgEarth::ObjectStorage::set()
+    // solution stores the pointer in an osg::observer_ptr, so when horizon falls out of scope it
+    // gets set to null.  See SIM-12601 for details.
+    osg::ref_ptr<osgEarth::Horizon> horizon;
     if (_horizonProto.valid())
     {
-      osg::ref_ptr<osgEarth::Horizon> horizon = osg::clone(_horizonProto.get(), osg::CopyOp::DEEP_COPY_ALL);
+      horizon = osg::clone(_horizonProto.get(), osg::CopyOp::DEEP_COPY_ALL);
       horizon->setEye(nv->getViewPoint());
+      horizon->setName("simVis.ScenarioManager.SetHorizonCullCallback");
+#if OSGEARTH_SOVERSION >= 105
+      osgEarth::ObjectStorage::set(nv, horizon.get());
+#else
       horizon->put(*nv);
+#endif
     }
     traverse(node, nv);
   }
@@ -102,9 +115,12 @@ public:
 
   virtual void operator()(simVis::PlatformModelNode* model, Callback::EventType eventType)
   {
-    if (eventType == Callback::BOUNDS_CHANGED)
+    if (eventType == Callback::BOUNDS_CHANGED && model && model->getNumParents() > 0)
     {
-      const simVis::PlatformNode* platform = osgEarth::findFirstParentOfType<const simVis::PlatformNode>(model);
+      // First parent should be the simVis::PlatformNode
+      const simVis::PlatformNode* platform = dynamic_cast<const simVis::PlatformNode*>(model->getParent(0));
+      // Failure means layout changed.  We could try to use osgEarth::findFirstParentOfType() but it fails when parent has nodemask of 0
+      assert(platform);
       osg::ref_ptr<simVis::ScenarioManager> refScenario;
       if (platform && scenarioManager_.lock(refScenario))
         refScenario->notifyBeamsOfNewHostSize(*platform);
@@ -140,7 +156,7 @@ osg::Node* ScenarioManager::EntityRecord::getNode() const
 
 bool ScenarioManager::EntityRecord::getLocation(osg::Vec3d& output) const
 {
-  // Check for NULL
+  // Check for nullptr
   if (!node_.valid() || !node_->getLocator())
     return false;
   simCore::Vec3 outPos;
@@ -200,7 +216,7 @@ osg::Group* ScenarioManager::SimpleEntityGraph::node() const
 int ScenarioManager::SimpleEntityGraph::addOrUpdate(EntityRecord* record)
 {
   // Assertion failure means ScenarioManager error
-  assert(record != NULL && record->getEntityNode() != NULL);
+  assert(record != nullptr && record->getEntityNode() != nullptr);
 
   // add the entity to the scenegraph by adding the entity to the Group, but only if: not already in the group and not a CR that is hosted (into the scenegraph) by its host platform.
   const auto node = record->getEntityNode();
@@ -270,7 +286,8 @@ public:
     if (!prefs.surfaceclamping() || !coordSurfaceClamping_.isValid())
       return PlatformTspiFilterManager::POINT_UNCHANGED;
 
-    coordSurfaceClamping_.clampCoordToMapSurface(llaCoord);
+    osgEarth::ElevationPool::WorkingSet& ws = lut_[props.id()];
+    coordSurfaceClamping_.clampCoordToMapSurface(llaCoord, ws);
 
     return PlatformTspiFilterManager::POINT_CHANGED;
   }
@@ -281,13 +298,21 @@ public:
     coordSurfaceClamping_.setMapNode(map);
   }
 
+  /** Changes the flag for using maximum elevation precision */
   void setUseMaxElevPrec(bool useMaxElev)
   {
     coordSurfaceClamping_.setUseMaxElevPrec(useMaxElev);
   }
 
+  /** Removes an entity from the optimization look-up table */
+  void removeEntity(simData::ObjectId id)
+  {
+    lut_.erase(id);
+  }
+
 private:
   CoordSurfaceClamping coordSurfaceClamping_;
+  std::map<simData::ObjectId, osgEarth::ElevationPool::WorkingSet> lut_;
 };
 
 
@@ -322,12 +347,12 @@ public:
     // getHeight() can give inaccurate results depending on how much map data is loaded into the scene graph, while ElevationEnvelope can be prohibitively slow if there are many clamped entities
     double elevation = 0;
 
-    if (useMaxElevPrec_ && envelope_.valid())
+    if (useMaxElevPrec_)
     {
-      double terrainHeightHae = envelope_->getElevation(llaCoord.lon()*simCore::RAD2DEG, llaCoord.lat()*simCore::RAD2DEG); // height above ellipsoid, the rough elevation
-      // If getting elevation fails, clamp above 0
-      if (terrainHeightHae != NO_DATA_VALUE)
-        elevation = terrainHeightHae;
+      osgEarth::GeoPoint point(mapNode_->getMapSRS(), llaCoord.lon()*simCore::RAD2DEG, llaCoord.lat()*simCore::RAD2DEG, 0, osgEarth::ALTMODE_ABSOLUTE);
+      osgEarth::ElevationSample sample = mapNode_->getMap()->getElevationPool()->getSample(point, osgEarth::Distance(1.0, osgEarth::Units::METERS), nullptr);
+      if (sample.hasData())
+        elevation = sample.elevation().as(osgEarth::Units::METERS);
     }
     else
     {
@@ -350,10 +375,6 @@ public:
   void setMapNode(const osgEarth::MapNode* map)
   {
     mapNode_ = map;
-    if (mapNode_.valid() && useMaxElevPrec_)
-      envelope_ = mapNode_->getMap()->getElevationPool()->createEnvelope(mapNode_->getMapSRS(), MAX_LOD);
-    else
-      envelope_ = NULL;
   }
 
   void setUseMaxElevPrec(bool useMaxElevPrec)
@@ -362,19 +383,10 @@ public:
       return;
 
     useMaxElevPrec_ = useMaxElevPrec;
-    if (useMaxElevPrec_ && mapNode_.valid())
-    {
-      // Envelope should not be valid if useMaxElevPrec was just turned on
-      assert(!envelope_.valid());
-      envelope_ = mapNode_->getMap()->getElevationPool()->createEnvelope(mapNode_->getMapSRS(), MAX_LOD);
-    }
-    else
-      envelope_ = NULL;
   }
 
 private:
   osg::observer_ptr<const osgEarth::MapNode> mapNode_;
-  osg::ref_ptr<osgEarth::ElevationEnvelope> envelope_;
   bool useMaxElevPrec_;
 };
 
@@ -400,7 +412,7 @@ public:
   {
     if (map_.valid())
       return new RadialLOSNode(map_.get());
-    return NULL;
+    return nullptr;
   }
 
 private:
@@ -409,12 +421,44 @@ private:
 
 // -----------------------------------------------------------------------
 
-ScenarioManager::ScenarioManager(LocatorFactory* factory, ProjectorManager* projMan)
-  : locatorFactory_(factory),
-  platformTspiFilterManager_(new PlatformTspiFilterManager()),
-  surfaceClamping_(NULL),
-  aboveSurfaceClamping_(NULL),
-  lobSurfaceClamping_(NULL),
+/**
+ * Cull callback that supplies a reference year in the NodeVisitor
+ * for time based culling. (requires OSG 3.4+)
+ */
+class ScenarioManager::SetRefYearCullCallback : public osg::NodeCallback
+{
+public:
+  SetRefYearCullCallback()
+  {
+  }
+
+  void setCurrTime(simCore::TimeStamp currTime)
+  {
+    currTime_ = currTime;
+  }
+
+  virtual void operator()(osg::Node* node, osg::NodeVisitor* nv) override
+  {
+    // simCore::Timestamp can't be stored directly.  Separate it into constituent elements and recombine where needed
+    nv->setUserValue("simVis.ScenarioManager.RefYear", currTime_.referenceYear());
+    nv->setUserValue("simVis.ScenarioManager.Seconds", currTime_.secondsSinceRefYear().Double());
+    traverse(node, nv);
+  }
+
+protected:
+  ~SetRefYearCullCallback() {}
+
+private:
+  simCore::TimeStamp currTime_;
+};
+
+// -----------------------------------------------------------------------
+
+ScenarioManager::ScenarioManager(ProjectorManager* projMan)
+  : platformTspiFilterManager_(new PlatformTspiFilterManager()),
+  surfaceClamping_(nullptr),
+  aboveSurfaceClamping_(nullptr),
+  lobSurfaceClamping_(nullptr),
   root_(new osg::Group),
   entityGraph_(new SimpleEntityGraph),
   projectorManager_(projMan),
@@ -427,12 +471,22 @@ ScenarioManager::ScenarioManager(LocatorFactory* factory, ProjectorManager* proj
   addChild(root_.get());
 
   // Install a callback that will convey the Horizon info
+#if OSGEARTH_SOVERSION >= 110
+  osgEarth::Ellipsoid em;
+  // 11km is rough depth of Mariana Trench; decrease radius to help horizon culling work underwater
+  em.setSemiMajorAxis(em.getRadiusEquator() - 11000.0);
+  em.setSemiMinorAxis(em.getRadiusPolar() - 11000.0);
+#else
   osg::EllipsoidModel em;
   // 11km is rough depth of Mariana Trench; decrease radius to help horizon culling work underwater
   em.setRadiusEquator(em.getRadiusEquator() - 11000.0);
   em.setRadiusPolar(em.getRadiusPolar() - 11000.0);
+#endif
   SetHorizonCullCallback* setHorizon = new SetHorizonCullCallback(new osgEarth::Horizon(em));
-  root_->addCullCallback(setHorizon);
+  addCullCallback(setHorizon);
+
+  refYearCallback_ = new SetRefYearCullCallback();
+  addCullCallback(refYearCallback_);
 
   // Clamping requires a Group for MapNode changes
   surfaceClamping_ = new SurfaceClamping();
@@ -463,26 +517,27 @@ ScenarioManager::ScenarioManager(LocatorFactory* factory, ProjectorManager* proj
   LobGroupNode::installShaderProgram(stateSet);
   OverrideColor::installShaderProgram(stateSet);
   PolygonStipple::installShaderProgram(stateSet);
-  PointSize::installShaderProgram(stateSet);
   TrackHistoryNode::installShaderProgram(stateSet);
+
+  scenarioEciLocator_ = new Locator();
 }
 
 ScenarioManager::~ScenarioManager()
 {
   // Do not delete surfaceClamping_ or surfaceLimiting_
   delete platformTspiFilterManager_;
-  platformTspiFilterManager_ = NULL;
+  platformTspiFilterManager_ = nullptr;
   delete lobSurfaceClamping_;
-  lobSurfaceClamping_ = NULL;
+  lobSurfaceClamping_ = nullptr;
   delete losCreator_;
-  losCreator_ = NULL;
+  losCreator_ = nullptr;
   // guarantee that ScenarioTools receive OnUninstall() calls
   removeAllTools_();
 }
 
 void ScenarioManager::bind(simData::DataStore* dataStore)
 {
-  assert(dataStore != NULL);
+  assert(dataStore != nullptr);
 
   // sets up notifications so that changes to the datastore will
   // create objects in the scene graph:
@@ -501,7 +556,7 @@ void ScenarioManager::unbind(simData::DataStore* dataStore, bool clearAll)
 
 void ScenarioManager::setLabelContentManager(LabelContentManager* manager)
 {
-  if (manager == NULL)
+  if (manager == nullptr)
     labelContentManager_ = new NullLabelContentManager();
   else
     labelContentManager_ = manager;
@@ -509,7 +564,7 @@ void ScenarioManager::setLabelContentManager(LabelContentManager* manager)
 
 void ScenarioManager::setRFPropagationManager(simRF::RFPropagationManagerPtr manager)
 {
-  if (manager == NULL)
+  if (manager == nullptr)
     rfManager_.reset(new simRF::NullRFPropagationManager());
   else
     rfManager_ = manager;
@@ -523,6 +578,7 @@ simRF::RFPropagationManagerPtr ScenarioManager::rfPropagationManager() const
 void ScenarioManager::flush(simData::ObjectId flushedId)
 {
   SAFETRYBEGIN;
+  notifyToolsOfFlush_(flushedId);
   // if id 0, flush entire scenario
   if (flushedId == 0)
   {
@@ -594,11 +650,14 @@ void ScenarioManager::removeEntity(simData::ObjectId id)
 {
   SAFETRYBEGIN;
   const EntityRepo::iterator i = entities_.find(id);
-  EntityRecord* record = (i != entities_.end()) ? i->second.get() : NULL;
+  EntityRecord* record = (i != entities_.end()) ? i->second.get() : nullptr;
   if (record)
   {
     EntityNode* entity = record->getEntityNode();
     notifyToolsOfRemove_(entity);
+
+    // Remove it from the surface clamping algorithm
+    surfaceClamping_->removeEntity(id);
 
     // If this is a projector node, delete this from the projector manager
     if (entity->type() == simData::PROJECTOR)
@@ -634,20 +693,6 @@ void ScenarioManager::setMapNode(osgEarth::MapNode* map)
   surfaceClamping_->setMapNode(mapNode_.get());
   aboveSurfaceClamping_->setMapNode(mapNode_.get());
   lobSurfaceClamping_->setMapNode(mapNode_.get());
-
-  if (map)
-  {
-    // update all the entity locators with the new SRS.
-    for (EntityRepo::iterator i = entities_.begin(); i != entities_.end(); ++i)
-    {
-      EntityRecord* record = i->second.get();
-      if (record)
-      {
-        EntityNode* node = record->getEntityNode();
-        node->getLocator()->setMapSRS(mapNode_->getMapSRS());
-      }
-    }
-  }
   SAFETRYEND("setting map in scenario");
 }
 
@@ -655,7 +700,12 @@ PlatformNode* ScenarioManager::addPlatform(const simData::PlatformProperties& pr
 {
   SAFETRYBEGIN;
   // create the OSG node representing this entity
-  PlatformNode* node = new PlatformNode(props, dataStore, *platformTspiFilterManager_, root_.get(), locatorFactory_->createCachingLocator(), dataStore.referenceYear());
+  PlatformNode* node = new PlatformNode(props,
+    dataStore,
+    *platformTspiFilterManager_,
+    root_.get(), // for expire mode group attachment
+    new Locator(scenarioEciLocator_.get()),
+    dataStore.referenceYear());
   node->getModel()->addCallback(new BeamNoseFixer(this));
 
   // put it in the vis database.
@@ -670,24 +720,26 @@ PlatformNode* ScenarioManager::addPlatform(const simData::PlatformProperties& pr
 
   node->setLabelContentCallback(labelContentManager_->createLabelContentCallback(node->getId()));
 
+  node->setNodeGetter(nodeGetter_);
+
   return node;
   SAFETRYEND("adding platform");
-  return NULL;
+  return nullptr;
 }
 
 BeamNode* ScenarioManager::addBeam(const simData::BeamProperties& props, simData::DataStore& dataStore)
 {
   SAFETRYBEGIN;
   // attempt to anchor the beam to its host platform:
-  PlatformNode* host = NULL;
+  PlatformNode* host = nullptr;
   if (props.has_hostid())
     host = find<PlatformNode>(props.hostid());
 
   // make a locator, tying it to the host's locator if there is one
-  Locator* locator = host ? host->getLocator() : locatorFactory_->createLocator();
+  Locator* locator = host ? host->getLocator() : new Locator();
 
   // put the beam into our entity db:
-  BeamNode* node = new BeamNode(this, props, locator, host, dataStore.referenceYear());
+  BeamNode* node = new BeamNode(props, locator, host, dataStore.referenceYear());
 
   entities_[node->getId()] = new EntityRecord(
     node,
@@ -704,26 +756,28 @@ BeamNode* ScenarioManager::addBeam(const simData::BeamProperties& props, simData
 
   node->setLabelContentCallback(labelContentManager_->createLabelContentCallback(node->getId()));
 
+  node->setNodeGetter(nodeGetter_);
+
   return node;
   SAFETRYEND("adding beam");
-  return NULL;
+  return nullptr;
 }
 
 GateNode* ScenarioManager::addGate(const simData::GateProperties& props, simData::DataStore& dataStore)
 {
   SAFETRYBEGIN;
   // attempt to anchor the gate to its host beam or platform:
-  EntityNode* host = NULL;
+  EntityNode* host = nullptr;
   if (props.has_hostid())
     host = find(props.hostid());
 
-  if ((props.type() == simData::GateProperties_GateType_TARGET) && (dynamic_cast<BeamNode*>(host) == NULL))
+  if ((props.type() == simData::GateProperties_GateType_TARGET) && (dynamic_cast<BeamNode*>(host) == nullptr))
   {
     // simVis gate will not update this gate - it will look just like an invisible zombie
     SIM_WARN << "ScenarioManager::addGate: a target gate requires a Beam host; gate will be ignored." << std::endl;
   }
 
-  Locator* locator = host ? host->getLocator() : locatorFactory_->createLocator();
+  Locator* locator = host ? host->getLocator() : new Locator();
 
   GateNode* node = new GateNode(props, locator, host, dataStore.referenceYear());
 
@@ -739,20 +793,22 @@ GateNode* ScenarioManager::addGate(const simData::GateProperties& props, simData
 
   node->setLabelContentCallback(labelContentManager_->createLabelContentCallback(node->getId()));
 
+  node->setNodeGetter(nodeGetter_);
+
   return node;
   SAFETRYEND("adding gate");
-  return NULL;
+  return nullptr;
 }
 
 LaserNode* ScenarioManager::addLaser(const simData::LaserProperties& props, simData::DataStore& dataStore)
 {
   SAFETRYBEGIN;
   // attempt to anchor the laser to its host platform:
-  EntityNode* host = NULL;
+  EntityNode* host = nullptr;
   if (props.has_hostid())
     host = find(props.hostid());
 
-  Locator* locator = host ? host->getLocator() : locatorFactory_->createLocator();
+  Locator* locator = host ? host->getLocator() : new Locator();
 
   LaserNode* node = new LaserNode(props, locator, host, dataStore.referenceYear());
 
@@ -768,22 +824,24 @@ LaserNode* ScenarioManager::addLaser(const simData::LaserProperties& props, simD
 
   node->setLabelContentCallback(labelContentManager_->createLabelContentCallback(node->getId()));
 
+  node->setNodeGetter(nodeGetter_);
+
   return node;
   SAFETRYEND("adding laser");
-  return NULL;
+  return nullptr;
 }
 
 LobGroupNode* ScenarioManager::addLobGroup(const simData::LobGroupProperties& props, simData::DataStore& dataStore)
 {
   SAFETRYBEGIN;
   // attempt to anchor to the host platform
-  EntityNode* host = NULL;
+  EntityNode* host = nullptr;
   if (props.has_hostid())
     host = find(props.hostid());
 
   // no host, no LOB group.
   if (!host)
-    return NULL;
+    return nullptr;
 
   LobGroupNode* node = new LobGroupNode(props, host, lobSurfaceClamping_, dataStore);
 
@@ -798,16 +856,18 @@ LobGroupNode* ScenarioManager::addLobGroup(const simData::LobGroupProperties& pr
 
   node->setLabelContentCallback(labelContentManager_->createLabelContentCallback(node->getId()));
 
+  node->setNodeGetter(nodeGetter_);
+
   return node;
   SAFETRYEND("adding LOB group");
-  return NULL;
+  return nullptr;
 }
 
 CustomRenderingNode* ScenarioManager::addCustomRendering(const simData::CustomRenderingProperties& props, simData::DataStore& dataStore)
 {
   SAFETRYBEGIN;
   // attempt to anchor to the host
-  EntityNode* host = NULL;
+  EntityNode* host = nullptr;
   if (props.has_hostid())
     host = find(props.hostid());
 
@@ -818,26 +878,28 @@ CustomRenderingNode* ScenarioManager::addCustomRendering(const simData::CustomRe
     // host will attach the cr to the scenegraph; ScenarioManager::SimpleEntityGraph::addOrUpdate will understand not to attach to scenario's group
     host->addChild(node);
   }
-  entities_[node->getId()] = new EntityRecord(node, NULL, &dataStore);
+  entities_[node->getId()] = new EntityRecord(node, nullptr, &dataStore);
   hosterTable_.insert(std::make_pair((host ? host->getId() : 0), node->getId()));
 
   notifyToolsOfAdd_(node);
 
   node->setLabelContentCallback(labelContentManager_->createLabelContentCallback(node->getId()));
 
+  node->setNodeGetter(nodeGetter_);
+
   return node;
   SAFETRYEND("adding custom");
-  return NULL;
+  return nullptr;
 }
 
 ProjectorNode* ScenarioManager::addProjector(const simData::ProjectorProperties& props, simData::DataStore& dataStore)
 {
   SAFETRYBEGIN;
-  EntityNode* host = NULL;
+  EntityNode* host = nullptr;
   if (props.has_hostid())
     host = find(props.hostid());
 
-  Locator* locator = host ? host->getLocator() : locatorFactory_->createLocator();
+  Locator* locator = host ? host->getLocator() : new Locator();
 
   ProjectorNode* node = new ProjectorNode(props, locator, host);
 
@@ -855,9 +917,11 @@ ProjectorNode* ScenarioManager::addProjector(const simData::ProjectorProperties&
 
   node->setLabelContentCallback(labelContentManager_->createLabelContentCallback(node->getId()));
 
+  node->setNodeGetter(nodeGetter_);
+
   return node;
   SAFETRYEND("adding projector");
-  return NULL;
+  return nullptr;
 }
 
 bool ScenarioManager::setPlatformPrefs(simData::ObjectId id, const simData::PlatformPrefs& prefs)
@@ -978,25 +1042,25 @@ EntityNode* ScenarioManager::find(const simData::ObjectId& id) const
 {
   SAFETRYBEGIN;
   EntityRepo::const_iterator i = entities_.find(id);
-  return i != entities_.end() ? static_cast<EntityNode*>(i->second->getNode()) : NULL;
+  return i != entities_.end() ? static_cast<EntityNode*>(i->second->getNode()) : nullptr;
   SAFETRYEND(std::string(osgEarth::Stringify() << "finding entity ID " << id));
-  return NULL;
+  return nullptr;
 }
 
 const EntityNode* ScenarioManager::getHostPlatform(const EntityNode* entity) const
 {
-  if (entity == NULL)
-    return NULL;
+  if (entity == nullptr)
+    return nullptr;
 
   simData::ObjectId hostId;
   while (entity->getHostId(hostId))
   {
     entity = find(hostId);
-    if (entity == NULL)
+    if (entity == nullptr)
     {
       // An orphan entity without a host platform
       assert(false);
-      return NULL;
+      return nullptr;
     }
   }
 
@@ -1010,7 +1074,7 @@ namespace {
 class AssertOverheadModeHint : public osg::NodeVisitor
 {
 public:
-  AssertOverheadModeHint(bool expectedHint, TraversalMode tm = osg::NodeVisitor::TRAVERSE_ACTIVE_CHILDREN)
+  explicit AssertOverheadModeHint(bool expectedHint, TraversalMode tm = osg::NodeVisitor::TRAVERSE_ACTIVE_CHILDREN)
     : NodeVisitor(tm),
     expectedHint_(expectedHint)
   {
@@ -1040,7 +1104,7 @@ EntityNode* ScenarioManager::find(osg::View* _view, float x, float y, int typeMa
   if (!view)
   {
     SIM_WARN << "ScenarioManager::findEntity: ILLEGAL: view is not a simVis::View" << std::endl;
-    return NULL;
+    return nullptr;
   }
 
   osg::Camera* cam = _view->getCamera();
@@ -1130,7 +1194,7 @@ EntityNode* ScenarioManager::find(osg::View* _view, float x, float y, int typeMa
     }
   }
 
-  return NULL;
+  return nullptr;
 }
 
 void ScenarioManager::addTool(ScenarioTool* tool)
@@ -1188,8 +1252,18 @@ void ScenarioManager::notifyToolsOfRemove_(EntityNode* node)
   }
 }
 
+void ScenarioManager::notifyToolsOfFlush_(simData::ObjectId flushedId)
+{
+  for (const auto& scenarioToolRefPtr : scenarioTools_)
+    scenarioToolRefPtr->onFlush(*this, flushedId);
+}
+
 void ScenarioManager::update(simData::DataStore* ds, bool force)
 {
+  // update the base eci locator rotation
+  if (scenarioEciLocator_.get())
+    scenarioEciLocator_->setEciRotationTime(ds->updateTime(), ds->updateTime());
+
   EntityVector updates;
 
   SAFETRYBEGIN;
@@ -1229,6 +1303,19 @@ void ScenarioManager::update(simData::DataStore* ds, bool force)
     }
     SAFETRYEND("updating scenario tools");
   }
+
+  if (ds->getBoundClock())
+  {
+    simCore::Clock* clock = ds->getBoundClock();
+    // Set the reference year for time based culling.  If the clock doesn't have valid bounds and isn't in live mode,
+    // set an invalid reference year to indicate no such culling should be done
+    if (clock->startTime() == simCore::MIN_TIME_STAMP && clock->endTime() == simCore::INFINITE_TIME_STAMP && clock->isLiveMode())
+      refYearCallback_->setCurrTime(simCore::INFINITE_TIME_STAMP);
+    else
+      refYearCallback_->setCurrTime(clock->currentTime());
+  }
+  else
+    refYearCallback_->setCurrTime(simCore::INFINITE_TIME_STAMP);
 
   if (needsRedraw)
   {
@@ -1284,7 +1371,7 @@ void ScenarioManager::getAllEntities(EntityVector& output) const
 
 osg::Group* ScenarioManager::getOrCreateAttachPoint(const std::string& name)
 {
-  osg::Group* result = NULL;
+  osg::Group* result = nullptr;
   std::map<std::string, osg::observer_ptr<osg::Group> >::const_iterator i = customAttachPoints_.find(name);
   if (i != customAttachPoints_.end() && i->second.valid())
   {

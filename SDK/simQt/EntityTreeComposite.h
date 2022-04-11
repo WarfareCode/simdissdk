@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -49,8 +50,8 @@ class SDKQT_EXPORT FilterDialog : public QDialog
   Q_OBJECT;
 public:
   /** Constructor */
-  explicit FilterDialog(QWidget* parent = NULL);
-  virtual ~FilterDialog(){};
+  explicit FilterDialog(SettingsPtr settings, QWidget* parent = nullptr);
+  virtual ~FilterDialog();
 
   /** Override the QDialog close event to emit the closedGui signal */
   virtual void closeEvent(QCloseEvent*);
@@ -58,6 +59,9 @@ public:
 signals:
   /** Signal emitted when this dialog is closed */
   void closedGui();
+private:
+  /// ptr to settings for saving/restoring geometry
+  SettingsPtr settings_;
 };
 
 
@@ -143,6 +147,8 @@ public:
    * @param reason The reason is appended to the end of the center action text
    */
   void setUseCenterAction(bool use, const QString& reason = "");
+  /** Toggle the tree/list view and update related UI component and action states if the tree view action is enabled */
+  void setTreeView(bool useTreeView);
 
   /** Class to store information about an Entity Tab Filter Configuration */
   class FilterConfiguration
@@ -165,16 +171,6 @@ public:
     QMap<QString, QVariant> configuration_; ///< Map of all filter configuration settings
   };
 
-  /** Add an action to the right mouse click menu, separators are ignored */
-  void addExternalAction(QAction* action);
-  /** Remove all actions added by the addExternalAction() call */
-  void removeExternalActions();
-#ifdef USE_DEPRECATED_SIMDISSDK_API
-  /** DEPRECATED: Sets/clears the selected ID in the entity list */
-  SDK_DEPRECATE(void setSelected(uint64_t id, bool selected), "Method will be removed in a future SDK release");
-  /** DEPRECATED: Sets/clears selection for the IDs in 'list' */
-  SDK_DEPRECATE(void setSelected(QList<uint64_t> list, bool selected), "Method will be removed in a future SDK release");
-#endif
 public slots:
   /** If true expand the tree on double click */
   void setExpandsOnDoubleClick(bool value);
@@ -195,6 +191,11 @@ public slots:
   /** If true show the tree options in the right click menu */
   void setShowTreeOptionsInMenu(bool show);
 
+  /** Set the type(s) to use when counting entity types for the numFilteredItemsChanged signal*/
+  void setCountEntityType(simData::ObjectType type);
+  /** Returns the entity count type(s) */
+  simData::ObjectType countEntityTypes() const;
+
 signals:
   /** Gives an unsorted list of currently selected entities */
   void itemsSelected(QList<uint64_t> ids);
@@ -209,8 +210,12 @@ signals:
    * @param settings Filters get data from the setting using a global unique key
    */
   void filterSettingsChanged(const QMap<QString, QVariant>& settings);
-  /** Fired before showing the right mouse click menu to allow external code to call addAction() and removeActions() */
-  void rightClickMenuRequested();
+
+  /** Fired before showing the right mouse click menu to allow external code to add and remove actions. */
+  void rightClickMenuRequested(QMenu* menu=nullptr);
+
+  /** Fired when entityTreeComposite toggles between tree and list view */
+  void treeViewChanged(bool useTreeView);
 
 protected slots:
   /** Receive notice of an inserted row */
@@ -262,7 +267,9 @@ private:
   QAction* toggleTreeViewAction_;
   QAction* collapseAllAction_;
   QAction* expandAllAction_;
+
   std::vector<QAction*> externalActions_;
+
   bool useCenterAction_;
   bool treeViewUsable_;
 

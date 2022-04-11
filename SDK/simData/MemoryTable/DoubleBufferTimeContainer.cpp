@@ -13,15 +13,18 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
 #include <algorithm>
-#include <limits>
 #include <cassert>
+#include <limits>
+#include <set>
+#include "simCore/Calc/Math.h"
 #include "simData/MemoryTable/DataColumn.h"
 #include "simData/MemoryTable/DoubleBufferTimeContainer.h"
 
@@ -69,8 +72,8 @@ class DoubleBufferTimeContainer::FlushContainer : public DelayedFlushContainer
 public:
   /** Construct a new FlushContainer */
   FlushContainer(TimeIndexDeque& timesA, TimeIndexDeque& timesB)
-    : timesA_(NULL),
-      timesB_(NULL)
+    : timesA_(nullptr),
+      timesB_(nullptr)
   {
     // Optimize the case where vectors are empty
     if (!timesA.empty())
@@ -87,9 +90,9 @@ public:
   virtual ~FlushContainer()
   {
     delete timesA_;
-    timesA_ = NULL;
+    timesA_ = nullptr;
     delete timesB_;
-    timesB_ = NULL;
+    timesB_ = nullptr;
   }
 private:
   TimeIndexDeque* timesA_;
@@ -112,7 +115,7 @@ public:
   DoubleBufferIterator()
     : binIndex_(BIN_INVALID)
   {
-    ownerBins_[BIN_STALE] = ownerBins_[BIN_FRESH] = NULL;
+    ownerBins_[BIN_STALE] = ownerBins_[BIN_FRESH] = nullptr;
     // Order here doesn't really matter since the bins are invalid
     iter_[BIN_STALE] = &iterA_;
     iter_[BIN_FRESH] = &iterB_;
@@ -233,7 +236,7 @@ public:
     // Make a copy of iterators to prevent change
     TimeIndexDeque::iterator freshIter = freshIter_();
     TimeIndexDeque::iterator staleIter = staleIter_();
-    return previous_(freshIter, staleIter, NULL);
+    return previous_(freshIter, staleIter, nullptr);
   }
 
   /** Resets the iterator to the front of the data structure, before the first element */
@@ -315,7 +318,7 @@ private:
 
   bool isValid_() const
   {
-    return staleTimes_() != NULL && freshTimes_() != NULL &&
+    return staleTimes_() != nullptr && freshTimes_() != nullptr &&
       (binIndex_ == BIN_STALE || binIndex_ == BIN_FRESH);
   }
   size_t otherBin_() const
@@ -576,7 +579,7 @@ TimeContainer::Iterator DoubleBufferTimeContainer::findOrAddTime(double timeValu
 void DoubleBufferTimeContainer::erase(TimeContainer::Iterator iter, TimeContainer::EraseBehavior eraseBehavior)
 {
   DoubleBufferIterator* dbIter = dynamic_cast<DoubleBufferIterator*>(iter.impl());
-  if (dbIter != NULL)
+  if (dbIter != nullptr)
     dbIter->erase(eraseBehavior);
 }
 
@@ -586,6 +589,82 @@ simData::DelayedFlushContainerPtr DoubleBufferTimeContainer::flush()
   if (timesA_.empty() && timesB_.empty())
     return DelayedFlushContainerPtr();
   return DelayedFlushContainerPtr(new FlushContainer(timesA_, timesB_));
+}
+
+void DoubleBufferTimeContainer::flush(const std::vector<DataColumn*>& columns, double startTime, double endTime)
+{
+  flush_(*times_[BIN_STALE], false, columns, startTime, endTime);
+  flush_(*times_[BIN_FRESH], true, columns, startTime, endTime);
+}
+
+void DoubleBufferTimeContainer::flush_(TimeIndexDeque& deq, bool fresh, const std::vector<DataColumn*>& columns, double startTime, double endTime)
+{
+  LessThan lessThan;
+  const auto start = std::lower_bound(deq.begin(), deq.end(), startTime, lessThan);
+  const auto end = std::lower_bound(deq.begin(), deq.end(), endTime, lessThan);
+
+  // Nothing to do
+  if (start == end)
+    return;
+
+  const size_t itemsToDelete = std::distance(start, end);
+
+  std::vector<size_t> indexToRemove;
+  indexToRemove.reserve(itemsToDelete);
+  for (auto it = start; it != end; ++it)
+    indexToRemove.push_back(it->second);
+  std::sort(indexToRemove.begin(), indexToRemove.end());
+
+  // Group continuous ranges of indexes to greatly improve performance
+  std::set< std::pair<size_t, size_t> > indexes;
+
+  auto startIndex = indexToRemove.front();
+  auto endIndex = indexToRemove.back();
+  if (itemsToDelete == (endIndex - startIndex + 1))
+  {
+    // data is in time order so just need one entry
+    indexes.insert(std::make_pair(startIndex, endIndex));
+  }
+  else
+  {
+    // Find continuous ranges of indexes
+    startIndex = indexToRemove.front();
+    endIndex = startIndex;
+    for (auto it = indexToRemove.begin() + 1; it != indexToRemove.end(); ++it)
+    {
+      if ((startIndex + 1) != *it)
+      {
+        indexes.insert(std::make_pair(startIndex, endIndex));
+        startIndex = *it;
+      }
+      endIndex = *it;
+    }
+
+    // The last range needs to be committed
+    indexes.insert(std::make_pair(startIndex, endIndex));
+  }
+
+  // Time is always in order so erase everything in one call
+  deq.erase(start, end);
+
+  // Go in reverse order so pairs in "indexes" do not need to be adjusted on removal
+  for (auto it = indexes.rbegin(); it != indexes.rend(); ++it)
+  {
+    auto indexDelta = it->second - it->first + 1;
+
+    // Adjust time index values in the deq
+    for (auto& timeIndex : deq)
+    {
+      //Dev error, algorithm above is not correct
+      assert((timeIndex.second < it->first) || (timeIndex.second > it->second));
+      if (timeIndex.second > it->second)
+        timeIndex.second -= indexDelta;
+    }
+
+    // and update the columns
+    for (auto& column : columns)
+      column->erase(fresh, it->first, indexDelta);
+  }
 }
 
 // TODO: This was commented out.  It was supposed to be findTimeT(), but that
@@ -605,7 +684,7 @@ DoubleBufferTimeContainer::TimeIndexDeque::iterator DoubleBufferTimeContainer::l
 {
   LessThan lessThan;
   TimeIndexDeque::iterator i = std::lower_bound(deq.begin(), deq.end(), timeValue, lessThan);
-  if (exactMatch != NULL)
+  if (exactMatch != nullptr)
     *exactMatch = ((i != deq.end()) && (i->first == timeValue));
   return i;
 }
@@ -638,7 +717,7 @@ DoubleBufferTimeContainer::TimeIndexDeque& DoubleBufferTimeContainer::staleTimes
 void DoubleBufferTimeContainer::swapFreshStaleData(DataTable* table, const std::vector<DataTable::TableObserverPtr>& observers)
 {
   // Before clearing out the stale bin, announce that all those times are being removed
-  if (table != NULL && !times_[BIN_STALE]->empty())
+  if (table != nullptr && !times_[BIN_STALE]->empty())
   {
     // Loop through each observer
     for (std::vector<DataTable::TableObserverPtr>::const_iterator oiter = observers.begin(); oiter != observers.end(); ++oiter)
@@ -700,18 +779,31 @@ void DoubleBufferTimeContainer::limitData(size_t maxPoints, double latestInvalid
 
 int DoubleBufferTimeContainer::getTimeRange(double& begin, double& end) const
 {
-  if (times_[BIN_FRESH]->empty()) // Need to have some times in the fresh bin
+  const auto* fresh = times_[BIN_FRESH];
+  const auto* stale = times_[BIN_STALE];
+
+  if (fresh->empty())
   {
-    begin = 0.0;
-    end = 0.0;
-    return 1;
+    if (stale->empty())
+    {
+      begin = 0.0;
+      end = 0.0;
+      return 1;
+    }
+    begin = stale->front().first;
+    end = stale->back().first;
+    return 0;
   }
 
-  begin = times_[BIN_FRESH]->front().first;
-  if (times_[BIN_STALE]->empty())
-    end = times_[BIN_FRESH]->back().first;
-  else
-    end = times_[BIN_STALE]->back().first;
+  if (stale->empty())
+  {
+    begin = fresh->front().first;
+    end = fresh->back().first;
+    return 0;
+  }
+
+  begin = simCore::sdkMin(fresh->front().first, stale->front().first);
+  end = simCore::sdkMax(fresh->back().first, stale->back().first);
   return 0;
 }
 

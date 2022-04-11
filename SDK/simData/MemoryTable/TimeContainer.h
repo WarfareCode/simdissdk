@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -154,9 +155,9 @@ public:
    * Either returns the iterator representing the time value, or adds the time
    * value and returns an iterator such that its next() is the new time value.
    * @param timeValue Time to find, or add if it didn't exist
-   * @param exactMatch If non-NULL, will be set to false if added row, or true if found row
+   * @param exactMatch If non-nullptr, will be set to false if added row, or true if found row
    */
-  virtual Iterator findOrAddTime(double timeValue, bool* exactMatch=NULL) = 0;
+  virtual Iterator findOrAddTime(double timeValue, bool* exactMatch=nullptr) = 0;
 
   /**
    * Performs data limiting for the container and associated columns
@@ -181,6 +182,8 @@ public:
   virtual void erase(Iterator iter, EraseBehavior eraseBehavior) = 0;
   /** Removes all entries from the container. */
   virtual DelayedFlushContainerPtr flush() = 0;
+  /** Remove entries in the given time range; up to but not including endTime */
+  virtual void flush(const std::vector<DataColumn*>& columns, double startTime, double endTime) = 0;
 
   /**
    * Returns the begin and end time

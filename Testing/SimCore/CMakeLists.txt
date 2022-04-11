@@ -8,32 +8,36 @@ endif()
 project(SimCore_UnitTests)
 
 create_test_sourcelist(SimCoreTestFiles SimCoreTests.cpp
-    TokenizerTest.cpp
-    StringUtilsTest.cpp
-    CoordConvertLibTest.cpp
-    VersionTest.cpp
-    CoreCommonTest.cpp
+    AngleTest.cpp
+    CalculateLibTest.cpp
     CalculationTest.cpp
+    CoordConvertLibTest.cpp
+    CoreCommonTest.cpp
+    CsvReaderTest.cpp
+    EMTest.cpp
     GarsTest.cpp
+    GeoFenceTest.cpp
+    GogTest.cpp
+    GogToGeoFenceTest.cpp
+    InterpolationTest.cpp
+    MagneticVarianceTest.cpp
     MathTest.cpp
     MgrsTest.cpp
+    MultiFrameCoordTest.cpp
     SquareMatrixTest.cpp
+    StringFormatTest.cpp
+    StringUtilsTest.cpp
     TimeClassTest.cpp
     TimeManagerTest.cpp
     TimeStringTest.cpp
     TimeUtilsTest.cpp
     TimeJulianTest.cpp
-    InterpolationTest.cpp
-    EMTest.cpp
+    TokenizerTest.cpp
     ValidNumberTest.cpp
-    GeoFenceTest.cpp
-    MultiFrameCoordTest.cpp
-    AngleTest.cpp
+    VersionTest.cpp
     UnitsTest.cpp
     UnitsFormatter.cpp
-    GogToGeoFenceTest.cpp
-    CalculateLibTest.cpp
-    MagneticVarianceTest.cpp
+    XmlWriterTest.cpp
 )
 
 add_executable(SimCoreTests ${SimCoreTestFiles})
@@ -45,13 +49,14 @@ if(TARGET simUtil)
 endif()
 set_target_properties(SimCoreTests PROPERTIES
     FOLDER "Unit Tests"
-    PROJECT_LABEL "Unit Tests - SimCore"
+    PROJECT_LABEL "simCore Test"
 )
 
 add_test(NAME VersionTest COMMAND SimCoreTests VersionTest)
 add_test(NAME TimeManager COMMAND SimCoreTests TimeManagerTest)
 add_test(NAME TokenizerTest COMMAND SimCoreTests TokenizerTest)
 add_test(NAME StringUtilsTest COMMAND SimCoreTests StringUtilsTest)
+add_test(NAME CoreStringFormatTest COMMAND SimCoreTests StringFormatTest)
 add_test(NAME CoordConvertLibTest COMMAND SimCoreTests CoordConvertLibTest)
 add_test(NAME CoreCommonTest COMMAND SimCoreTests CoreCommonTest)
 add_test(NAME CalculationTest COMMAND SimCoreTests CalculationTest)
@@ -73,6 +78,9 @@ add_test(NAME CoreUnitsFormatter COMMAND SimCoreTests UnitsFormatter)
 add_test(NAME GogToGeoFenceTest COMMAND SimCoreTests GogToGeoFenceTest)
 add_test(NAME CalculateLibTest COMMAND SimCoreTests CalculateLibTest ${SimCore_UnitTests_SOURCE_DIR}/CalculateInput.txt)
 add_test(NAME MagneticVarianceTest COMMAND SimCoreTests MagneticVarianceTest)
+add_test(NAME CsvReaderTest COMMAND SimCoreTests CsvReaderTest)
+add_test(NAME SimCoreGogTest COMMAND SimCoreTests GogTest)
+add_test(NAME XmlWriterTest COMMAND SimCoreTests XmlWriterTest)
 
 # Try to locate the correct file for the RCS test...
 set(FILE_LOCATIONS

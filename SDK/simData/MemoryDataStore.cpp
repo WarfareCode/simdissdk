@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -109,7 +110,7 @@ EntryType* getEntry(ObjectId id, const EntryMapType *store)
     return iter->second;
   }
 
-  return NULL;
+  return nullptr;
 }
 
 /**
@@ -145,32 +146,24 @@ void updateSparseSlices(EntryListType& entries, double time)
 }
 
 /**
-* Calls flush on any entries found for the specified id in the entity map, as well as the category and generic data maps
+* Calls flush on any entries found for the specified id in the entity map
 * @param map Entity map
 * @param id The entity to flush
-* @param catMap Category Data map
-* @param genMap Generic Data map
-* @param dataOnly If true only remove the data for the update slice
-* @param keepTspiStatic If true static TSPI points are not removed.
+* @param flushUpdates If true remove updates
+* @param flushCommands If true remove commands
+* @param startTime The start time of the data to flush
+* @param endTime The end time of the data to flush (non-inclusive)
 */
 template <typename EntityMap>
-void flushEntityData(EntityMap& map, ObjectId id, MemoryDataStore::CategoryDataMap& catMap, MemoryDataStore::GenericDataMap& genMap, bool dataOnly, bool keepTspiStatic = true)
+void flushEntityData(EntityMap& map, ObjectId id, bool flushUpdates, bool flushCommands, double startTime, double endTime)
 {
   typename EntityMap::const_iterator i = map.find(id);
   if (i != map.end())
   {
-    (*i).second->updates()->flush(keepTspiStatic);
-    if (!dataOnly)
-      (*i).second->commands()->flush();
-  }
-  if (!dataOnly)
-  {
-    typename MemoryDataStore::CategoryDataMap::const_iterator ci = catMap.find(id);
-    if (ci != catMap.end())
-      (*ci).second->flush();
-    typename MemoryDataStore::GenericDataMap::const_iterator gi = genMap.find(id);
-    if (gi != genMap.end())
-      (*gi).second->flush();
+    if (flushUpdates)
+      (*i).second->updates()->flush(startTime, endTime);
+    if (flushCommands)
+      (*i).second->commands()->flush(startTime, endTime);
   }
 }
 
@@ -208,7 +201,7 @@ private:
   template <typename T>
   TableStatus setLimitValues_(const T* prefs, size_t& pointsLimit, double& secondsLimit) const
   {
-    if (prefs == NULL)
+    if (prefs == nullptr)
       return TableStatus::Error("No preferences for table's owner entity ID.");
     // Limit by points
     pointsLimit = prefs->datalimitpoints();
@@ -251,14 +244,15 @@ class MemoryDataStore::MemoryInternalsMemento : public InternalsMemento
 public:
   /** Constructor for a memento for the MemoryDataStore */
   explicit MemoryInternalsMemento(const MemoryDataStore &ds)
+    : interpolator_(ds.interpolator_),
+      interpolationEnabled_(ds.interpolationEnabled_),
+      listeners_(ds.listeners_),
+      scenarioListeners_(ds.scenarioListeners_),
+      newUpdatesListener_(ds.newUpdatesListener_),
+      boundClock_(ds.boundClock_)
   {
     // fill in everything
-    interpolator_ = ds.interpolator_;
-    interpolationEnabled_ = ds.interpolationEnabled_;
 
-    listeners_ = ds.listeners_;
-    scenarioListeners_ = ds.scenarioListeners_;
-    newUpdatesListener_ = ds.newUpdatesListener_;
     ds.dataTableManager().getObservers(dtObservers_);
     ds.categoryNameManager().getListeners(catListeners_);
     defaultPlatformPrefs_.CopyFrom(ds.defaultPlatformPrefs_);
@@ -268,7 +262,6 @@ public:
     defaultLobGroupPrefs_.CopyFrom(ds.defaultLobGroupPrefs_);
     defaultProjectorPrefs_.CopyFrom(ds.defaultProjectorPrefs_);
     defaultCustomRenderingPrefs_.CopyFrom(ds.defaultCustomRenderingPrefs_);
-    boundClock_ = ds.boundClock_;
   }
 
   virtual ~MemoryInternalsMemento()
@@ -329,14 +322,13 @@ MemoryDataStore::MemoryDataStore()
   lastUpdateTime_(0.0),
   hasChanged_(false),
   interpolationEnabled_(false),
-  interpolator_(NULL),
-  timeBounds_(std::numeric_limits<double>::max(), -std::numeric_limits<double>::max()),
+  interpolator_(nullptr),
   newUpdatesListener_(new DefaultNewUpdatesListener),
   dataLimiting_(false),
   categoryNameManager_(new CategoryNameManager),
-  dataLimitsProvider_(NULL),
-  dataTableManager_(NULL),
-  boundClock_(NULL),
+  dataLimitsProvider_(nullptr),
+  dataTableManager_(nullptr),
+  boundClock_(nullptr),
   entityNameCache_(new EntityNameCache())
 {
   dataLimitsProvider_ = new DataStoreLimits(*this);
@@ -351,14 +343,13 @@ MemoryDataStore::MemoryDataStore(const ScenarioProperties &properties)
   lastUpdateTime_(0.0),
   hasChanged_(false),
   interpolationEnabled_(false),
-  interpolator_(NULL),
-  timeBounds_(std::numeric_limits<double>::max(), -std::numeric_limits<double>::max()),
+  interpolator_(nullptr),
   newUpdatesListener_(new DefaultNewUpdatesListener),
   dataLimiting_(false),
   categoryNameManager_(new CategoryNameManager),
-  dataLimitsProvider_(NULL),
-  dataTableManager_(NULL),
-  boundClock_(NULL),
+  dataLimitsProvider_(nullptr),
+  dataTableManager_(nullptr),
+  boundClock_(nullptr),
   entityNameCache_(new EntityNameCache())
 {
   dataLimitsProvider_ = new DataStoreLimits(*this);
@@ -373,13 +364,13 @@ MemoryDataStore::~MemoryDataStore()
 {
   clear();
   delete categoryNameManager_;
-  categoryNameManager_ = NULL;
+  categoryNameManager_ = nullptr;
   delete dataTableManager_;
-  dataTableManager_ = NULL;
+  dataTableManager_ = nullptr;
   delete dataLimitsProvider_;
-  dataLimitsProvider_ = NULL;
+  dataLimitsProvider_ = nullptr;
   delete entityNameCache_;
-  entityNameCache_ = NULL;
+  entityNameCache_ = nullptr;
 }
 
 void MemoryDataStore::clear()
@@ -425,13 +416,13 @@ bool MemoryDataStore::canInterpolate() const
  * Enable or disable interpolation, if supported
  * Will only succeed if the DataStore implementation supports interpolation and
  * contains a valid interpolator object
- * TODO(millman): this seems like an unnecessary interface, can we just use setInterpolator(NULL) to disable?
+ * TODO(millman): this seems like an unnecessary interface, can we just use setInterpolator(nullptr) to disable?
  * @return the state of interpolation
  */
 bool MemoryDataStore::enableInterpolation(bool state)
 {
   // interpolation can only be enabled if there is an interpolator
-  if (state && interpolator_ != NULL)
+  if (state && interpolator_ != nullptr)
   {
     if (!interpolationEnabled_)
     {
@@ -455,7 +446,7 @@ bool MemoryDataStore::enableInterpolation(bool state)
 ///Indicates that interpolation is either enabled or disabled
 bool MemoryDataStore::isInterpolationEnabled() const
 {
-  return interpolationEnabled_ && interpolator_ != NULL;
+  return interpolationEnabled_ && interpolator_ != nullptr;
 }
 
 ///Specifies the interpolator
@@ -468,10 +459,10 @@ void MemoryDataStore::setInterpolator(Interpolator *interpolator)
   }
 }
 
-/// Get the current interpolator (NULL if disabled)
+/// Get the current interpolator (nullptr if disabled)
 Interpolator* MemoryDataStore::interpolator() const
 {
-  return (interpolationEnabled_) ? interpolator_ : NULL;
+  return (interpolationEnabled_) ? interpolator_ : nullptr;
 }
 
 void MemoryDataStore::updatePlatforms_(double time)
@@ -488,8 +479,8 @@ void MemoryDataStore::updatePlatforms_(double time)
 
     if (!platform->preferences()->commonprefs().datadraw())
     {
-      // until we have datadraw, send NULL; once we have datadraw, we'll immediately update with valid data
-      platform->updates()->setCurrent(NULL);
+      // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
+      platform->updates()->setCurrent(nullptr);
       continue;
     }
 
@@ -502,7 +493,7 @@ void MemoryDataStore::updatePlatforms_(double time)
       if (!staticPlatform && (time < firstTime || time > slice->lastTime()))
       {
         // platform is not valid/has expired
-        platform->updates()->setCurrent(NULL);
+        platform->updates()->setCurrent(nullptr);
         continue;
       }
     }
@@ -519,53 +510,53 @@ void MemoryDataStore::updateTargetBeam_(ObjectId id, BeamEntry* beam, double tim
   // Get the two platforms, if available
   if (!beam->properties()->has_hostid())
   {
-    beam->updates()->setCurrent(NULL);
+    beam->updates()->setCurrent(nullptr);
     return;
   }
 
   if (!beam->preferences()->has_targetid())
   {
-    beam->updates()->setCurrent(NULL);
+    beam->updates()->setCurrent(nullptr);
     return;
   }
 
   Platforms::iterator plat = platforms_.find(beam->properties()->hostid());
-  if ((plat == platforms_.end()) || (plat->second == NULL))
+  if ((plat == platforms_.end()) || (plat->second == nullptr))
   {
-    beam->updates()->setCurrent(NULL);
+    beam->updates()->setCurrent(nullptr);
     return;
   }
 
   PlatformEntry* sourcePlatform = plat->second;
   const PlatformUpdate* sourceUpdate = sourcePlatform->updates()->current();
-  if ((sourceUpdate == NULL) || (!sourceUpdate->has_position()))
+  if ((sourceUpdate == nullptr) || (!sourceUpdate->has_position()))
   {
-    beam->updates()->setCurrent(NULL);
+    beam->updates()->setCurrent(nullptr);
     return;
   }
 
   plat = platforms_.find(beam->preferences()->targetid());
-  if ((plat == platforms_.end()) || (plat->second == NULL))
+  if ((plat == platforms_.end()) || (plat->second == nullptr))
   {
-    beam->updates()->setCurrent(NULL);
+    beam->updates()->setCurrent(nullptr);
     return;
   }
 
   PlatformEntry* destPlatform = plat->second;
   const PlatformUpdate* destUpdate = destPlatform->updates()->current();
-  if ((destUpdate == NULL) || (!destUpdate->has_position()))
+  if ((destUpdate == nullptr) || (!destUpdate->has_position()))
   {
-    beam->updates()->setCurrent(NULL);
+    beam->updates()->setCurrent(nullptr);
     return;
   }
 
   // target beam has no updates; it uses the currentInterpolated() to deliver info to simVis::Beam
   BeamUpdate* update = beam->updates()->currentInterpolated();
 
-  // simVis::Beam will calculate the RAE whenever it gets a non-NULL update with hasChanged flag set
+  // simVis::Beam will calculate the RAE whenever it gets a non-nullptr update with hasChanged flag set
 
   // update only when there is a time change or this is a NULL->non-NULL transition
-  if (beam->updates()->current() == NULL || update->time() != time)
+  if (beam->updates()->current() == nullptr || update->time() != time)
   {
     update->set_time(time);
     update->set_azimuth(0.0);
@@ -587,9 +578,9 @@ void MemoryDataStore::updateBeams_(double time)
     // apply commands
     beamEntry->commands()->update(this, iter->first, time);
 
-    // until we have datadraw, send NULL; once we have datadraw, we'll immediately update with valid data
+    // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
     if (!beamEntry->preferences()->commonprefs().datadraw())
-      beamEntry->updates()->setCurrent(NULL);
+      beamEntry->updates()->setCurrent(nullptr);
     else if (beamEntry->properties()->type() == BeamProperties_BeamType_TARGET)
       updateTargetBeam_(iter->first, beamEntry, time);
     else if (isInterpolationEnabled() && beamEntry->preferences()->interpolatebeampos())
@@ -602,8 +593,8 @@ void MemoryDataStore::updateBeams_(double time)
 simData::MemoryDataStore::BeamEntry* MemoryDataStore::getBeamForGate_(google::protobuf::uint64 gateID)
 {
   Beams::iterator beamIt = beams_.find(gateID);
-  if ((beamIt == beams_.end()) || (beamIt->second == NULL))
-    return NULL;
+  if ((beamIt == beams_.end()) || (beamIt->second == nullptr))
+    return nullptr;
 
   return beamIt->second;
 }
@@ -616,7 +607,7 @@ void MemoryDataStore::updateTargetGate_(GateEntry* gate, double time)
   // Get the host beam for this gate
   if (!gate->properties()->has_hostid())
   {
-    gate->updates()->setCurrent(NULL);
+    gate->updates()->setCurrent(nullptr);
     return;
   }
 
@@ -625,41 +616,41 @@ void MemoryDataStore::updateTargetGate_(GateEntry* gate, double time)
   assert(beam->properties()->type() == BeamProperties_BeamType_TARGET);
   if (!beam || !beam->properties()->has_hostid() || beam->properties()->type() != BeamProperties_BeamType_TARGET || !beam->preferences()->has_targetid())
   {
-    gate->updates()->setCurrent(NULL);
+    gate->updates()->setCurrent(nullptr);
     return;
   }
 
   Platforms::iterator plat = platforms_.find(beam->properties()->hostid());
-  if ((plat == platforms_.end()) || (plat->second == NULL))
+  if ((plat == platforms_.end()) || (plat->second == nullptr))
   {
-    gate->updates()->setCurrent(NULL);
+    gate->updates()->setCurrent(nullptr);
     return;
   }
 
   PlatformEntry* sourcePlatform = plat->second;
   const PlatformUpdate* sourceUpdate = sourcePlatform->updates()->current();
-  if ((sourceUpdate == NULL) || (!sourceUpdate->has_position()))
+  if ((sourceUpdate == nullptr) || (!sourceUpdate->has_position()))
   {
-    gate->updates()->setCurrent(NULL);
+    gate->updates()->setCurrent(nullptr);
     return;
   }
 
   plat = platforms_.find(beam->preferences()->targetid());
-  if ((plat == platforms_.end()) || (plat->second == NULL))
+  if ((plat == platforms_.end()) || (plat->second == nullptr))
   {
-    gate->updates()->setCurrent(NULL);
+    gate->updates()->setCurrent(nullptr);
     return;
   }
 
   PlatformEntry* destPlatform = plat->second;
   const PlatformUpdate* destUpdate = destPlatform->updates()->current();
-  if ((destUpdate == NULL) || (!destUpdate->has_position()))
+  if ((destUpdate == nullptr) || (!destUpdate->has_position()))
   {
-    gate->updates()->setCurrent(NULL);
+    gate->updates()->setCurrent(nullptr);
     return;
   }
 
-  const bool gateWasOff = (gate->updates()->current() == NULL);
+  const bool gateWasOff = (gate->updates()->current() == nullptr);
 
   // target gates use the MemoryDataSlice::currentInterpolated_ to hold the modified update
   GateUpdate* update = gate->updates()->currentInterpolated();
@@ -672,7 +663,7 @@ void MemoryDataStore::updateTargetGate_(GateEntry* gate, double time)
   else
     gate->updates()->update(time);
   const GateUpdate* currentUpdate = gate->updates()->current();
-  if (currentUpdate == NULL)
+  if (currentUpdate == nullptr)
     return;
 
   // update only when gate was off, there is a time change, or if we depend on beam for height/width
@@ -703,7 +694,7 @@ void MemoryDataStore::updateTargetGate_(GateEntry* gate, double time)
 bool MemoryDataStore::gateUsesBeamBeamwidth_(GateEntry* gate) const
 {
   const GateUpdate* currentUpdate = gate->updates()->current();
-  return (currentUpdate != NULL && gate->properties()->has_hostid() &&
+  return (currentUpdate != nullptr && gate->properties()->has_hostid() &&
     (currentUpdate->height() <= 0.0 || currentUpdate->width() <= 0.0));
 }
 
@@ -715,9 +706,9 @@ void MemoryDataStore::updateGates_(double time)
     // apply commands
     gateEntry->commands()->update(this, iter->first, time);
 
-    // until we have datadraw, send NULL; once we have datadraw, we'll immediately update with valid data
+    // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
     if (!gateEntry->preferences()->commonprefs().datadraw())
-      gateEntry->updates()->setCurrent(NULL);
+      gateEntry->updates()->setCurrent(nullptr);
     else if (gateEntry->properties()->type() == GateProperties_GateType_TARGET)
       updateTargetGate_(gateEntry, time);
     else
@@ -748,9 +739,9 @@ void MemoryDataStore::updateLasers_(double time)
     // apply commands
     laserEntry->commands()->update(this, iter->first, time);
 
-    // until we have datadraw, send NULL; once we have datadraw, we'll immediately update with valid data
+    // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
     if (!laserEntry->preferences()->commonprefs().datadraw())
-      laserEntry->updates()->setCurrent(NULL);
+      laserEntry->updates()->setCurrent(nullptr);
     // laser interpolation is on, there is no preference; but off if we have no interpolator
     else if (isInterpolationEnabled())
       laserEntry->updates()->update(time, interpolator_);
@@ -808,68 +799,100 @@ void MemoryDataStore::updateCustomRenderings_(double time)
   }
 }
 
-void MemoryDataStore::flushEntity_(ObjectId flushId, simData::ObjectType type, FlushType flushType)
+void MemoryDataStore::flushEntity_(ObjectId id, simData::ObjectType type, FlushScope flushScope, FlushFields flushFields, double startTime, double endTime)
 {
-  bool recursive = (flushType == RECURSIVE);
-  bool keepTspiStatic = ((flushType != NON_RECURSIVE_TSPI_STATIC) && (flushType != NON_RECURSIVE_TSPI_ONLY));
-  bool dataOnly = (flushType == NON_RECURSIVE_TSPI_ONLY);
+  const bool recursive = (flushScope == FLUSH_RECURSIVE);
+  const bool flushUpdates = ((flushFields & FLUSH_UPDATES) != 0);
+  const bool flushCommands = ((flushFields & FLUSH_COMMANDS) != 0);
   IdList ids;
   switch (type)
   {
   case PLATFORM:
-    flushEntityData(platforms_, flushId, categoryData_, genericData_, dataOnly, keepTspiStatic);
+    flushEntityData(platforms_, id, flushUpdates, flushCommands, startTime, endTime);
     if (recursive)
     {
-      beamIdListForHost(flushId, &ids);
+      beamIdListForHost(id, &ids);
       for (IdList::const_iterator iter = ids.begin(); iter != ids.end(); ++iter)
-        flushEntity_(*iter, simData::BEAM, flushType);
+        flushEntity_(*iter, simData::BEAM, flushScope, flushFields, startTime, endTime);
       ids.clear();
-      laserIdListForHost(flushId, &ids);
+      laserIdListForHost(id, &ids);
       for (IdList::const_iterator iter = ids.begin(); iter != ids.end(); ++iter)
-        flushEntity_(*iter, simData::LASER, flushType);
+        flushEntity_(*iter, simData::LASER, flushScope, flushFields, startTime, endTime);
       ids.clear();
-      lobGroupIdListForHost(flushId, &ids);
+      lobGroupIdListForHost(id, &ids);
       for (IdList::const_iterator iter = ids.begin(); iter != ids.end(); ++iter)
-        flushEntity_(*iter, simData::LOB_GROUP, flushType);
+        flushEntity_(*iter, simData::LOB_GROUP, flushScope, flushFields, startTime, endTime);
       ids.clear();
-      projectorIdListForHost(flushId, &ids);
+      projectorIdListForHost(id, &ids);
       for (IdList::const_iterator iter = ids.begin(); iter != ids.end(); ++iter)
-        flushEntity_(*iter, simData::PROJECTOR, flushType);
+        flushEntity_(*iter, simData::PROJECTOR, flushScope, flushFields, startTime, endTime);
+      ids.clear();
+      customRenderingIdListForHost(id, &ids);
+      for (IdList::const_iterator iter = ids.begin(); iter != ids.end(); ++iter)
+        flushEntity_(*iter, simData::CUSTOM_RENDERING, flushScope, flushFields, startTime, endTime);
     }
     break;
   case BEAM:
-    flushEntityData(beams_, flushId, categoryData_, genericData_, dataOnly);
+    flushEntityData(beams_, id, flushUpdates, flushCommands, startTime, endTime);
     if (recursive)
     {
-      gateIdListForHost(flushId, &ids);
+      gateIdListForHost(id, &ids);
       for (IdList::const_iterator iter = ids.begin(); iter != ids.end(); ++iter)
-        flushEntity_(*iter, simData::GATE, flushType);
+        flushEntity_(*iter, simData::GATE, flushScope, flushFields, startTime, endTime);
+      ids.clear();
+      projectorIdListForHost(id, &ids);
+      for (IdList::const_iterator iter = ids.begin(); iter != ids.end(); ++iter)
+        flushEntity_(*iter, simData::PROJECTOR, flushScope, flushFields, startTime, endTime);
     }
     break;
   case GATE:
-    flushEntityData(gates_, flushId, categoryData_, genericData_, dataOnly);
+    flushEntityData(gates_, id, flushUpdates, flushCommands, startTime, endTime);
     break;
   case LASER:
-    flushEntityData(lasers_, flushId, categoryData_, genericData_, dataOnly);
+    flushEntityData(lasers_, id, flushUpdates, flushCommands, startTime, endTime);
     break;
   case LOB_GROUP:
-    flushEntityData(lobGroups_, flushId, categoryData_, genericData_, dataOnly);
+    flushEntityData(lobGroups_, id, flushUpdates, flushCommands, startTime, endTime);
     break;
   case PROJECTOR:
-    flushEntityData(projectors_, flushId, categoryData_, genericData_, dataOnly);
+    flushEntityData(projectors_, id, flushUpdates, flushCommands, startTime, endTime);
     break;
   case CUSTOM_RENDERING:
-    flushEntityData(customRenderings_, flushId, categoryData_, genericData_, dataOnly);
+    flushEntityData(customRenderings_, id, flushUpdates, flushCommands, startTime, endTime);
     break;
   case ALL:
   case NONE:
     break;
   }
 
-  // Only recursive flush deletes table data
-  if (recursive)
-    flushDataTables_(flushId);
+  if ((flushFields & FLUSH_CATEGORY_DATA) != 0)
+  {
+    auto it = categoryData_.find(id);
+    if (it != categoryData_.end())
+    {
+      if ((startTime == 0.0) && (endTime == std::numeric_limits<double>::max()) && ((flushFields & FLUSH_EXCLUDE_MINUS_ONE) != 0))
+        it->second->flush();
+      else
+        it->second->flush(startTime, endTime);
+    }
+  }
+
+  if ((flushFields & FLUSH_GENERIC_DATA) != 0)
+  {
+    auto it = genericData_.find(id);
+    if (it != genericData_.end())
+    {
+      if ((startTime <= 0.0) & (endTime == std::numeric_limits<double>::max()))
+        it->second->flush();
+      else
+        it->second->flush(startTime, endTime);
+    }
+  }
+
+  if ((flushFields & FLUSH_DATA_TABLES) != 0)
+    flushDataTables_(id, startTime, endTime);
 }
+
 
 void MemoryDataStore::flushDataTables_(ObjectId id)
 {
@@ -886,12 +909,45 @@ void MemoryDataStore::flushDataTables_(ObjectId id)
 
   // Visit all tables and flush them
   const simData::TableList* ownerTables = dataTableManager().tablesForOwner(id);
-  if (ownerTables != NULL)
+  if (ownerTables != nullptr)
   {
     FlushVisitor flushVisitor;
     ownerTables->accept(flushVisitor);
   }
 }
+
+void MemoryDataStore::flushDataTables_(ObjectId id, double startTime, double endTime)
+{
+  /// Defines a visitor function that flushes tables
+  class FlushVisitor : public simData::TableList::Visitor
+  {
+  public:
+    FlushVisitor(double startTime, double endTime)
+    : startTime_(startTime),
+    endTime_(endTime)
+    {
+    }
+    virtual void visit(simData::DataTable* table)
+    {
+      if ((startTime_ <= 0.0) && (endTime_ == std::numeric_limits<double>::max()))
+        table->flush();
+      else
+        table->flush(startTime_, endTime_);
+    }
+  private:
+    double startTime_;
+    double endTime_;
+  };
+
+  // Visit all tables and flush them
+  const simData::TableList* ownerTables = dataTableManager().tablesForOwner(id);
+  if (ownerTables != nullptr)
+  {
+    FlushVisitor flushVisitor(startTime, endTime);
+    ownerTables->accept(flushVisitor);
+  }
+}
+
 
 void MemoryDataStore::setDefaultPrefs(const PlatformPrefs& platformPrefs, const BeamPrefs& beamPrefs, const GatePrefs& gatePrefs, const LaserPrefs& laserPrefs, const LobGroupPrefs& lobPrefs, const ProjectorPrefs& projectorPrefs)
 {
@@ -940,7 +996,7 @@ void MemoryDataStore::update(double time)
 
       for (ListenerList::const_iterator j = localCopy.begin(); j != localCopy.end(); ++j)
       {
-        if (*j != NULL)
+        if (*j != nullptr)
         {
           (**j).onCategoryDataChange(this, i->first, ot);
           checkForRemoval_(localCopy);
@@ -960,9 +1016,9 @@ void MemoryDataStore::update(double time)
 
   for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
   {
-    if (*i != NULL)
+    if (*i != nullptr)
     {
-      (**i).onTimeChange(this);
+      (**i).onChange(this);
       checkForRemoval_(localCopy);
     }
   }
@@ -1001,25 +1057,72 @@ bool MemoryDataStore::dataLimiting() const
 
 void MemoryDataStore::flush(ObjectId flushId, FlushType flushType)
 {
-  hasChanged_ = true;
+  if (flushId == 0)
+    flushType = RECURSIVE;
 
-  simData::ObjectType objType = simData::ALL;
-  if (flushId > 0)
-    objType = objectType(flushId);
-
-  if (objType == ALL)
+  switch (flushType)
   {
-    for (Platforms::const_iterator iter = platforms_.begin(); iter != platforms_.end(); ++iter)
-      flushEntity_(iter->first, simData::PLATFORM, RECURSIVE);
-    flushDataTables_(0);
-    GenericDataMap::const_iterator it = genericData_.find(0);
-    if (it != genericData_.end())
-      it->second->flush();
-    for (auto iter = customRenderings_.begin(); iter != customRenderings_.end(); ++iter)
-      flushEntity_(iter->first, simData::CUSTOM_RENDERING, RECURSIVE);
+  case NON_RECURSIVE:
+    flush(flushId, FLUSH_NONRECURSIVE, static_cast<FlushFields>(FLUSH_EXCLUDE_MINUS_ONE | (FLUSH_ALL & ~FLUSH_DATA_TABLES)));
+    break;
+  case NON_RECURSIVE_TSPI_STATIC:
+    flush(flushId, FLUSH_NONRECURSIVE, static_cast<FlushFields>(FLUSH_ALL & ~FLUSH_DATA_TABLES));
+    break;
+  case RECURSIVE:
+    flush(flushId, FLUSH_RECURSIVE, static_cast<FlushFields>(FLUSH_EXCLUDE_MINUS_ONE | FLUSH_ALL));
+    break;
+  case NON_RECURSIVE_TSPI_ONLY:
+    flush(flushId, FLUSH_NONRECURSIVE, FLUSH_UPDATES);
+    break;
+  case NON_RECURSIVE_DATA:
+    flush(flushId, FLUSH_NONRECURSIVE, static_cast<FlushFields>(FLUSH_UPDATES | FLUSH_COMMANDS));
+    break;
+  }
+}
+
+int MemoryDataStore::flush(ObjectId id, FlushScope scope, FlushFields fields)
+{
+  double startTime = ((fields & FLUSH_EXCLUDE_MINUS_ONE) != 0) ? 0.0 : -1.0;
+  return flush(id, scope, fields, startTime, std::numeric_limits<double>::max());
+}
+
+int MemoryDataStore::flush(ObjectId id, FlushScope scope, FlushFields fields, double startTime, double endTime)
+{
+  if (id == 0)
+  {
+    if (scope == FLUSH_RECURSIVE)
+    {
+      for (Platforms::const_iterator iter = platforms_.begin(); iter != platforms_.end(); ++iter)
+        flushEntity_(iter->first, simData::PLATFORM, scope, fields, startTime, endTime);
+      for (auto iter = customRenderings_.begin(); iter != customRenderings_.end(); ++iter)
+        flushEntity_(iter->first, simData::CUSTOM_RENDERING, scope, fields, startTime, endTime);
+    }
+
+    if (fields & FLUSH_DATA_TABLES)
+      flushDataTables_(id, startTime, endTime);
+
+    if (fields & FLUSH_GENERIC_DATA)
+    {
+      GenericDataMap::const_iterator it = genericData_.find(0);
+      if (it != genericData_.end())
+      {
+        if ((startTime <= 0.0) & (endTime == std::numeric_limits<double>::max()))
+          it->second->flush();
+        else
+          it->second->flush(startTime, endTime);
+      }
+    }
   }
   else
-    flushEntity_(flushId, objType, flushType);
+  {
+    auto type = objectType(id);
+    if (type == simData::NONE)
+      return 1;
+
+    flushEntity_(id, type, scope, fields, startTime, endTime);
+  }
+
+  hasChanged_ = true;
 
   // Need to handle recursion so make a local copy
   ListenerList localCopy = listeners_;
@@ -1027,14 +1130,16 @@ void MemoryDataStore::flush(ObjectId flushId, FlushType flushType)
   // now send out notification to listeners
   for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
   {
-    if (*i != NULL)
+    if (*i != nullptr)
     {
-      (*i)->onFlush(this, flushId);
+      (*i)->onFlush(this, id);
       checkForRemoval_(localCopy);
     }
   }
   // Send out notification to the new-updates listener
-  newUpdatesListener_->onFlush(this, flushId);
+  newUpdatesListener_->onFlush(this, id);
+
+  return 0;
 }
 
 void MemoryDataStore::applyDataLimiting_(ObjectId id)
@@ -1146,8 +1251,8 @@ void MemoryDataStore::idList(IdList *ids, simData::ObjectType type) const
 void MemoryDataStore::idListByName(const std::string& name, IdList* ids, simData::ObjectType type) const
 {
   // If null someone is call this routine before entityNameCache_ is made in the constructor
-  assert(entityNameCache_ != NULL);
-  if (entityNameCache_ == NULL)
+  assert(entityNameCache_ != nullptr);
+  if (entityNameCache_ == nullptr)
     return;
 
   std::vector<const EntityNameEntry*> entries;
@@ -1467,7 +1572,7 @@ void MemoryDataStore::removeEntity(ObjectId id)
   justRemoved_.clear();
   for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
   {
-    if (*i != NULL)
+    if (*i != nullptr)
     {
       (**i).onRemoveEntity(this, id, ot);
       checkForRemoval_(localCopy);
@@ -1502,37 +1607,70 @@ void MemoryDataStore::removeEntity(ObjectId id)
 
     delete pi->second;
     platforms_.erase(pi);
+    fireOnPostRemoveEntity_(id, ot);
     return;
   }
 
   Beams::iterator bi = beams_.find(id);
   if (bi != beams_.end())
   {
-    // also delete any gates
+    // also delete any gates or projectors; projectorIdListForHost adds to the list
     gateIdListForHost(id, &ids);
+    projectorIdListForHost(id, &ids);
     // we will need to send notifications and recurse on them as well...
     for (IdList::const_iterator i = ids.begin(); i != ids.end(); ++i)
       removeEntity(*i);
 
     delete bi->second;
     beams_.erase(bi);
+    fireOnPostRemoveEntity_(id, ot);
     return;
   }
 
   if (deleteFromMap(gates_, id))
+  {
+    fireOnPostRemoveEntity_(id, ot);
     return;
+  }
 
   if (deleteFromMap(lasers_, id))
+  {
+    fireOnPostRemoveEntity_(id, ot);
     return;
+  }
 
   if (deleteFromMap(projectors_, id))
+  {
+    fireOnPostRemoveEntity_(id, ot);
     return;
+  }
 
   if (deleteFromMap(lobGroups_, id))
+  {
+    fireOnPostRemoveEntity_(id, ot);
     return;
+  }
 
   if (deleteFromMap(customRenderings_, id))
+  {
+    fireOnPostRemoveEntity_(id, ot);
     return;
+  }
+}
+
+void MemoryDataStore::fireOnPostRemoveEntity_(ObjectId id, ObjectType ot)
+{
+  // Need to handle recursion so make a local copy
+  ListenerList localCopy = listeners_;
+  justRemoved_.clear();
+  for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
+  {
+    if (*i != nullptr)
+    {
+      (**i).onPostRemoveEntity(this, id, ot);
+      checkForRemoval_(localCopy);
+    }
+  }
 }
 
 int MemoryDataStore::removeCategoryDataPoint(ObjectId id, double time, int catNameInt, int valueInt)
@@ -1559,102 +1697,158 @@ int MemoryDataStore::removeGenericDataTag(ObjectId id, const std::string& tag)
 const PlatformProperties* MemoryDataStore::platformProperties(ObjectId id, Transaction *transaction) const
 {
   const PlatformEntry *entry = getEntry<const PlatformEntry, Platforms, NullTransactionImpl>(id, &platforms_, transaction);
-  return entry ? entry->properties() : NULL;
+  return entry ? entry->properties() : nullptr;
 }
 
 /// mutable version
 PlatformProperties* MemoryDataStore::mutable_platformProperties(ObjectId id, Transaction *transaction)
 {
-  PlatformEntry *entry = getEntry<PlatformEntry, Platforms, NullTransactionImpl>(id, &platforms_, transaction);
-  return entry ? entry->mutable_properties() : NULL;
+  if (!transaction)
+    return nullptr;
+
+  auto *entry = getEntry<PlatformEntry, Platforms>(id, &platforms_);
+  if (!entry)
+    return nullptr;
+
+  auto *impl = new MutablePropertyTransactionImpl<PlatformProperties>(id, entry->mutable_properties(), this, &listeners_);
+  *transaction = Transaction(impl);
+  return impl->properties();
 }
 
 ///@return const properties of beam with 'id'
 const BeamProperties *MemoryDataStore::beamProperties(ObjectId id, Transaction *transaction) const
 {
   const BeamEntry *entry = getEntry<const BeamEntry, Beams, NullTransactionImpl>(id, &beams_, transaction);
-  return entry ? entry->properties() : NULL;
+  return entry ? entry->properties() : nullptr;
 }
 
 /// mutable version
 BeamProperties *MemoryDataStore::mutable_beamProperties(ObjectId id, Transaction *transaction)
 {
-  BeamEntry *entry = getEntry<BeamEntry, Beams, NullTransactionImpl>(id, &beams_, transaction);
-  return entry ? entry->mutable_properties() : NULL;
+  if (!transaction)
+    return nullptr;
+
+  auto *entry = getEntry<BeamEntry, Beams>(id, &beams_);
+  if (!entry)
+    return nullptr;
+
+  auto *impl = new MutablePropertyTransactionImpl<BeamProperties>(id, entry->mutable_properties(), this, &listeners_);
+  *transaction = Transaction(impl);
+  return impl->properties();
 }
 
 ///@return const properties of gate with 'id'
 const GateProperties *MemoryDataStore::gateProperties(ObjectId id, Transaction *transaction) const
 {
   const GateEntry *entry = getEntry<const GateEntry, Gates, NullTransactionImpl>(id, &gates_, transaction);
-  return entry ? entry->properties() : NULL;
+  return entry ? entry->properties() : nullptr;
 }
 
 /// mutable version
 GateProperties *MemoryDataStore::mutable_gateProperties(ObjectId id, Transaction *transaction)
 {
-  GateEntry *entry = getEntry<GateEntry, Gates, NullTransactionImpl>(id, &gates_, transaction);
-  return entry ? entry->mutable_properties() : NULL;
+  if (!transaction)
+    return nullptr;
+
+  auto *entry = getEntry<GateEntry, Gates>(id, &gates_);
+  if (!entry)
+    return nullptr;
+
+  auto *impl = new MutablePropertyTransactionImpl<GateProperties>(id, entry->mutable_properties(), this, &listeners_);
+  *transaction = Transaction(impl);
+  return impl->properties();
 }
 
 ///@return const properties of laser with 'id'
 const LaserProperties* MemoryDataStore::laserProperties(ObjectId id, Transaction *transaction) const
 {
   const LaserEntry *entry = getEntry<const LaserEntry, Lasers, NullTransactionImpl>(id, &lasers_, transaction);
-  return entry ? entry->properties() : NULL;
+  return entry ? entry->properties() : nullptr;
 }
 
 /// mutable version
 LaserProperties* MemoryDataStore::mutable_laserProperties(ObjectId id, Transaction *transaction)
 {
-  LaserEntry *entry = getEntry<LaserEntry, Lasers, NullTransactionImpl>(id, &lasers_, transaction);
-  return entry ? entry->mutable_properties() : NULL;
+  if (!transaction)
+    return nullptr;
+
+  auto *entry = getEntry<LaserEntry, Lasers>(id, &lasers_);
+  if (!entry)
+    return nullptr;
+
+  auto *impl = new MutablePropertyTransactionImpl<LaserProperties>(id, entry->mutable_properties(), this, &listeners_);
+  *transaction = Transaction(impl);
+  return impl->properties();
 }
 
 ///@return const properties of projector with 'id'
 const ProjectorProperties* MemoryDataStore::projectorProperties(ObjectId id, Transaction *transaction) const
 {
   const ProjectorEntry *entry = getEntry<const ProjectorEntry, Projectors, NullTransactionImpl>(id, &projectors_, transaction);
-  return entry ? entry->properties() : NULL;
+  return entry ? entry->properties() : nullptr;
 }
 
 /// mutable version
 ProjectorProperties* MemoryDataStore::mutable_projectorProperties(ObjectId id, Transaction *transaction)
 {
-  ProjectorEntry *entry = getEntry<ProjectorEntry, Projectors, NullTransactionImpl>(id, &projectors_, transaction);
-  return entry ? entry->mutable_properties() : NULL;
+  if (!transaction)
+    return nullptr;
+
+  auto *entry = getEntry<ProjectorEntry, Projectors>(id, &projectors_);
+  if (!entry)
+    return nullptr;
+
+  auto *impl = new MutablePropertyTransactionImpl<ProjectorProperties>(id, entry->mutable_properties(), this, &listeners_);
+  *transaction = Transaction(impl);
+  return impl->properties();
 }
 
 ///@return const properties of lobGroup with 'id'
 const LobGroupProperties* MemoryDataStore::lobGroupProperties(ObjectId id, Transaction *transaction) const
 {
   const LobGroupEntry *entry = getEntry<const LobGroupEntry, LobGroups, NullTransactionImpl>(id, &lobGroups_, transaction);
-  return entry ? entry->properties() : NULL;
+  return entry ? entry->properties() : nullptr;
 }
 
 /// mutable version
 LobGroupProperties* MemoryDataStore::mutable_lobGroupProperties(ObjectId id, Transaction *transaction)
 {
-  LobGroupEntry *entry = getEntry<LobGroupEntry, LobGroups, NullTransactionImpl>(id, &lobGroups_, transaction);
-  return entry ? entry->mutable_properties() : NULL;
+  if (!transaction)
+    return nullptr;
+
+  auto *entry = getEntry<LobGroupEntry, LobGroups>(id, &lobGroups_);
+  if (!entry)
+    return nullptr;
+
+  auto *impl = new MutablePropertyTransactionImpl<LobGroupProperties>(id, entry->mutable_properties(), this, &listeners_);
+  *transaction = Transaction(impl);
+  return impl->properties();
 }
 
 const CustomRenderingProperties* MemoryDataStore::customRenderingProperties(ObjectId id, Transaction *transaction) const
 {
   const CustomRenderingEntry *entry = getEntry<const CustomRenderingEntry, CustomRenderings, NullTransactionImpl>(id, &customRenderings_, transaction);
-  return entry ? entry->properties() : NULL;
+  return entry ? entry->properties() : nullptr;
 }
 
 CustomRenderingProperties* MemoryDataStore::mutable_customRenderingProperties(ObjectId id, Transaction *transaction)
 {
-  CustomRenderingEntry *entry = getEntry<CustomRenderingEntry, CustomRenderings, NullTransactionImpl>(id, &customRenderings_, transaction);
-  return entry ? entry->mutable_properties() : NULL;
+  if (!transaction)
+    return nullptr;
+
+  auto *entry = getEntry<CustomRenderingEntry, CustomRenderings>(id, &customRenderings_);
+  if (!entry)
+    return nullptr;
+
+  auto *impl = new MutablePropertyTransactionImpl<CustomRenderingProperties>(id, entry->mutable_properties(), this, &listeners_);
+  *transaction = Transaction(impl);
+  return impl->properties();
 }
 
 const PlatformPrefs* MemoryDataStore::platformPrefs(ObjectId id, Transaction *transaction) const
 {
   const PlatformEntry *entry = getEntry<const PlatformEntry, Platforms, NullTransactionImpl>(id, &platforms_, transaction);
-  return entry ? entry->preferences() : NULL;
+  return entry ? entry->preferences() : nullptr;
 }
 
 PlatformPrefs* MemoryDataStore::mutable_platformPrefs(ObjectId id, Transaction *transaction)
@@ -1670,13 +1864,13 @@ PlatformPrefs* MemoryDataStore::mutable_platformPrefs(ObjectId id, Transaction *
   }
 
   // Platform associated with specified id was not found
-  return NULL;
+  return nullptr;
 }
 
 const BeamPrefs* MemoryDataStore::beamPrefs(ObjectId id, Transaction *transaction) const
 {
   const BeamEntry *entry = getEntry<const BeamEntry, Beams, NullTransactionImpl>(id, &beams_, transaction);
-  return entry ? entry->preferences() : NULL;
+  return entry ? entry->preferences() : nullptr;
 }
 
 BeamPrefs* MemoryDataStore::mutable_beamPrefs(ObjectId id, Transaction *transaction)
@@ -1692,13 +1886,13 @@ BeamPrefs* MemoryDataStore::mutable_beamPrefs(ObjectId id, Transaction *transact
   }
 
   // Beam associated with specified id was not found
-  return NULL;
+  return nullptr;
 }
 
 const GatePrefs* MemoryDataStore::gatePrefs(ObjectId id, Transaction *transaction) const
 {
   const GateEntry *entry = getEntry<const GateEntry, Gates, NullTransactionImpl>(id, &gates_, transaction);
-  return entry ? entry->preferences() : NULL;
+  return entry ? entry->preferences() : nullptr;
 }
 
 GatePrefs* MemoryDataStore::mutable_gatePrefs(ObjectId id, Transaction *transaction)
@@ -1714,13 +1908,13 @@ GatePrefs* MemoryDataStore::mutable_gatePrefs(ObjectId id, Transaction *transact
   }
 
   // Gate associated with specified id was not found
-  return NULL;
+  return nullptr;
 }
 
 const LaserPrefs* MemoryDataStore::laserPrefs(ObjectId id, Transaction *transaction) const
 {
   const LaserEntry *entry = getEntry<const LaserEntry, Lasers, NullTransactionImpl>(id, &lasers_, transaction);
-  return entry ? entry->preferences() : NULL;
+  return entry ? entry->preferences() : nullptr;
 }
 
 LaserPrefs* MemoryDataStore::mutable_laserPrefs(ObjectId id, Transaction *transaction)
@@ -1736,13 +1930,13 @@ LaserPrefs* MemoryDataStore::mutable_laserPrefs(ObjectId id, Transaction *transa
   }
 
   // Laser associated with specified id was not found
-  return NULL;
+  return nullptr;
 }
 
 const ProjectorPrefs* MemoryDataStore::projectorPrefs(ObjectId id, Transaction *transaction) const
 {
   const ProjectorEntry *entry = getEntry<const ProjectorEntry, Projectors, NullTransactionImpl>(id, &projectors_, transaction);
-  return entry ? entry->preferences() : NULL;
+  return entry ? entry->preferences() : nullptr;
 }
 
 ProjectorPrefs* MemoryDataStore:: mutable_projectorPrefs(ObjectId id, Transaction *transaction)
@@ -1758,13 +1952,13 @@ ProjectorPrefs* MemoryDataStore:: mutable_projectorPrefs(ObjectId id, Transactio
   }
 
   // Projector associated with specified id was not found
-  return NULL;
+  return nullptr;
 }
 
 const LobGroupPrefs* MemoryDataStore::lobGroupPrefs(ObjectId id, Transaction *transaction) const
 {
   const LobGroupEntry *entry = getEntry<const LobGroupEntry, LobGroups, NullTransactionImpl>(id, &lobGroups_, transaction);
-  return entry ? entry->preferences() : NULL;
+  return entry ? entry->preferences() : nullptr;
 }
 
 LobGroupPrefs* MemoryDataStore::mutable_lobGroupPrefs(ObjectId id, Transaction *transaction)
@@ -1780,13 +1974,13 @@ LobGroupPrefs* MemoryDataStore::mutable_lobGroupPrefs(ObjectId id, Transaction *
   }
 
   // LobGroup associated with specified id was not found
-  return NULL;
+  return nullptr;
 }
 
 const CustomRenderingPrefs* MemoryDataStore::customRenderingPrefs(ObjectId id, Transaction *transaction) const
 {
   const CustomRenderingEntry *entry = getEntry<const CustomRenderingEntry, CustomRenderings, NullTransactionImpl>(id, &customRenderings_, transaction);
-  return entry ? entry->preferences() : NULL;
+  return entry ? entry->preferences() : nullptr;
 }
 
 CustomRenderingPrefs* MemoryDataStore::mutable_customRenderingPrefs(ObjectId id, Transaction *transaction)
@@ -1801,63 +1995,63 @@ CustomRenderingPrefs* MemoryDataStore::mutable_customRenderingPrefs(ObjectId id,
     return impl->settings();
   }
 
-  return NULL;
+  return nullptr;
 }
 
 const CommonPrefs* MemoryDataStore::commonPrefs(ObjectId id, Transaction* transaction) const
 {
   const PlatformPrefs* plat = platformPrefs(id, transaction);
-  if (plat != NULL)
+  if (plat != nullptr)
     return &plat->commonprefs();
   const BeamPrefs* beam = beamPrefs(id, transaction);
-  if (beam != NULL)
+  if (beam != nullptr)
     return &beam->commonprefs();
   const GatePrefs* gate = gatePrefs(id, transaction);
-  if (gate != NULL)
+  if (gate != nullptr)
     return &gate->commonprefs();
   const LaserPrefs* laser = laserPrefs(id, transaction);
-  if (laser != NULL)
+  if (laser != nullptr)
     return &laser->commonprefs();
   const LobGroupPrefs* lobGroup = lobGroupPrefs(id, transaction);
-  if (lobGroup != NULL)
+  if (lobGroup != nullptr)
     return &lobGroup->commonprefs();
   const ProjectorPrefs* proj = projectorPrefs(id, transaction);
-  if (proj != NULL)
+  if (proj != nullptr)
     return &proj->commonprefs();
   const CustomRenderingPrefs* custom = customRenderingPrefs(id, transaction);
-  if (custom != NULL)
+  if (custom != nullptr)
     return &custom->commonprefs();
 
-  return NULL;
+  return nullptr;
 }
 
 CommonPrefs* MemoryDataStore::mutable_commonPrefs(ObjectId id, Transaction* transaction)
 {
   PlatformPrefs* plat = mutable_platformPrefs(id, transaction);
-  if (plat != NULL)
+  if (plat != nullptr)
     return plat->mutable_commonprefs();
   BeamPrefs* beam = mutable_beamPrefs(id, transaction);
-  if (beam != NULL)
+  if (beam != nullptr)
     return beam->mutable_commonprefs();
   GatePrefs* gate = mutable_gatePrefs(id, transaction);
-  if (gate != NULL)
+  if (gate != nullptr)
     return gate->mutable_commonprefs();
   LaserPrefs* laser = mutable_laserPrefs(id, transaction);
-  if (laser != NULL)
+  if (laser != nullptr)
     return laser->mutable_commonprefs();
   LobGroupPrefs* lobGroup = mutable_lobGroupPrefs(id, transaction);
-  if (lobGroup != NULL)
+  if (lobGroup != nullptr)
     return lobGroup->mutable_commonprefs();
   ProjectorPrefs* proj = mutable_projectorPrefs(id, transaction);
-  if (proj != NULL)
+  if (proj != nullptr)
     return proj->mutable_commonprefs();
   CustomRenderingPrefs* custom = mutable_customRenderingPrefs(id, transaction);
-  if (custom != NULL)
+  if (custom != nullptr)
     return custom->mutable_commonprefs();
-  return NULL;
+  return nullptr;
 }
 
-///@return NULL if platform for specified 'id' does not exist
+///@return nullptr if platform for specified 'id' does not exist
 PlatformUpdate* MemoryDataStore::addPlatformUpdate(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -1865,7 +2059,7 @@ PlatformUpdate* MemoryDataStore::addPlatformUpdate(ObjectId id, Transaction *tra
   PlatformEntry *entry = getEntry<PlatformEntry, Platforms>(id, &platforms_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   PlatformUpdate *update = new PlatformUpdate();
@@ -1877,7 +2071,7 @@ PlatformUpdate* MemoryDataStore::addPlatformUpdate(ObjectId id, Transaction *tra
   return update;
 }
 
-///@return NULL if platform for specified 'id' does not exist
+///@return nullptr if platform for specified 'id' does not exist
 PlatformCommand *MemoryDataStore::addPlatformCommand(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -1885,7 +2079,7 @@ PlatformCommand *MemoryDataStore::addPlatformCommand(ObjectId id, Transaction *t
   PlatformEntry *entry = getEntry<PlatformEntry, Platforms>(id, &platforms_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   PlatformCommand *command = new PlatformCommand();
@@ -1898,7 +2092,7 @@ PlatformCommand *MemoryDataStore::addPlatformCommand(ObjectId id, Transaction *t
   return command;
 }
 
-///@return NULL if beam for specified 'id' does not exist
+///@return nullptr if beam for specified 'id' does not exist
 BeamUpdate* MemoryDataStore::addBeamUpdate(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -1906,7 +2100,7 @@ BeamUpdate* MemoryDataStore::addBeamUpdate(ObjectId id, Transaction *transaction
   BeamEntry *entry = getEntry<BeamEntry, Beams>(id, &beams_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   BeamUpdate *update = new BeamUpdate();
@@ -1918,7 +2112,7 @@ BeamUpdate* MemoryDataStore::addBeamUpdate(ObjectId id, Transaction *transaction
   return update;
 }
 
-///@return NULL if beam for specified 'id' does not exist
+///@return nullptr if beam for specified 'id' does not exist
 BeamCommand *MemoryDataStore::addBeamCommand(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -1926,7 +2120,7 @@ BeamCommand *MemoryDataStore::addBeamCommand(ObjectId id, Transaction *transacti
   BeamEntry *entry = getEntry<BeamEntry, Beams>(id, &beams_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   BeamCommand *command = new BeamCommand();
@@ -1939,7 +2133,7 @@ BeamCommand *MemoryDataStore::addBeamCommand(ObjectId id, Transaction *transacti
   return command;
 }
 
-///@return NULL if gate for specified 'id' does not exist
+///@return nullptr if gate for specified 'id' does not exist
 GateUpdate* MemoryDataStore::addGateUpdate(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -1947,7 +2141,7 @@ GateUpdate* MemoryDataStore::addGateUpdate(ObjectId id, Transaction *transaction
   GateEntry *entry = getEntry<GateEntry, Gates>(id, &gates_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   GateUpdate *update = new GateUpdate();
@@ -1959,7 +2153,7 @@ GateUpdate* MemoryDataStore::addGateUpdate(ObjectId id, Transaction *transaction
   return update;
 }
 
-///@return NULL if gate for specified 'id' does not exist
+///@return nullptr if gate for specified 'id' does not exist
 GateCommand *MemoryDataStore::addGateCommand(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -1967,7 +2161,7 @@ GateCommand *MemoryDataStore::addGateCommand(ObjectId id, Transaction *transacti
   GateEntry *entry = getEntry<GateEntry, Gates>(id, &gates_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   GateCommand *command = new GateCommand();
@@ -1980,7 +2174,7 @@ GateCommand *MemoryDataStore::addGateCommand(ObjectId id, Transaction *transacti
   return command;
 }
 
-///@return NULL if laser for specified 'id' does not exist
+///@return nullptr if laser for specified 'id' does not exist
 LaserUpdate* MemoryDataStore::addLaserUpdate(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -1988,7 +2182,7 @@ LaserUpdate* MemoryDataStore::addLaserUpdate(ObjectId id, Transaction *transacti
   LaserEntry *entry = getEntry<LaserEntry, Lasers>(id, &lasers_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   LaserUpdate *update = new LaserUpdate();
@@ -2000,7 +2194,7 @@ LaserUpdate* MemoryDataStore::addLaserUpdate(ObjectId id, Transaction *transacti
   return update;
 }
 
-///@return NULL if laser for specified 'id' does not exist
+///@return nullptr if laser for specified 'id' does not exist
 LaserCommand *MemoryDataStore::addLaserCommand(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -2008,7 +2202,7 @@ LaserCommand *MemoryDataStore::addLaserCommand(ObjectId id, Transaction *transac
   LaserEntry *entry = getEntry<LaserEntry, Lasers>(id, &lasers_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   LaserCommand *command = new LaserCommand();
@@ -2021,7 +2215,7 @@ LaserCommand *MemoryDataStore::addLaserCommand(ObjectId id, Transaction *transac
   return command;
 }
 
-///@return NULL if projector for specified 'id' does not exist
+///@return nullptr if projector for specified 'id' does not exist
 ProjectorUpdate* MemoryDataStore::addProjectorUpdate(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -2029,7 +2223,7 @@ ProjectorUpdate* MemoryDataStore::addProjectorUpdate(ObjectId id, Transaction *t
   ProjectorEntry *entry = getEntry<ProjectorEntry, Projectors>(id, &projectors_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   ProjectorUpdate *update = new ProjectorUpdate();
@@ -2041,7 +2235,7 @@ ProjectorUpdate* MemoryDataStore::addProjectorUpdate(ObjectId id, Transaction *t
   return update;
 }
 
-///@return NULL if projector for specified 'id' does not exist
+///@return nullptr if projector for specified 'id' does not exist
 ProjectorCommand *MemoryDataStore::addProjectorCommand(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -2049,7 +2243,7 @@ ProjectorCommand *MemoryDataStore::addProjectorCommand(ObjectId id, Transaction 
   ProjectorEntry *entry = getEntry<ProjectorEntry, Projectors>(id, &projectors_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   ProjectorCommand *command = new ProjectorCommand();
@@ -2062,7 +2256,7 @@ ProjectorCommand *MemoryDataStore::addProjectorCommand(ObjectId id, Transaction 
   return command;
 }
 
-///@return NULL if lobGroup for specified 'id' does not exist
+///@return nullptr if lobGroup for specified 'id' does not exist
 LobGroupUpdate* MemoryDataStore::addLobGroupUpdate(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -2070,7 +2264,7 @@ LobGroupUpdate* MemoryDataStore::addLobGroupUpdate(ObjectId id, Transaction *tra
   LobGroupEntry *entry = getEntry<LobGroupEntry, LobGroups>(id, &lobGroups_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   LobGroupUpdate *update = new LobGroupUpdate();
@@ -2082,7 +2276,7 @@ LobGroupUpdate* MemoryDataStore::addLobGroupUpdate(ObjectId id, Transaction *tra
   return update;
 }
 
-///@return NULL if lobGroup for specified 'id' does not exist
+///@return nullptr if lobGroup for specified 'id' does not exist
 LobGroupCommand *MemoryDataStore::addLobGroupCommand(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -2090,7 +2284,7 @@ LobGroupCommand *MemoryDataStore::addLobGroupCommand(ObjectId id, Transaction *t
   LobGroupEntry *entry = getEntry<LobGroupEntry, LobGroups>(id, &lobGroups_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   LobGroupCommand *command = new LobGroupCommand();
@@ -2110,7 +2304,7 @@ CustomRenderingCommand* MemoryDataStore::addCustomRenderingCommand(ObjectId id, 
   auto *entry = getEntry<CustomRenderingEntry, CustomRenderings>(id, &customRenderings_);
   if (!entry)
   {
-    return NULL;
+    return nullptr;
   }
 
   auto *command = new CustomRenderingCommand();
@@ -2123,7 +2317,7 @@ CustomRenderingCommand* MemoryDataStore::addCustomRenderingCommand(ObjectId id, 
   return command;
 }
 
-///@return NULL if generic data for specified 'id' does not exist
+///@return nullptr if generic data for specified 'id' does not exist
 GenericData* MemoryDataStore::addGenericData(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -2131,7 +2325,7 @@ GenericData* MemoryDataStore::addGenericData(ObjectId id, Transaction *transacti
   MemoryGenericDataSlice *slice = getEntry<MemoryGenericDataSlice, GenericDataMap>(id, &genericData_);
   if (!slice)
   {
-    return NULL;
+    return nullptr;
   }
 
   GenericData *data = new GenericData();
@@ -2145,7 +2339,7 @@ GenericData* MemoryDataStore::addGenericData(ObjectId id, Transaction *transacti
   return data;
 }
 
-///@return NULL if category data for specified 'id' does not exist
+///@return nullptr if category data for specified 'id' does not exist
 CategoryData* MemoryDataStore::addCategoryData(ObjectId id, Transaction *transaction)
 {
   assert(transaction);
@@ -2153,7 +2347,7 @@ CategoryData* MemoryDataStore::addCategoryData(ObjectId id, Transaction *transac
   MemoryCategoryDataSlice *slice = getEntry<MemoryCategoryDataSlice, CategoryDataMap> (id, &categoryData_);
   if (!slice)
   {
-    return NULL;
+    return nullptr;
   }
 
   CategoryData *data = new CategoryData();
@@ -2168,79 +2362,79 @@ CategoryData* MemoryDataStore::addCategoryData(ObjectId id, Transaction *transac
 const PlatformUpdateSlice* MemoryDataStore::platformUpdateSlice(ObjectId id) const
 {
   PlatformEntry *entry = getEntry<PlatformEntry, Platforms>(id, &platforms_);
-  return entry ? entry->updates() : NULL;
+  return entry ? entry->updates() : nullptr;
 }
 
 const PlatformCommandSlice* MemoryDataStore::platformCommandSlice(ObjectId id) const
 {
   PlatformEntry *entry = getEntry<PlatformEntry, Platforms>(id, &platforms_);
-  return entry ? entry->commands() : NULL;
+  return entry ? entry->commands() : nullptr;
 }
 
 const BeamUpdateSlice* MemoryDataStore::beamUpdateSlice(ObjectId id) const
 {
   BeamEntry *entry = getEntry<BeamEntry, Beams>(id, &beams_);
-  return entry ? entry->updates() : NULL;
+  return entry ? entry->updates() : nullptr;
 }
 
 const BeamCommandSlice* MemoryDataStore::beamCommandSlice(ObjectId id) const
 {
   BeamEntry *entry = getEntry<BeamEntry, Beams>(id, &beams_);
-  return entry ? entry->commands() : NULL;
+  return entry ? entry->commands() : nullptr;
 }
 
 const GateUpdateSlice* MemoryDataStore::gateUpdateSlice(ObjectId id) const
 {
   GateEntry *entry = getEntry<GateEntry, Gates>(id, &gates_);
-  return entry ? entry->updates() : NULL;
+  return entry ? entry->updates() : nullptr;
 }
 
 const GateCommandSlice* MemoryDataStore::gateCommandSlice(ObjectId id) const
 {
   GateEntry *entry = getEntry<GateEntry, Gates>(id, &gates_);
-  return entry ? entry->commands() : NULL;
+  return entry ? entry->commands() : nullptr;
 }
 
 const LaserUpdateSlice* MemoryDataStore::laserUpdateSlice(ObjectId id) const
 {
   LaserEntry *entry = getEntry<LaserEntry, Lasers>(id, &lasers_);
-  return entry ? entry->updates() : NULL;
+  return entry ? entry->updates() : nullptr;
 }
 
 const LaserCommandSlice* MemoryDataStore::laserCommandSlice(ObjectId id) const
 {
   LaserEntry *entry = getEntry<LaserEntry, Lasers>(id, &lasers_);
-  return entry ? entry->commands() : NULL;
+  return entry ? entry->commands() : nullptr;
 }
 
 const ProjectorUpdateSlice* MemoryDataStore::projectorUpdateSlice(ObjectId id) const
 {
   ProjectorEntry *entry = getEntry<ProjectorEntry, Projectors>(id, &projectors_);
-  return entry ? entry->updates() : NULL;
+  return entry ? entry->updates() : nullptr;
 }
 
 const ProjectorCommandSlice* MemoryDataStore::projectorCommandSlice(ObjectId id) const
 {
   ProjectorEntry *entry = getEntry<ProjectorEntry, Projectors>(id, &projectors_);
-  return entry ? entry->commands() : NULL;
+  return entry ? entry->commands() : nullptr;
 }
 
 const LobGroupUpdateSlice* MemoryDataStore::lobGroupUpdateSlice(ObjectId id) const
 {
   LobGroupEntry *entry = getEntry<LobGroupEntry, LobGroups>(id, &lobGroups_);
-  return entry ? entry->updates() : NULL;
+  return entry ? entry->updates() : nullptr;
 }
 
 const LobGroupCommandSlice* MemoryDataStore::lobGroupCommandSlice(ObjectId id) const
 {
   LobGroupEntry *entry = getEntry<LobGroupEntry, LobGroups>(id, &lobGroups_);
-  return entry ? entry->commands() : NULL;
+  return entry ? entry->commands() : nullptr;
 }
 
 const CustomRenderingCommandSlice* MemoryDataStore::customRenderingCommandSlice(ObjectId id) const
 {
   CustomRenderingEntry *entry = getEntry<CustomRenderingEntry, CustomRenderings>(id, &customRenderings_);
-  return entry ? entry->commands() : NULL;
+  return entry ? entry->commands() : nullptr;
 }
 
 const GenericDataSlice* MemoryDataStore::genericDataSlice(ObjectId id) const
@@ -2260,7 +2454,7 @@ int MemoryDataStore::modifyPlatformCommandSlice(ObjectId id, VisitableDataSlice<
   case simData::PLATFORM:
   {
     PlatformEntry *entry = getEntry<PlatformEntry, Platforms>(id, &platforms_);
-    if (entry == NULL)
+    if (entry == nullptr)
       return 1;
     PlatformCommandSlice* commands = entry->commands();
     commands->modify(modifier);
@@ -2281,7 +2475,7 @@ int MemoryDataStore::modifyCustomRenderingCommandSlice(ObjectId id, VisitableDat
   case simData::CUSTOM_RENDERING:
   {
     CustomRenderingEntry *entry = getEntry<CustomRenderingEntry, CustomRenderings>(id, &customRenderings_);
-    if (entry == NULL)
+    if (entry == nullptr)
       return 1;
     CustomRenderingCommandSlice* commands = entry->commands();
     commands->modify(modifier);
@@ -2360,7 +2554,7 @@ void MemoryDataStore::setNewUpdatesListener(NewUpdatesListenerPtr callback)
   std::shared_ptr<MemoryTable::TableManager::NewRowDataListener> newRowListener;
 
   // If clearing out the updates listener, then also clear out the memory table's listener for performance
-  if (callback == NULL)
+  if (callback == nullptr)
     newUpdatesListener_.reset(new DefaultNewUpdatesListener);
   else
   {
@@ -2473,11 +2667,11 @@ void MemoryDataStore::MutableSettingsTransactionImpl<T>::release()
     // Raise notifications for settings changes after internal data structures are updated
     for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
     {
-      if (*i != NULL)
+      if (*i != nullptr)
       {
         (*i)->onPrefsChange(store_, id_);
         store_->checkForRemoval_(localCopy);
-        if ((*i != NULL) && (nameChange_))
+        if ((*i != nullptr) && (nameChange_))
         {
           (*i)->onNameChange(store_, id_);
           store_->checkForRemoval_(localCopy);
@@ -2492,7 +2686,68 @@ MemoryDataStore::MutableSettingsTransactionImpl<T>::~MutableSettingsTransactionI
 {
   release();
   delete modifiedSettings_;
-  modifiedSettings_ = NULL;
+  modifiedSettings_ = nullptr;
+}
+
+//----------------------------------------------------------------------------
+template<typename T>
+MemoryDataStore::MutablePropertyTransactionImpl<T>::MutablePropertyTransactionImpl(ObjectId id, T *properties, MemoryDataStore *store, ListenerList *observers)
+  : id_(id),
+  committed_(false),
+  notified_(false),
+  currentProperties_(properties),
+  store_(store),
+  observers_(observers)
+{
+  // create a copy of currentProperties_ for the user to experiment with
+  modifiedProperties_ = currentProperties_->New();
+  modifiedProperties_->CopyFrom(*currentProperties_);
+}
+
+template<typename T>
+void MemoryDataStore::MutablePropertyTransactionImpl<T>::commit()
+{
+  // performance: skip if there are no changes
+  if (modifiedProperties_->SerializeAsString() != currentProperties_->SerializeAsString())
+  {
+    committed_ = true; // transaction is valid
+
+    // copy the settings modified by the user into the entity settings
+    currentProperties_->CopyFrom(*modifiedProperties_);
+    store_->hasChanged_ = true;
+  }
+}
+
+// Notification occurs on release
+template<typename T>
+void MemoryDataStore::MutablePropertyTransactionImpl<T>::release()
+{
+  // Raise the notification if changes were committed (one time only)
+  if (committed_ && !notified_)
+  {
+    notified_ = true;
+
+    // Need to handle recursion so make a local copy
+    ListenerList localCopy = *observers_;
+    store_->justRemoved_.clear();
+    // Raise notifications for settings changes after internal data structures are updated
+    for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
+    {
+      if (*i != nullptr)
+      {
+        (*i)->onPropertiesChange(store_, id_);
+        store_->checkForRemoval_(localCopy);
+      }
+    }
+  }
+}
+
+template<typename T>
+MemoryDataStore::MutablePropertyTransactionImpl<T>::~MutablePropertyTransactionImpl()
+{
+  release();
+  delete modifiedProperties_;
+  modifiedProperties_ = nullptr;
 }
 
 MemoryDataStore::ScenarioSettingsTransactionImpl::ScenarioSettingsTransactionImpl(ScenarioProperties *settings, MemoryDataStore *store, ScenarioListenerList *observers)
@@ -2544,7 +2799,7 @@ MemoryDataStore::ScenarioSettingsTransactionImpl::~ScenarioSettingsTransactionIm
 {
   release();
   delete modifiedSettings_;
-  modifiedSettings_ = NULL;
+  modifiedSettings_ = nullptr;
 }
 
 //----------------------------------------------------------------------------
@@ -2556,9 +2811,9 @@ void MemoryDataStore::NewEntryTransactionImpl<T, P>::commit()
   {
     committed_ = true;
 
-    assert(entries_ != NULL);
-    assert(entry_ != NULL);
-    assert(entry_->properties() != NULL);
+    assert(entries_ != nullptr);
+    assert(entry_ != nullptr);
+    assert(entry_->properties() != nullptr);
     // Not allows to change the ID
     assert(initialId_ == entry_->properties()->id());
 
@@ -2573,7 +2828,7 @@ void MemoryDataStore::NewEntryTransactionImpl<T, P>::commit()
     {
       // Attempting to create an entity with same ID
       SIM_DEBUG << "Replacing entity with ID " << entry_->properties()->id() << "\n";
-      assert(i->second != NULL);
+      assert(i->second != nullptr);
       delete i->second;
       i->second = entry_;
     }
@@ -2597,7 +2852,7 @@ void MemoryDataStore::NewEntryTransactionImpl<T, P>::release()
   {
     // Delete the uncommitted entry
     delete entry_;
-    entry_ = NULL;
+    entry_ = nullptr;
   }
   else
   {
@@ -2614,7 +2869,7 @@ void MemoryDataStore::NewEntryTransactionImpl<T, P>::release()
       store_->justRemoved_.clear();
       for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
       {
-        if (*i != NULL)
+        if (*i != nullptr)
         {
           (*i)->onAddEntity(store_, id, ot);
           store_->checkForRemoval_(localCopy);
@@ -2653,7 +2908,6 @@ void MemoryDataStore::NewUpdateTransactionImpl<T, SliceType>::commit()
     dataStore_->hasChanged_ = true;
     if (isEntityUpdate_)
     {
-      dataStore_->newTimeBound_(updateTime);
       // Notify the data store's new-update callback
       dataStore_->newUpdatesListener().onEntityUpdate(dataStore_, id_, updateTime);
     }
@@ -2684,7 +2938,7 @@ void MemoryDataStore::NewUpdateTransactionImpl<T, SliceType>::release()
   {
     // Delete the uncommitted update
     delete update_;
-    update_ = NULL;
+    update_ = nullptr;
   }
 }
 
@@ -2725,7 +2979,7 @@ void MemoryDataStore::NewScenarioGenericUpdateTransactionImpl<T, SliceType>::rel
   {
     // Delete the uncommitted update
     delete update_;
-    update_ = NULL;
+    update_ = nullptr;
   }
 }
 
@@ -2737,15 +2991,6 @@ MemoryDataStore::NewScenarioGenericUpdateTransactionImpl<T, SliceType>::~NewScen
 }
 
 //----------------------------------------------------------------------------
-// Updates the scenario time bounds with a new time
-void MemoryDataStore::newTimeBound_(double timeVal)
-{
-  if (timeVal < 0.0)
-    return;
-
-  timeBounds_.first = simCore::sdkMin(timeVal, timeBounds_.first);
-  timeBounds_.second = simCore::sdkMax(timeVal, timeBounds_.second);
-}
 
 /// Helper function to set a pair<> to min/max bounds for an XyzEntry; returns 0 when minMax is changed
 template <typename EntryType,            // PlatformEntry, BeamEntry, GateEntry, etc
@@ -2787,7 +3032,20 @@ std::pair<double, double> MemoryDataStore::timeBounds(ObjectId entityId) const
 
 std::pair<double, double> MemoryDataStore::timeBounds() const
 {
-  return timeBounds_;
+  double min = std::numeric_limits<double>::max();
+  double max = -std::numeric_limits<double>::max();
+
+  for (auto it = platforms_.begin(); it != platforms_.end(); ++it)
+  {
+    const auto updates = it->second->updates();
+    if ((updates->numItems() == 0) || (updates->firstTime() < 0.0))
+      continue;
+
+    min = simCore::sdkMin(min, updates->firstTime());
+    max = simCore::sdkMax(max, updates->lastTime());
+  }
+
+  return std::pair<double, double>(min, max);
 }
 
 }

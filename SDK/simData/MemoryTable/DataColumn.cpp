@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -223,16 +224,16 @@ public:
     return TableStatus::Success();
   }
 
-  /** Removes the entry at the given index */
-  virtual void erase(size_t position)
+  /** Removes the entries starting at the given index */
+  virtual void erase(size_t position, size_t number = 1)
   {
     if (position < size())
     {
       // Performance optimization (SIMSDK-260): pop_front() when able
-      if (position == 0)
+      if ((position == 0) && (number == 1))
         data_.pop_front();
       else
-        data_.erase(data_.begin() + position);
+        data_.erase(data_.begin() + position, data_.begin() + position + number);
     }
   }
   /** Total size of the data structure */
@@ -286,24 +287,25 @@ private:
 /////////////////////////////////////////////////////////////////
 
 /** Instantiates a new data column. */
-DataColumn::DataColumn(TimeContainer* timeContainer, const std::string& columnName, TableColumnId columnId, VariableType storageType, UnitType unitType)
+DataColumn::DataColumn(TimeContainer* timeContainer, const std::string& columnName, TableId tableId, TableColumnId columnId, VariableType storageType, UnitType unitType)
   : timeContainer_(timeContainer),
-    freshData_(NULL),
-    staleData_(NULL),
+    freshData_(nullptr),
+    staleData_(nullptr),
     name_(columnName),
+    tableId_(tableId),
     id_(columnId),
     variableType_(storageType),
     unitType_(unitType)
 {
   // Assertion failure means invalid precondition
-  assert(timeContainer_ != NULL);
+  assert(timeContainer_ != nullptr);
   freshData_ = newDataContainer_(variableType_);
   staleData_ = newDataContainer_(variableType_);
   // Assertion means we didn't make a data container, which would only happen if
   // someone added a new variable type.  Note this would show up as a Linux
   // compile time warning as well, as long as switch() doesn't have a default case.
-  assert(freshData_ != NULL);
-  assert(staleData_ != NULL);
+  assert(freshData_ != nullptr);
+  assert(staleData_ != nullptr);
 }
 
 /** Columns contain no dynamic memory */
@@ -313,9 +315,9 @@ DataColumn::~DataColumn()
   delete freshData_;
 }
 
-void DataColumn::erase(bool freshContainer, size_t position)
+void DataColumn::erase(bool freshContainer, size_t position, size_t number)
 {
-  dataContainer_(freshContainer)->erase(position);
+  dataContainer_(freshContainer)->erase(position, number);
 }
 
 size_t DataColumn::size() const
@@ -344,8 +346,8 @@ public:
   {
     delete freshData_;
     delete staleData_;
-    freshData_ = NULL;
-    staleData_ = NULL;
+    freshData_ = nullptr;
+    staleData_ = nullptr;
   }
 private:
   DataContainer* freshData_;
@@ -358,6 +360,11 @@ DelayedFlushContainerPtr DataColumn::flush()
   if (freshData_->empty() && staleData_->empty())
     return DelayedFlushContainerPtr();
   return DelayedFlushContainerPtr(new FlushContainer(*this));
+}
+
+TableId DataColumn::tableId() const
+{
+  return tableId_;
 }
 
 TableColumnId DataColumn::columnId() const
@@ -440,7 +447,7 @@ TableStatus DataColumn::interpolate(double& value, double time, const Interpolat
 void DataColumn::replaceTimeContainer(TimeContainer* newTimes)
 {
   // Assertion failure means invalid precondition
-  assert(newTimes != NULL);
+  assert(newTimes != nullptr);
   timeContainer_ = newTimes;
 }
 
@@ -498,7 +505,7 @@ DataContainer* DataColumn::newDataContainer_(simData::VariableType variableType)
   case VT_DOUBLE: return new DataContainerT<double>();
   case VT_STRING: return new DataContainerT<std::string>();
   }
-  return NULL;
+  return nullptr;
 }
 
 void DataColumn::swapFreshStaleData()

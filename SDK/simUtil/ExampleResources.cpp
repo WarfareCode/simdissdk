@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -34,7 +35,6 @@
 #include "simCore/String/Utils.h"
 #include "simCore/Time/ClockImpl.h"
 #include "simData/DataStore.h"
-#include "simVis/DBOptions.h"
 #include "simVis/Gl3Utils.h"
 #include "simVis/Registry.h"
 #include "simVis/SceneManager.h"
@@ -139,7 +139,7 @@ Map* simExamples::createHawaiiTMSMap()
   if (node.valid() && dynamic_cast<MapNode*>(node.get()))
     map = dynamic_cast<MapNode*>(node.get())->getMap();
 
-  node = NULL;
+  node = nullptr;
   return map.release();
 }
 
@@ -170,7 +170,8 @@ Map* simExamples::createHawaiiMap()
   MBTilesElevationLayer* elev = new MBTilesElevationLayer();
   elev->setName("Kauai Elevation");
   elev->setURL(getSampleDataPath() + PATH_SEP + "terrain" + PATH_SEP + EXAMPLE_ELEVATION_LAYER_DB);
-  elev->setMinLevel(7u);
+  // SIM-13914 - setting min_level on elevation layers causing artifacts
+  //elev->setMinLevel(7u);
   map->addLayer(elev);
 
   return map;
@@ -327,6 +328,17 @@ void simExamples::configureSearchPaths()
   simVisRegistry->setModelSearchPaths(modelPathList);
   osgDB::setDataFilePathList(pathList);
 
+  // Set the environment variable for proj4 if it's not set already
+  const std::string PROJ_LIB = simCore::getEnvVar("PROJ_LIB");
+  if (PROJ_LIB.empty() || !osgDB::fileExists(PROJ_LIB + "/proj/proj.db"))
+  {
+    // First try to use the SIMDIS_DIR, then fall back to SIMDIS_SDK_DATA_PATH
+    if (!SIMDIS_DIR.empty() && osgDB::fileExists(SIMDIS_DIR + "/data/proj/proj.db"))
+      simCore::setEnvVar("PROJ_LIB", SIMDIS_DIR + "/data/proj", true);
+    else if (!basePath.empty() && osgDB::fileExists(basePath + "/proj/proj.db"))
+      simCore::setEnvVar("PROJ_LIB", basePath + "/proj", true);
+  }
+
   // Fix the GL3 version
   simVis::applyMesaGlVersionOverride();
 }
@@ -430,7 +442,7 @@ void simExamples::SkyNodeTimeUpdater::setSceneManager(simVis::SceneManager* mgr)
 void simExamples::SkyNodeTimeUpdater::onSetTime(const simCore::TimeStamp &t, bool isJump)
 {
   lastTime_ = t;
-  if (sceneManager_.valid() && sceneManager_->getSkyNode() != NULL)
+  if (sceneManager_.valid() && sceneManager_->getSkyNode() != nullptr)
   {
     sceneManager_->getSkyNode()->setDateTime(osgEarth::DateTime(t.secondsSinceRefYear(1970) + simCore::Seconds(hoursOffset_ * simCore::SECPERHOUR)));
   }

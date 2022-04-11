@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -28,8 +29,9 @@
 
 #include <osg/Geode>
 #include <osgText/Text>
+#include <osgViewer/View>
 #include "simCore/Common/Common.h"
-#include "simVis/View.h"
+#include "simVis/Types.h"
 
 namespace osgGA { class GUIEventHandler; }
 
@@ -465,8 +467,12 @@ private:
 class SDKUTIL_EXPORT HudManager
 {
 public:
-  /** Constructor */
-  HudManager(simVis::View* view);
+  /**
+   * Constructs a new HudManager.  Passes in the View and the parent node for the HUD.  For example:
+   * simVis::View* hudView = ...;
+   * HudManager* hudManager = new HudManager(hudView, hudView->getOrCreateHUD());
+   */
+  HudManager(osgViewer::View* view, osg::Group* parentNode);
   virtual ~HudManager();
 
   /**
@@ -548,9 +554,6 @@ public:
   /// Removes the specified image
   void removeImage(HudImage* hudImage);
 
-  /// Returns the current HUD
-  osg::Camera* hud() const;
-
   /// Set the render level this HudManager should apply to all its hud items
   void setRenderLevel(HudRenderLevel renderLevel);
 
@@ -569,8 +572,8 @@ private:
   osg::ref_ptr<osg::Group> group_;  ///< group node that holds all the hud text and images
   std::vector< osg::ref_ptr<HudText> > textVector_;    ///< The current overlay text
   std::vector< osg::ref_ptr<HudImage> > imageVector_;  ///< The current overlay images
-  osg::observer_ptr<simVis::View> view_;  ///< The view for this manager
-  osg::observer_ptr<osg::Camera> hud_;    ///< The HUD for this manager
+  osg::observer_ptr<osgViewer::View> view_;  ///< The view for this manager
+  osg::observer_ptr<osg::Group> parentNode_;    ///< The parent node where this manager adds itself to the scene
   osg::ref_ptr<osgGA::GUIEventHandler> handler_;  ///< The callback for window re-size
   int windowWidth_;   ///< Save a copy of the window width
   int windowHeight_;  ///< Save a copy of the window height

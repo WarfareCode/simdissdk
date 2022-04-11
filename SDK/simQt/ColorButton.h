@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -41,7 +42,7 @@ class SDKQT_EXPORT ColorButton : public QPushButton
 
 public:
   /// Constructor
-  ColorButton(QWidget* parent = NULL);
+  ColorButton(QWidget* parent = nullptr);
   virtual ~ColorButton();
 
   /** returns the current color selection */
@@ -67,7 +68,7 @@ public slots:
 
 signals:
   /** Emitted when double clicked */
-  void doubleClicked(QMouseEvent* evt=NULL);
+  void doubleClicked(QMouseEvent* evt=nullptr);
 
 protected:
   /** Override the paint event to draw the gradient blending alpha if necessary */

@@ -13,7 +13,8 @@
  *               4555 Overlook Ave.
  *               Washington, D.C. 20375-5339
  *
- * License for source code at https://simdis.nrl.navy.mil/License.aspx
+ * License for source code is in accompanying LICENSE.txt file. If you did
+ * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -224,7 +225,7 @@ void TimeStamp::fix_()
     return;
 
   // treat all intervening years as non-leap years
-  const double years = floor(secondsSinceRefYear_.Double() / SECPERYEAR);
+  const double years = secondsSinceRefYear_.getSeconds() >= 0 ? floor(secondsSinceRefYear_.Double() / SECPERYEAR) : ceil(secondsSinceRefYear_.Double() / SECPERYEAR);
   if (fabs(years) > MAX_FIX)
   {
     if (years < 0)
@@ -253,9 +254,11 @@ void TimeStamp::fix_()
   }
   else if (validFixResult == 2)
   {
+    // The code above should prevent this
+    assert(false);
     const int secondsInRefYear = SECPERDAY * daysPerYear(newReferenceYear);
     newReferenceYear++;
-    secondsSinceRefYear_ += Seconds(secondsInRefYear, 0);
+    secondsSinceRefYear_ -= Seconds(secondsInRefYear, 0);
   }
   if (newReferenceYear < MIN_TIME_YEAR)
   {

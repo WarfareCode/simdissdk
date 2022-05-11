@@ -267,6 +267,12 @@ public:
 
       if (on_)
       {
+        // Texture-only mode
+        bool textureOnly = textureOnly_;
+        IMGUI_ADD_ROW(ImGui::Checkbox, "Texture-only Mode", &textureOnly_);
+        if (textureOnly != textureOnly_)
+          app_.planetarium->setTextureOnlyMode(textureOnly_);
+
         using TextureUnit = simVis::PlanetariumViewTool::TextureUnit;
         // Image 1
         bool showImage1 = showImage1_;
@@ -297,7 +303,7 @@ public:
           float image2Lat[2] = { image2Lat_[0], image2Lat_[1] };
           IMGUI_ADD_ROW(ImGui::SliderFloat2, "Image 2 Latitude", image2Lat_, -90.f, 90.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
           float image2Lon[2] = { image2Lon_[0], image2Lon_[1] };
-          IMGUI_ADD_ROW(ImGui::SliderFloat2, "Image 2 Longitude", image2Lon_, -180.f, 180.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
+          IMGUI_ADD_ROW(ImGui::SliderFloat2, "Image 2 Longitude", image2Lon_, -360.f, 360.f, "%.2f", ImGuiSliderFlags_AlwaysClamp);
           if (image2Lat[0] != image2Lat_[0] || image2Lat[1] != image2Lat_[1] ||
             image2Lon[0] != image2Lon_[0] || image2Lon[1] != image2Lon_[1])
           {
@@ -351,6 +357,7 @@ private:
   bool shadowMapping_ = true;
   bool doubleSided_ = false;
 
+  bool textureOnly_ = false;
   bool showImage1_ = false;
   float image1Alpha_ = 0.75f;
   bool showImage2_ = false;
@@ -741,6 +748,7 @@ int main(int argc, char **argv)
   app.planetarium->setRange(75000);
 
   // Add planetarium textures. These can be edited only in IMGUI configuration
+  app.planetarium->setTextureOnlyMode(false);
   using TextureUnit = simVis::PlanetariumViewTool::TextureUnit;
   app.planetarium->setTextureImage(TextureUnit::UNIT0, osgDB::readImageFile("earthcolor.jpg"));
   app.planetarium->setTextureEnabled(TextureUnit::UNIT0, false);

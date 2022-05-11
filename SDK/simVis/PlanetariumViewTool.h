@@ -132,7 +132,7 @@ public:
   /** Set whether to use a gradient when displaying history points */
   void setUseGradient(bool useGradient);
   /** Whether to use a gradient when displaying history points */
-  bool useGradient() const;
+  bool getUseGradient() const;
 
   /** Set whether to draw a sector instead of a full planetarium */
   void setUseSector(bool useSector);
@@ -186,6 +186,11 @@ public:
   void setTextureEnabled(TextureUnit texUnit, bool active);
   /** Returns true if the texture has been enabled on the dome. */
   bool getTextureEnabled(TextureUnit texUnit) const;
+
+  /** Turns on "texture only" mode, where sphere background is not drawn if there are textures */
+  void setTextureOnlyMode(bool textureOnlyMode);
+  /** Retrieves state of texture-only mode */
+  bool getTextureOnlyMode() const;
 
 public: // ScenarioTool
 
@@ -292,7 +297,7 @@ private:
     double lastUpdateTime_;
   };
 
-  /** Represeents a single texture overlay */
+  /** Represents a single texture overlay */
   struct TextureData
   {
     /** Pointer to the image in the texture */
@@ -325,6 +330,8 @@ private:
   void applyTexture_(TextureUnit texUnit);
   /** Sets all shader values for all texture units */
   void applyAllTextures_();
+  /** Sets shader value for texture-only mode */
+  void applyTextureOnlyMode_();
 
   EntityFamily                    family_;
   osg::observer_ptr<PlatformNode> host_;
@@ -353,6 +360,7 @@ private:
   osg::ref_ptr<osg::Node>         targetGeom_;
   std::map<simData::ObjectId, osg::ref_ptr<BeamHistory> > history_;
   std::vector<TextureData> textures_;
+  bool                            textureOnlyMode_;
 
   class ProjectorMonitor;
   std::unique_ptr<ProjectorMonitor> projectorMonitor_;

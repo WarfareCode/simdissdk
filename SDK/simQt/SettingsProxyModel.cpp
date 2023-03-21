@@ -262,7 +262,7 @@ QModelIndexList SettingsProxyModel::match(const QModelIndex& start, int role, co
 {
   auto searchList = search_->match(noEmptyFolders_->mapToSource(mapToSource(start)), role, value, hits, flags);
   QModelIndexList rv;
-  for (auto index : searchList)
+  for (const auto& index : searchList)
     rv.push_back(mapFromSource(noEmptyFolders_->mapFromSource(index)));
 
   return rv;
@@ -271,7 +271,10 @@ QModelIndexList SettingsProxyModel::match(const QModelIndex& start, int role, co
 void SettingsProxyModel::setShowAdvanced(bool showAdvanced)
 {
   if (showAdvanced != dataLevel_->showAdvanced())
+  {
     dataLevel_->setShowAdvanced(showAdvanced);
+    search_->invalidate();
+  }
 }
 
 void SettingsProxyModel::setShowUnknown(bool showUnknown)

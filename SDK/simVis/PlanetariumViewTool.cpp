@@ -159,15 +159,41 @@ void PlanetariumViewTool::BeamHistory::updateBeamHistory(double time)
   // use initial color to initialize alpha for fading/gradient alpha
   const float origAlpha = color.a();
 
-  for (const auto& iter : historyPoints_)
+  // Use a std::set of Angles to prevent old circles from overwriting new circles
+  struct Angles
   {
-    if (iter.first > time)
+    double az;
+    double el;
+    Angles(double inAz, double inEl)
+      : az(inAz),
+      el(inEl)
+    {}
+    bool operator<(const Angles& rhs) const
+    {
+      if (az < rhs.az)
+        return true;
+      if (az > rhs.az)
+        return false;
+      return el < rhs.el;
+    }
+  };
+
+  std::set<Angles> angles;
+  simCore::Vec3 pos;
+  simCore::Vec3 ori;
+
+  for (auto iter = historyPoints_.crbegin(); iter != historyPoints_.crend(); ++iter)
+  {
+    const double pointTime = iter->first;
+    const auto& point = iter->second;
+
+    if (pointTime > time)
       continue; // In the future
     // historyLength_ == 0 means no limiting by history
-    else if (historyLength_ != 0 && iter.first < (time - historyLength_))
-      continue; // Too old
+    else if (historyLength_ != 0 && pointTime < (time - historyLength_))
+      break; // Too old
 
-    osg::ref_ptr<BeamVolume> bv = dynamic_cast<BeamVolume*>(iter.second->node->asGroup()->getChild(0));
+    osg::ref_ptr<BeamVolume> bv = dynamic_cast<BeamVolume*>(point->node->asGroup()->getChild(0));
     if (!bv)
     {
       // can't be a history point without a beam volume
@@ -175,10 +201,17 @@ void PlanetariumViewTool::BeamHistory::updateBeamHistory(double time)
       return;
     }
     // addPointFromUpdate_ guarantees that nodemask is set correctly
-    assert(iter.second->node->getNodeMask() == simVis::DISPLAY_MASK_BEAM);
+    assert(point->node->getNodeMask() == simVis::DISPLAY_MASK_BEAM);
+
+    // Don't overwrite a previous circle
+    point->node->getLocator()->getLocalOffsets(pos, ori);
+    Angles key(ori.yaw(), ori.pitch());
+    if (angles.find(key) != angles.end())
+      continue;
+    angles.insert(key);
 
     // add to the scenegraph
-    addChild(iter.second->node);
+    addChild(point->node);
 
     float divisor = historyLength_;
     if (historyLength_ == 0)
@@ -190,7 +223,7 @@ void PlanetariumViewTool::BeamHistory::updateBeamHistory(double time)
     }
     if (divisor == 0)
       divisor = 1.0; // ensure divide by zero doesn't happen
-    const float zeroToOne = (1. - ((time - iter.first) / divisor));
+    const float zeroToOne = (1. - ((time - pointTime) / divisor));
     // Use color from history point to ensure color history is preserved
     if (useGradient_)
     {
@@ -203,10 +236,10 @@ void PlanetariumViewTool::BeamHistory::updateBeamHistory(double time)
     else
     {
       if (!prefs.commonprefs().useoverridecolor() &&
-        iter.second->color != NO_COMMANDED_COLOR)
+        point->color != NO_COMMANDED_COLOR)
       {
         // use commanded color when it is set and override is not active
-        color = iter.second->color;
+        color = point->color;
       }
       // else, color has already been set (once) before loop
 
@@ -218,12 +251,12 @@ void PlanetariumViewTool::BeamHistory::updateBeamHistory(double time)
     }
 
     SVFactory::updateColor(bv, color);
-    if (!iter.second->hasCommandedHbw)
+    if (!point->hasCommandedHbw)
     {
       int hbwStatus = SVFactory::updateHorizAngle(bv, prefs.horizontalwidth());
       // TODO: what to do if this fails? recreate beam history with new hbw?
     }
-    if (!iter.second->hasCommandedVbw)
+    if (!point->hasCommandedVbw)
       SVFactory::updateVertAngle(bv, prefs.verticalwidth());
   }
 }
@@ -246,6 +279,8 @@ void PlanetariumViewTool::BeamHistory::backfill_(double lastTime, double current
 
   // prepare the prefs for all points being added
   const simData::BeamPrefs& prefs = beam_->getPrefs();
+  bool dataDraw = prefs.commonprefs().datadraw();
+  bool draw = prefs.commonprefs().draw();
   simData::BeamPrefs pointPrefs(prefs);
   pointPrefs.mutable_commonprefs()->set_useoverridecolor(false);
   pointPrefs.set_blended(true);
@@ -261,6 +296,10 @@ void PlanetariumViewTool::BeamHistory::backfill_(double lastTime, double current
       break;
     if (!next->has_updateprefs())
       continue;
+    if (next->updateprefs().commonprefs().has_datadraw())
+      dataDraw = next->updateprefs().commonprefs().datadraw();
+    if (next->updateprefs().commonprefs().has_draw())
+      draw = next->updateprefs().commonprefs().draw();
     if (next->updateprefs().has_horizontalwidth())
       hbw = next->updateprefs().horizontalwidth();
     if (next->updateprefs().has_verticalwidth())
@@ -288,6 +327,10 @@ void PlanetariumViewTool::BeamHistory::backfill_(double lastTime, double current
         break;
       if (!next->has_updateprefs())
         continue;
+      if (next->updateprefs().commonprefs().has_datadraw())
+        dataDraw = next->updateprefs().commonprefs().datadraw();
+      if (next->updateprefs().commonprefs().has_draw())
+        draw = next->updateprefs().commonprefs().draw();
       if (next->updateprefs().has_horizontalwidth())
         hbw = next->updateprefs().horizontalwidth();
       if (next->updateprefs().has_verticalwidth())
@@ -306,7 +349,9 @@ void PlanetariumViewTool::BeamHistory::backfill_(double lastTime, double current
       pointPrefs.set_verticalwidth(vbw);
     else
       pointPrefs.set_verticalwidth(prefs.verticalwidth());
-    addPointFromUpdate_(pointPrefs, hasCommandedHbw, hasCommandedVbw, color, update, update->time());
+
+    if (draw && dataDraw)
+      addPointFromUpdate_(pointPrefs, hasCommandedHbw, hasCommandedVbw, color, update, update->time());
   }
 }
 
@@ -1180,7 +1225,7 @@ void PlanetariumViewTool::addBeamToBeamHistory_(simVis::BeamNode* beam)
   // SIM-13705 - only supporting beam history for absolute/linear beams;
   //   body beam implementation is difficult and not relevant for customer
   const simData::BeamProperties& props = beam->getProperties();
-  const bool isLinearBeam = (props.has_type() && props.type() == simData::BeamProperties_BeamType_ABSOLUTE_POSITION);
+  const bool isLinearBeam = (props.type() == simData::BeamProperties_BeamType_ABSOLUTE_POSITION);
   if (isLinearBeam && history_.find(beam->getId()) == history_.end())
   {
     osg::ref_ptr<BeamHistory> history = new BeamHistory(beam, ds_, range_);

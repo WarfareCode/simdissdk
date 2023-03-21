@@ -65,7 +65,8 @@ EntityTreeWidget::EntityTreeWidget(QTreeView* view)
     pendingSendNumItems_(false),
     processSelectionModelSignals_(true),
     countEntityTypes_(simData::ALL),
-    lastSelectionChangedTime_(0.0)
+    lastSelectionChangedTime_(0.0),
+    pendingKeepVisible_(false)
 {
   proxyModel_ = new simQt::EntityProxyModel(this);
   proxyModel_->setDynamicSortFilter(true);
@@ -113,6 +114,9 @@ QList<QWidget*> EntityTreeWidget::filterWidgets(QWidget* newWidgetParent) const
 
 void EntityTreeWidget::setModel(AbstractEntityTreeModel* model)
 {
+  if (model_ == model)
+    return;
+
   if (model_ != nullptr)
     disconnect(model_, nullptr, this, nullptr);
 
@@ -130,7 +134,12 @@ void EntityTreeWidget::setModel(AbstractEntityTreeModel* model)
   proxyModel_->setSourceModel(model_);
 
   // Need to allow the view to update before checking if the selected item is still visible
-  auto keepVisibleOnTimer = [this]() { QTimer::singleShot(10, this, SLOT(keepVisible_())); };
+  auto keepVisibleOnTimer = [this]() {
+    if (!setVisible_.empty() && !pendingKeepVisible_) {
+      QTimer::singleShot(10, this, SLOT(keepVisible_()));
+      pendingKeepVisible_ = true;
+    }
+  };
   connect(model_, &QAbstractItemModel::rowsInserted, this, keepVisibleOnTimer);
   connect(model_, &QAbstractItemModel::rowsRemoved, this, keepVisibleOnTimer);
   connect(model_, &QAbstractItemModel::rowsMoved, this, keepVisibleOnTimer);
@@ -153,12 +162,19 @@ void EntityTreeWidget::captureAndKeepVisible_()
 {
   /** There is no before or after signal for rename, just dataChanged.  Need to capture before the proxy and keep after everyone */
   captureVisible_();
-  if (!setVisible_.empty())
+  if (!setVisible_.empty() && !pendingKeepVisible_)
+  {
     QTimer::singleShot(10, this, SLOT(keepVisible_()));
+    pendingKeepVisible_ = true;
+  }
 }
 
 void EntityTreeWidget::captureVisible_()
 {
+  // Only need to capture once
+  if (!setVisible_.empty())
+    return;
+
   // Temporary structure to sort the selected items by vertical location in the list
   struct Entry
   {
@@ -207,6 +223,7 @@ void EntityTreeWidget::keepVisible_()
   }
 
   setVisible_.clear();
+  pendingKeepVisible_ = false;
 }
 
 void EntityTreeWidget::clearSelection()
@@ -251,7 +268,7 @@ int EntityTreeWidget::setSelected(uint64_t id)
   processSelectionModelSignals_ = true;
 
   // Tell listeners about the new selections (could be empty list)
-  emit itemsSelected(selectionList_);
+  Q_EMIT itemsSelected(selectionList_);
   return 0;
 }
 
@@ -365,7 +382,7 @@ int EntityTreeWidget::setSelected(const QList<uint64_t>& list)
     selectionList_.push_back(*it);
 
   // Tell listeners about the new selections (could be empty list)
-  emit itemsSelected(selectionList_);
+  Q_EMIT itemsSelected(selectionList_);
   return 0;
 }
 
@@ -549,7 +566,7 @@ void EntityTreeWidget::selectionCleared_()
   {
     selectionList_.clear();
     selectionSet_.clear();
-    emit itemsSelected(selectionList_);
+    Q_EMIT itemsSelected(selectionList_);
   }
 }
 
@@ -579,7 +596,7 @@ void EntityTreeWidget::emitItemsSelected_()
   assert(selectionSet_.size() == selectionList_.size());
 
   // Tell listeners about the new selections (could be empty list)
-  emit itemsSelected(selectionList_);
+  Q_EMIT itemsSelected(selectionList_);
   emitItemsSelectedTimer_->stop();
   lastSelectionChangedTime_ = simCore::getSystemTime();
 }
@@ -619,7 +636,7 @@ void EntityTreeWidget::doubleClicked_(const QModelIndex& index)
   QModelIndex index2 = proxyModel_->mapToSource(index);
   AbstractEntityTreeItem *item = static_cast<AbstractEntityTreeItem*>(index2.internalPointer());
   if (item != nullptr)
-    emit itemDoubleClicked(item->id());
+    Q_EMIT itemDoubleClicked(item->id());
 }
 
 void EntityTreeWidget::delaySend_()
@@ -641,7 +658,7 @@ void EntityTreeWidget::emitSend_()
 void EntityTreeWidget::sendNumFilteredItems_()
 {
   if ((proxyModel_ != nullptr) && (model_ != nullptr))
-    emit numFilteredItemsChanged(proxyModel_->rowCount(), model_->countEntityTypes(countEntityTypes_));
+    Q_EMIT numFilteredItemsChanged(proxyModel_->rowCount(), model_->countEntityTypes(countEntityTypes_));
 }
 
 }

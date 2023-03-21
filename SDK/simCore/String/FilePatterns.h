@@ -136,13 +136,13 @@ static const std::string SIMDIS10_IMAGERY_CONFIG_SAVE_PATTERNS =
     "All Files (*)";
 
 /** SIMDIS supported model format file patterns, separated by commas. */
-static const std::string ALL_SIMDIS_MODEL_FILE_PATTERNS = "*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.ac,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst";
+static const std::string ALL_SIMDIS_MODEL_FILE_PATTERNS = "*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst";
 /** SIMDIS supported texture file format file patterns, separated by commas */
 static const std::string ALL_SIMDIS_TEXTURE_FILE_PATTERNS = "*.png,*.gif,*.jpg,*.jpeg,*.rgba,*.rgb,*.tif,*.tiff,*.bmp,*.bw,*.inta,*.int,*.raw,*.pgm";
 /** Dialog-oriented user-friendly list of SIMDIS supported model format patterns. */
 static const std::string SIMDIS_MODEL_FILE_PATTERNS =
-  "All Supported Formats (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.ac,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst)\n"
-  "SIMDIS Model Files (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.3ds,*.lwo,*.dxf,*.ac)\n"
+  "All Supported Formats (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp,*.tmd,*.lst)\n"
+  "SIMDIS Model Files (*.opt,*.3db,*.flt,*.osg,*.osga,*.osgb,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac)\n"
   "Image Files (*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.tif,*.tiff,*.bmp)\n"
   "Media Player Video Icons (*.tmd,*.lst)\n"
   "All Files (*)";
@@ -335,22 +335,24 @@ static const std::string MAPBOX_GL_IMAGE_LAYER_FILE_PATTERNS =
   "MapBox GL Image Style Files (*.json)\n"
   "All Files (*)";
 
-/** Pattern for GDAL, DB, MBTiles, MapBox GL files -- image file layer pattern */
+/** Pattern for GDAL, DB, MBTiles, MapBox GL, other files -- image file layer pattern */
 static const std::string FILEBASED_IMAGE_LAYER_FILE_PATTERNS =
-  "All Layer Files (*.mbtiles,*.db,*.tif,*.tiff,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil,*.json)\n"
+  "All Layer Files (*.mbtiles,*.db,*.tif,*.tiff,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil,*.json,Conf.xml,conf.xml)\n"
   "MBTiles Files (*.mbtiles)\n"
   "DB Files (*.db)\n"
   "GDAL Files (*.tif,*.tiff,*.jpeg,*.png,*.img,*.sid,*.jp2,*.bil)\n"
   "MapBox GL Image Style Files (*.json)\n"
+  "Tile Package Configuration (Conf.xml,conf.xml)\n"
   "All Files (*)";
 
-/** Pattern for GDAL, DB, MBTiles files -- elevation file layer pattern */
+/** Pattern for GDAL, DB, MBTiles, other files -- elevation file layer pattern */
 static const std::string FILEBASED_ELEVATION_LAYER_FILE_PATTERNS =
-  "All Layer Files (*.mbtiles,*.db,*.tif,*.tiff,*.sid,*.jp2,*.bil,*.hgt,*.dt0,*.dt1,*.dt2)\n"
+  "All Layer Files (*.mbtiles,*.db,*.tif,*.tiff,*.sid,*.jp2,*.bil,*.hgt,*.dt0,*.dt1,*.dt2,Conf.xml,conf.xml)\n"
   "MBTiles Files (*.mbtiles)\n"
   "DB Files (*.db)\n"
   "GDAL Files (*.tif,*.tiff,*.sid,*.jp2,*.bil,*.hgt)\n"
   "DTED Elevation Files (*.dt0,*.dt1,*.dt2)\n"
+  "Tile Package Configuration (Conf.xml,conf.xml)\n"
   "All Files (*)";
 
 /** Generic pattern for all files */

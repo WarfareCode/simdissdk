@@ -70,7 +70,6 @@ if(TARGET simData)
         ${SIMQT_INC}CategoryFilterWidget.h
         ${SIMQT_INC}CategoryTreeModel.h
         ${SIMQT_INC}DataTableComboBox.h
-        ${SIMQT_INC}DataTableModel.h
         ${SIMQT_INC}EntityCategoryFilter.h
         ${SIMQT_INC}EntityFilter.h
         ${SIMQT_INC}EntityFilterLineEdit.h
@@ -96,6 +95,7 @@ if(TARGET simVis)
         ${SIMQT_INC}CenterEntity.h
         ${SIMQT_INC}EntityLineEdit.h
         ${SIMQT_INC}MapDataModel.h
+        ${SIMQT_INC}MultiTouchEventFilter.h
         ${SIMQT_INC}TimestampedLayerManager.h
         ${SIMQT_INC}ViewManagerDataModel.h
     )
@@ -122,6 +122,13 @@ if(OSG_FOUND)
         ${SIMQT_INC}ColorGradient.h
         ${SIMQT_INC}MergeValues.h
         ${SIMQT_INC}QtConversion.h
+    )
+endif()
+
+# Parts of simQt depend on simUtil and simData
+if(TARGET simUtil AND TARGET simData)
+    list(APPEND SIMQT_HEADERS_TO_MOC
+        ${SIMQT_INC}DataTableModel.h
     )
 endif()
 
@@ -190,7 +197,6 @@ if(TARGET simData)
         ${SIMQT_SRC}CategoryFilterWidget.cpp
         ${SIMQT_SRC}CategoryTreeModel.cpp
         ${SIMQT_SRC}DataTableComboBox.cpp
-        ${SIMQT_SRC}DataTableModel.cpp
         ${SIMQT_SRC}EntityCategoryFilter.cpp
         ${SIMQT_SRC}EntityFilterLineEdit.cpp
         ${SIMQT_SRC}EntityNameFilter.cpp
@@ -213,6 +219,7 @@ if(TARGET simVis)
         ${SIMQT_SRC}EntityLineEdit.cpp
         ${SIMQT_SRC}FillItemModelWithNodeVisitor.cpp
         ${SIMQT_SRC}MapDataModel.cpp
+        ${SIMQT_SRC}MultiTouchEventFilter.cpp
         ${SIMQT_SRC}TimestampedLayerManager.cpp
         ${SIMQT_SRC}ViewManagerDataModel.cpp
     )
@@ -239,6 +246,13 @@ if(OSG_FOUND)
         ${SIMQT_SRC}ColorGradient.cpp
         ${SIMQT_SRC}ColorGradientWidget.cpp
         ${SIMQT_SRC}QtConversion.cpp
+    )
+endif()
+
+# Parts of simQt depend on simUtil and simData
+if(TARGET simUtil AND TARGET simData)
+    list(APPEND SIMQT_SOURCES
+        ${SIMQT_SRC}DataTableModel.cpp
     )
 endif()
 
@@ -347,8 +361,11 @@ if(TARGET simVis)
     target_compile_definitions(simQt PRIVATE HAVE_SIMVIS)
     target_link_libraries(simQt PRIVATE simVis)
     if(TARGET simUtil)
+        target_compile_definitions(simQt PRIVATE HAVE_SIMUTIL)
         target_link_libraries(simQt PRIVATE simUtil)
     endif()
+elseif(OSG_FOUND)
+    target_link_libraries(simQt PRIVATE OSG OPENTHREADS)
 endif()
 
 if(TARGET OSGQT)

@@ -30,7 +30,6 @@
 #include "simQt/ColorGradient.h"
 
 class QGroupBox;
-class QSortFilterProxyModel;
 class QTreeView;
 class Ui_ColorGradientWidget;
 
@@ -98,7 +97,7 @@ public:
   /** Returns true if the gradient has changed since last call to setColorGradient() */
   bool hasChanges() const;
 
-public slots:
+public Q_SLOTS:
   /** Sets whether to display the color stops table */
   void setShowTable(bool show);
   /** Sets whether the color editors will allow editing of alpha values */
@@ -116,11 +115,11 @@ public slots:
   /** If true, suffix is shown for each item in the table */
   void setSuffixInTableItems(bool val);
 
-signals:
+Q_SIGNALS:
   /** Emitted whenever a change is made to the stored color gradient */
   void gradientChanged(const simQt::ColorGradient& gradient);
 
-private slots:
+private Q_SLOTS:
   /**
    * Trigged by changes to the gradient, emits gradientChanged()
    * with the appropriate ColorGradient object
@@ -128,6 +127,15 @@ private slots:
   void emitGradientChanged_();
   /** Spawns a help dialog explaining the display widget */
   void showHelpDialog_();
+
+  /** Sets the gradient to default */
+  void setGradientDefault_();
+  /** Sets the gradient to darker */
+  void setGradientDarker_();
+  /** Sets the gradient to greyscale */
+  void setGradientGreyscale_();
+  /** Sets the gradient to doppler */
+  void setGradientDoppler_();
 
 private:
   /** Creates or destroys the stops table based on showTable_ flag */
@@ -141,7 +149,6 @@ private:
 
   class ColorGradientModel;
   ColorGradientModel* model_;
-  QSortFilterProxyModel* proxyModel_;
 
   class GradientDisplayWidget;
   GradientDisplayWidget* display_;

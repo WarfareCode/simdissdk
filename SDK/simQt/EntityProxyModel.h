@@ -63,7 +63,7 @@ public:
   /** Set filters to the given settings */
   void setFilterSettings(const QMap<QString, QVariant>& settings);
 
-signals:
+Q_SIGNALS:
   /** Emitted when the entity filter has changed */
   void filterChanged();
   /** A filter setting was changed */
@@ -72,10 +72,16 @@ signals:
 protected:
   /// filtering function
   virtual bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const;
-  /// sorting function
+  /**
+    * sorting function
+    * Accounts for embedded integers in the entity name.   Example:
+    *  Platform 1
+    *  Platform 2
+    *  Platform 10
+    */
   virtual bool lessThan(const QModelIndex &left, const QModelIndex &right) const;
 
-private slots:
+private Q_SLOTS:
   /// Responds to the filters changing
   void filterUpdated_();
   /** Clear the AlwaysShow if parent has a child with the AlwaysShow ID */

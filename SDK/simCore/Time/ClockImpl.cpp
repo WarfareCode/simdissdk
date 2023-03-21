@@ -23,6 +23,7 @@
 #include <cassert>
 #include <cmath>
 #include <algorithm>
+#include "simNotify/Notify.h"
 #include "simCore/Time/Utils.h"
 #include "simCore/Time/ClockImpl.h"
 
@@ -174,10 +175,44 @@ bool ClockImpl::isUserEditable() const
   return !(controlsDisabled() || endTime() == simCore::INFINITE_TIME_STAMP || isLiveMode_(mode()));
 }
 
+simCore::Optional<simCore::TimeStamp> ClockImpl::userStartTime() const
+{
+  return userStartTime_;
+}
+
+simCore::Optional<simCore::TimeStamp> ClockImpl::userEndTime() const
+{
+  return userEndTime_;
+}
+
 void ClockImpl::setControlsDisabled(bool fl)
 {
   ScopedUserEditableWatch userEditableWatch(*this);
   disabled_ = fl;
+}
+
+int ClockImpl::setUserTimeBounds(const simCore::Optional<simCore::TimeStamp>& start, const simCore::Optional<simCore::TimeStamp>& end)
+{
+  if (isLiveMode())
+  {
+    SIM_ERROR << "Custom time bounds cannot be used in live mode.\n";
+    return 1;
+  }
+
+  auto oldStartTime = startTime();
+  auto oldEndTime = endTime();
+
+  userStartTime_ = start;
+  userEndTime_ = end;
+
+  if (oldStartTime != startTime() || oldEndTime != endTime())
+    notifyBoundsChange_(startTime(), endTime());
+  // Check for time change
+  auto clampedTime = clamp_(currentTime());
+  if (clampedTime != currentTime())
+    setTime(clampedTime);
+
+  return 0;
 }
 
 Clock::Mode ClockImpl::mode() const
@@ -225,14 +260,18 @@ void ClockImpl::setTimeScale(double scale)
   notifyScaleChange_(scale);
 }
 
-simCore::TimeStamp ClockImpl::startTime() const
+simCore::TimeStamp ClockImpl::startTime(bool ignoreUserStartTime) const
 {
-  return beginTime_;
+  if (ignoreUserStartTime || isLiveMode())
+    return beginTime_;
+  return userStartTime_.value_or(beginTime_);
 }
 
-simCore::TimeStamp ClockImpl::endTime() const
+simCore::TimeStamp ClockImpl::endTime(bool ignoreUserEndTime) const
 {
-  return endTime_;
+  if (ignoreUserEndTime || isLiveMode())
+    return endTime_;
+  return userEndTime_.value_or(endTime_);
 }
 
 void ClockImpl::setStartTime(const simCore::TimeStamp& timeVal)
@@ -310,6 +349,9 @@ void ClockImpl::setMode(Clock::Mode newMode, const simCore::TimeStamp& liveStart
   ScopedUserEditableWatch userEditableWatch(*this);
   mode_ = newMode;
 
+  userStartTime_.reset();
+  userEndTime_.reset();
+
   // Test if we went from live mode to non-live mode; special processing
   if (isLiveMode_(oldMode) && !isLiveMode_(newMode))
   {
@@ -364,10 +406,23 @@ void ClockImpl::setTime(const simCore::TimeStamp& timeVal)
 
 void ClockImpl::setTime_(const simCore::TimeStamp& timeVal, bool isJump)
 {
+  if (timeVal == simCore::INFINITE_TIME_STAMP)
+  {
+    // Infinite end time implies developer error, using an invalid time to set the clock
+    assert(0);
+    return;
+  }
+
   // If we're in freewheel mode, don't set the time unless we pass a threshold
   static const double FREEWHEEL_THRESHOLD = 0.1;
   if (mode() == Clock::MODE_FREEWHEEL && fabs(timeVal - currentTime()) < FREEWHEEL_THRESHOLD)
-    return;
+  {
+    // TimeStamp::operator-() will return ZERO_SECONDS if either year is infinite. Detect that
+    // (unlikely and probably erroneous condition) to avoid false freewheel threshold matches.
+    if (timeVal.referenceYear() != simCore::INFINITE_TIME_YEAR && currentTime().referenceYear() != simCore::INFINITE_TIME_YEAR)
+      return;
+  }
+
   restartRTClock_(timeVal);
   setTimeNoThresholdCheck_(timeVal, isJump);
 }
@@ -460,7 +515,7 @@ void ClockImpl::idle()
     else
     {
       bool timeJumped = false;
-      simCore::TimeStamp newTime = simCore::TimeStamp(beginTime_.referenceYear(), clock_.getTime());
+      simCore::TimeStamp newTime = simCore::TimeStamp(startTime().referenceYear(), clock_.getTime());
       // Allow observers to adjust the time
       notifyAdjustTime_(currentTime_, newTime);
       currentTime_ = newTime;
@@ -475,17 +530,17 @@ void ClockImpl::idle()
       {
         // The !isPlayback at the start of the routine and the if (mode()==... should cause the else to be only for real-time
         assert(mode() == Clock::MODE_REALTIME || mode() == Clock::MODE_SIMULATION);
-        if (currentTime_ > endTime_)
+        if (currentTime_ > endTime())
         {
           if (canLoop())
           {
-            currentTime_ = beginTime_;
+            currentTime_ = startTime();
             restartRTClock_(currentTime());
             timeJumped = true;
           }
           else
           {
-            currentTime_ = endTime_;
+            currentTime_ = endTime();
             stop();
           }
         }
@@ -504,11 +559,11 @@ void ClockImpl::idle()
 
 simCore::TimeStamp ClockImpl::clamp_(const simCore::TimeStamp& val) const
 {
-  if (val < beginTime_)
-    return beginTime_;
+  if (val < startTime())
+    return startTime();
   // Let freewheel mode go past the end time for clamping purposes
-  if (val > endTime_ && mode() != Clock::MODE_FREEWHEEL)
-    return endTime_;
+  if (val > endTime() && mode() != Clock::MODE_FREEWHEEL)
+    return endTime();
   return val;
 }
 
@@ -523,7 +578,7 @@ void ClockImpl::restartRTClock_(const simCore::TimeStamp& syncTime)
   clock_.stop();
   clock_.reset();
   clock_.setScale(timeScale());
-  clock_.start(syncTime.secondsSinceRefYear(beginTime_.referenceYear()));
+  clock_.start(syncTime.secondsSinceRefYear(startTime().referenceYear()));
 }
 
 void ClockImpl::addToTime_(double howMuch)
@@ -543,11 +598,11 @@ void ClockImpl::addToTime_(double howMuch)
 
   simCore::TimeStamp newTime;
   bool jump = false;
-  if (currentTime_ >= endTime_)
+  if (currentTime_ >= endTime())
   {
     if (canLoop())
     {
-      newTime = beginTime_;
+      newTime = startTime();
       jump = true;
     }
     else
@@ -556,8 +611,8 @@ void ClockImpl::addToTime_(double howMuch)
   else
   {
     newTime = currentTime_ + howMuch;
-    if (newTime > endTime_)
-      newTime = endTime_;
+    if (newTime > endTime())
+      newTime = endTime();
 
     // Allow observers to adjust the time
     notifyAdjustTime_(currentTime_, newTime);
@@ -572,11 +627,11 @@ void ClockImpl::subtractFromTime_(double howMuch)
 
   simCore::TimeStamp newTime;
   bool jump = false;
-  if (currentTime_ <= beginTime_)
+  if (currentTime_ <= startTime())
   {
     if (canLoop())
     {
-      newTime = endTime_;
+      newTime = endTime();
       jump = true;
     }
     else
@@ -585,8 +640,8 @@ void ClockImpl::subtractFromTime_(double howMuch)
   else
   {
     newTime = currentTime_ - howMuch;
-    if (newTime < beginTime_)
-      newTime = beginTime_;
+    if (newTime < startTime())
+      newTime = startTime();
   }
 
   // Note: Threshold check shouldn't matter, because this shouldn't
@@ -896,20 +951,20 @@ bool VisualizationClock::realTime() const
   return localClock_->realTime();
 }
 
-simCore::TimeStamp VisualizationClock::startTime() const
+simCore::TimeStamp VisualizationClock::startTime(bool ignoreUserStartTime) const
 {
   if (lockToDataClock_)
-    return dataClock_.startTime();
+    return dataClock_.startTime(ignoreUserStartTime);
 
-  return localClock_->startTime();
+  return localClock_->startTime(ignoreUserStartTime);
 }
 
-simCore::TimeStamp VisualizationClock::endTime() const
+simCore::TimeStamp VisualizationClock::endTime(bool ignoreUserEndTime) const
 {
   if (lockToDataClock_)
-    return dataClock_.endTime();
+    return dataClock_.endTime(ignoreUserEndTime);
 
-  return localClock_->endTime();
+  return localClock_->endTime(ignoreUserEndTime);
 }
 
 bool VisualizationClock::canLoop() const
@@ -950,6 +1005,20 @@ bool VisualizationClock::isUserEditable() const
     return dataClock_.isUserEditable();
 
   return localClock_->isUserEditable();
+}
+
+simCore::Optional<simCore::TimeStamp> VisualizationClock::userStartTime() const
+{
+  if (lockToDataClock_)
+    return dataClock_.userStartTime();
+  return simCore::Optional<simCore::TimeStamp>();
+}
+
+simCore::Optional<simCore::TimeStamp> VisualizationClock::userEndTime() const
+{
+  if (lockToDataClock_)
+    return dataClock_.userEndTime();
+  return simCore::Optional<simCore::TimeStamp>();
 }
 
 void VisualizationClock::setMode(Clock::Mode mode)
@@ -1022,6 +1091,14 @@ void VisualizationClock::setControlsDisabled(bool fl)
     dataClock_.setControlsDisabled(fl);
   else
     localClock_->setControlsDisabled(fl);
+}
+
+int VisualizationClock::setUserTimeBounds(const simCore::Optional<simCore::TimeStamp>& start, const simCore::Optional<simCore::TimeStamp>& end)
+{
+  if (lockToDataClock_)
+    return dataClock_.setUserTimeBounds(start, end);
+  // No-op
+  return 1;
 }
 
 void VisualizationClock::decreaseScale()

@@ -4,7 +4,7 @@ import os, sys, math, timeit
 if 'SIMDIS_DIR' in os.environ:
 	# For _module shared object:
 	if os.name == "nt":
-		sys.path.append(os.environ['SIMDIS_DIR'] + '/lib/amd64-nt/python3.9')
+		sys.path.append(os.environ['SIMDIS_DIR'] + '/lib/amd64-nt/python3.11')
 		try:
 			# Python 3.8 does not want to respect PATH for loading dependent DLLs.  It introduces
 			# a new method to attempt to fix the problem.  Try/except ignores errors in older Python.
@@ -14,7 +14,7 @@ if 'SIMDIS_DIR' in os.environ:
 			pass
 		pass
 	else:
-		sys.path.append(os.environ['SIMDIS_DIR'] + '/lib/amd64-linux/python3.9/lib-dynload')
+		sys.path.append(os.environ['SIMDIS_DIR'] + '/lib/amd64-linux/python3.11/lib-dynload')
 	# For module wrapper:
 	sys.path.append(os.environ['SIMDIS_DIR'] + '/bin/pythonScripts')
 
@@ -389,7 +389,7 @@ assert(simCore.Units.RANKINE is not None)
 assert(simCore.Units.REVOLUTIONS_PER_MINUTE is not None)
 assert(simCore.Units.TEASPOON is not None)
 assert(simCore.Units.PASCALS is not None)
-assert(simCore.Units.VOLUME_FAMILY is not None)
+assert(simCore.VOLUME_FAMILY is not None)
 assert(simCore.Units.FEET.name() is not None)
 assert(simCore.Units.FEET.abbreviation() is not None)
 assert(simCore.Units.FEET.family() is not None)
@@ -399,13 +399,13 @@ assert(simCore.Units.FEET == simCore.Units.FEET)
 assert(simCore.Units.FEET != simCore.Units.METERS)
 assert(simCore.Units.FEET.isValid())
 assert(simCore.Units.FEET.toBaseScalar() is not None)
-assert(simCore.Units.offsetThenScaleUnit("Yard", "yd", 0, 1.0 / 3, simCore.Units.LENGTH_FAMILY).name() == "Yard")
+assert(simCore.Units.offsetThenScaleUnit("Yard", "yd", 0, 1.0 / 3, simCore.LENGTH_FAMILY).name() == "Yard")
 ur = simCore.UnitsRegistry()
 assert(ur is not None)
 assert(ur.registerDefaultUnits() is None)
 ur = simCore.UnitsRegistry()  # Clear out so we can register FEET
 assert(ur.registerUnits(simCore.Units.FEET) is not None)
-assert(ur.units(simCore.Units.LENGTH_FAMILY) is not None)
+assert(ur.units(simCore.LENGTH_FAMILY) is not None)
 # TODO: Fix
 # assert(ur.families() is not None)
 assert(ur.unitsByName("feet") == simCore.Units.FEET)

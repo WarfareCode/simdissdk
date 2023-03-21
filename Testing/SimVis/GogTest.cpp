@@ -42,6 +42,7 @@
 #include "simVis/GOG/Loader.h"
 #include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Parser.h"
+#include "simVis/Headless.h"
 #include "simVis/Registry.h"
 
 namespace
@@ -1632,7 +1633,7 @@ int testArcSweep()
   // test same start/end angles, should not create GOG
   {
     std::stringstream shape;
-    shape << "start\n arc\n anglestart 0\n anglend 0\n end\n";
+    shape << "start\n arc\n anglestart 0\n angleend 0\n end\n";
     loader.loadGogs(shape, "", false, gogs);
   }
   rv += SDK_ASSERT(gogs.empty());
@@ -1641,7 +1642,7 @@ int testArcSweep()
   // test same start/end angles, should not create GOG
   {
     std::stringstream shape;
-    shape << "start\n arc\n anglestart 0\n anglend 360\n end\n";
+    shape << "start\n arc\n anglestart 0\n angleend 360\n end\n";
     loader.loadGogs(shape, "", false, gogs);
   }
   rv += SDK_ASSERT(gogs.empty());
@@ -1650,7 +1651,7 @@ int testArcSweep()
   // test same start/end angles, should not create GOG
   {
     std::stringstream shape;
-    shape << "start\n arc\n anglestart 45\n anglend 405\n end\n";
+    shape << "start\n arc\n anglestart 45\n angleend 405\n end\n";
     loader.loadGogs(shape, "", false, gogs);
   }
   rv += SDK_ASSERT(gogs.empty());
@@ -1700,6 +1701,11 @@ int testArcSweep()
 
 int GogTest(int argc, char* argv[])
 {
+  if (simVis::isHeadless())
+  {
+    std::cerr << "Headless display detected; aborting test.\n";
+    return 0;
+  }
   int rv = 0;
 
   // osgEarth uses std::atexit() to clean up the Registry, which makes calls into

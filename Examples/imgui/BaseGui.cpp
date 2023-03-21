@@ -20,6 +20,8 @@
  * disclose, or release this software.
  *
  */
+#include "imgui.h"
+#include "osgEarth/ImGui/ImGui"
 #include "BaseGui.h"
 
 namespace GUI {

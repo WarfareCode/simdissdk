@@ -17,8 +17,8 @@ set(SHADER_FILES
     BeamPulse.vert.glsl
     BeamPulse.frag.glsl
     DisableDepthOnAlpha.frag.glsl
+    FragmentEffect.glsl
     Flashing.frag.glsl
-    GlowHighlight.frag.glsl
     LineDrawable.glsl
     OverrideColor.frag.glsl
     OverheadMode.vert.glsl
@@ -79,7 +79,6 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}GeoFence.h
     ${VIS_INC}Gl3Utils.h
     ${VIS_INC}GlDebugMessage.h
-    ${VIS_INC}GlowHighlight.h
     ${VIS_INC}GradientShader.h
     ${VIS_INC}Headless.h
     ${VIS_INC}InsetViewEventHandler.h
@@ -91,6 +90,7 @@ set(VIS_HEADERS_CORE
     ${VIS_INC}LocatorNode.h
     ${VIS_INC}Measurement.h
     ${VIS_INC}ModelCache.h
+    ${VIS_INC}FragmentEffect.h
     ${VIS_INC}ModKeyHandler.h
     ${VIS_INC}NavigationModes.h
     ${VIS_INC}ObjectSelectionHandler.h
@@ -244,7 +244,6 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}Gate.cpp
     ${VIS_SRC}GeoFence.cpp
     ${VIS_INC}GlDebugMessage.cpp
-    ${VIS_SRC}GlowHighlight.cpp
     ${VIS_SRC}GradientShader.cpp
     ${VIS_SRC}Headless.cpp
     ${VIS_SRC}InsetViewEventHandler.cpp
@@ -256,6 +255,7 @@ set(VIS_SOURCES_CORE
     ${VIS_SRC}LocatorNode.cpp
     ${VIS_SRC}Measurement.cpp
     ${VIS_SRC}ModelCache.cpp
+    ${VIS_SRC}FragmentEffect.cpp
     ${VIS_SRC}ModKeyHandler.cpp
     ${VIS_SRC}NavigationModes.cpp
     ${VIS_SRC}ObjectSelectionHandler.cpp
@@ -474,6 +474,13 @@ if(SIM_HAVE_DB_SUPPORT)
 endif()
 if(HAVE_EARTHMANIPULATOR_BINDTOUCHDRAG)
     target_compile_definitions(simVis PRIVATE HAVE_EARTHMANIPULATOR_BINDTOUCHDRAG)
+endif()
+
+# Various bits of code check known non-null to null, as part of macros
+include(CheckCXXCompilerFlag)
+check_cxx_compiler_flag("-Wno-nonnull-compare" HAVE_NONNULL_COMPARE)
+if(HAVE_NONNULL_COMPARE)
+    target_compile_options(simVis PRIVATE "-Wno-nonnull-compare")
 endif()
 
 if(INSTALL_SIMDIS_SDK_LIBRARIES)

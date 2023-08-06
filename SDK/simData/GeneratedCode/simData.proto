@@ -216,6 +216,8 @@ enum CircleHilightShape {
   CH_SQUARE = 3;
   /// Square outline with line sides cut off, looks like reticle; no animation
   CH_SQUARE_RETICLE = 4;
+  /// Coffin shaped, appropriate for e.g. kill/rebirth functionality
+  CH_COFFIN = 5;
 };
 
 /// Algorithm selection for Dynamic Scale
@@ -402,6 +404,28 @@ enum TextAlignment {
   ALIGN_RIGHT_TOP = 6;
   ALIGN_RIGHT_CENTER = 7;
   ALIGN_RIGHT_BOTTOM = 8;
+};
+
+/// Fragment shader effects applied to 3-D graphics in 2-D screen space.
+enum FragmentEffect {
+  /// No fragment effect on icon (default).
+  FE_NONE = 0;
+  /// Forward striping, like forward slash. Fragment color replaces existing value.
+  FE_FORWARD_STRIPE = 1;
+  /// Backward striping, like backslash. Fragment color replaces existing value.
+  FE_BACKWARD_STRIPE = 2;
+  /// Horizontal striping along the X axis. Fragment color replaces existing value.
+  FE_HORIZONTAL_STRIPE = 3;
+  /// Vertical striping along the Y axis. Fragment color replaces existing value.
+  FE_VERTICAL_STRIPE = 4;
+  /// Combination of horizontal and vertical striping. Fragment color replaces existing value.
+  FE_CHECKERBOARD = 5;
+  /// Combination of forward and backward striping. Fragment color replaces existing value.
+  FE_DIAMOND = 6;
+  /// Icon color changes gradually in a glow. Fragment color is unused.
+  FE_GLOW = 7;
+  /// Icon blinks on and off. Fragment color is unused.
+  FE_FLASH = 8;
 };
 
 /// preferences which all labels share
@@ -735,8 +759,14 @@ message PlatformPrefs {
 
   /// 2D or 3D model file location
   optional string icon = 2;
+
   /// Model draw mode for wireframe, points, or solid models
   optional ModelDrawMode drawMode = 3 [default = MDM_SOLID];
+  /// Shader effect to apply to graphics
+  optional FragmentEffect fragmentEffect = 77 [default = FE_NONE];
+  /// Color associated with the fragment effect
+  optional fixed32 fragmentEffectColor = 79 [default = 0xFFFFFFFF];
+
   /// Flag indicating how to draw 2D icons in 3D space; only applies to image icons
   optional IconRotation rotateIcons = 4 [default = IR_2D_YAW];
   /// Turns off the depth buffer for drawing 2D icons; can address flickering with surface icons
@@ -829,6 +859,8 @@ message PlatformPrefs {
   optional CircleHilightShape circleHilightShape = 71 [default = CH_PULSING_CIRCLE];
   /// Shape size in meters; 0 means use icon size
   optional double circleHilightSize = 75 [default = 0.0];
+  /// Highlight shape will follow platform's yaw
+  optional bool hilightFollowYaw = 78 [default = false];
 
   /// Position values are interpolated between data points
   optional bool interpolatePos = 37 [default = true];
@@ -1374,10 +1406,15 @@ message ProjectorPrefs {
   /// Determine if we should interpolate FOV
   optional bool interpolateProjectorFov = 5 [default = true];
 
-  /// Override the field of view display if true, using overrideFovValue and ignoring projector updates
+  /// Override the field of view Y (vertical FOV) value display if true, using overrideFovValue and ignoring projector updates
   optional bool overrideFov = 6 [default = false];
-  /// Field of view for projector in radians, if overrideFov is true (default is ~10 degrees)
+  /// Field of view for projector Y (vertical FOV) value in radians, if overrideFov is true (default is ~10 degrees)
   optional double overrideFovAngle = 7 [default = 0.174533];
+
+  /// Override the field of view X (horizontal FOV) value display if true, using overrideFovValue and ignoring projector updates
+  optional bool overrideHFov = 11 [default = false];
+  /// Field of view for projector X (horizontal FOV) value in radians, if overrideFov is true (default is ~10 degrees)
+  optional double overrideHFovAngle = 12 [default = 0.174533];
 
   /// Determine if the projector should use shadow mapping
   optional bool shadowMapping = 8 [default = false];
@@ -1390,8 +1427,11 @@ message ProjectorPrefs {
 /// common update to projector data
 message ProjectorUpdate {
   optional double time = 1;
-  /// Projector field of view: radians
+  
+  /// Projector vertical field of view: radians
   optional double fov = 2;
+  /// Projector hovizontal field of view: radians; <= 0 means to calculate from aspect ratio
+  optional double hFov = 3 [default = -1];
 };
 
 /// timed update to projector prefs; commands override prefs

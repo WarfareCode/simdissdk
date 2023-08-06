@@ -42,6 +42,7 @@
 #include "simVis/Entity.h"
 #include "simVis/Gate.h"
 #include "simVis/CustomRendering.h"
+#include "simVis/FragmentEffect.h"
 #include "simVis/LabelContentManager.h"
 #include "simVis/Laser.h"
 #include "simVis/LobGroup.h"
@@ -514,10 +515,12 @@ ScenarioManager::ScenarioManager(ProjectorManager* projMan)
   AlphaTest::installShaderProgram(stateSet);
   BeamPulse::installShaderProgram(stateSet);
   DisableDepthOnAlpha::installShaderProgram(stateSet);
+  FragmentEffect::installShaderProgram(*stateSet);
   LobGroupNode::installShaderProgram(stateSet);
   OverrideColor::installShaderProgram(stateSet);
   PolygonStipple::installShaderProgram(stateSet);
   TrackHistoryNode::installShaderProgram(stateSet);
+  stateSet->getOrCreateUniform(SCENE_RENDER_STAGE_UNIFORM, osg::Uniform::INT)->set(SCENE_RENDER_STAGE_GLOBAL);
 
   scenarioEciLocator_ = new Locator();
 }
@@ -670,12 +673,19 @@ void ScenarioManager::removeEntity(simData::ObjectId id)
 
     // remove from the hoster table
     hosterTable_.erase(id);
-    // if entity was hosted by another entity, remove the link to this entity from other entity
-    for (auto it = hosterTable_.begin(); it != hosterTable_.end();)
+
+    simData::ObjectId hostId;
+    if (record->getEntityNode()->getHostId(hostId))
     {
-      auto erase = it++;
-      if (erase->second == id)
-        hosterTable_.erase(erase);
+      const auto& range = hosterTable_.equal_range(hostId);
+      for (auto it = range.first; it != range.second; ++it)
+      {
+        if (it->second == id)
+        {
+          hosterTable_.erase(it);
+          break;
+        }
+      }
     }
 
     // remove it from the entities list

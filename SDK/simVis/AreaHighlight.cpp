@@ -21,7 +21,6 @@
  *
  */
 #include <cassert>
-#include "osg/AutoTransform"
 #include "osg/BlendFunc"
 #include "osg/Depth"
 #include "osg/Geometry"
@@ -41,16 +40,16 @@ namespace
 {
 
 /// Controls rotational speed -- higher values spin faster; positive counterclockwise, negative clockwise
-static const float ROTATE_FREQUENCY = -2.0f;
+static constexpr float ROTATE_FREQUENCY = -2.0f;
 /// Controls speed of the flashing -- higher values pulse more frequently
-static const float GLOW_FREQUENCY = 3.5f;
+static constexpr float GLOW_FREQUENCY = 3.5f;
 /// Controls amplitude of the flashing -- higher values strobe more drastically
-static const float GLOW_AMPLITUDE = 0.2f;
+static constexpr float GLOW_AMPLITUDE = 0.2f;
 /// Added to the pulsing amplitude's alpha so the highlight does not become completely transparent
-static const float GLOW_MINIMUM_ALPHA = 0.6f;
+static constexpr float GLOW_MINIMUM_ALPHA = 0.6f;
 
 /// Minimum number of line segments in a highlight circle
-const int MIN_NUM_LINE_SEGMENTS = 90;
+static constexpr int MIN_NUM_LINE_SEGMENTS = 90;
 }
 
 // --------------------------------------------------------------------------
@@ -186,12 +185,12 @@ void AreaHighlightNode::init_()
   triGeom->setColorArray(triColorArray.get());
 
   // Separates the triangles from the circle an infinitesimal amount
-  const float fudgeFactor = 0.001f;
+  constexpr float fudgeFactor = 0.001f;
 
   // Draws 4 triangle (0,TIP_Y) to (SIDE_X,BASE_Y) to (-SIDE_X, BASE_Y)
-  const float TRI_TIP_Y = 0.8f;
-  const float TRI_BASE_Y = 0.9f;
-  const float TRI_SIDE_X = 0.1f;
+  constexpr float TRI_TIP_Y = 0.8f;
+  constexpr float TRI_BASE_Y = 0.9f;
+  constexpr float TRI_SIDE_X = 0.1f;
 
   // Triangle one
   triVertexArray->push_back(osg::Vec3(0, TRI_TIP_Y, fudgeFactor));
@@ -265,10 +264,13 @@ void LineDrawableHighlightNode::init_()
   stateSet->setMode(GL_BLEND, osg::StateAttribute::ON);
 
   // Billboard the shape
-  billboard_ = new osg::AutoTransform();
+  billboard_ = new simVis::BillboardAutoTransform();
   billboard_->setName("Line Drawable Billboard");
   billboard_->setAutoRotateMode(osg::AutoTransform::ROTATE_TO_SCREEN);
+  billboard_->setRotateInScreenSpace(true);
   billboard_->setAutoScaleToScreen(false);
+  billboard_->setRotation(osg::Quat());
+
   addChild(billboard_.get());
 
   // Need some shape to start
@@ -279,7 +281,7 @@ void LineDrawableHighlightNode::makeDiamond()
 {
   resetLines_(1, GL_LINE_LOOP);
   // Make diamond the same size as square, so go out to sqrt(2)
-  const float SQRT_2 = 1.4142136f;
+  constexpr float SQRT_2 = 1.4142136f;
   auto line = lines_[0];
   line->pushVertex(osg::Vec3f(0.f, SQRT_2, 0.f));
   line->pushVertex(osg::Vec3f(-SQRT_2, 0.f, 0.f));
@@ -303,7 +305,7 @@ void LineDrawableHighlightNode::makeCircle()
 {
   resetLines_(1, GL_LINE_LOOP);
   auto line = lines_[0];
-  float inc = M_TWOPI / static_cast<float>(MIN_NUM_LINE_SEGMENTS);
+  constexpr float inc = M_TWOPI / static_cast<float>(MIN_NUM_LINE_SEGMENTS);
   for (int j = MIN_NUM_LINE_SEGMENTS; j > 0; --j)
   {
     const float angle = inc * j;
@@ -318,7 +320,7 @@ void LineDrawableHighlightNode::makeSquareReticle()
 {
   resetLines_(4, GL_LINE_STRIP);
   // Measures from RET_SIDE to 1.0, how much the reticle is visible
-  const float RET_SIDE = 0.5;
+  constexpr float RET_SIDE = 0.5;
   // top right
   lines_[0]->pushVertex(osg::Vec3f(RET_SIDE, 1.f, 0.f));
   lines_[0]->pushVertex(osg::Vec3f(1.f, 1.f, 0.f));
@@ -339,6 +341,34 @@ void LineDrawableHighlightNode::makeSquareReticle()
   lines_[3]->pushVertex(osg::Vec3f(1.f, -1.f, 0.f));
   lines_[3]->pushVertex(osg::Vec3f(1.f, -RET_SIDE, 0.f));
   lines_[3]->finish();
+}
+
+void LineDrawableHighlightNode::makeCoffin()
+{
+  // Scale value to apply to image to make larger or smaller as needed
+  constexpr double SCALE = 1.0;
+
+  // in box coordinates, y value of top of the head of coffin
+  constexpr double HEAD_Y = 1.0 * SCALE;
+  // y value of the bump-out (about 75% from bottom)
+  constexpr double SHOULDER_Y = 0.5 * SCALE;
+  // y value of the bottom
+  constexpr double FEET_Y = -1.0 * SCALE;
+
+  // positive X coordinate of the bump-out on right side near shoulders
+  constexpr double SHOULDER_X = 0.5 * SCALE;
+  // positive X coordinate of the shorter bump-out for head and feet
+  constexpr double HEAD_X = 0.3 * SCALE;
+
+  resetLines_(1, GL_LINE_LOOP);
+  auto& line = lines_[0];
+  line->pushVertex(osg::Vec3f(HEAD_X, HEAD_Y, 0.f));
+  line->pushVertex(osg::Vec3f(SHOULDER_X, SHOULDER_Y, 0.f));
+  line->pushVertex(osg::Vec3f(HEAD_X, FEET_Y, 0.f));
+  line->pushVertex(osg::Vec3f(-HEAD_X, FEET_Y, 0.f));
+  line->pushVertex(osg::Vec3f(-SHOULDER_X, SHOULDER_Y, 0.f));
+  line->pushVertex(osg::Vec3f(-HEAD_X, HEAD_Y, 0.f));
+  line->finish();
 }
 
 void LineDrawableHighlightNode::resetLines_(size_t newLineCount, int glMode)
@@ -387,6 +417,23 @@ void LineDrawableHighlightNode::setRadius(float radius)
   billboard_->setScale(osg::Vec3f(radius, radius, radius));
 }
 
+void LineDrawableHighlightNode::setAutoRotate(bool autoRotate)
+{
+  if (autoRotate_ == autoRotate)
+    return;
+  autoRotate_ = autoRotate;
+    billboard_->setAutoRotateMode(autoRotate ? osg::AutoTransform::ROTATE_TO_SCREEN : osg::AutoTransform::NO_ROTATION);
+  // update screen space rotation if auto rotate changed
+  billboard_->setScreenSpaceRotation(autoRotate_ ? 0. : rotateRad_);
+}
+
+void LineDrawableHighlightNode::setScreenRotation(float rotateRad)
+{
+  rotateRad_ = rotateRad;
+  if (!autoRotate_)
+    billboard_->setScreenSpaceRotation(rotateRad_);
+}
+
 // --------------------------------------------------------------------------
 
 CompositeHighlightNode::CompositeHighlightNode(simData::CircleHilightShape shape)
@@ -402,7 +449,8 @@ CompositeHighlightNode::CompositeHighlightNode(const CompositeHighlightNode& rhs
  : HighlightNode(rhs, copyOp),
    shape_(rhs.shape_),
    rgba_(rhs.rgba_),
-   radius_(rhs.radius_)
+   radius_(rhs.radius_),
+   autoRotate_(rhs.autoRotate_)
 {
   setShape(shape_);
 }
@@ -458,6 +506,13 @@ void CompositeHighlightNode::setShape(simData::CircleHilightShape shape)
     child_ = asLineDrawable;
     asLineDrawable->makeSquareReticle();
     break;
+
+  case simData::CH_COFFIN:
+    if (!asLineDrawable)
+      asLineDrawable = new LineDrawableHighlightNode();
+    child_ = asLineDrawable;
+    asLineDrawable->makeCoffin();
+    break;
   }
 
   // Assert failure means an enum was added that isn't covered, or user somehow got
@@ -466,8 +521,10 @@ void CompositeHighlightNode::setShape(simData::CircleHilightShape shape)
   if (!child_.valid())
     return;
   addChild(child_.get());
+  child_->setAutoRotate(autoRotate_);
   child_->setRadius(radius_);
   child_->setColor(rgba_);
+  child_->setScreenRotation(rotateRad_);
 }
 
 void CompositeHighlightNode::setColor(const osg::Vec4f& rgba)
@@ -486,6 +543,22 @@ void CompositeHighlightNode::setRadius(float radius)
   radius_ = radius;
   if (child_.valid())
     child_->setRadius(radius_);
+}
+
+void CompositeHighlightNode::setAutoRotate(bool autoRotate)
+{
+  if (autoRotate_ == autoRotate)
+    return;
+  autoRotate_ = autoRotate;
+  if (child_.valid())
+    child_->setAutoRotate(autoRotate);
+}
+
+void CompositeHighlightNode::setScreenRotation(float yawRad)
+{
+  rotateRad_ = yawRad;
+  if (child_.valid())
+    child_->setScreenRotation(rotateRad_);
 }
 
 } //namespace simVis

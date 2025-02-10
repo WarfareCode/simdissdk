@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -24,16 +24,17 @@
 #define SIMDATA_MEMORYDATASLICE_H
 
 #include <deque>
+#include <optional>
 #include "simData/DataTypes.h"
 #include "simData/DataSlice.h"
 #include "simData/DataSliceUpdaters.h"
+#include "simData/DataStore.h"
 #include "simData/Interpolator.h"
 #include "simData/ObjectId.h"
 #include "simData/UpdateComp.h"
 
 namespace simData
 {
-class DataStore;
 
 namespace MemorySliceHelper
 {
@@ -195,7 +196,7 @@ public:
   /**
    * Retrieve the bounds used to compute the interpolated value
    * The bounds are represented as a std::pair containing const pointers
-   * If the value is not interpolated, the values in the pair could be NULL
+   * If the value is not interpolated, the values in the pair could be null
    */
   virtual typename DataSlice<T>::Bounds interpolationBounds() const;
 
@@ -229,6 +230,18 @@ public:
    * @param time
    */
   virtual void update(double time);
+
+  /**
+   * Returns true if the slice's member variable current_ changes.  Also returns the time span for the state of current_ member variable for the given time
+   * @param time Scenario time for the slice
+   * @param startTime The start time of the time range that has the same current_ as time
+   * @param endTime The end time of the time range that has the same current_ as time
+   * @return true if the slice's current_changes
+  */
+  void update(double time, std::optional<double>& startTime, std::optional<double>& endTime);
+
+  /// A function that is called every time the slice is modified
+  void installNotifier(const std::function<void()>& fn);
 
   /**
    * Perform a time update, finding the state data whose time is an exact match for the time specified, or interpolating
@@ -284,10 +297,12 @@ protected:
   T currentInterpolated_;
   /// specifies if the interpolated cache value is valid
   bool interpolated_;
-  /// specifies the interpolation bounds; the bounds will be NULL if no interpolation is specified
+  /// specifies the interpolation bounds; the bounds will be nullptr if no interpolation is specified
   typename DataSlice<T>::Bounds bounds_;
   /// Used to optimize updates by looking at data near the last update
   typename MemorySliceHelper::SafeDequeIterator<T*> fastUpdate_;
+  /// Used to notify parent that the slice changed
+  std::function<void()> notifierFn_;
 };
 
 //----------------------------------------------------------------------------
@@ -353,9 +368,25 @@ public:
    * in the DataStore
    * @param ds DataStore reference
    * @param id DataStore id
-   * @param time
+   * @param time The time for updating current_ to
+   * @param results Returns the results of the update
    */
-  virtual void update(DataStore *ds, ObjectId id, double time);
+  virtual void update(DataStore *ds, ObjectId id, double time, DataStore::CommitResult& results);
+
+  /**
+   * Perform a time update on the state data with the specified id in the DataStore. Also returns the time span
+   * for the state of current_ member variable for the given time.
+   * @param ds DataStore reference
+   * @param id DataStore id
+   * @param time The time for updating current_ to
+   * @param startTime The start time of the time range that has the same current_ as time
+   * @param endTime The end time of the time range that has the same current_ as time
+   * @param results Returns the results of the update
+   */
+  void update(DataStore* ds, ObjectId id, double time, DataStore::CommitResult& results, std::optional<double>& startTime, std::optional<double>& endTime);
+
+  /// A function that is called every time the slice is modified
+  void installNotifier(const std::function<void()>& fn);
 
   /// reduce the data store to only have points within the given 'timeWindow'
   /// @param timeWindow amount of time to keep in window (negative for no limit)
@@ -405,7 +436,7 @@ public:
 
 protected: // methods
   /**
-   * Move "current" to specified time.
+   * Move "current" to specified time. Also returns the time span for the state of current_ member variable for the given time
    * Since there is a sparse representation (i.e. key:value pairs are only updated when changing, they are not updated every time step)
    *   this accumulates entries from the last "current" until the specified time.
    * @param startTime the time AFTER for which to execute commands
@@ -413,6 +444,18 @@ protected: // methods
    * @return True if a prefs was updated
    */
   bool advance_(PrefType* prefs, double startTime, double time);
+
+  /**
+   * Move "current" to specified time.
+   * Since there is a sparse representation (i.e. key:value pairs are only updated when changing, they are not updated every time step)
+   *   this accumulates entries from the last "current" until the specified time.
+   * @param startTime the time AFTER for which to execute commands
+   * @param time current time
+   * @param startRangeTime The start time of the time range that has the same current_ as time
+   * @param endRangeTime The end time of the time range that has the same current_ as time
+   * @return True if a prefs was updated
+   */
+  bool advance_(PrefType* prefs, double startTime, double time, std::optional<double>& startRangeTime, std::optional<double>& endRangeTime);
 
   /// Set values to default
   void reset_();
@@ -455,6 +498,9 @@ protected: // data
   bool hasChanged_;
   /// Keeps track of the earliest command time insert since the last update(), to efficiently process command updates
   double earliestInsert_;
+  /// Used to notify parent that the slice changed
+  std::function<void()> notifierFn_;
+
 };
 
 /**
@@ -471,8 +517,9 @@ public:
   * @param ds DataStore reference
   * @param id DataStore id
   * @param time the time up to (and including) which to execute commands
+  * @param results Returns the results of the update
   */
-  virtual void update(DataStore *ds, ObjectId id, double time);
+  virtual void update(DataStore *ds, ObjectId id, double time, DataStore::CommitResult& results);
 };
 
 /**
@@ -489,8 +536,9 @@ public:
   * @param ds DataStore reference
   * @param id DataStore id
   * @param time the time up to (and including) which to execute commands
+  * @param results Returns the results of the update
   */
-  virtual void update(DataStore *ds, ObjectId id, double time);
+  virtual void update(DataStore*ds, ObjectId id, double time, DataStore::CommitResult& results);
 };
 
 /**

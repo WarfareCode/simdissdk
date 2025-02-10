@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -105,7 +105,7 @@ public:
   /** Destructor */
   virtual ~GogNodeInterface();
 
-  /** Get a pointer to the shape object, may be NULL */
+  /** Get a pointer to the shape object, may be nullptr */
   simCore::GOG::GogShape* shapeObject() const;
   /** Set the GogShape object, which updates the node's style */
   void setShapeObject(simCore::GOG::GogShapePtr shape);

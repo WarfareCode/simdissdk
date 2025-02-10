@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -315,18 +315,18 @@ std::string getAngleString(double radianAngle, GeodeticFormat format, bool allNu
 
 /// convert lat (in radians) to string in the form: ##.####### N/S
 std::string printLatitude(double latRadians, GeodeticFormat format, bool allNumerics,
-    size_t precision, simCore::DegreeSymbolFormat degSymbol)
+    size_t precision, simCore::DegreeSymbolFormat degSymbol, char positiveDir, char negativeDir)
 {
   latRadians = simCore::angWrapPI2(latRadians);
-  return getAngleString(latRadians, format, allNumerics, precision, degSymbol, 'N', 'S');
+  return getAngleString(latRadians, format, allNumerics, precision, degSymbol, positiveDir, negativeDir);
 }
 
 /// convert lon (in radians) to string in the form: ###.####### E/W
 std::string printLongitude(double lonRadians, GeodeticFormat format, bool allNumerics,
-    size_t precision, simCore::DegreeSymbolFormat degSymbol)
+    size_t precision, simCore::DegreeSymbolFormat degSymbol, char positiveDir, char negativeDir)
 {
   lonRadians = simCore::angFixPI(lonRadians);
-  return getAngleString(lonRadians, format, allNumerics, precision, degSymbol, 'E', 'W');
+  return getAngleString(lonRadians, format, allNumerics, precision, degSymbol, positiveDir, negativeDir);
 }
 
 } // namespace simCore

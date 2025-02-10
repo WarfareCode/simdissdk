@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -35,7 +35,11 @@
 #include "simQt/Settings.h"
 
 class QCloseEvent;
+class QIcon;
+class QLabel;
 class QModelIndex;
+class QProxyStyle;
+class QWidgetAction;
 class Ui_EntityLineEdit;
 
 namespace simCore { class Clock; }
@@ -180,8 +184,8 @@ private:
   void setTextStyle_(bool valid);
 
   Ui_EntityLineEdit* composite_; ///< The actual user interface
-  simQt::EntityTreeModel* entityTreeModel_;  ///< Will not be set in QtDesigner so always NULL check
-  simData::DataStore::ListenerPtr dataListenerPtr_; ///< Will not be set in QtDesigner so always NULL check
+  simQt::EntityTreeModel* entityTreeModel_;  ///< Will not be set in QtDesigner so always nullptr check
+  simData::DataStore::ListenerPtr dataListenerPtr_; ///< Will not be set in QtDesigner so always nullptr check
   EntityDialog* entityDialog_;  ///< The Entity Tree Composite Dialog
   uint64_t uniqueId_;  ///< The Unique ID of the entity, can be zero if current name is not valid
   uint64_t unavailableId_;  ///< The unique ID of an unavailable entity ID, set to zero to clear
@@ -194,6 +198,11 @@ private:
   EntityStateFilter::State state_; ///< Current state of filtering
   SettingsPtr settings_; ///< Pointer to global settings
   QPointer<CenterEntity> centerEntity_;  ///< Passed to the dialog for the centering feature
+  std::unique_ptr<QIcon> goodIcon_; ///< Icon to use when the entity name is valid
+  std::unique_ptr<QIcon> badIcon_; ///< Icon to use when the entity name is invalid
+  QLabel* iconLabel_ = nullptr; ///< Used to add the icon to the line edit
+  QWidgetAction* iconAction_ = nullptr; ///< Used to add the icon to the line edit
+  QProxyStyle* proxyStyle_ = nullptr; ///< Used to prevent the graying of the icon
 };
 
 /** Helper class to bind a EntityLineEdit object to Settings*/

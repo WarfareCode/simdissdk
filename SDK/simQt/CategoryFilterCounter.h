@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -160,6 +160,9 @@ public Q_SLOTS:
    */
   void asyncCountEntities();
 
+  /** Reset the filter counter; discard the results of any active count. */
+  void reset();
+
 Q_SIGNALS:
   /** Indicates that the asynchronous operation from testAsync() has completed. */
   void resultsReady(const simQt::CategoryCountResults& results);
@@ -170,10 +173,11 @@ private Q_SLOTS:
 
 private:
   simQt::CategoryCountResults lastResults_;
-  CategoryFilterCounter* counter_;
+  CategoryFilterCounter* counter_ = nullptr;
   std::unique_ptr<simData::CategoryFilter> nextFilter_;
-  bool retestPending_;
-  simData::ObjectType objectTypes_;
+  bool retestPending_ = false;
+  simData::ObjectType objectTypes_ = simData::ALL;
+  bool dropNextResults_ = false;
 };
 
 }

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -287,7 +287,7 @@ private:
     bool useGradient_;
     /** Whether to limit data in history */
     bool limitingData_;
-    /** Gradient for history points. Used when useGradient_ is true. NULL until first needed */
+    /** Gradient for history points. Used when useGradient_ is true. nullptr until first needed */
     osg::ref_ptr<osg::TransferFunction1D> gradientFunction_;
     /** Cached time of the first data point for the associated beam */
     double firstTime_;

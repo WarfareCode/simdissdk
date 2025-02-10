@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -435,7 +435,7 @@ TableStatus DataColumn::interpolate(double& value, double time, const Interpolat
   if (!rv.isSuccess())
     return rv;
 
-  // Either interpolate linearly if interpolator is NULL, or use custom interpolation
+  // Either interpolate linearly if interpolator is null, or use custom interpolation
   if (interpolator)
     value = interpolator->interpolate(this, lowValue, highValue, before.time(), time, atOrAfter.time());
   else

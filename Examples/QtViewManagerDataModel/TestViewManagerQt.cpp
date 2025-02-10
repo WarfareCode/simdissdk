@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -202,6 +202,9 @@ void MainWindow::addView()
   // Add a new inset for each main view
   for (std::vector<osg::observer_ptr<simVis::View> >::iterator iter = mainViews_.begin(); iter != mainViews_.end(); ++iter)
   {
+    if (!iter->valid())
+      continue;
+
     osg::ref_ptr<simVis::View> inset = new simVis::View();
     // Get X and Y values between 0 and 0.9
     float x = (0.9f * rand()) / RAND_MAX;

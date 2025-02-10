@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -63,7 +63,7 @@ LUT1ProfileDataProvider::LUT1ProfileDataProvider(simCore::LUT::LUT1<short> *lut,
   assert(lut);
   if (lut == nullptr)
   {
-    SIM_ERROR << "Attempting to assign a NULL LUT to the LUT1ProfileDataProvider" << std::endl;
+    SIM_ERROR << "Attempting to assign a null LUT to the LUT1ProfileDataProvider" << std::endl;
   }
   lut_ = lut;
 }
@@ -75,7 +75,7 @@ LUT1ProfileDataProvider::LUT1ProfileDataProvider(simCore::LUT::LUT1<short> *lut,
   assert(lut);
   if (lut == nullptr)
   {
-    SIM_ERROR << "Attempting to assign a NULL LUT to the LUT1ProfileDataProvider" << std::endl;
+    SIM_ERROR << "Attempting to assign a null LUT to the LUT1ProfileDataProvider" << std::endl;
   }
   lut_ = lut;
   setType_(type);

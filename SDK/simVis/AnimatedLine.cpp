@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -606,9 +606,8 @@ void AnimatedLineNode::drawSlantLine_(const simCore::MultiFrameCoordinate& start
   secondHalf_.line2->clear();
 
   // Calculate the length of the vector
-  simCore::Vec3 delta;
-  simCore::v3Subtract(endPoint.ecefCoordinate().position(), startPoint.ecefCoordinate().position(), delta);
-  const double length = simCore::v3Length(delta);
+  simCore::Vec3 delta = endPoint.ecefCoordinate().position() - startPoint.ecefCoordinate().position();
+  const double length = delta.length();
 
   // Calculate the number of segments
   const double segmentLength = simCore::sdkMin(length, MAX_SEGMENT_LENGTH);

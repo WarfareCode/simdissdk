@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -142,7 +142,7 @@ void DirectorySelectorWidget::setShowOpenDirectoryButton(bool show)
 
   if (showOpenDirectoryButton_)
   {
-    assert(openDirectoryButton_ == nullptr); // Button should be NULL
+    assert(openDirectoryButton_ == nullptr); // Button should be null
     openDirectoryButton_ = new QPushButton;
     openDirectoryButton_->setIcon(QIcon(":/simQt/images/Folder 1 Forward.png"));
     ui_->horizontalLayout->addWidget(openDirectoryButton_);
@@ -150,7 +150,7 @@ void DirectorySelectorWidget::setShowOpenDirectoryButton(bool show)
   }
   else
   {
-    assert(openDirectoryButton_ != nullptr); // Button shouldn't be NULL
+    assert(openDirectoryButton_ != nullptr); // Button shouldn't be null
     if (openDirectoryButton_)
       ui_->horizontalLayout->removeWidget(openDirectoryButton_);
     delete openDirectoryButton_;

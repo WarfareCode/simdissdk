@@ -54,18 +54,14 @@ set(BUILD_HWOS "${BUILD_SYSTEM_ARCH}-${OS_TYPE}")
 
 # Get compiler info
 if(MSVC)
-    # Calculate the build compiler version based on MSVC_VERSION:
-    #   MSVC_VERSION : Compiler
-    #           1930 : VC-14.3 (2022)
-    # Major version, e.g. (1930 / 100) - 5 == (19) - 5 == 14
-    math(EXPR BUILD_COMPILER_VERSION_MAJOR "( ${MSVC_VERSION} / 100 ) - 5")
-    # Minor version, e.g. (1930 % 100) / 10 == (30) / 10 == 3
-    math(EXPR BUILD_COMPILER_VERSION_MINOR "( ${MSVC_VERSION} % 100 ) / 10")
+    # VS 2022 is 14.3
+    set(BUILD_COMPILER_VERSION_MAJOR "14")
+    set(BUILD_COMPILER_VERSION_MINOR "3")
     # Put them together to form something like 9.0, 10.0, 7.1, etc.
     set(BUILD_COMPILER_VERSION "${BUILD_COMPILER_VERSION_MAJOR}.${BUILD_COMPILER_VERSION_MINOR}")
 else()
     # Get compiler name and version (gcc and gcc-compatible compilers)
-    exec_program(${CMAKE_C_COMPILER} ARGS --version OUTPUT_VARIABLE BUILD_COMPILER_VERSION)
+    execute_process(COMMAND ${CMAKE_C_COMPILER} --version OUTPUT_VARIABLE BUILD_COMPILER_VERSION)
     string(REGEX REPLACE ".*([0-9]\\.[0-9])\\.[0-9].*" "\\1" BUILD_COMPILER_VERSION ${BUILD_COMPILER_VERSION})
     # Extract major and minor version numbers
     string(REGEX REPLACE "([0-9]+)\\.[0-9]+" "\\1" BUILD_COMPILER_MAJOR_VERSION ${BUILD_COMPILER_VERSION})

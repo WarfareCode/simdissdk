@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -29,15 +29,10 @@
 #include "osg/observer_ptr"
 #include "osg/ref_ptr"
 #include "osgDB/FileUtils"
+#include "osgEarth/Threading"
 #include "simCore/Common/Common.h"
 #include "simCore/Common/FileSearch.h"
 #include "simVis/osgEarthVersion.h"
-
-#ifdef HAVE_OSGEARTH_THREADING
-#include "osgEarth/Threading"
-#else
-#include "osgEarth/ThreadingUtils"
-#endif
 
 namespace osg { class FrameStamp; }
 namespace osgText { class Font; }
@@ -255,11 +250,7 @@ private:
   bool memoryChecking_;
 
   simCore::FileSearchPtr fileSearch_;
-#ifdef HAVE_OSGEARTH_THREADING
   mutable osgEarth::Threading::RecursiveMutex fileSearchMutex_;
-#else
-  mutable OpenThreads::ReentrantMutex fileSearchMutex_;
-#endif
 
   /// We maintain a callback method that blocks HTTP results, and uses our file search
   class ReadFileCallback;

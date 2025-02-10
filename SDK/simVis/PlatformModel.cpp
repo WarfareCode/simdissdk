@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -220,6 +220,11 @@ bool PlatformModelNode::isImageModel() const
 osg::Node* PlatformModelNode::offsetNode() const
 {
   return offsetXform_.get();
+}
+
+osg::Node* PlatformModelNode::modelNode() const
+{
+  return model_.get();
 }
 
 unsigned int PlatformModelNode::objectIndexTag() const
@@ -512,6 +517,8 @@ void PlatformModelNode::setModel_(osg::Node* newModel, bool isImage)
   updateOffsets_(lastPrefs_, true);
   updateBounds_();
   updateDofTransform_(lastPrefs_, true);
+
+  fireCallbacks_(Callback::MODEL_CHANGED);
 }
 
 void PlatformModelNode::setRotateToScreen(bool value)
@@ -875,7 +882,7 @@ void PlatformModelNode::updatePolygonMode_(const simData::PlatformPrefs& prefs)
 
   if (!offsetXform_.valid())
     return;
-  osg::observer_ptr<osg::StateSet> stateSet = offsetXform_->getStateSet();
+  osg::observer_ptr<osg::StateSet> stateSet = offsetXform_->getOrCreateStateSet();
 
   // Have default values for face/mode
   osg::PolygonMode::Face face = osg::PolygonMode::FRONT_AND_BACK;
@@ -963,8 +970,10 @@ void PlatformModelNode::updateOverrideColor_(const simData::PlatformPrefs& prefs
   {
     if (prefs.overridecolorcombinemode() == simData::REPLACE_COLOR)
       overrideColor_->setCombineMode(OverrideColor::REPLACE_COLOR);
-    else
+    else if (prefs.overridecolorcombinemode() == simData::MULTIPLY_COLOR)
       overrideColor_->setCombineMode(OverrideColor::MULTIPLY_COLOR);
+    else
+      overrideColor_->setCombineMode(OverrideColor::INTENSITY_GRADIENT);
   }
 }
 

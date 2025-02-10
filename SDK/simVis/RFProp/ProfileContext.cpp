@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -54,7 +54,7 @@ double ProfileContext::adjustHeight(const simCore::Vec3& xEast) const
     // heights are offsets in meters to a spherical tangent plane at the reflla
     simCore::Vec3 sphereXYZ;
     simCore::tangentPlane2Sphere(refLla, xEast, sphereXYZ, &tpSphereXYZ_);
-    const double altAboveSphere = v3Length(sphereXYZ) - simCore::EARTH_RADIUS;
+    const double altAboveSphere = sphereXYZ.length() - simCore::EARTH_RADIUS;
     return xEast.z() + refLla.alt() - (altAboveSphere - xEast.z());
   }
 

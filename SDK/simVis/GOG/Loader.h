@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -82,7 +82,7 @@ public:
   void loadShape(const std::string& gogShapeBlock, const std::string& filename, size_t shapeNumber, bool attached, GogNodeVector& output) const;
 
 private:
-  /// build a GOG node object from the specified GogShape; can return NULL if failed to build the node
+  /// build a GOG node object from the specified GogShape; can return nullptr if failed to build the node
   GogNodeInterfacePtr buildGogNode_(simCore::GOG::GogShapePtr gog, const std::string& filename, bool attached) const;
 
   /// Parser for converting the input stream into simCore::GOG::GogShape objects

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -202,6 +202,9 @@ public:
   /** Returns true if all docking is disabled via settings */
   bool allDockingDisabled() const;
 
+  /** Restore layout geometry to default factory state */
+  void restoreDefaultLayout();
+
 public Q_SLOTS:
 
   /**
@@ -215,6 +218,9 @@ public Q_SLOTS:
 
   /** Sets the visibility of the title bar */
   void setTitleBarVisible(bool show);
+
+  /** Provide a custom setWindowFilePath() that fixes the title */
+  void setWindowFilePath(const QString& path);
 
   /** Changes whether escape key will close the widget or not.  Equivalent to setting the DockWidgetCloseOnEscapeKey flag. */
   void setEscapeClosesWidget(bool escapeCloses);
@@ -274,20 +280,20 @@ protected:
   /** Points to the settings group for this window */
   simQt::SettingsGroupPtr settings_;
   /** Handle to the global settings */
-  simQt::Settings* globalSettings_;
+  simQt::Settings* globalSettings_ = nullptr;
   /** Point size of the title bar text */
-  int titleBarPointSize_;
+  int titleBarPointSize_ = 12;
 
   /** Actions for title bar functionality */
-  QAction* dockableAction_;
-  QAction* restoreAction_;
-  QAction* maximizeAction_;
-  QAction* dockAction_;
-  QAction* undockAction_;
-  QAction* closeAction_;
+  QAction* dockableAction_ = nullptr;
+  QAction* restoreAction_ = nullptr;
+  QAction* maximizeAction_ = nullptr;
+  QAction* dockAction_ = nullptr;
+  QAction* undockAction_ = nullptr;
+  QAction* closeAction_ = nullptr;
 
   /** Parent main window */
-  QMainWindow* mainWindow_;
+  QMainWindow* mainWindow_ = nullptr;
 
 private Q_SLOTS:
   /** Applies the window's icon to the tab bar */
@@ -343,49 +349,50 @@ private:
   bool isChildWidget_(const QWidget* widget) const;
   /** Returns the current path for simQt::Settings, or QSettings if simQt::Settings is unavailable */
   QString path_() const;
+  /** Set floating with the specified geometry, falls back to a valid default if geometry is invalid  */
+  void setFloatingGeometry_(const QByteArray& geometryBytes);
 
   /** Install an event filter to capture drag events on the tab button when this widget is docked over or under other dock widgets */
   void installTabEventFilter_(QTabBar* tabBar);
   /** Uninstall the event filter capturing drag events on tab buttons */
   void uninstallTabEventFilter_();
 
-  QToolButton* restoreButton_;
-  QToolButton* maximizeButton_;
-  QToolButton* dockButton_;
-  QToolButton* undockButton_;
-  QToolButton* closeButton_;
-  QWidget* titleBar_;
-  QWidget* noTitleBar_;
-  QLabel* titleBarIcon_;
-  QLabel* titleBarTitle_;
-  QHBoxLayout* titleBarLayout_;
-  SearchLineEdit* searchLineEdit_;
-
   /** Helper class that deals with double click on title bar to maximize */
   class DoubleClickFrame;
-
   /** Helper class that deals with double click on title bar icon to close */
   class DoubleClickIcon;
-
   /** Class that caches original icon and provides monochromatic icons matching title color */
   class MonochromeIcon;
-
   /** Event filter to listen for drag n drop events when the dock widget is tabbed */
   class TabDragDropEventFilter;
+  /** Provides an elided label for the window title so that file path doesn't extend */
+  class ElidedTitleLabel;
+
+  QToolButton* restoreButton_ = nullptr;
+  QToolButton* maximizeButton_ = nullptr;
+  QToolButton* dockButton_ = nullptr;
+  QToolButton* undockButton_ = nullptr;
+  QToolButton* closeButton_ = nullptr;
+  QWidget* titleBar_ = nullptr;
+  QWidget* noTitleBar_ = nullptr;
+  QLabel* titleBarIcon_ = nullptr;
+  ElidedTitleLabel* titleBarTitle_ = nullptr;
+  QHBoxLayout* titleBarLayout_ = nullptr;
+  SearchLineEdit* searchLineEdit_ = nullptr;
 
   /** Stores the restore icon */
-  MonochromeIcon* restoreIcon_;
+  MonochromeIcon* restoreIcon_ = nullptr;
   /** Stores the maximize icon */
-  MonochromeIcon* maximizeIcon_;
+  MonochromeIcon* maximizeIcon_ = nullptr;
   /** Stores the dock icon */
-  MonochromeIcon* dockIcon_;
+  MonochromeIcon* dockIcon_ = nullptr;
   /** Stores the undock icon */
-  MonochromeIcon* undockIcon_;
+  MonochromeIcon* undockIcon_ = nullptr;
   /** Stores the close icon */
-  MonochromeIcon* closeIcon_;
+  MonochromeIcon* closeIcon_ = nullptr;
 
   /** Save the count of the number of user widgets in titlebar */
-  int titleBarWidgetCount_;
+  int titleBarWidgetCount_ = 0;
 
   /** Saves the geometry prior to a call to maximize() */
   QRect normalGeometry_;
@@ -394,7 +401,7 @@ private:
   ExtraFeatures extraFeatures_;
 
   /** Make sure setting are saved before calling the destructor */
-  bool settingsSaved_;
+  bool settingsSaved_ = false;
 
   /** Stylesheet to use on the titlebar when focused */
   QString focusStylesheet_;
@@ -406,18 +413,19 @@ private:
   /** Cached color to use for text and icons in the title bar when we do NOT have focus */
   QColor inactiveTextColor_;
   /** Cache of whether we have focus or not */
-  bool haveFocus_;
+  bool haveFocus_ = false;
 
   /** Flags true when widget is dockable */
-  bool isDockable_;
+  bool isDockable_ = true;
 
   /** Global flag that can be used to turn off all docking at once. */
   simQt::BoundBooleanSetting* disableAllDocking_;
 
   /** Setting to update border thickess */
-  simQt::BoundIntegerSetting* borderThickness_;
+  simQt::BoundIntegerSetting* borderThickness_ = nullptr;
 
-  QPointer<TabDragDropEventFilter> tabDragFilter_;
+  /** Event filter for tab bar when widget is tabbed */
+  TabDragDropEventFilter* tabDragFilter_ = nullptr;
 
   /** Default size, fallback if no stored setting size exists */
   QSize defaultSize_;

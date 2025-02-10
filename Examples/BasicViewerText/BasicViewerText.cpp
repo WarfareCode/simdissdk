@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -57,7 +57,6 @@ static std::string s_help =
   "2 : activate 'Overhead' navigation mode \n"
   "3 : activate 'GIS' navigation mode \n"
   "h : toggle between click-to-focus and hover-to-focus \n"
-  "l : toggle sky lighting \n"
   "tab : cycle focus (in click-to-focus mode only) \n"
   "v : create viewport (doesn't obscure text)\n"
   "b : create viewport (blown up, doesn't obscure)\n";
@@ -134,7 +133,7 @@ struct MenuHandler : public osgGA::GUIEventHandler
 
       case 'h': // TOGGLE BETWEEN HOVER-TO-FOCUS and CLICK-TO-FOCUS
       {
-        int mask = insetViewHandler_->getFocusActions();
+        int mask = 0;
         bool hover = (mask & simVis::InsetViewEventHandler::ACTION_HOVER) != 0;
         if (hover)
         {
@@ -146,13 +145,15 @@ struct MenuHandler : public osgGA::GUIEventHandler
           mask = simVis::InsetViewEventHandler::ACTION_HOVER;
           SIM_NOTICE << LC << "Switched to hover-to-focus mode." << std::endl;
         }
-        insetViewHandler_->setFocusActions(mask);
+        if (insetViewHandler_.valid())
+          insetViewHandler_->setFocusActions(mask);
         handled = true;
       }
       break;
 
       case 'i':
-        createHandler_->setEnabled(!createHandler_->isEnabled());
+        if (createHandler_.valid())
+          createHandler_->setEnabled(!createHandler_->isEnabled());
         break;
 
       case '1': // ACTIVATE PERSPECTIVE NAV MODE

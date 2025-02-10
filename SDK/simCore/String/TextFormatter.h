@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -56,7 +56,7 @@ public:
   /** Converts an altitude value into a string; input is in meters */
   virtual std::string formatAltitude(double alt) const = 0;
   /** Converts an altitude value into a string after accounting for vertical datum; input is in meters, angles in radians */
-  virtual std::string formatAltitude(const Vec3& lla, const simCore::TimeStamp& timeStamp, CoordinateSystem coordSystem, double offset, VerticalDatum outputDatum) const = 0;
+  virtual std::string formatAltitude(const Vec3& lla, const simCore::TimeStamp& timeStamp, CoordinateSystem coordSystem, double offset) const = 0;
   /** Converts a speed value into a string; input is in meters per second */
   virtual std::string formatSpeed(double val) const = 0;
   /** Converts a time value into a string; time is always in seconds since the scenario's reference year; negative time implies static time */
@@ -75,7 +75,7 @@ public:
   /** Converts a true angle value, when the angle could be affected by magnetic variance; input is in radians */
   virtual double rawAzimuth(const Vec3& lla, const simCore::TimeStamp& timeStamp, double az, CoordinateSystem coordSystem, double offset) const = 0;
   /** Converts an altitude value  accounting for vertical datum; input is in meters, angles in radians */
-  virtual double rawAltitude(const Vec3& lla, const simCore::TimeStamp& timeStamp, CoordinateSystem coordSystem, double offset, VerticalDatum outputDatum) const = 0;
+  virtual double rawAltitude(const Vec3& lla, const simCore::TimeStamp& timeStamp, CoordinateSystem coordSystem, double offset) const = 0;
 };
 
 }

@@ -2,21 +2,16 @@ import os, sys, math, timeit
 
 # Try to use SIMDIS_DIR to set up import paths
 if 'SIMDIS_DIR' in os.environ:
-	# For _module shared object:
-	if os.name == "nt":
-		sys.path.append(os.environ['SIMDIS_DIR'] + '/lib/amd64-nt/python3.11')
-		try:
-			# Python 3.8 does not want to respect PATH for loading dependent DLLs.  It introduces
-			# a new method to attempt to fix the problem.  Try/except ignores errors in older Python.
-			# Without this, the _simCore.pyd needs to go in the same place as simNotify/simCore.
-			os.add_dll_directory(os.environ['SIMDIS_DIR'] + '/bin/amd64-nt')
-		except:
-			pass
-		pass
-	else:
-		sys.path.append(os.environ['SIMDIS_DIR'] + '/lib/amd64-linux/python3.11/lib-dynload')
-	# For module wrapper:
-	sys.path.append(os.environ['SIMDIS_DIR'] + '/bin/pythonScripts')
+	SIMDIS_DIR = os.environ['SIMDIS_DIR']
+	# SIMDIS_DIR/bin/pythonScripts for module wrappers
+	sys.path.insert(0, os.path.join(SIMDIS_DIR, 'bin', 'pythonScripts'))
+	# SIMDIS_DIR/lib/amd64-nt/python#.## or SIMDIS_DIR/lib/amd64-linux/python#.##/lib-dynload for _module shared objects
+	base_lib = os.path.join(SIMDIS_DIR, 'lib', 'amd64-nt' if os.name == 'nt' else 'amd64-linux')
+	search_for = 'python' if os.name == 'nt' else 'lib-dynload'
+	for root_dir, dirs, files in os.walk(base_lib):
+		for dir_name in dirs:
+			if search_for in dir_name: sys.path.insert(0, os.path.join(root_dir, dir_name))
+	if os.name == "nt": os.add_dll_directory(os.path.join(os.environ['SIMDIS_DIR'], 'bin', 'amd64-nt')) # for SIMDIS SDK notify DLL
 
 import simCore
 
@@ -49,6 +44,23 @@ v.scale(2)
 assert(v.x() == 6)
 assert(v.y() == 2)
 assert(v.z() == 4)
+v.set(1, 2, 3)
+assert(v + simCore.Vec3(1, 2, 3) == simCore.Vec3(2, 4, 6))
+v += simCore.Vec3(1, 1, 1)
+assert(v == simCore.Vec3(2, 3, 4))
+assert(v - simCore.Vec3(1, 1, 1) == simCore.Vec3(1, 2, 3))
+v -= simCore.Vec3(1, 1, 1)
+assert(v == simCore.Vec3(1, 2, 3))
+assert(v * 2 == simCore.Vec3(2, 4, 6))
+v *= 2
+assert(v / 2 == simCore.Vec3(1, 2, 3))
+v /= 2
+assert(v == simCore.Vec3(1, 2, 3))
+assert(-v == simCore.Vec3(-1, -2, -3))
+assert(v.dot(v) == 14)
+assert(v.cross(simCore.Vec3(1, 5, 7)) == simCore.Vec3(-1, -4, 3))
+assert(simCore.Vec3(3, 0, 4).length() == 5)
+assert(simCore.Vec3(0, 3, 0).normalize() == simCore.Vec3(0, 1, 0))
 
 #############################
 # Angle.h
@@ -79,6 +91,7 @@ assert(coordSystem == simCore.COORD_SYS_NED)
 #############################
 # Coordinate.h
 coordinateOne = simCore.Coordinate()
+v = simCore.Vec3(6, 2, 4)
 coordinateTwo = simCore.Coordinate(simCore.COORD_SYS_LLA, v)
 assert(coordinateOne is not None)
 assert(coordinateTwo is not None)
@@ -118,7 +131,7 @@ assert(simCore.isFinite(v))
 v2 = simCore.Vec3(1, 2, 3)
 assert(v2 is not None)
 assert(simCore.v3Distance(v, v2) == math.sqrt(26))
-v2 = simCore.v3Scale(2, v)
+v2 = v * 2
 assert(v2.x() == 12)
 assert(v2.y() == 4)
 assert(v2.z() == 8)
@@ -196,13 +209,42 @@ assert(rv is not None and gars is not None and err is not None)
 v1 = simCore.Vec3(0, 0, 0)
 v2 = simCore.Vec3(0, 0, 0)
 v3 = simCore.Vec3(0, 0, 0)
+p = simCore.Plane()
 p = simCore.Plane(v1, v2, v3)
-assert(p is not None)
+p = simCore.Plane(simCore.Vec3(0, 1., 0), 3.0)
+assert(p.d() == 3.0)
+assert(p.normal().x() == 0.0)
+assert(p.normal().y() == 1.0)
+assert(p.normal().z() == 0.0)
 v4 = simCore.Vec3(0, 0, 0)
 assert(p.distance(v4) is not None)
 poly = simCore.Polytope()
 assert(poly is not None)
 assert(poly.contains(v4) is not None)
+tri = simCore.Triangle()
+tri.a = v1
+tri.b.set(0, 4, 10)
+tri.c.set(0, -4, 10)
+ray = simCore.Ray()
+ray.origin.set(-1000, 0, 5)
+ray.direction.set(1, 0, 0)
+results = simCore.rayIntersectsTriangle(ray, tri, True)
+assert(results.intersects)
+assert(abs(results.t - 1000.) < 0.001)
+assert(results.u is not None)
+assert(results.v is not None)
+p = simCore.Plane()
+ray.origin.set(100, 100, 1.)
+ray.direction.set(0, 0, -1)
+results = simCore.rayIntersectsPlane(ray, p)
+assert(results is not None)
+assert(results == 1.0)
+ray.direction.set(1, 0, 0)
+results = simCore.rayIntersectsPlane(ray, p)
+assert(results is None) # parallel to plane
+
+#############################
+# GeoFence.h
 fence = simCore.GeoFence()
 assert(fence is not None)
 assert(fence.valid() is not None)
@@ -341,6 +383,15 @@ assert(simCore.calculateHorizonDist(v1, simCore.GEOMETRIC_HORIZON, 1.06, 1.333) 
 assert(simCore.positionInGate(v1, v2, 1.0, 0.0, 1.0, 1.0, 1000.0, 3000.0, simCore.WGS_84, coordConverter) is not None)
 assert(simCore.laserInGate(v1, v2, 1.0, 0.0, 1.0, 1.0, 1000.0, 3000.0, 1.5, 1.5, 2000.0, simCore.WGS_84, coordConverter) is not None)
 assert(simCore.laserInGate(v1, v2, 1.0, 0.0, 1.0, 1.0, 1000.0, 3000.0, 1.5, 1.5, 2000.0, simCore.WGS_84, coordConverter, 100) is not None)
+#Verify calculateBearingAspectAngle and formatBearingAspectAngle
+p1 = simCore.Vec3(0.0, 0.0, 0.0)
+p2 = simCore.Vec3(0.008726646, 0.008726646, 0.0)
+angle = simCore.calculateBearingAspectAngle(p1, p2, 0.0);
+assert(simCore.areEqual(angle, -0.78873754367140192))
+assert(simCore.formatBearingAspectAngle(angle) == '5L')
+angle = simCore.calculateBearingAspectAngle(p1, p2, 0.785398163);
+assert(simCore.areEqual(angle, -0.0033393806714019370))
+assert(simCore.formatBearingAspectAngle(angle) == 'T')
 
 #############################
 # Random.h
@@ -369,6 +420,19 @@ assert(sm.set(0, 0, 0) is not None)
 assert(sm.get(0, 0) == 0)
 assert(sm.data() is not None)
 assert(sm.add(simCore.SquareMatrix()) is not None)
+
+#############################
+# Dcm.h (is a SquareMatrix, so reusing SquareMatrix tests)
+dcm = simCore.Dcm()
+assert(dcm is not None)
+assert(dcm.makeIdentity() is not None)
+assert(dcm.transpose() is not None)
+assert(dcm.set(0, 0, 0) is not None)
+assert(dcm.get(0, 0) == 0)
+assert(dcm.data() is not None)
+assert(dcm.add(simCore.Dcm()) is not None)
+assert(dcm.toEuler() is not None)
+assert(dcm.fromDQ(simCore.DoubleArray(4)) is not None)
 
 #############################
 # Units.h
@@ -521,7 +585,7 @@ assert(simCore.StringUtils.substitute("Testing function", "t", "m") is not None)
 assert(simCore.StringUtils.addEscapeSlashes('"') == '\\\"')
 assert(simCore.StringUtils.removeEscapeSlashes('\\"') == '"')
 assert(simCore.StringUtils.trim('  test  ') == 'test')
-assert(simCore.toNativeSeparators("Users\person\Documents") is not None)
+assert(simCore.toNativeSeparators("Users\\person\\Documents") is not None)
 assert(simCore.sanitizeFilename("<Documents>") == "Documents")
 assert(simCore.hasEnv("var") is not None)
 

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,17 +23,15 @@
 #ifndef SIMCORE_TIME_TIMECLASS_H
 #define SIMCORE_TIME_TIMECLASS_H
 
-#include <iostream>
 #include <sstream>
-
 #include "simCore/Common/Common.h"
 #include "simCore/Time/Constants.h"
 
 namespace simCore
 {
-  static const double INPUT_CONV_FACTOR_PREC_LIMIT = 1e+09; /**< Conversion factor for incoming fraction of seconds and maximum precision limit */
-  static const double OUTPUT_CONV_FACTOR = 1e-09;           /**< Conversion factor for outgoing fraction of seconds */
-  static const double INPUT_ROUND_UP_VALUE = 5e-10;         /**< Round up value for incoming fraction of seconds */
+  inline constexpr double INPUT_CONV_FACTOR_PREC_LIMIT = 1e+09; /**< Conversion factor for incoming fraction of seconds and maximum precision limit */
+  inline constexpr double OUTPUT_CONV_FACTOR = 1e-09;           /**< Conversion factor for outgoing fraction of seconds */
+  inline constexpr double INPUT_ROUND_UP_VALUE = 5e-10;         /**< Round up value for incoming fraction of seconds */
 
   //------------------------------------------------------------------------
 
@@ -470,15 +468,15 @@ namespace simCore
   /** Static value representing zero seconds, shared for performance reasons. */
   static const Seconds ZERO_SECONDS;
   /** Sentinel value for year that represents an infinite time value. */
-  static const int INFINITE_TIME_YEAR = 16384;
+  inline constexpr int INFINITE_TIME_YEAR = 16384;
   /** Sentinel value for simCore::TimeStamp that represents an infinite time value. */
   static const TimeStamp INFINITE_TIME_STAMP(INFINITE_TIME_YEAR, ZERO_SECONDS);
   /** Sentinel value for minimum year supported by simCore::TimeStamp */
-  static const int MIN_TIME_YEAR = 1970;
+  inline constexpr int MIN_TIME_YEAR = 1970;
   /** Sentinel value for simCore::TimeStamp that represents the minimum valid time value. */
   static const TimeStamp MIN_TIME_STAMP(MIN_TIME_YEAR, ZERO_SECONDS);
   /** Sentinel value for maximum year supported by simCore::TimeStamp */
-  static const int MAX_TIME_YEAR = 2200;
+  inline constexpr int MAX_TIME_YEAR = 2200;
   /** Sentinel value for simCore::TimeStamp that represents the maximum valid time value while maintaining microsecond resolution. */
   static const TimeStamp MAX_TIME_STAMP(MAX_TIME_YEAR, Seconds(365 * SECPERDAY - 1, 999999));
 

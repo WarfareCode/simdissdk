@@ -4,11 +4,16 @@ endif()
 
 project(SimVis_UnitTests)
 
-create_test_sourcelist(SimVisTestFiles SimVisTests.cpp
+set(SV_TESTS
     FontSizeTest.cpp
-    GogTest.cpp
     LocatorTest.cpp
 )
+# Need gdal.h for GogTest
+if(TARGET GDAL::GDAL)
+    list(APPEND SV_TESTS GogTest.cpp)
+endif()
+
+create_test_sourcelist(SimVisTestFiles SimVisTests.cpp ${SV_TESTS})
 
 # GogTest uses deprecated simVis::GOG::Parser
 if(MSVC)
@@ -26,4 +31,7 @@ set_target_properties(SimVisTests PROPERTIES
 
 add_test(NAME LocatorTest COMMAND SimVisTests LocatorTest)
 add_test(NAME FontSizeTest COMMAND SimVisTests FontSizeTest)
-add_test(NAME SimVisGogTest COMMAND SimVisTests GogTest)
+if(TARGET GDAL::GDAL)
+    add_test(NAME SimVisGogTest COMMAND SimVisTests GogTest)
+    target_link_libraries(SimVisTests PRIVATE GDAL::GDAL)
+endif()

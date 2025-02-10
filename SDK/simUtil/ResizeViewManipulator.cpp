@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -198,7 +198,7 @@ int ResizeViewManipulator::push(const osgGA::GUIEventAdapter& ea, osgGA::GUIActi
   activeView_ = nullptr;
   osg::ref_ptr<simVis::View> view = static_cast<simVis::View*>(aa.asView());
   // Ignore events from nullptr views and the main view
-  if (view == nullptr || view == mainView_.get())
+  if (!view.valid() || view == mainView_.get())
     return 0;
 
   const osg::Vec2d mousePosition = osg::Vec2d(ea.getX(), ea.getY());

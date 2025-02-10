@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -85,9 +85,9 @@ public:
   {
   }
 
-  virtual void apply(osg::Geometry& geometry)
+  virtual void apply(osg::Drawable& drawable)
   {
-    osgEarth::LineDrawable* line = dynamic_cast<osgEarth::LineDrawable*>(&geometry);
+    osgEarth::LineDrawable* line = dynamic_cast<osgEarth::LineDrawable*>(&drawable);
     if (line)
       line->setColor(color_);
   }
@@ -172,8 +172,8 @@ void VelocityVector::createVelocityVector_(const simData::PlatformPrefs& prefs, 
   double scale;
   if (prefs.velvecusestaticlength())
   {
-    simCore::v3Norm(lla.velocity(), velocity);
-    const osgEarth::Units sizeUnits = simVis::convertUnitsToOsgEarth(prefs.velvecstaticlenunits());
+    velocity = lla.velocity().normalize();
+    const osgEarth::UnitsType sizeUnits = simVis::convertUnitsToOsgEarth(prefs.velvecstaticlenunits());
     scale = sizeUnits.convertTo(osgEarth::Units::METERS, prefs.velvecstaticlen());
   }
   else
@@ -188,7 +188,7 @@ void VelocityVector::createVelocityVector_(const simData::PlatformPrefs& prefs, 
       scale *= 3600.0;
   }
 
-  simCore::v3Scale(scale, velocity, velocity);
+  velocity *= scale;
 
   // draw velocity vector
   geom->allocate(2);

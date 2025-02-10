@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -1067,6 +1067,35 @@ int testAnnotation()
       rv += SDK_ASSERT(anno->text() == "label 1\nnext line");
   }
 
+  // test that name and text values set and serialize correctly
+  {
+    simCore::GOG::Annotation nameAnnotation(false);
+    nameAnnotation.setText("Text");
+    nameAnnotation.setPosition(simCore::Vec3());
+
+    // name should be the same as text if no name was set
+    std::string name;
+    rv += SDK_ASSERT(nameAnnotation.getName(name) == 0);
+    rv += SDK_ASSERT(name == "Text");
+
+    std::stringstream os;
+    nameAnnotation.serializeToStream(os);
+    std::string serialized = os.str();
+    rv += SDK_ASSERT(serialized.find("annotation Text") != std::string::npos);
+    // verify name is not serialized out when not set
+    rv += SDK_ASSERT(serialized.find("3d name") == std::string::npos);
+
+    nameAnnotation.setName("Name");
+    nameAnnotation.getName(name);
+    // now that name is set, verify it is returned
+    rv += SDK_ASSERT(name == "Name");
+    nameAnnotation.serializeToStream(os);
+    serialized = os.str();
+    // verify text is serialized out correctly when name is set
+    rv += SDK_ASSERT(serialized.find("annotation Text") != std::string::npos);
+    // verify name is serialized out when set
+    rv += SDK_ASSERT(serialized.find("3d name Name") != std::string::npos);
+  }
   return rv;
 }
 
@@ -1289,20 +1318,20 @@ int testUnits()
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2000000\n rangeunits millimeters\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 200000\n rangeunits cm\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 200000\n rangeunits centimeters\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 78740.16058032128\n rangeunits in\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 78740.16058032128\n rangeunits inches\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 6561.680005304462\n rangeunits ft\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 6561.680005304462\n rangeunits feet\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2187.226668434821\n rangeunits yd\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2187.226668434821\n rangeunits yards\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 78740.15748031496\n rangeunits in\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 78740.15748031496\n rangeunits inches\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 6561.679790026247\n rangeunits ft\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 6561.679790026247\n rangeunits feet\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2187.226596675416\n rangeunits yd\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2187.226596675416\n rangeunits yards\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2000\n rangeunits m\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2000\n rangeunits meters\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1093.61333421741\n rangeunits fm\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1093.61333421741\n rangeunits fathoms\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 6.561680005304462\n rangeunits kf\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 6.561680005304462\n rangeunits kilofeet\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2.187226600000268\n rangeunits kyd\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2.187226600000268\n rangeunits kiloyards\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1093.61329833771\n rangeunits fm\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1093.61329833771\n rangeunits fathoms\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 6.561679790026247\n rangeunits kf\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 6.561679790026247\n rangeunits kilofeet\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2.187226596675416\n rangeunits kyd\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2.187226596675416\n rangeunits kiloyards\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2\n rangeunits km\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 2\n rangeunits kilometers\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1.242742384474668\n rangeunits sm\n end\n", testCircularRadiusFunc);
@@ -1310,8 +1339,8 @@ int testUnits()
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1.242742384474668\n rangeunits miles\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1.079913606911447\n rangeunits nm\n end\n", testCircularRadiusFunc);
   rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1.079913606911447\n rangeunits  nautical miles \n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1.093613199999827\n rangeunits dm\n end\n", testCircularRadiusFunc);
-  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1.093613199999827\n rangeunits data miles\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1.093613298337708\n rangeunits dm\n end\n", testCircularRadiusFunc);
+  rv += testShapeFunction<simCore::GOG::Circle>("start\n circle\n radius 1.093613298337708\n rangeunits data miles\n end\n", testCircularRadiusFunc);
 
   // test all angle units (use 90 degrees)
   rv += testShapeFunction<simCore::GOG::Arc>("start\n arc\n anglestart 90\n angleunits deg\n end\n", testEllipticalAngleStartFunc);
@@ -1440,7 +1469,7 @@ auto testCircularRadiusDefaultFunc = [](const simCore::GOG::CircularShape* shape
   int rv = 0;
   double radius = 0.;
   rv += SDK_ASSERT(shape->getRadius(radius) != 0);
-  rv += SDK_ASSERT(simCore::areEqual(radius, 914.39997));
+  rv += SDK_ASSERT(simCore::areEqual(radius, 914.4));
   return rv;
 };
 
@@ -1450,7 +1479,7 @@ auto testCircularHeightDefaultHeightFunc = [](const simCore::GOG::CircularHeight
   int rv = 0;
   double height = 0.;
   rv += SDK_ASSERT(shape->getHeight(height) != 0);
-  rv += SDK_ASSERT(simCore::areEqual(height, 304.79999));
+  rv += SDK_ASSERT(simCore::areEqual(height, 304.8));
   return rv;
 };
 
@@ -1460,7 +1489,7 @@ auto testCylinderDefaultHeightFunc = [](const simCore::GOG::Cylinder* shape) -> 
   int rv = 0;
   double height = 0.;
   rv += SDK_ASSERT(shape->getHeight(height) != 0);
-  rv += SDK_ASSERT(simCore::areEqual(height, 304.79999));
+  rv += SDK_ASSERT(simCore::areEqual(height, 304.8));
   return rv;
 };
 
@@ -1537,22 +1566,19 @@ int testSerialization()
 {
   int rv = 0;
 
-  // serialized items that match those in BASE_FIELDS (excluding name)
-  std::vector<std::string> baseItemsNoName;
-  baseItemsNoName.push_back("altitudeunits m\n");
-  baseItemsNoName.push_back("off\n");
-  baseItemsNoName.push_back("depthbuffer true\n");
-  baseItemsNoName.push_back("3d offsetalt 120\n");
-  baseItemsNoName.push_back("altitudemode relativetoground\n");
-  baseItemsNoName.push_back("scale 2 1.3 0.5\n");
-  baseItemsNoName.push_back("verticaldatum egm1984\n");
-  baseItemsNoName.push_back("starttime \"001 1970 00:00:00.00000\"");
-  baseItemsNoName.push_back("endtime \"001 1970 01:00:00.00000\"");
-  baseItemsNoName.push_back("start\n");
-  baseItemsNoName.push_back("end\n");
-
-  // all base items including the 3d name
-  std::vector<std::string> baseItems = baseItemsNoName;
+  // serialized items that match those in BASE_FIELDS
+  std::vector<std::string> baseItems;
+  baseItems.push_back("altitudeunits m\n");
+  baseItems.push_back("off\n");
+  baseItems.push_back("depthbuffer true\n");
+  baseItems.push_back("3d offsetalt 120\n");
+  baseItems.push_back("altitudemode relativetoground\n");
+  baseItems.push_back("scale 2 1.3 0.5\n");
+  baseItems.push_back("verticaldatum egm1984\n");
+  baseItems.push_back("starttime \"001 1970 00:00:00.00000\"");
+  baseItems.push_back("endtime \"001 1970 01:00:00.00000\"");
+  baseItems.push_back("start\n");
+  baseItems.push_back("end\n");
   baseItems.push_back("3d name my favorite shape\n");
 
   // follow items are in a separate list, since not all shapes support follow
@@ -1602,8 +1628,8 @@ int testSerialization()
   pointItems.push_back("pointsize 5\n");
   pointItems.push_back("linecolor hex 0xffc000c0\n");
 
-  // serialized items that match those in ANNOTATION_FIELDS + BASE_FIELDS (excluding the 3d name, which is part of the annotation shape type line)
-  std::vector<std::string> annotationItems = baseItemsNoName;
+  // serialized items that match those in ANNOTATION_FIELDS + BASE_FIELDS
+  std::vector<std::string> annotationItems = baseItems;
   annotationItems.push_back("annotation my favorite shape\n");
   annotationItems.push_back("fontname georgia.ttf\n");
   annotationItems.push_back("fontsize 24\n");

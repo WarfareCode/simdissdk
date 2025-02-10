@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,6 +23,7 @@
 #ifndef SIMQT_MERGEVALUES_H
 #define SIMQT_MERGEVALUES_H
 
+#include <optional>
 #include <string>
 #include <QCheckBox>
 #include <QLabel>
@@ -95,7 +96,7 @@ public:
    * @param[in] value  The new value to apply
    * @param[in] hasValues  If false, then no-op. Useful when merging values
    *   programmatically in cases where values may not exist, such as when
-   *   using simCore::Optional.
+   *   using std::optional.
    */
   virtual void applyValue(T value, bool hasValues)
   {
@@ -128,9 +129,9 @@ protected:
    * Update the enabled state of the widget and handle the conflict font state. This method
    * is typically called by derived classes in their destructors.
    * @param[in] widget  pointer to the widget being updated
-   * @param[in] label  pointer to the label to update. If NULL, widget's font is updated instead.
+   * @param[in] label  pointer to the label to update. If nullptr, widget's font is updated instead.
    * @param[in] hasValues  enabled state to set on the widget and label. See description of hasValues in applyValues() docs
-   * @param[in] conflict  if true, conflict font (italics) is set on the label (or widget, if label is NULL). Clears italic font if false.
+   * @param[in] conflict  if true, conflict font (italics) is set on the label (or widget, if label is nullptr). Clears italic font if false.
    */
   void updateEnabled_(QWidget* widget, QLabel* label, bool hasValues, bool conflict) const
   {

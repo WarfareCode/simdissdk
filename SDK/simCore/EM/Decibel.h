@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -56,7 +56,7 @@ namespace simCore
   inline Type linear2dB(Type in)
   {
     assert(in >= 0);
-    static const Type smalldB = -300.;
+    constexpr Type smalldB = -300.;
     return (in > 0) ? (Type)(10. * log10(in)) : smalldB;
   }
 
@@ -69,7 +69,7 @@ namespace simCore
   inline Type linear2dBm(Type in)
   {
     assert(in >= 0);
-    static const Type smalldB = -300;
+    constexpr Type smalldB = -300;
     return (in > 0) ? (30 + 10 * log10(in)) : smalldB;
   }
 
@@ -199,11 +199,11 @@ namespace simCore
   }
 
   /// small dB/Sq meter values that are used for values near zero
-  static const float SMALL_DB_VAL = -300.f;
+  inline constexpr float SMALL_DB_VAL = -300.f;
   /// Small radar cross section dB/Sq meter value for near-zero
-  static const float SMALL_RCS_SM = static_cast<float>(1.E-30);
+  inline constexpr float SMALL_RCS_SM = static_cast<float>(1.E-30);
   /// comparison value used to account for conversion errors from double to float
-  static const float SMALL_DB_COMPARE = SMALL_DB_VAL + 0.01f;
+  inline constexpr float SMALL_DB_COMPARE = SMALL_DB_VAL + 0.01f;
 }
 
 #endif /* SIMCORE_EM_DECIBEL_H */

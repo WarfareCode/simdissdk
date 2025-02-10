@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,7 +23,11 @@
 #ifndef SIMCORE_OPTIONAL_H
 #define SIMCORE_OPTIONAL_H
 
+#include "simCore/Common/Common.h"
+
 namespace simCore {
+
+#ifdef USE_DEPRECATED_SIMDISSDK_API
 
 /**
  * Template class that represents an optional item that may or may not be set.
@@ -34,7 +38,7 @@ class Optional
 {
 public:
   /** Default initialization */
-  Optional()
+  SDK_DEPRECATE(Optional(), "Deprecated, use std::optional instead.")
     : value_(T()),
       isSet_(false)
   {
@@ -75,6 +79,8 @@ private:
   T value_;
   bool isSet_;
 };
+
+#endif
 
 }
 

@@ -14,17 +14,17 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
 #include <iomanip>
+#include <optional>
 
 #include "simNotify/Notify.h"
 #include "simCore/Common/Exception.h"
-#include "simCore/Common/Optional.h"
 #include "simCore/String/Angle.h"
 #include "simCore/String/Format.h"
 #include "simCore/String/Tokenizer.h"
@@ -140,7 +140,7 @@ void Parser::parse(std::istream& input, const std::string& filename, std::vector
   ParsedShape current;
   std::string line;
   // reference origin settings within a start/end block
-  simCore::Optional<PositionStrings> refLla;
+  std::optional<PositionStrings> refLla;
 
   // track line number parsed for error reporting
   size_t lineNumber = 0;
@@ -285,7 +285,6 @@ void Parser::parse(std::istream& input, const std::string& filename, std::vector
         textToken = simCore::StringUtils::substitute(textToken, "_", " ");
         textToken = simCore::StringUtils::substitute(textToken, "\\n", "\n");
         current.set(ShapeParameter::TEXT, textToken);
-        current.set(ShapeParameter::NAME, textToken);
         invalidShape = false;  // Required to allow processing of valid annotations after an invalid annotation
       }
       else
@@ -571,7 +570,10 @@ void Parser::parse(std::istream& input, const std::string& filename, std::vector
     }
     else if (tokens[0] == "filled")
     {
-      current.set(ShapeParameter::FILLED, "true");
+      if (tokens.size() >= 2)
+        current.set(ShapeParameter::FILLED, tokens[1]);
+      else
+        current.set(ShapeParameter::FILLED, "true");
     }
     else if (tokens[0] == "outline")
     {
@@ -1398,7 +1400,7 @@ void Parser::parseOutlined_(const ParsedShape& parsed, OutlinedShape* shape) con
 {
   if (!shape)
   {
-    assert(0); // should not be called with NULL
+    assert(0); // should not be called with null
     return;
   }
   if (parsed.hasValue(ShapeParameter::OUTLINE))
@@ -1409,7 +1411,7 @@ void Parser::parseFillable_(const ParsedShape& parsed, const std::string& name, 
 {
   if (!shape)
   {
-    assert(0); // should not be called with NULL
+    assert(0); // should not be called with null
     return;
   }
   parseOutlined_(parsed, shape);
@@ -1474,7 +1476,7 @@ int Parser::parsePointBased_(const ParsedShape& parsed, bool relative, const std
 {
   if (!shape)
   {
-    assert(0); // should not be called with NULL
+    assert(0); // should not be called with null
     return 1;
   }
   std::string shapeTypeName = GogShape::shapeTypeToString(shape->shapeType());
@@ -1518,7 +1520,7 @@ void Parser::parsePointBasedOptional_(const ParsedShape& parsed, const std::stri
 {
   if (!shape)
   {
-    assert(0); // should not be called with NULL
+    assert(0); // should not be called with null
     return;
   }
   parseFillable_(parsed, name, shape);
@@ -1527,7 +1529,7 @@ void Parser::parsePointBasedOptional_(const ParsedShape& parsed, const std::stri
   TessellationStyle style = TessellationStyle::NONE;
   // set style to none if tessellate is set to false
   if (!parsed.boolValue(ShapeParameter::TESSELLATE, false))
-    shape->setTesssellation(style);
+    shape->setTessellation(style);
   else
   {
     // if tessellate is set, default to RHUMBLINE unless LINEPROJECTION specifies otherwise
@@ -1537,7 +1539,7 @@ void Parser::parsePointBasedOptional_(const ParsedShape& parsed, const std::stri
       if (parsed.stringValue(ShapeParameter::LINEPROJECTION) == "greatcircle")
         style = TessellationStyle::GREAT_CIRCLE;
     }
-    shape->setTesssellation(style);
+    shape->setTessellation(style);
   }
 }
 
@@ -1545,7 +1547,7 @@ void Parser::parseCircularOptional_(const ParsedShape& parsed, bool relative, co
 {
   if (!shape)
   {
-    assert(0); // should not be called with NULL
+    assert(0); // should not be called with null
     return;
   }
   parseFillable_(parsed, name, shape);
@@ -1571,7 +1573,7 @@ void Parser::parseCircularHeightOptional_(const ParsedShape& parsed, const std::
 {
   if (!shape)
   {
-    assert(0); // should not be called with NULL
+    assert(0); // should not be called with null
     return;
   }
   if (!parsed.hasValue(ShapeParameter::HEIGHT))
@@ -1586,7 +1588,7 @@ void Parser::parseEllipticalOptional_(const ParsedShape& parsed, const std::stri
 {
   if (!shape)
   {
-    assert(0); // should not be called with NULL
+    assert(0); // should not be called with null
     return;
   }
   bool hasAngleStart = false;
@@ -1645,7 +1647,7 @@ void Parser::parseEllipticalOptional_(const ParsedShape& parsed, const std::stri
 int Parser::getColor_(const ParsedShape& parsed, ShapeParameter param, const std::string& shapeName, const std::string& fieldName, Color& color) const
 {
   std::string colorStr = parsed.stringValue(param);
-  uint32_t abgr;
+  uint32_t abgr = 0;
   // try hex formatted string
   if (!simCore::isValidHexNumber(colorStr, abgr))
   {

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -288,7 +288,8 @@ void DataTableModel::setDataTable(simData::DataTable* dataTable)
 
   // Add rows
   RowValueAccumulator rvc(rows_);
-  dataTable_->accept(0, std::numeric_limits<double>::max(), rvc);
+  // Allow -1 as a valid timestamp for displayed DataTableRows: SIM-17466
+  dataTable_->accept(std::numeric_limits<double>::lowest(), std::numeric_limits<double>::max(), rvc);
 
   // force an update now
   endResetModel();

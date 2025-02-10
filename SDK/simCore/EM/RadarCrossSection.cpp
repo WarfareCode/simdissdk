@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -443,7 +443,7 @@ float RCSLUT::calcTableRCS_(float freq, double azim, double elev, PolarityType p
     lastPolarity_ = pol;
   }
 
-  // either both tables are NULL, or both are non-NULL
+  // either both tables are null, or both are non-null
   assert((rcstabLo == nullptr && rcstabHi == nullptr) || (rcstabLo && rcstabHi));
 
   if (rcstabLo == nullptr && rcstabHi == nullptr)

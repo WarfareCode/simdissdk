@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -37,7 +37,7 @@ static const size_t MAX_REGIONS = 50;
 
 
 /// notify the tree model about data store changes
-class EntityTreeModel::TreeListener : public simData::DataStore::Listener
+class EntityTreeModel::TreeListener : public simData::DataStore::DefaultListener
 {
 public:
   /// constructor
@@ -80,12 +80,6 @@ public:
   {
     parent_->commitAllDelayed_();
   }
-
-  // Fulfill the interface
-  virtual void onPostRemoveEntity(simData::DataStore *source, simData::ObjectId removedId, simData::ObjectType ot) override {}
-  virtual void onPrefsChange(simData::DataStore *source, simData::ObjectId id) override {}
-  virtual void onPropertiesChange(simData::DataStore *source, simData::ObjectId id) override {}
-  virtual void onFlush(simData::DataStore* source, simData::ObjectId id) override {}
 
 private:
   EntityTreeModel *parent_; ///< model which receives notices

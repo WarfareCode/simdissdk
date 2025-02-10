@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -51,10 +51,11 @@ TimeWidget::TimeWidget(QWidget* parent)
   addContainer_(new MinutesContainer(this), SLOT(setMinutes_()));
   addContainer_(new HoursContainer(this), SLOT(setHours_()));
   addContainer_(new MonthContainer(this), SLOT(setMonth_()));
-  addContainer_(new OrdinalContainer(this), SLOT(setOrdinal_()));
+  currentContainer_ = new OrdinalContainer(this);
+  addContainer_(currentContainer_, SLOT(setOrdinal_()));
+  addContainer_(new Iso8601Container(this), SLOT(setIso8601_()));
 
-  // Make this one the default format
-  currentContainer_ = containers_.back();
+  // Make sure the current container is visible
   currentContainer_->widget()->setHidden(false);
 
   // Setup the label and right mouse click menu to change formats
@@ -144,6 +145,12 @@ void TimeWidget::setColorCodeText(bool value)
     (*it)->setColorCode(value);
 }
 
+void TimeWidget::setProcessEnterKey(bool process)
+{
+  for (auto it = containers_.begin(); it != containers_.end(); ++it)
+    (*it)->setProcessEnterKey(process);
+}
+
 simCore::TimeStamp TimeWidget::timeStamp() const
 {
   return currentContainer_->timeStamp();
@@ -196,10 +203,6 @@ void TimeWidget::setEnforceLimits(bool limitBeforeStart, bool limitAfterEnd)
 
 void TimeWidget::showRightMouseClickMenu_(const QPoint &pos)
 {
-  // Put a check mark next to the current format
-  for (auto it = containers_.begin(); it != containers_.end(); ++it)
-    (*it)->action()->setChecked(currentContainer_->timeFormat() == (*it)->timeFormat());
-
   colorCodeAction_->setChecked(currentContainer_->colorCode());
 
   rightMouseClickMenu_->exec(title_->mapToGlobal(pos));
@@ -233,14 +236,18 @@ void TimeWidget::setTimeFormat(simCore::TimeFormat newFormat)
   if (newFormat == simCore::TIMEFORMAT_DTG)
     newFormat = simCore::TIMEFORMAT_MONTHDAY;
 
+  // Return if no change
+  if (currentContainer_->timeFormat() == newFormat)
+    return;
+
   for (auto it = containers_.begin(); it != containers_.end(); ++it)
   {
     if ((*it)->timeFormat() == newFormat)
     {
       layout()->removeWidget(currentContainer_->widget());
       currentContainer_->widget()->setHidden(true);
-      // user might have changed the time before switching, so move time over to new widget
-      (*it)->setTimeStamp(currentContainer_->timeStamp());
+      // The times should be in sync
+      assert((*it)->timeStamp() == currentContainer_->timeStamp());
       currentContainer_ = *it;
       if (timeEnabled_)
       {
@@ -256,21 +263,14 @@ void TimeWidget::setTimeFormat(simCore::TimeFormat newFormat)
 
 void TimeWidget::setPrecision(unsigned int digits)
 {
-  // save off the current time to force a redraw after setting the precision
-  const simCore::TimeStamp& currentTime = currentContainer_->timeStamp();
   for (auto it = containers_.begin(); it != containers_.end(); ++it)
     (*it)->setPrecision(digits);
-  currentContainer_->setTimeStamp(currentTime);
 }
 
 void TimeWidget::setTimeZone(simCore::TimeZone zone)
 {
-  // Some formats use time zone when calculating time stamp.
-  // Save off and reset to ensure time stays accurate and to force a redraw of the text
-  const simCore::TimeStamp& currentTime = currentContainer_->timeStamp();
   for (auto it = containers_.begin(); it != containers_.end(); ++it)
     (*it)->setTimeZone(zone);
-  currentContainer_->setTimeStamp(currentTime);
 }
 
 void TimeWidget::setSeconds_()
@@ -296,6 +296,11 @@ void TimeWidget::setOrdinal_()
 void TimeWidget::setMonth_()
 {
   setTimeFormat(simCore::TIMEFORMAT_MONTHDAY);
+}
+
+void TimeWidget::setIso8601_()
+{
+  setTimeFormat(simCore::TIMEFORMAT_ISO8601);
 }
 
 void TimeWidget::setColorCode_()

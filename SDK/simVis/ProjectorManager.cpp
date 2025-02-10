@@ -14,12 +14,14 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
  *
  */
+
+#include <cassert>
 #include "osg/Depth"
 #include "osg/BlendFunc"
 #include "osgUtil/CullVisitor"
@@ -209,6 +211,13 @@ void ProjectorManager::registerProjector(ProjectorNode* proj)
   // Check if this ProjectorNode already exists in the map and exit if so
   if (std::find(projectors_.begin(), projectors_.end(), proj) != projectors_.end())
     return;
+
+  if (!mapNode_.valid())
+  {
+    // Need a mapNode
+    assert(0);
+    return;
+  }
 
   projectors_.push_back(proj);
 

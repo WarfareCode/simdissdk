@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -295,12 +295,12 @@ namespace
   {
     explicit ControlPrefsNotification(ControlPrefsListener* listener) : listener_(listener) { }
 
-    virtual void onPrefsChange(simData::DataStore &ds, simData::ObjectId id)
+    virtual void onPrefsChange(simData::DataStore* ds, simData::ObjectId id) override
     {
-      if (ds.objectType(id) == simData::PLATFORM)
-        listener_->notifyPrefsChange(ds, id);
+      if (ds && ds->objectType(id) == simData::PLATFORM)
+        listener_->notifyPrefsChange(*ds, id);
     }
-    ControlPrefsListener* listener_;
+    ControlPrefsListener* listener_ = nullptr;
   };
 
   struct PlatformListControl : public VBox, public ControlPrefsListener

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -47,7 +47,9 @@ public:
     /// Multiply the override color against incoming color; good for shaded items and 2D images
     MULTIPLY_COLOR,
     /// Replace the incoming color with the override color; good for flat items
-    REPLACE_COLOR
+    REPLACE_COLOR,
+    /// Apply color by copying the previous color intensity and replacing with this one, retaining shading better than REPLACE_COLOR
+    INTENSITY_GRADIENT
   };
 
   /**
@@ -65,6 +67,7 @@ public:
    * Sets the combine mode to use for override color.  Classic SIMDIS always used a
    * MULTIPLY_COLOR combination that merges the override color with the incoming color.
    * The REPLACE_COLOR mode respects alpha blending but replaces the source color completely.
+   * The INTENSITY_GRADIENT respects alpha blending and shading, replacing source color.
    */
   void setCombineMode(CombineMode combineMode);
 
@@ -85,6 +88,7 @@ public:
    * Sets the combine mode to use for override color.  Classic SIMDIS always used a
    * MULTIPLY_COLOR combination that merges the override color with the incoming color.
    * The REPLACE_COLOR mode respects alpha blending but replaces the source color completely.
+   * The INTENSITY_GRADIENT respects alpha blending and shading, replacing source color.
    */
   static void setCombineMode(osg::StateSet* stateset, CombineMode combineMode);
 

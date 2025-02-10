@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -279,7 +279,7 @@ public:
 #endif
 
   /** Update the label when new items are picked */
-  virtual void pickChanged(unsigned int pickedId, osg::Referenced* picked)
+  virtual void pickChanged(unsigned int pickedId, osg::Referenced* picked) override
   {
     osg::Node* node = dynamic_cast<osg::Node*>(picked);
     simVis::EntityNode* entity = osgEarth::findFirstParentOfType<simVis::EntityNode>(node);
@@ -302,6 +302,12 @@ public:
     {
       setText_(NO_PICK);
     }
+  }
+
+  /** Empty function to satisfy interface. If we wanted to get all entities under mouse instead of the best match, we would use this signature */
+  virtual void pickChanged(const std::vector<simVis::Picker::PickedEntity>& picked) override
+  {
+    // noop
   }
 
 private:
@@ -355,7 +361,7 @@ struct ControlPanel : public simExamples::SimExamplesGui
       ImGui::Text("2 : Toggle RTT 2 display");
     }
     ImGui::Text("Picked: "); ImGui::SameLine();
-    ImGui::TextColored(ImVec4(0.f, 1.f, 0.f, 1.f), app_.pickLabel.c_str());
+    ImGui::TextColored(ImVec4(0.f, 1.f, 0.f, 1.f), "%s", app_.pickLabel.c_str());
 
     ImGui::End();
   }

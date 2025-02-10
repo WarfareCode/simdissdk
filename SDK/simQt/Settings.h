@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -70,6 +70,10 @@ public:
     QVariant filenameFilter() const;
     /** Returns the string value for each enumeration */
     QMap<int, QString> enumValues() const;
+    /** Converts the setting value to the internal format */
+    QVariant convertToInteralFormat(QVariant input) const;
+    /** Converts the setting value to the save format */
+    QVariant convertToSaveFormat(QVariant saveValue) const;
 
     /** Adds an additional key/value pair to the enumValues */
     MetaData& addEnumeration(int key, const QString& value);

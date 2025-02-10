@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,14 +22,20 @@
  */
 #include <algorithm>
 #include <cassert>
-#ifdef ENABLE_SIMDATA_MULTI_THREAD
-#include <execution>
-#endif
 #include <float.h>
 #include <functional>
 #include <limits>
+#include <optional>
+#ifdef HAVE_ENTT
+#include "entt/container/dense_map.hpp"
+#endif
 #include "simNotify/Notify.h"
+#include "simCore/Calc/Angle.h"
 #include "simCore/Calc/Calculations.h"
+#include "simCore/Calc/Coordinate.h"
+#include "simCore/Calc/Interpolation.h"
+#include "simCore/Calc/MultiFrameCoordinate.h"
+#include "simCore/Common/Common.h"
 #include "simCore/Time/Clock.h"
 #include "simData/MemoryDataStore.h"
 #include "simData/DataEntry.h"
@@ -44,6 +50,9 @@
 
 namespace simData
 {
+
+/// If there are more than USE_THREAD_FOR_GENERIC_DATA entities, then use a worker thread for the update
+constexpr size_t USE_THREAD_FOR_GENERIC_DATA = 1000;
 
 //----------------------------------------------------------------------------
 // Functions local to compilation unit, for implementation of common operations
@@ -133,19 +142,6 @@ EntryType* getEntry(ObjectId id, const EntryMapType *store, DataStore::Transacti
   *transaction = DataStore::Transaction(new TransactionImplType());
 
   return getEntry<EntryType, EntryMapType>(id, store);
-}
-
-/**
- * Update sparse data set slices (GenericData and CategoryData)
- */
-template <typename EntryListType>
-void updateSparseSlices(EntryListType& entries, double time)
-{
-  //for each entry
-  for (typename EntryListType::const_iterator i = entries.begin(); i != entries.end(); ++i)
-  {
-    i->second->update(time);
-  }
 }
 
 /**
@@ -254,6 +250,12 @@ public:
   {
     for (const auto& listener : listeners_)
       listener->onPropertiesChange(source, id);
+  }
+
+  virtual void onPrefsChange(DataStore* source, ObjectId id) override
+  {
+    for (const auto& listener : listeners_)
+      listener->onPrefsChange(source, id);
   }
 
   virtual void onScenarioDelete(DataStore* source) override
@@ -425,10 +427,934 @@ private:
   std::multimap<uint64_t, Entry> originalIdToUniqueIds_;
 };
 
+/** Add caches to various data slices */
+class MemoryDataStore::SliceCacheObserver : public simData::DataStore::DefaultListener
+{
+public:
+  explicit SliceCacheObserver(MemoryDataStore& mds)
+    : mds_(mds)
+  {
+  }
+
+  SDK_DISABLE_COPY_MOVE(SliceCacheObserver);
+
+  virtual ~SliceCacheObserver() = default;
+
+  virtual void onAddEntity(DataStore* source, ObjectId newId, simData::ObjectType ot) override
+  {
+    auto categoryIt = mds_.categoryData_.find(newId);
+    if (categoryIt == mds_.categoryData_.end())
+    {
+      // All entities have category data
+      assert(false);
+      return;
+    }
+
+    categoryCache_[newId] = CategoryCache(categoryIt->second);
+
+    auto genericIt = mds_.genericData_.find(newId);
+    if (genericIt == mds_.genericData_.end())
+    {
+      // All entities have generic data
+      assert(false);
+      return;
+    }
+
+    genericIt->second->setTimeGetter([this]() { return mds_.updateTime(); });
+
+    if (ot == simData::PLATFORM)
+    {
+      auto it = mds_.platforms_.find(newId);
+      if (it == mds_.platforms_.end())
+      {
+        // The data store does not match what was passed in
+        assert(false);
+        return;
+      }
+      platformCache_[newId] = PlatformCache(it->second);
+      platformCommandCache_[newId] = CommandCache(it->second->commands(), newId);
+    }
+    else if (ot == simData::CUSTOM_RENDERING)
+    {
+      auto it = mds_.customRenderings_.find(newId);
+      if (it == mds_.customRenderings_.end())
+      {
+        // The data store does not match what was passed in
+        assert(false);
+        return;
+      }
+      customRenderingCommandCache_[newId] = CommandCache(it->second->commands(), newId);
+    }
+    else if (ot == simData::BEAM)
+    {
+      auto it = mds_.beams_.find(newId);
+      if (it == mds_.beams_.end())
+      {
+        // The data store does not match what was passed in
+        assert(false);
+        return;
+      }
+      beamCommandCache_[newId] = CommandCache<MemoryCommandSlice<BeamCommand, BeamPrefs>>(it->second->commands(), newId);
+    }
+    else if (ot == simData::GATE)
+    {
+      auto it = mds_.gates_.find(newId);
+      if (it == mds_.gates_.end())
+      {
+        // The data store does not match what was passed in
+        assert(false);
+        return;
+      }
+      gateCommandCache_[newId] = CommandCache<MemoryCommandSlice<GateCommand, GatePrefs>>(it->second->commands(), newId);
+    }
+    else if (ot == simData::LASER)
+    {
+      auto it = mds_.lasers_.find(newId);
+      if (it == mds_.lasers_.end())
+      {
+        // The data store does not match what was passed in
+        assert(false);
+        return;
+      }
+      laserCommandCache_[newId] = CommandCache<MemoryCommandSlice<LaserCommand, LaserPrefs>>(it->second->commands(), newId);
+    }
+    else if (ot == simData::LOB_GROUP)
+    {
+      auto it = mds_.lobGroups_.find(newId);
+      if (it == mds_.lobGroups_.end())
+      {
+        // The data store does not match what was passed in
+        assert(false);
+        return;
+      }
+      lobCommandCache_[newId] = CommandCache<MemoryCommandSlice<LobGroupCommand, LobGroupPrefs>>(it->second->commands(), newId);
+    }
+    else if (ot == simData::PROJECTOR)
+    {
+      auto it = mds_.projectors_.find(newId);
+      if (it == mds_.projectors_.end())
+      {
+        // The data store does not match what was passed in
+        assert(false);
+        return;
+      }
+      projectorCommandCache_[newId] = CommandCache<MemoryCommandSlice<ProjectorCommand, ProjectorPrefs>>(it->second->commands(), newId);
+    }
+  }
+
+  virtual void onRemoveEntity(DataStore* source, ObjectId removedId, simData::ObjectType ot) override
+  {
+    categoryCache_.erase(removedId);
+    if (platformCache_.erase(removedId) == 1)
+    {
+      platformCommandCache_.erase(removedId);
+      return;
+    }
+
+    if (customRenderingCommandCache_.erase(removedId) == 1)
+      return;
+
+    if (beamCommandCache_.erase(removedId) == 1)
+      return;
+
+    if (gateCommandCache_.erase(removedId) == 1)
+      return;
+
+    if (laserCommandCache_.erase(removedId) == 1)
+      return;
+
+    if (lobCommandCache_.erase(removedId) == 1)
+      return;
+
+    if (projectorCommandCache_.erase(removedId) == 1)
+      return;
+  }
+
+  virtual void onPrefsChange(DataStore* source, ObjectId id) override
+  {
+    // A preference change can affect how a TSPI point is process, so reset
+    auto platformIt = platformCache_.find(id);
+    if (platformIt != platformCache_.end())
+      platformIt->second.resetPreferences();
+  }
+
+  virtual void onScenarioDelete(DataStore* source) override
+  {
+    categoryCache_.clear();
+    platformCache_.clear();
+    platformCommandCache_.clear();
+    customRenderingCommandCache_.clear();
+    beamCommandCache_.clear();
+    gateCommandCache_.clear();
+    laserCommandCache_.clear();
+    lobCommandCache_.clear();
+    projectorCommandCache_.clear();
+  }
+
+  void installSliceTimeRangeMonitor(ObjectId id, std::function<void(double startTime, double endTime)> fn)
+  {
+    auto it = platformCache_.find(id);
+    if (it != platformCache_.end())
+      it->second.installSliceTimeRangeMonitor(fn);
+  }
+  /// Update category slices to the give time and return the ids slices that changed due to the update
+  void updateCategoryData_(double time, std::vector<simData::ObjectId>& ids)
+  {
+#ifdef HAVE_ENTT
+    for (const auto& [id, entry] : categoryCache_)
+#else
+    for (auto& [id, entry] : categoryCache_)
+#endif
+    {
+      if (entry.update(time))
+        ids.push_back(id);
+    }
+  }
+
+  void updateCommands(double time, std::map<simData::ObjectId, CommitResult>& allResults)
+  {
+#ifdef HAVE_ENTT
+    for (const auto& [id, entry] : platformCommandCache_)
+#else
+    for (auto& [id, entry] : platformCommandCache_)
+#endif
+    {
+      auto results = entry.update(&mds_, id, time);
+
+      if (results != CommitResult::NO_CHANGE)
+        allResults[id] = results;
+
+      if (entry.getAndClearDirty_() && (results == CommitResult::NO_CHANGE))
+      {
+        auto it = platformCache_.find(id);
+        if (it != platformCache_.end())
+          it->second.resetPreferences();
+      }
+    }
+
+    updateCommands_(customRenderingCommandCache_, time, allResults);
+    updateCommands_(beamCommandCache_, time, allResults);
+    updateCommands_(gateCommandCache_, time, allResults);
+    updateCommands_(laserCommandCache_, time, allResults);
+    updateCommands_(lobCommandCache_, time, allResults);
+    updateCommands_(projectorCommandCache_, time, allResults);
+  }
+
+  /// Update platforms to the given time and return the IDs of platforms with changes due to command processing
+  void updatePlatforms_(double time)
+  {
+    auto interpolateEnabled = mds_.interpolatorState();
+    if ((interpolateEnabled == InterpolatorState::EXTERNAL) && !mds_.interpolator())
+      interpolateEnabled = InterpolatorState::OFF;
+
+    const bool fileMode = isFileMode_();
+
+#ifdef HAVE_ENTT
+    for (const auto& [id, entry] : platformCache_)
+#else
+    for (auto& [id, entry] : platformCache_)
+#endif
+      entry.update(&mds_, id, interpolateEnabled, fileMode, time);
+  }
+
+  void resetPlatforms()
+  {
+#ifdef HAVE_ENTT
+    for (const auto& [id, entry] : platformCache_)
+#else
+    for (auto& [id, entry] : platformCache_)
+#endif
+      entry.reset();
+  }
+
+private:
+  /** Maintains the time range for a category data slice state and only updates the slice state if a new time is outside the time range. */
+   class CategoryCache
+  {
+  public:
+    explicit CategoryCache(MemoryCategoryDataSlice* slice = nullptr)
+      : slice_(slice)
+    {
+      reset();
+      if (slice_)
+        slice_->installNotifier([this] { reset(); });
+    }
+
+    ~CategoryCache() = default;
+
+    SDK_DISABLE_COPY(CategoryCache);
+
+    CategoryCache(CategoryCache&& other) noexcept
+      : startTime_(std::move(other.startTime_)),
+        endTime_(std::move(other.endTime_)),
+        slice_(std::move(other.slice_))
+    {
+      if (slice_)
+        slice_->installNotifier([this] { reset(); });
+    }
+
+    CategoryCache& operator=(CategoryCache&& other) noexcept
+    {
+      startTime_ = std::move(other.startTime_);
+      endTime_ = std::move(other.endTime_);
+      slice_ = std::move(other.slice_);
+
+      if (slice_)
+        slice_->installNotifier([this] { reset(); });
+
+      return *this;
+    }
+
+    bool update(double time)
+    {
+      // Kick out early if the time is with in the last time range
+      if ((time >= startTime_.value_or(std::numeric_limits<double>::max())) && (time < endTime_.value_or(std::numeric_limits<double>::lowest())))
+        return false;
+
+      if (slice_)
+        return slice_->update(time, startTime_, endTime_);
+
+      return false;
+    }
+
+    /// Called when the slice is modified so that the next call to update will not kick out early
+    void reset()
+    {
+      startTime_.reset();
+      endTime_.reset();
+    }
+
+  private:
+    std::optional<double> startTime_;
+    std::optional<double> endTime_;
+    MemoryCategoryDataSlice* slice_ = nullptr;
+  };
+
+  /** Maintains the time range for a command slice state and only updates the slice state if a new time is outside the time range. */
+  template <typename SliceType>
+  class CommandCache
+  {
+  public:
+    explicit CommandCache(SliceType* slice = nullptr, simData::ObjectId id = 0)
+      : slice_(slice),
+        id_(id)
+    {
+      reset();
+      if (slice_)
+        slice_->installNotifier([this] { reset(); });
+    }
+
+    ~CommandCache() = default;
+
+    SDK_DISABLE_COPY(CommandCache);
+
+    CommandCache(CommandCache&& other) noexcept
+      : startTime_(std::move(other.startTime_)),
+        endTime_(std::move(other.endTime_)),
+        slice_(std::move(other.slice_)),
+        dirty_(std::move(other.dirty_))
+    {
+      if (slice_)
+        slice_->installNotifier([this] { reset(); });
+    }
+
+    CommandCache& operator=(CommandCache&& other) noexcept
+    {
+      startTime_ = std::move(other.startTime_);
+      endTime_ = std::move(other.endTime_);
+      slice_ = std::move(other.slice_);
+      dirty_ = std::move(other.dirty_);
+
+      if (slice_)
+        slice_->installNotifier([this] { reset(); });
+
+      return *this;
+    }
+
+    CommitResult update(simData::DataStore* ds, simData::ObjectId id, double time)
+    {
+      CommitResult rv = CommitResult::NO_CHANGE;
+
+      // Kick out early if the time is with in the last time range
+      if ((time >= startTime_.value_or(std::numeric_limits<double>::max())) && (time < endTime_.value_or(std::numeric_limits<double>::lowest())))
+        return rv;
+
+      slice_->update(ds, id, time, rv, startTime_, endTime_);
+
+      return rv;
+    }
+
+    /// Called when the slice is modified so that the next call to update will not kick out early
+    void reset()
+    {
+      startTime_.reset();
+      endTime_.reset();
+      dirty_ = true;
+    }
+
+    bool getAndClearDirty_()
+    {
+      bool rv = dirty_;
+      dirty_ = false;
+      return rv;
+    }
+
+  private:
+    std::optional<double> startTime_;
+    std::optional<double> endTime_;
+    SliceType* slice_ = nullptr;
+    simData::ObjectId id_ = 0;
+    bool dirty_ = true;
+  };
+
+  /** Cache various data to make the platform update more efficient */
+  class PlatformCache
+  {
+  public:
+    explicit PlatformCache(PlatformEntry* entry = nullptr)
+      : entry_(entry)
+    {
+      resetPreferences();
+      reset();
+      if (entry_)
+        entry_->updates()->installNotifier([this] { reset(); });
+    }
+
+    ~PlatformCache() = default;
+
+    SDK_DISABLE_COPY(PlatformCache);
+
+    PlatformCache(PlatformCache&& other) noexcept
+      : updateStartTime_(std::move(other.updateStartTime_)),
+        updateEndTime_(std::move(other.updateEndTime_)),
+        sliceStartTime_(std::move(other.sliceStartTime_)),
+        sliceEndTime_(std::move(other.sliceEndTime_)),
+        entry_(std::move(other.entry_)),
+        sliceSize_(std::move(other.sliceSize_)),
+        dataDraw_(std::move(other.dataDraw_)),
+        interpolatePos_(std::move(other.interpolatePos_)),
+        needToClear_(std::move(other.needToClear_)),
+        needToSetToNull_(std::move(other.needToSetToNull_)),
+        lifeSpanMode_(std::move(other.lifeSpanMode_)),
+        entry1_(std::move(other.entry1_)),
+        entry2_(std::move(other.entry2_)),
+        timeRangeMonitorFn_(std::move(other.timeRangeMonitorFn_))
+    {
+      if (entry_)
+        entry_->updates()->installNotifier([this] { reset(); });
+    }
+
+    PlatformCache& operator=(PlatformCache&& other) noexcept
+    {
+      updateStartTime_ = std::move(other.updateStartTime_);
+      updateEndTime_ = std::move(other.updateEndTime_);
+      sliceStartTime_ = std::move(other.sliceStartTime_);
+      sliceEndTime_ = std::move(other.sliceEndTime_);
+      entry_ = std::move(other.entry_);
+      sliceSize_ = std::move(other.sliceSize_);
+      dataDraw_ = std::move(other.dataDraw_);
+      interpolatePos_ = std::move(other.interpolatePos_);
+      needToClear_ = std::move(other.needToClear_);
+      needToSetToNull_ = std::move(other.needToSetToNull_);
+      lifeSpanMode_ = std::move(other.lifeSpanMode_);
+      entry1_ = std::move(other.entry1_);
+      entry2_ = std::move(other.entry2_);
+      timeRangeMonitorFn_ = std::move(other.timeRangeMonitorFn_);
+
+      if (entry_)
+        entry_->updates()->installNotifier([this] { reset(); });
+
+      return *this;
+    }
+
+    /**
+     * Updates the platform command slice and update slices. Uses cache data to improve performance
+     * @param ds The data store
+     * @param id The unique id of the platform
+     * @param interpolateState Type of interpolation, if any
+     * @param fileMode True if the data store is in file mode
+     * @param time The scenario time to update the slices to
+     */
+    void update(simData::DataStore* ds, simData::ObjectId id, DataStore::InterpolatorState interpolateState, bool fileMode, double time)
+    {
+      // Set the slice time range
+      if (!sliceStartTime_.has_value())
+      {
+        sliceStartTime_ = entry_->updates()->firstTime();
+        sliceEndTime_ = entry_->updates()->lastTime();
+        sliceSize_ = entry_->updates()->numItems();
+        if (timeRangeMonitorFn_)
+          timeRangeMonitorFn_(*sliceStartTime_, *sliceEndTime_);
+      }
+
+      // Return early if not drawing
+      if (!dataDraw_)
+      {
+        // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
+        entry_->updates()->setCurrent(nullptr);
+        return;
+      }
+
+      const bool isInterpolated = ((interpolateState != InterpolatorState::OFF) && interpolatePos_);
+
+      // Kick out early if the time is with in the last time range
+      if (!isInterpolated && (time >= updateStartTime_.value_or(std::numeric_limits<double>::max())) && (time < updateEndTime_.value_or(std::numeric_limits<double>::lowest())))
+      {
+        if (needToClear_)
+        {
+          entry_->updates()->clearChanged();
+          needToClear_ = false;
+        }
+
+        return;
+      }
+
+      needToClear_ = true;
+
+      // If file mode, might need to extend a platform with one TSPI point
+      if (fileMode)
+      {
+        if (!isFileModePlatformActive_(time))
+        {
+          // Platform is not valid/off
+          if (needToSetToNull_)
+          {
+            entry_->updates()->setCurrent(nullptr);
+            needToSetToNull_ = false;
+          }
+          return;
+        }
+      }
+
+      needToSetToNull_ = true;
+
+      if (interpolateState == InterpolatorState::INTERNAL)
+        update_(time);
+      else if (interpolateState == InterpolatorState::EXTERNAL)
+        entry_->updates()->update(time, ds->interpolator());
+      else
+      {
+        entry_->updates()->update(time, updateStartTime_, updateEndTime_);
+        // update returns the extended time which might need to be truncated back to the original slice end time
+        if (fileMode && !isExtendedPlatform() && (updateEndTime_ > sliceEndTime_))
+          updateEndTime_ = sliceEndTime_;
+      }
+    }
+
+    /** Called when the slice is modified so that the next call to update will not kick out early */
+    void reset()
+    {
+      updateStartTime_.reset();
+      updateEndTime_.reset();
+      sliceStartTime_.reset();
+      sliceEndTime_.reset();
+      if (timeRangeMonitorFn_)
+        timeRangeMonitorFn_(std::numeric_limits<double>::max(), -std::numeric_limits<double>::max());
+      sliceSize_ = 0;
+      entry1_.reset();
+      entry2_.reset();
+    }
+
+    void resetPreferences()
+    {
+      if (!entry_ || !entry_->preferences())
+        return;
+
+      bool resetTimes = false;
+
+      if (dataDraw_ != entry_->preferences()->commonprefs().datadraw())
+      {
+        dataDraw_ = entry_->preferences()->commonprefs().datadraw();
+        resetTimes = true;
+      }
+      if (interpolatePos_ != entry_->preferences()->interpolatepos())
+      {
+        interpolatePos_ = entry_->preferences()->interpolatepos();
+        resetTimes = true;
+      }
+
+      if (lifeSpanMode_ != entry_->preferences()->lifespanmode())
+      {
+        lifeSpanMode_ = entry_->preferences()->lifespanmode();
+        resetTimes = true;
+      }
+
+      if (resetTimes)
+        reset();
+    }
+
+    void installSliceTimeRangeMonitor(std::function<void(double startTime, double endTime)> fn)
+    {
+      timeRangeMonitorFn_ = fn;
+    }
+
+  private:
+    /** Returns true if platform is active per the life span mode */
+    bool isFileModePlatformActive_(double time) const
+    {
+      double startTime = std::numeric_limits<double>::lowest();
+      double endTime = std::numeric_limits<double>::max();
+      if (sliceStartTime_ != -1.0)
+      {
+        startTime = sliceStartTime_.value_or(std::numeric_limits<double>::lowest());
+        endTime = sliceEndTime_.value_or(std::numeric_limits<double>::max());
+
+        if (isExtendedPlatform())
+          endTime = std::numeric_limits<double>::max();
+      }
+
+      return time >= startTime && time <= endTime;
+    }
+
+    /** Returns true if the platform is extended */
+    bool isExtendedPlatform() const
+    {
+      if (lifeSpanMode_ == LIFE_FIRST_LAST_POINT)
+        return false;
+
+      if (sliceStartTime_ == -1.0)
+        return false;
+
+      return (sliceSize_ == 1);
+    }
+
+    /**
+     * Updates the interpolated value.
+     * Maps to void MemoryDataSlice<T>::update(double time, Interpolator *interpolator)
+     */
+    void update_(double time)
+    {
+      const auto slice = entry_->updates();
+      const auto current = slice->current();
+
+      slice->clearChanged();
+
+      // early out when there are no changes to this slice
+      if ((current != nullptr) && ((current->time() == time) || (current->time() == -1.0)))
+        return;
+
+      // If necessary calculate a new range
+      if ((time < updateStartTime_.value_or(std::numeric_limits<double>::max())) || (time > updateEndTime_.value_or(std::numeric_limits<double>::lowest())))
+      {
+        auto it = slice->upper_bound(time);
+
+        if (slice->numItems() == 0)
+        {
+          entry1_.reset();
+          entry2_.reset();
+          updateStartTime_.reset();
+          updateEndTime_.reset();
+        }
+        else if (!it.hasPrevious())  // First point
+        {
+          entry1_ = Entry(it.peekNext(), convert_(it.peekNext()));
+          entry2_.reset();
+          updateStartTime_ = 0;
+          updateEndTime_ = it.peekNext()->time();
+        }
+        else if (!it.hasNext()) // Last point
+        {
+          entry1_.reset();
+          entry2_ = Entry(it.peekPrevious(), convert_(it.peekPrevious()));
+          updateStartTime_ = it.peekPrevious()->time();
+          updateEndTime_ = std::numeric_limits<double>::max();
+        }
+        else // Time in between points
+        {
+          entry1_ = Entry(it.peekPrevious(), convert_(it.peekPrevious()));
+          entry2_ = Entry(it.peekNext(), convert_(it.peekNext()));
+          updateStartTime_ = it.peekPrevious()->time();
+          updateEndTime_ = it.peekNext()->time();
+        }
+      }
+
+      DataSlice<simData::PlatformUpdate>::Bounds bounds;
+      bool isBounded = false;
+
+      // note that computeTimeUpdate can return a ptr to a real update, or pointer to currentInterpolated_
+      slice->setCurrent(computeTimeUpdate_(time, isBounded, slice->currentInterpolated(), bounds));
+      slice->setInterpolated(isBounded, bounds);
+    }
+
+    /**
+     * Returns the update for the given time; can return null.
+     * Maps to T *computeTimeUpdate(ForwardIterator begin, ForwardIterator& currentIt, ForwardIterator end, double time, Interpolator *interpolator, bool *isInterpolated, T *interpolatedPoint, B *bounds)
+     */
+    simData::PlatformUpdate* computeTimeUpdate_(double time, bool& isInterpolated, simData::PlatformUpdate* interpolatedPoint, DataSlice<simData::PlatformUpdate>::Bounds& bounds)
+    {
+      isInterpolated = false;
+      bounds = { nullptr, nullptr };
+
+      if (sliceSize_ == 0)
+        return nullptr;
+
+      // Closest update is the last point
+      if (!entry1_.has_value() && entry2_.has_value())
+        return const_cast<simData::PlatformUpdate*>(entry2_->update);
+
+      // time is at or before the first point
+      if (entry1_.has_value() && !entry2_.has_value())
+      {
+        // updateEndTime_ is correct, because the compare needs the end time.
+        if (simCore::areEqual(time, updateEndTime_.value()))
+          return const_cast<simData::PlatformUpdate*>(entry1_->update);
+
+        return nullptr;
+      }
+
+      // time is between points, but first check to see if the time is on the boundary
+      if (simCore::areEqual(time, updateStartTime_.value()))
+        return const_cast<simData::PlatformUpdate*>(entry1_->update);
+
+      // Check end boundary
+      if (simCore::areEqual(time, updateEndTime_.value()))
+        return const_cast<simData::PlatformUpdate*>(entry2_->update);
+
+      // If gotten this far, then it must be an interpolation
+      isInterpolated = true;
+      bounds = { const_cast<simData::PlatformUpdate*>(entry1_->update), const_cast<simData::PlatformUpdate*>(entry2_->update) };
+      interpolate_(time, *entry1_->mfc, *entry2_->mfc, *interpolatedPoint);
+      return interpolatedPoint;
+    }
+
+    /**
+     * Returns the interpolated TSPI point between mfc1 and mfc2 as specified by the time
+     * Maps to bool LinearInterpolator::interpolate(double time, const PlatformUpdate &prev, const PlatformUpdate &next, PlatformUpdate *result)
+     */
+    void interpolate_(double time, simCore::MultiFrameCoordinate& mfc1, simCore::MultiFrameCoordinate& mfc2, PlatformUpdate& result) const
+    {
+      // time must be within bounds for interpolation to work
+      assert(updateStartTime_.value() <= time && time <= updateEndTime_.value());
+
+      // compute time ratio
+      const double factor = simCore::getFactor(updateStartTime_.value(), time, updateEndTime_.value());
+
+      const auto& prev = mfc1.ecefCoordinate();
+      const auto& prevLla = mfc1.llaCoordinate();
+      const auto& next = mfc2.ecefCoordinate();
+      const auto& nextLla = mfc2.llaCoordinate();
+
+      // do the interpolation in geocentric, this way the
+       // interpolation is correct at N/S and E/W transitions
+      simCore::Vec3 xyz(simCore::linearInterpolate(prev.x(), next.x(), factor),
+        simCore::linearInterpolate(prev.y(), next.y(), factor),
+        simCore::linearInterpolate(prev.z(), next.z(), factor));
+
+      simCore::Vec3 lla;
+      simCore::CoordinateConverter::convertEcefToGeodeticPos(xyz, lla);
+
+      // Use interpolated geodetic altitude to prevent short cuts through the earth
+      simCore::Coordinate resultsLla;
+      resultsLla.setCoordinateSystem(simCore::COORD_SYS_LLA);
+      resultsLla.setPositionLLA(lla.lat(), lla.lon(), simCore::linearInterpolate(prevLla.z(), nextLla.z(), factor));
+
+      if (prev.hasOrientation() && next.hasOrientation())
+      {
+        const double l_yaw = simCore::angFix2PI(prevLla.yaw());
+        const double l_pitch = simCore::angFix2PI(prevLla.pitch());
+        const double l_roll = simCore::angFix2PI(prevLla.roll());
+        const double h_yaw = simCore::angFix2PI(nextLla.yaw());
+        const double h_pitch = simCore::angFix2PI(nextLla.pitch());
+        const double h_roll = simCore::angFix2PI(nextLla.roll());
+
+        // orientations assumed to be between 0 and 360
+        const double delta_yaw = (h_yaw - l_yaw);
+        const double delta_pitch = (h_pitch - l_pitch);
+        const double delta_roll = (h_roll - l_roll);
+
+        double yaw = 0.0;
+        double pitch = 0.0;
+        double roll = 0.0;
+
+        if (delta_yaw == 0.)
+          yaw = l_yaw;
+        else if (std::abs(delta_yaw) < M_PI)
+          yaw = (l_yaw + factor * delta_yaw);
+        else
+        {
+          if (delta_yaw > 0)
+            yaw = (l_yaw - factor * (M_TWOPI - delta_yaw));
+          else
+            yaw = (l_yaw + factor * (M_TWOPI + delta_yaw));
+        }
+
+        if (delta_pitch == 0.)
+          pitch = l_pitch;
+        else if (std::abs(delta_pitch) < M_PI)
+          pitch = (l_pitch + factor * delta_pitch);
+        else
+        {
+          if (delta_pitch > 0)
+            pitch = (l_pitch - factor * (M_TWOPI - delta_pitch));
+          else
+            pitch = (l_pitch + factor * (M_TWOPI + delta_pitch));
+        }
+
+        if (delta_roll == 0.)
+          roll = l_roll;
+        else if (std::abs(delta_roll) < M_PI)
+          roll = (l_roll + factor * delta_roll);
+        else
+        {
+          if (delta_roll > 0)
+            roll = (l_roll - factor * (M_TWOPI - delta_roll));
+          else
+            roll = (l_roll + factor * (M_TWOPI + delta_roll));
+        }
+
+        resultsLla.setOrientation(yaw, pitch, roll);
+      }
+
+      if (prev.hasVelocity() && next.hasVelocity())
+      {
+        resultsLla.setVelocity(simCore::linearInterpolate(prevLla.vx(), nextLla.vx(), factor),
+          simCore::linearInterpolate(prevLla.vy(), nextLla.vy(), factor),
+          simCore::linearInterpolate(prevLla.vz(), nextLla.vz(), factor));
+      }
+
+      simCore::Coordinate resultsEcef;
+      simCore::CoordinateConverter::convertGeodeticToEcef(resultsLla, resultsEcef);
+
+      result.set_time(time);
+
+      result.set_x(resultsEcef.x());
+      result.set_y(resultsEcef.y());
+      result.set_z(resultsEcef.z());
+
+      if (resultsEcef.hasVelocity())
+      {
+        result.set_vx(resultsEcef.vx());
+        result.set_vy(resultsEcef.vy());
+        result.set_vz(resultsEcef.vz());
+      }
+
+      if (resultsEcef.hasOrientation())
+      {
+        result.set_psi(resultsEcef.psi());
+        result.set_theta(resultsEcef.theta());
+        result.set_phi(resultsEcef.phi());
+      }
+    }
+
+    /** Convert a simData::PlatformUpdate into a simCore::MultiFrameCoordinate */
+    simCore::MultiFrameCoordinate convert_(const simData::PlatformUpdate* update) const
+    {
+      simCore::Vec3 pos;
+      update->position(pos);
+
+      simCore::MultiFrameCoordinate rv;
+      simCore::Coordinate coord(simCore::COORD_SYS_ECEF, pos);
+
+      if (update->has_orientation())
+      {
+        simCore::Vec3 ori;
+        update->orientation(ori);
+        coord.setOrientation(ori);
+      }
+
+      if (update->has_velocity())
+      {
+        simCore::Vec3 vec;
+        update->velocity(vec);
+        coord.setVelocity(vec);
+      }
+
+      rv.setCoordinate(coord);
+      return rv;
+    }
+
+    std::optional<double> updateStartTime_;
+    std::optional<double> updateEndTime_;
+    std::optional<double> sliceStartTime_;
+    std::optional<double> sliceEndTime_;
+    PlatformEntry* entry_ = nullptr;
+    size_t sliceSize_ = 0;
+    bool dataDraw_ = false;
+    bool interpolatePos_ = false;
+    bool needToClear_ = true;
+    bool needToSetToNull_ = true;
+    LifespanMode lifeSpanMode_ = LIFE_FIRST_LAST_POINT;
+
+    /** Keep track of a platform update / MultiFrameCoordinate pair */
+    struct Entry
+    {
+      const simData::PlatformUpdate* update = nullptr;
+      std::optional<simCore::MultiFrameCoordinate> mfc;
+
+      Entry(const simData::PlatformUpdate* inUpdate, std::optional<simCore::MultiFrameCoordinate> inMfc)
+        : update(inUpdate),
+          mfc(inMfc)
+      {
+      }
+
+      ~Entry() = default;
+
+      SDK_DISABLE_COPY(Entry);
+
+      Entry(Entry&& other) noexcept = default;
+      Entry& operator=(Entry&& other) noexcept = default;
+    };
+
+    std::optional<Entry> entry1_;
+    std::optional<Entry> entry2_;
+    std::function<void(double startTime, double endTime)> timeRangeMonitorFn_;
+  };
+
+  /** Returns true if the memory data store is in file mode */
+  bool isFileMode_() const
+  {
+    return mds_.getBoundClock()
+      ? !mds_.getBoundClock()->isLiveMode()
+      : !mds_.dataLimiting();
+  }
+
+  /** Generic routine for updating command slices to the given time */
+  template <typename Cache>
+  void updateCommands_(Cache& cache, double time, std::map<simData::ObjectId, CommitResult>& allResults) const
+  {
+#ifdef HAVE_ENTT
+    for (const auto& [id, entry] : cache)
+#else
+    for (auto& [id, entry] : cache)
+#endif
+    {
+      auto results = entry.update(&mds_, id, time);
+
+      if (results != CommitResult::NO_CHANGE)
+        allResults[id] = results;
+    }
+  }
+
+  MemoryDataStore& mds_;
+#ifdef HAVE_ENTT
+  entt::dense_map<simData::ObjectId, CategoryCache> categoryCache_;
+  entt::dense_map<simData::ObjectId, PlatformCache> platformCache_;
+  entt::dense_map<simData::ObjectId, CommandCache<MemoryCommandSlice<PlatformCommand, PlatformPrefs>>> platformCommandCache_;
+  entt::dense_map<simData::ObjectId, CommandCache<MemoryCommandSlice<CustomRenderingCommand, CustomRenderingPrefs>>> customRenderingCommandCache_;
+  entt::dense_map<simData::ObjectId, CommandCache<MemoryCommandSlice<BeamCommand, BeamPrefs>>> beamCommandCache_;
+  entt::dense_map<simData::ObjectId, CommandCache<MemoryCommandSlice<GateCommand, GatePrefs>>> gateCommandCache_;
+  entt::dense_map<simData::ObjectId, CommandCache<MemoryCommandSlice<LaserCommand, LaserPrefs>>> laserCommandCache_;
+  entt::dense_map<simData::ObjectId, CommandCache<MemoryCommandSlice<LobGroupCommand, LobGroupPrefs>>> lobCommandCache_;
+  entt::dense_map<simData::ObjectId, CommandCache<MemoryCommandSlice<ProjectorCommand, ProjectorPrefs>>> projectorCommandCache_;
+#else
+  std::map<simData::ObjectId, CategoryCache> categoryCache_;
+  std::map<simData::ObjectId, PlatformCache> platformCache_;
+  std::map<simData::ObjectId, CommandCache<MemoryCommandSlice<PlatformCommand, PlatformPrefs>>> platformCommandCache_;
+  std::map<simData::ObjectId, CommandCache<MemoryCommandSlice<CustomRenderingCommand, CustomRenderingPrefs>>> customRenderingCommandCache_;
+  std::map<simData::ObjectId, CommandCache<MemoryCommandSlice<BeamCommand, BeamPrefs>>> beamCommandCache_;
+  std::map<simData::ObjectId, CommandCache<MemoryCommandSlice<GateCommand, GatePrefs>>> gateCommandCache_;
+  std::map<simData::ObjectId, CommandCache<MemoryCommandSlice<LaserCommand, LaserPrefs>>> laserCommandCache_;
+  std::map<simData::ObjectId, CommandCache<MemoryCommandSlice<LobGroupCommand, LobGroupPrefs>>> lobCommandCache_;
+  std::map<simData::ObjectId, CommandCache<MemoryCommandSlice<ProjectorCommand, ProjectorPrefs>>> projectorCommandCache_;
+#endif
+
+
+};
+
 //----------------------------------------------------------------------------
 
 /** Adapts NewRowDataListener to MemoryDataStore's newUpdatesListener_ */
-class NewRowDataToNewUpdatesAdapter : public MemoryTable::TableManager::NewRowDataListener
+class MemoryDataStore::NewRowDataToNewUpdatesAdapter : public MemoryTable::TableManager::NewRowDataListener
 {
 public:
   explicit NewRowDataToNewUpdatesAdapter(simData::MemoryDataStore& dataStore)
@@ -438,7 +1364,8 @@ public:
 
   virtual void onNewRowData(simData::DataTable& table, simData::ObjectId id, double dataTime)
   {
-    dataStore_.newUpdatesListener().onNewRowData(&dataStore_, table, id, dataTime);
+    for (const auto& listenerPtr : dataStore_.newUpdatesListeners_)
+      listenerPtr->onNewRowData(&dataStore_, table, id, dataTime);
   }
 
 private:
@@ -457,7 +1384,7 @@ public:
       interpolationEnabled_(ds.interpolationEnabled_),
       listeners_(ds.listeners_),
       scenarioListeners_(ds.scenarioListeners_),
-      newUpdatesListener_(ds.newUpdatesListener_),
+      newUpdatesListeners_(ds.newUpdatesListeners_),
       boundClock_(ds.boundClock_)
   {
     // fill in everything
@@ -493,7 +1420,8 @@ public:
     for (ScenarioListenerList::const_iterator iter2 = scenarioListeners_.begin(); iter2 != scenarioListeners_.end(); ++iter2)
       ds.addScenarioListener(*iter2);
 
-    ds.setNewUpdatesListener(newUpdatesListener_);
+    for (auto listener : newUpdatesListeners_)
+      ds.addNewUpdatesListener(listener);
 
     for (std::vector<DataTableManager::ManagerObserverPtr>::const_iterator iter = dtObservers_.begin(); iter != dtObservers_.end(); ++iter)
       ds.dataTableManager().addObserver(*iter);
@@ -507,11 +1435,11 @@ public:
 
 private: // data
   Interpolator *interpolator_;
-  bool          interpolationEnabled_;
+  InterpolatorState interpolationEnabled_ = InterpolatorState::OFF;
 
   DataStore::ListenerList listeners_;
   DataStore::ScenarioListenerList scenarioListeners_;
-  DataStore::NewUpdatesListenerPtr newUpdatesListener_;
+  std::vector<DataStore::NewUpdatesListenerPtr> newUpdatesListeners_;
   std::vector<DataTableManager::ManagerObserverPtr> dtObservers_;
   std::vector<CategoryNameManager::ListenerPtr> catListeners_;
 
@@ -533,9 +1461,8 @@ MemoryDataStore::MemoryDataStore()
 : baseId_(0),
   lastUpdateTime_(0.0),
   hasChanged_(false),
-  interpolationEnabled_(false),
+  interpolationEnabled_(InterpolatorState::OFF),
   interpolator_(nullptr),
-  newUpdatesListener_(new DefaultNewUpdatesListener),
   dataLimiting_(false),
   categoryNameManager_(new CategoryNameManager),
   dataLimitsProvider_(nullptr),
@@ -547,7 +1474,9 @@ MemoryDataStore::MemoryDataStore()
   dataLimitsProvider_ = new DataStoreLimits(*this);
   dataTableManager_ = new MemoryTable::TableManager(dataLimitsProvider_);
   newRowDataListener_.reset(new NewRowDataToNewUpdatesAdapter(*this));
-  genericData_[0] = new MemoryGenericDataSlice();
+  auto data = new MemoryGenericDataSlice();
+  data->setTimeGetter([this]() { return updateTime(); });
+  genericData_[0] = data;
 }
 
 ///construct with properties
@@ -555,9 +1484,8 @@ MemoryDataStore::MemoryDataStore(const ScenarioProperties &properties)
 : baseId_(0),
   lastUpdateTime_(0.0),
   hasChanged_(false),
-  interpolationEnabled_(false),
+  interpolationEnabled_(InterpolatorState::OFF),
   interpolator_(nullptr),
-  newUpdatesListener_(new DefaultNewUpdatesListener),
   dataLimiting_(false),
   categoryNameManager_(new CategoryNameManager),
   dataLimitsProvider_(nullptr),
@@ -570,7 +1498,9 @@ MemoryDataStore::MemoryDataStore(const ScenarioProperties &properties)
   dataTableManager_ = new MemoryTable::TableManager(dataLimitsProvider_);
   newRowDataListener_.reset(new NewRowDataToNewUpdatesAdapter(*this));
   properties_.CopyFrom(properties);
-  genericData_[0] = new MemoryGenericDataSlice();
+  auto data = new MemoryGenericDataSlice();
+  data->setTimeGetter([this]() { return updateTime(); });
+  genericData_[0] = data;
 }
 
 ///destructor
@@ -593,6 +1523,8 @@ void MemoryDataStore::initCompositeListener_()
   local->add(std::make_shared<HostChildCache>(hostToChildren_));
   originalIdCache_ = std::make_shared<OriginalIdCache>();
   local->add(originalIdCache_);
+  sliceCacheObserver_ = std::make_shared<SliceCacheObserver>(*this);
+  local->add(sliceCacheObserver_);
   addListener(local);
 }
 
@@ -641,7 +1573,6 @@ bool MemoryDataStore::canInterpolate() const
  * Enable or disable interpolation, if supported
  * Will only succeed if the DataStore implementation supports interpolation and
  * contains a valid interpolator object
- * TODO(millman): this seems like an unnecessary interface, can we just use setInterpolator(nullptr) to disable?
  * @return the state of interpolation
  */
 bool MemoryDataStore::enableInterpolation(bool state)
@@ -649,29 +1580,32 @@ bool MemoryDataStore::enableInterpolation(bool state)
   // interpolation can only be enabled if there is an interpolator
   if (state && interpolator_ != nullptr)
   {
-    if (!interpolationEnabled_)
+    if (interpolationEnabled_ == InterpolatorState::OFF)
     {
       hasChanged_ = true;
-      interpolationEnabled_ = true;
+      interpolationEnabled_ = InterpolatorState::EXTERNAL;
+      sliceCacheObserver_->resetPlatforms();
     }
   }
   else
   {
     // no interpolator set, disable
-    if (interpolationEnabled_)
+    if (interpolationEnabled_ != InterpolatorState::OFF)
     {
-      interpolationEnabled_ = false;
       hasChanged_ = true;
+      interpolationEnabled_ = InterpolatorState::OFF;
+      sliceCacheObserver_->resetPlatforms();
     }
+
   }
 
-  return interpolationEnabled_;
+  return interpolationEnabled_ != InterpolatorState::OFF;
 }
 
 ///Indicates that interpolation is either enabled or disabled
 bool MemoryDataStore::isInterpolationEnabled() const
 {
-  return interpolationEnabled_ && interpolator_ != nullptr;
+  return (interpolationEnabled_ != InterpolatorState::OFF) && interpolator_ != nullptr;
 }
 
 ///Specifies the interpolator
@@ -681,53 +1615,31 @@ void MemoryDataStore::setInterpolator(Interpolator *interpolator)
   {
     interpolator_ = interpolator;
     hasChanged_ = true;
+    sliceCacheObserver_->resetPlatforms();
   }
 }
 
 /// Get the current interpolator (nullptr if disabled)
 Interpolator* MemoryDataStore::interpolator() const
 {
-  return (interpolationEnabled_) ? interpolator_ : nullptr;
+  return (interpolationEnabled_ != InterpolatorState::OFF) ? interpolator_ : nullptr;
 }
 
-void MemoryDataStore::updatePlatforms_(double time)
+bool MemoryDataStore::enableInterpolation(InterpolatorState state)
 {
-  // determine if we are in "file mode"
-  // treat file mode as the default if no clock has been bound
-  const bool fileMode = (!boundClock_ || !boundClock_->isLiveMode());
+  if (interpolationEnabled_ == state)
+    return interpolationEnabled_ != InterpolatorState::OFF;
 
-  for (Platforms::const_iterator iter = platforms_.begin(); iter != platforms_.end(); ++iter)
-  {
-    PlatformEntry* platform = iter->second;
-    // apply commands
-    platform->commands()->update(this, iter->first, time);
+  hasChanged_ = true;
+  interpolationEnabled_ = state;
+  sliceCacheObserver_->resetPlatforms();
 
-    if (!platform->preferences()->commonprefs().datadraw())
-    {
-      // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
-      platform->updates()->setCurrent(nullptr);
-      continue;
-    }
+  return interpolationEnabled_ != InterpolatorState::OFF;
+}
 
-    if (fileMode)
-    {
-      const PlatformUpdateSlice* slice = platform->updates();
-      const double firstTime = slice->firstTime();
-      const bool staticPlatform = (firstTime == -1.0);
-      // do we need to expire a non-static platform?
-      if (!staticPlatform && (time < firstTime || time > slice->lastTime()))
-      {
-        // platform is not valid/has expired
-        platform->updates()->setCurrent(nullptr);
-        continue;
-      }
-    }
-
-    if (isInterpolationEnabled() && platform->preferences()->interpolatepos())
-      platform->updates()->update(time, interpolator_);
-    else
-      platform->updates()->update(time);
-  }
+DataStore::InterpolatorState MemoryDataStore::interpolatorState() const
+{
+  return interpolationEnabled_;
 }
 
 void MemoryDataStore::updateTargetBeam_(ObjectId id, BeamEntry* beam, double time)
@@ -780,7 +1692,7 @@ void MemoryDataStore::updateTargetBeam_(ObjectId id, BeamEntry* beam, double tim
 
   // simVis::Beam will calculate the RAE whenever it gets a non-nullptr update with hasChanged flag set
 
-  // update only when there is a time change or this is a NULL->non-NULL transition
+  // update only when there is a time change or this is a null->non-null transition
   if (beam->updates()->current() == nullptr || update->time() != time)
   {
     update->set_time(time);
@@ -800,8 +1712,6 @@ void MemoryDataStore::updateBeams_(double time)
   for (Beams::iterator iter = beams_.begin(); iter != beams_.end(); ++iter)
   {
     BeamEntry* beamEntry = iter->second;
-    // apply commands
-    beamEntry->commands()->update(this, iter->first, time);
 
     // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
     if (!beamEntry->preferences()->commonprefs().datadraw())
@@ -891,29 +1801,37 @@ void MemoryDataStore::updateTargetGate_(GateEntry* gate, double time)
   if (currentUpdate == nullptr)
     return;
 
-  // update only when gate was off, there is a time change, or if we depend on beam for height/width
-  if (gateWasOff || lastUpdateTime != time || gateUsesBeamBeamwidth_(gate))
+  // target gates use the az/el from the simVis::Beam target beam calc; this is done in simVis::Gate.
+  // using the minrange/maxrange and centroid values from the currentUpdate that we are supplying here
+  // minrange/maxrange and centroid are expected to be specified as -/+ offsets from the target range
+  // az and el are ignored for target gate updates
+  update->set_time(time);
+  update->set_azimuth(0.0);
+  update->set_elevation(0.0);
+  update->set_minrange(currentUpdate->minrange());
+  update->set_maxrange(currentUpdate->maxrange());
+  // centroid is optional
+  if (currentUpdate->has_centroid())
+    update->set_centroid(currentUpdate->centroid());
+  else
+    update->clear_centroid();
+
+  if (gateUsesBeamBeamwidth_(gate))
   {
-    // target gates use the az/el from the simVis::Beam target beam calc; this is done in simVis::Gate.
-    // using the minrange/maxrange and centroid values from the currentUpdate that we are supplying here
-    // minrange/maxrange and centroid are expected to be specified as -/+ offsets from the target range
-    // az and el are ignored for target gate updates
-    update->set_time(time);
-    update->set_azimuth(0.0);
-    update->set_elevation(0.0);
-    update->set_minrange(currentUpdate->minrange());
-    update->set_maxrange(currentUpdate->maxrange());
-    // centroid is optional
-    if (currentUpdate->has_centroid())
-      update->set_centroid(currentUpdate->centroid());
-    else
-      update->clear_centroid();
-    gate->updates()->setCurrent(update);
-    // signal that this slice is updated, necessary for the time-change case and for using BeamBeamwidth case
-    gate->updates()->setChanged();
+    update->set_width(0.0);
+    update->set_height(0.0);
   }
   else
-    gate->updates()->clearChanged();
+  {
+    update->set_width(currentUpdate->width());
+    update->set_height(currentUpdate->height());
+  }
+
+  gate->updates()->setCurrent(update);
+
+  // signal that this slice is updated, necessary for the time-change case and for using BeamBeamwidth case
+  gate->updates()->setChanged();
+
 }
 
 bool MemoryDataStore::gateUsesBeamBeamwidth_(GateEntry* gate) const
@@ -928,8 +1846,6 @@ void MemoryDataStore::updateGates_(double time)
   for (Gates::iterator iter = gates_.begin(); iter != gates_.end(); ++iter)
   {
     GateEntry* gateEntry = iter->second;
-    // apply commands
-    gateEntry->commands()->update(this, iter->first, time);
 
     // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
     if (!gateEntry->preferences()->commonprefs().datadraw())
@@ -961,8 +1877,6 @@ void MemoryDataStore::updateLasers_(double time)
   for (Lasers::iterator iter = lasers_.begin(); iter != lasers_.end(); ++iter)
   {
     LaserEntry* laserEntry = iter->second;
-    // apply commands
-    laserEntry->commands()->update(this, iter->first, time);
 
     // until we have datadraw, send nullptr; once we have datadraw, we'll immediately update with valid data
     if (!laserEntry->preferences()->commonprefs().datadraw())
@@ -980,8 +1894,6 @@ void MemoryDataStore::updateProjectors_(double time)
   for (Projectors::iterator iter = projectors_.begin(); iter != projectors_.end(); ++iter)
   {
     ProjectorEntry* projectorEntry = iter->second;
-    // apply commands
-    projectorEntry->commands()->update(this, iter->first, time);
 
     if (isInterpolationEnabled() && projectorEntry->preferences()->interpolateprojectorfov())
       projectorEntry->updates()->update(time, interpolator_);
@@ -995,9 +1907,6 @@ void MemoryDataStore::updateLobGroups_(double time)
   //for each entry
   for (LobGroups::iterator iter = lobGroups_.begin(); iter != lobGroups_.end(); ++iter)
   {
-    // apply commands
-    iter->second->commands()->update(this, iter->first, time);
-
     // check for changes in maxdatapoints or maxdataseconds prefs, memoryDataSlice processes these.
     {
       DataStore::Transaction tn;
@@ -1011,16 +1920,6 @@ void MemoryDataStore::updateLobGroups_(double time)
 
     // update the slice
     iter->second->updates()->update(time);
-  }
-}
-
-void MemoryDataStore::updateCustomRenderings_(double time)
-{
-  //for each entry
-  for (auto iter = customRenderings_.begin(); iter != customRenderings_.end(); ++iter)
-  {
-    // apply commands
-    iter->second->commands()->update(this, iter->first, time);
   }
 }
 
@@ -1195,66 +2094,43 @@ simData::PlatformPrefs MemoryDataStore::defaultPlatformPrefs() const
   return defaultPlatformPrefs_;
 }
 
-void MemoryDataStore::updateCategoryData_(double time, ListenerList& listeners)
-{
-  std::vector<simData::ObjectId> ids;
-
-#ifdef ENABLE_SIMDATA_MULTI_THREAD
-  std::mutex mutex;
-  std::for_each(std::execution::par, categoryData_.begin(), categoryData_.end(), [&](std::pair<const ObjectId, MemoryCategoryDataSlice*>& pair)
-#else
-  std::for_each(categoryData_.begin(), categoryData_.end(), [&](std::pair<const ObjectId, MemoryCategoryDataSlice*>& pair)
-#endif
-
-    {
-      // if something changed
-      if (pair.second->update(time))
-      {
-#ifdef ENABLE_SIMDATA_MULTI_THREAD
-        std::unique_lock lock(mutex);
-#endif
-        ids.push_back(pair.first);
-      }
-    }
-  );
-
-  for (auto id : ids)
-  {
-    // send notification
-    const simData::ObjectType ot = objectType(id);
-
-    for (ListenerList::const_iterator j = listeners.begin(); j != listeners.end(); ++j)
-    {
-      if (*j != nullptr)
-      {
-        (**j).onCategoryDataChange(this, id, ot);
-        checkForRemoval_(listeners);
-      }
-    }
-  }
-}
-
 ///Update internal data to show 'time' as current
 void MemoryDataStore::update(double time)
 {
   if (!hasChanged_ && time == lastUpdateTime_)
     return;
 
-  updatePlatforms_(time);
-  updateBeams_(time);
-  updateGates_(time);
-
-  updateSparseSlices(genericData_, time);
-
+  std::map<simData::ObjectId, CommitResult> results;
+  sliceCacheObserver_->updateCommands(time, results);
   // Need to handle recursion so make a local copy
   ListenerList localCopy = listeners_;
   justRemoved_.clear();
+  invokePreferenceChangeCallback_(results, localCopy);
 
-  updateCategoryData_(time, localCopy);
+  std::vector<simData::ObjectId> ids;
+  sliceCacheObserver_->updateCategoryData_(time, ids);
+
+  sliceCacheObserver_->updatePlatforms_(time);
+  updateBeams_(time);
+  updateGates_(time);
   updateLasers_(time);
   updateProjectors_(time);
   updateLobGroups_(time);
-  updateCustomRenderings_(time);
+
+  for (auto id : ids)
+  {
+    // send notification
+    const simData::ObjectType ot = objectType(id);
+
+    for (ListenerList::const_iterator j = localCopy.begin(); j != localCopy.end(); ++j)
+    {
+      if (*j != nullptr)
+      {
+        (**j).onCategoryDataChange(this, id, ot);
+        checkForRemoval_(localCopy);
+      }
+    }
+  }
 
   // After all the slice updates, set the new update time and notify observers
   lastUpdateTime_ = time;
@@ -1266,6 +2142,26 @@ void MemoryDataStore::update(double time)
     {
       (**i).onChange(this);
       checkForRemoval_(localCopy);
+    }
+  }
+}
+
+void MemoryDataStore::invokePreferenceChangeCallback_(const std::map<simData::ObjectId, CommitResult>& results, ListenerList& localCopy)
+{
+  for (const auto& [id, result] : results)
+  {
+    for (const auto& localListener : localCopy)
+    {
+      if (localListener == nullptr)
+        continue;
+
+      localListener->onPrefsChange(this, id);
+      checkForRemoval_(localCopy);
+      if (result == CommitResult::NAME_CHANGED)
+      {
+        localListener->onNameChange(this, id);
+        checkForRemoval_(localCopy);
+      }
     }
   }
 }
@@ -1383,7 +2279,8 @@ int MemoryDataStore::flush(ObjectId id, FlushScope scope, FlushFields fields, do
     }
   }
   // Send out notification to the new-updates listener
-  newUpdatesListener_->onFlush(this, id);
+  for (const auto& listenerPtr : newUpdatesListeners_)
+    listenerPtr->onFlush(this, id);
 
   return 0;
 }
@@ -2056,14 +2953,14 @@ const PlatformPrefs* MemoryDataStore::platformPrefs(ObjectId id, Transaction *tr
   return entry ? entry->preferences() : nullptr;
 }
 
-PlatformPrefs* MemoryDataStore::mutable_platformPrefs(ObjectId id, Transaction *transaction)
+PlatformPrefs* MemoryDataStore::mutable_platformPrefs(ObjectId id, Transaction* transaction, CommitResult* results)
 {
   assert(transaction);
-  PlatformEntry *entry = getEntry<PlatformEntry, Platforms>(id, &platforms_);
+  PlatformEntry* entry = getEntry<PlatformEntry, Platforms>(id, &platforms_);
   if (entry)
   {
-    MutableSettingsTransactionImpl<PlatformPrefs> *impl =
-      new MutableSettingsTransactionImpl<PlatformPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_);
+    MutableSettingsTransactionImpl<PlatformPrefs>* impl =
+      new MutableSettingsTransactionImpl<PlatformPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_, results);
     *transaction = Transaction(impl);
     return impl->settings();
   }
@@ -2078,14 +2975,14 @@ const BeamPrefs* MemoryDataStore::beamPrefs(ObjectId id, Transaction *transactio
   return entry ? entry->preferences() : nullptr;
 }
 
-BeamPrefs* MemoryDataStore::mutable_beamPrefs(ObjectId id, Transaction *transaction)
+BeamPrefs* MemoryDataStore::mutable_beamPrefs(ObjectId id, Transaction* transaction, CommitResult* results)
 {
   assert(transaction);
   BeamEntry *entry = getEntry<BeamEntry, Beams>(id, &beams_);
   if (entry)
   {
     MutableSettingsTransactionImpl<BeamPrefs> *impl =
-      new MutableSettingsTransactionImpl<BeamPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_);
+      new MutableSettingsTransactionImpl<BeamPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_, results);
     *transaction = Transaction(impl);
     return impl->settings();
   }
@@ -2100,14 +2997,14 @@ const GatePrefs* MemoryDataStore::gatePrefs(ObjectId id, Transaction *transactio
   return entry ? entry->preferences() : nullptr;
 }
 
-GatePrefs* MemoryDataStore::mutable_gatePrefs(ObjectId id, Transaction *transaction)
+GatePrefs* MemoryDataStore::mutable_gatePrefs(ObjectId id, Transaction* transaction, CommitResult* results)
 {
   assert(transaction);
   GateEntry *entry = getEntry<GateEntry, Gates>(id, &gates_);
   if (entry)
   {
     MutableSettingsTransactionImpl<GatePrefs> *impl =
-      new MutableSettingsTransactionImpl<GatePrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_);
+      new MutableSettingsTransactionImpl<GatePrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_, results);
     *transaction = Transaction(impl);
     return impl->settings();
   }
@@ -2122,14 +3019,14 @@ const LaserPrefs* MemoryDataStore::laserPrefs(ObjectId id, Transaction *transact
   return entry ? entry->preferences() : nullptr;
 }
 
-LaserPrefs* MemoryDataStore::mutable_laserPrefs(ObjectId id, Transaction *transaction)
+LaserPrefs* MemoryDataStore::mutable_laserPrefs(ObjectId id, Transaction *transaction, CommitResult* results)
 {
   assert(transaction);
   LaserEntry *entry = getEntry<LaserEntry, Lasers>(id, &lasers_);
   if (entry)
   {
     MutableSettingsTransactionImpl<LaserPrefs> *impl =
-      new MutableSettingsTransactionImpl<LaserPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_);
+      new MutableSettingsTransactionImpl<LaserPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_, results);
     *transaction = Transaction(impl);
     return impl->settings();
   }
@@ -2144,14 +3041,14 @@ const ProjectorPrefs* MemoryDataStore::projectorPrefs(ObjectId id, Transaction *
   return entry ? entry->preferences() : nullptr;
 }
 
-ProjectorPrefs* MemoryDataStore:: mutable_projectorPrefs(ObjectId id, Transaction *transaction)
+ProjectorPrefs* MemoryDataStore:: mutable_projectorPrefs(ObjectId id, Transaction *transaction, CommitResult* results)
 {
   assert(transaction);
   ProjectorEntry *entry = getEntry<ProjectorEntry, Projectors, NullTransactionImpl>(id, &projectors_, transaction);
   if (entry)
   {
     MutableSettingsTransactionImpl<ProjectorPrefs> *impl =
-      new MutableSettingsTransactionImpl<ProjectorPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_);
+      new MutableSettingsTransactionImpl<ProjectorPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_, results);
     *transaction = Transaction(impl);
     return impl->settings();
   }
@@ -2166,14 +3063,14 @@ const LobGroupPrefs* MemoryDataStore::lobGroupPrefs(ObjectId id, Transaction *tr
   return entry ? entry->preferences() : nullptr;
 }
 
-LobGroupPrefs* MemoryDataStore::mutable_lobGroupPrefs(ObjectId id, Transaction *transaction)
+LobGroupPrefs* MemoryDataStore::mutable_lobGroupPrefs(ObjectId id, Transaction *transaction, CommitResult* results)
 {
   assert(transaction);
   LobGroupEntry *entry = getEntry<LobGroupEntry, LobGroups>(id, &lobGroups_);
   if (entry)
   {
     MutableSettingsTransactionImpl<LobGroupPrefs> *impl =
-      new MutableSettingsTransactionImpl<LobGroupPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_);
+      new MutableSettingsTransactionImpl<LobGroupPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_, results);
     *transaction = Transaction(impl);
     return impl->settings();
   }
@@ -2188,14 +3085,14 @@ const CustomRenderingPrefs* MemoryDataStore::customRenderingPrefs(ObjectId id, T
   return entry ? entry->preferences() : nullptr;
 }
 
-CustomRenderingPrefs* MemoryDataStore::mutable_customRenderingPrefs(ObjectId id, Transaction *transaction)
+CustomRenderingPrefs* MemoryDataStore::mutable_customRenderingPrefs(ObjectId id, Transaction *transaction, CommitResult* results)
 {
   assert(transaction);
   CustomRenderingEntry *entry = getEntry<CustomRenderingEntry, CustomRenderings>(id, &customRenderings_);
   if (entry)
   {
     MutableSettingsTransactionImpl<CustomRenderingPrefs> *impl =
-      new MutableSettingsTransactionImpl<CustomRenderingPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_);
+      new MutableSettingsTransactionImpl<CustomRenderingPrefs>(entry->mutable_properties()->id(), entry->mutable_preferences(), this, &listeners_, results);
     *transaction = Transaction(impl);
     return impl->settings();
   }
@@ -2652,6 +3549,11 @@ const CategoryDataSlice* MemoryDataStore::categoryDataSlice(ObjectId id) const
   return getEntry<CategoryDataSlice, CategoryDataMap>(id, &categoryData_);
 }
 
+void MemoryDataStore::installSliceTimeRangeMonitor(ObjectId id, std::function<void(double startTime, double endTime)> fn)
+{
+  sliceCacheObserver_->installSliceTimeRangeMonitor(id, fn);
+}
+
 int MemoryDataStore::modifyPlatformCommandSlice(ObjectId id, VisitableDataSlice<PlatformCommand>::Modifier* modifier)
 {
   if (objectType(id) == simData::PLATFORM)
@@ -2714,7 +3616,8 @@ namespace
 
 void MemoryDataStore::addListener(ListenerPtr callback)
 {
-  listeners_.push_back(callback);
+  auto it = std::find_if(listeners_.begin(), listeners_.end(), [&callback](const ListenerPtr& ptr) { return callback->weight() < ptr->weight(); });
+  listeners_.insert(it, callback);
 }
 
 void MemoryDataStore::removeListener(ListenerPtr callback)
@@ -2757,27 +3660,29 @@ void MemoryDataStore::removeScenarioListener(ScenarioListenerPtr callback)
     scenarioListeners_.erase(i);
 }
 
-void MemoryDataStore::setNewUpdatesListener(NewUpdatesListenerPtr callback)
+void MemoryDataStore::addNewUpdatesListener(NewUpdatesListenerPtr callback)
 {
-  std::shared_ptr<MemoryTable::TableManager::NewRowDataListener> newRowListener;
+  if (!callback)
+    return;
 
-  // If clearing out the updates listener, then also clear out the memory table's listener for performance
-  if (callback == nullptr)
-    newUpdatesListener_.reset(new DefaultNewUpdatesListener);
-  else
-  {
-    // Set the updates listener, and tie in updates from the table manager too.
-    newUpdatesListener_ = callback;
-    newRowListener = newRowDataListener_;
-  }
-
-  // Update table manager with whatever updater was picked
-  static_cast<MemoryTable::TableManager*>(dataTableManager_)->setNewRowDataListener(newRowListener);
+  newUpdatesListeners_.push_back(callback);
+  // Update table manager if going from empty to non-empty, so it starts sending us updates
+  if (newUpdatesListeners_.size() == 1)
+    static_cast<MemoryTable::TableManager*>(dataTableManager_)->setNewRowDataListener(newRowDataListener_);
 }
 
-DataStore::NewUpdatesListener& MemoryDataStore::newUpdatesListener() const
+void MemoryDataStore::removeNewUpdatesListener(NewUpdatesListenerPtr callback)
 {
-  return *newUpdatesListener_;
+  if (!callback)
+    return;
+  auto iter = std::find(newUpdatesListeners_.begin(), newUpdatesListeners_.end(), callback);
+  if (iter == newUpdatesListeners_.end())
+    return;
+  newUpdatesListeners_.erase(iter);
+
+  // If clearing out the updates listener, then also clear out the memory table's listener for performance
+  if (newUpdatesListeners_.empty())
+    static_cast<MemoryTable::TableManager*>(dataTableManager_)->setNewRowDataListener({});
 }
 
 CategoryNameManager& MemoryDataStore::categoryNameManager() const
@@ -2816,18 +3721,21 @@ void MemoryDataStore::dataLimit_(std::map<ObjectId, EntryMapType* >& entryMap, O
 
 //----------------------------------------------------------------------------
 template<typename T>
-MemoryDataStore::MutableSettingsTransactionImpl<T>::MutableSettingsTransactionImpl(ObjectId id, T *settings, MemoryDataStore *store, ListenerList *observers)
+MemoryDataStore::MutableSettingsTransactionImpl<T>::MutableSettingsTransactionImpl(ObjectId id, T *settings, MemoryDataStore *store, ListenerList *observers, CommitResult* results)
 : id_(id),
   committed_(false),
   notified_(false),
   nameChange_(false),
   currentSettings_(settings),
   store_(store),
-  observers_(observers)
+  observers_(observers),
+  results_(results)
 {
   // create a copy of currentSettings_ for the user to experiment with
   modifiedSettings_ = currentSettings_->New();
   modifiedSettings_->CopyFrom(*currentSettings_);
+  if (results_)
+    *results_ = CommitResult::NO_CHANGE;
 }
 
 template<typename T>
@@ -2873,20 +3781,30 @@ void MemoryDataStore::MutableSettingsTransactionImpl<T>::release()
     if (nameChange_ && (oldName_ != newName_))
       store_->entityNameCache_->nameChange(newName_, oldName_, id_);
 
-    // Need to handle recursion so make a local copy
-    ListenerList localCopy = *observers_;
-    store_->justRemoved_.clear();
-    // Raise notifications for settings changes after internal data structures are updated
-    for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
+    if (results_)
     {
-      if (*i != nullptr)
+      if (nameChange_)
+        *results_ = CommitResult::NAME_CHANGED;
+      else
+        *results_ = CommitResult::PREFERENCE_CHANGED;
+    }
+    else
+    {
+      // Need to handle recursion so make a local copy
+      ListenerList localCopy = *observers_;
+      store_->justRemoved_.clear();
+      // Raise notifications for settings changes after internal data structures are updated
+      for (ListenerList::const_iterator i = localCopy.begin(); i != localCopy.end(); ++i)
       {
-        (*i)->onPrefsChange(store_, id_);
-        store_->checkForRemoval_(localCopy);
-        if ((*i != nullptr) && (nameChange_))
+        if (*i != nullptr)
         {
-          (*i)->onNameChange(store_, id_);
+          (*i)->onPrefsChange(store_, id_);
           store_->checkForRemoval_(localCopy);
+          if (nameChange_)
+          {
+            (*i)->onNameChange(store_, id_);
+            store_->checkForRemoval_(localCopy);
+          }
         }
       }
     }
@@ -3121,7 +4039,8 @@ void MemoryDataStore::NewUpdateTransactionImpl<T, SliceType>::commit()
     if (isEntityUpdate_)
     {
       // Notify the data store's new-update callback
-      dataStore_->newUpdatesListener().onEntityUpdate(dataStore_, id_, updateTime);
+      for (const auto& listenerPtr : dataStore_->newUpdatesListeners_)
+        listenerPtr->onEntityUpdate(dataStore_, id_, updateTime);
     }
   }
 }

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -120,37 +120,37 @@ namespace simVis
   public:
     NullEntityCallback() {}
 
-    virtual std::string createString(const simData::PlatformPrefs& prefs, const simData::PlatformUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields)
+    virtual std::string createString(const simData::PlatformPrefs& prefs, const simData::PlatformUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields) override
     {
       return "";
     }
 
-    virtual std::string createString(const simData::BeamPrefs& prefs, const simData::BeamUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields)
+    virtual std::string createString(const simData::BeamPrefs& prefs, const simData::BeamUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields) override
     {
       return "";
     }
 
-    virtual std::string createString(const simData::GatePrefs& prefs, const simData::GateUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields)
+    virtual std::string createString(const simData::GatePrefs& prefs, const simData::GateUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields) override
     {
       return "";
     }
 
-    virtual std::string createString(const simData::LaserPrefs& prefs, const simData::LaserUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields)
+    virtual std::string createString(const simData::LaserPrefs& prefs, const simData::LaserUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields) override
     {
       return "";
     }
 
-    virtual std::string createString(const simData::LobGroupPrefs& prefs, const simData::LobGroupUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields)
+    virtual std::string createString(const simData::LobGroupPrefs& prefs, const simData::LobGroupUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields) override
     {
       return "";
     }
 
-    virtual std::string createString(const simData::ProjectorPrefs& prefs, const simData::ProjectorUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields)
+    virtual std::string createString(const simData::ProjectorPrefs& prefs, const simData::ProjectorUpdate& lastUpdate, const simData::LabelPrefs_DisplayFields& fields) override
     {
       return "";
     }
 
-    virtual std::string createString(simData::ObjectId id, const simData::CustomRenderingPrefs& prefs, const simData::LabelPrefs_DisplayFields& fields)
+    virtual std::string createString(simData::ObjectId id, const simData::CustomRenderingPrefs& prefs, const simData::LabelPrefs_DisplayFields& fields) override
     {
       return "";
     }
@@ -165,7 +165,7 @@ namespace simVis
   public:
     NullLabelContentManager() {}
 
-    virtual simVis::LabelContentCallback* createLabelContentCallback(simData::ObjectId id)
+    virtual simVis::LabelContentCallback* createLabelContentCallback(simData::ObjectId id) override
     {
       return new NullEntityCallback();
     }

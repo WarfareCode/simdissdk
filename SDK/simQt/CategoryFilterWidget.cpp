@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -584,7 +584,7 @@ bool CategoryTreeItemDelegate::helpEvent(QHelpEvent* evt, QAbstractItemView* vie
 * Class that listens for entity events in the DataStore, and
 * informs the parent when they happen.
 */
-class CategoryFilterWidget::DataStoreListener : public simData::DataStore::Listener
+class CategoryFilterWidget::DataStoreListener : public simData::DataStore::DefaultListener
 {
 public:
   explicit DataStoreListener(CategoryFilterWidget& parent)
@@ -603,15 +603,6 @@ public:
   {
     parent_.setEntityCountDirty();
   }
-
-  // Fulfill the interface
-  virtual void onPostRemoveEntity(simData::DataStore *source, simData::ObjectId removedId, simData::ObjectType ot) {}
-  virtual void onNameChange(simData::DataStore *source, simData::ObjectId changeId) {}
-  virtual void onScenarioDelete(simData::DataStore* source) {}
-  virtual void onPrefsChange(simData::DataStore *source, simData::ObjectId id) {}
-  virtual void onPropertiesChange(simData::DataStore *source, simData::ObjectId id) {}
-  virtual void onChange(simData::DataStore *source) {}
-  virtual void onFlush(simData::DataStore* source, simData::ObjectId id) {}
 
 private:
   CategoryFilterWidget& parent_;
@@ -783,6 +774,7 @@ void CategoryFilterWidget::setShowEntityCount(bool fl)
     connect(counter_, SIGNAL(resultsReady(simQt::CategoryCountResults)), this, SLOT(processCategoryCounts(simQt::CategoryCountResults)));
     connect(treeModel_, SIGNAL(filterChanged(simData::CategoryFilter)), counter_, SLOT(setFilter(simData::CategoryFilter)));
     connect(treeModel_, SIGNAL(rowsInserted(QModelIndex, int, int)), counter_, SLOT(asyncCountEntities()));
+    connect(treeModel_, &QAbstractItemModel::modelReset, counter_, &simQt::AsyncCategoryCounter::reset);
     counter_->setFilter(categoryFilter());
     counter_->setObjectTypes(counterObjectTypes_);
   }

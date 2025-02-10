@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -40,7 +40,7 @@ namespace simNotify
     /// The default notification handler
     NotifyHandlerPtr defaultNotifyHandler_(new StandardNotifyHandler());
 
-    /// NULL object for notify handlers
+    /// null object for notify handlers
     NotifyHandlerPtr nullNotifyHandler_(new NullNotifyHandler());
 
     /// This is the last item in the 0 based list of enumerations; possible problem keeping this in sync with the enum

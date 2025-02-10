@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,10 +22,11 @@
  */
 #include <cassert>
 #include <deque>
+#include <QApplication>
+#include <QDir>
+#include <QFileIconProvider>
 #include <QSettings>
 #include <QStringList>
-#include <QFileIconProvider>
-#include <QApplication>
 #include "simNotify/Notify.h"
 
 #ifdef HAVE_SIMDATA
@@ -154,8 +155,20 @@ public:
   void setDataValue(const QVariant& value)
   {
     assert(itemData_.size() > 1);
-    itemData_[1] = value;
+    itemData_[1] = metaData_.convertToInteralFormat(value);
     valueChanged_ = true;
+  }
+
+  /// True if the settings has been activated by a call to setValue() or value()
+  bool isActivated() const
+  {
+    return activated_;
+  }
+
+  /// Set the activated state of the setting, which indicates that is has been accessed by a setValue() or value()
+  void setActivated(bool activated)
+  {
+    activated_ = true;
   }
 
   /// Adds a new child to the tree; ownership transfers to this
@@ -342,6 +355,18 @@ public:
     Qt::ItemFlags itemFlags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
     flags_ << itemFlags; // refers to the name
 
+    if (itemData_.size() > 1)
+    {
+      // need to check to see if converting to save value will change the input value
+      if (!valueChanged_)
+      {
+        QVariant saveVal = metaData_.convertToSaveFormat(itemData_[1]);
+        if (itemData_[1] != saveVal) // save value will not be the same as the input, so mark as changed
+          valueChanged_ = true;
+      }
+      // convert value to the internal format now that meta data has been defined
+      itemData_[1] = metaData_.convertToInteralFormat(itemData_[1]);
+    }
     // Data element flags next
     switch (metaData_.type())
     {
@@ -460,13 +485,15 @@ private:
   // Metadata for the node
   MetaData metaData_;
   /// True if metaData_ was set by an EXTERNAL source. The default value set by the node does not count
-  bool hasMetaData_;
+  bool hasMetaData_ = false;
   /// Local observers; only when this entry changes do a callback
   QList<ObserverPtr> observers_;
   /// True if the value has changed since the initial value
-  bool valueChanged_;
+  bool valueChanged_ = false;;
   /// True if the metaData has changed since the initial value
-  bool metaDataChanged_;
+  bool metaDataChanged_ = false;
+  /// True if the settings has been activated by a call to setValue() or value()
+  bool activated_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////
@@ -499,8 +526,8 @@ private:
     if (node == nullptr)
       return;
     ValueAndMetaData value;
-    value.value = node->data(Qt::DisplayRole, TreeNode::COLUMN_VALUE);
     value.metaData = node->data(SettingsModel::MetaDataRole, TreeNode::COLUMN_VALUE);
+    value.value = node->data(Qt::DisplayRole, TreeNode::COLUMN_VALUE);
     if (!node->isRootItem() && value.value.isValid())
     {
       // Leaf item -- save data and return
@@ -589,7 +616,9 @@ void SettingsModel::save()
   // Create a settings file for output
   if (settings.isWritable())
   {
-    // Cannot call settings.clear() here because some code by pass the SettingModel and work directly with QSetting
+    // Cannot call settings.clear() here because some code by pass the SettingModel and work directly with QSetting, unless saving only activated settings
+    if (saveOnlyActivated_)
+      settings.clear();
     storeNodes_(settings, rootNode_, false);
     storeMetaData_(settings);
   }
@@ -968,6 +997,8 @@ int SettingsModel::loadSettingsFile(const QString& path)
   QStringList allKeys = settings.allKeys();
   if (allKeys.empty()) // Empty file
     return 1;
+
+  loading_ = true;
   bool containsLayout = false;
   for (auto it = allKeys.begin(); it != allKeys.end(); ++it)
   {
@@ -981,6 +1012,7 @@ int SettingsModel::loadSettingsFile(const QString& path)
     if (node && node->metaData().type() == LAYOUT)
       containsLayout = true;
   }
+  loading_ = false;
 
   // need to update settings meta data based on the meta data loaded from the file
   initMetaData_(settings);
@@ -999,16 +1031,25 @@ int SettingsModel::saveSettingsFileAs(const QString& path, bool onlyDeltas)
 
   Q_EMIT aboutToSaveSettingsFile(path);
 
-  // Do not overwrite default file.
+  // Create a settings file for output; attempt this prior to QFileInfo to prevent any possible race conditions
+  QSettings settings(path, QSettings::IniFormat);
+  if (!settings.isWritable())
+  {
+    SIM_ERROR << "Unable to open " << path.toStdString() << " for writing.\n";
+    return 1;
+  }
+
+  // Do not overwrite default file if we can detect they are the same filename
   const QFileInfo defaultFileInfo(fileName());
   const QFileInfo targetFileInfo(path);
   if (defaultFileInfo == targetFileInfo)
+  {
+    SIM_ERROR << "Unable to overwrite default file "
+      << QDir::toNativeSeparators(defaultFileInfo.absoluteFilePath()).toStdString()
+      << ". Please choose another filename.\n";
     return 1;
+  }
 
-  // Create a settings file for output
-  QSettings settings(path, QSettings::IniFormat);
-  if (!settings.isWritable())
-    return 1;
   // Start fresh
   settings.clear();
 
@@ -1024,12 +1065,15 @@ void SettingsModel::storeNodes_(QSettings& settings, TreeNode* node, bool force)
   if (node == nullptr)
     return;
 
-  QVariant value = node->data(Qt::DisplayRole, TreeNode::COLUMN_VALUE);
+  QVariant value = node->metaData().convertToSaveFormat(node->data(Qt::DisplayRole, TreeNode::COLUMN_VALUE));
   // Only need to write out leaves
-  if (!node->isRootItem() && (value != QVariant()))
+  if (!node->isRootItem() && (value != QVariant()) && (!saveOnlyActivated_ || node->isActivated()))
   {
-    if (force || node->hasValueChanged())
+    // write out if forcing, value changed, or activated while saving activated
+    if (force || node->hasValueChanged() || (saveOnlyActivated_ && node->isActivated()))
+    {
       settings.setValue(node->fullPath(), value);
+    }
 
     // It is a leaf so return
     return;
@@ -1045,9 +1089,9 @@ void SettingsModel::storeNodesDeltas_(QSettings& settings, TreeNode* node) const
   if (node == nullptr)
     return;
 
-  QVariant value = node->data(Qt::DisplayRole, TreeNode::COLUMN_VALUE);
+  QVariant value = node->metaData().convertToSaveFormat(node->data(Qt::DisplayRole, TreeNode::COLUMN_VALUE));
   // Only need to write out leaves
-  if (!node->isRootItem() && value.isValid())
+  if (!node->isRootItem() && value.isValid() && (!saveOnlyActivated_ || node->isActivated()))
   {
     if (node->metaData().defaultValue() != value)
       settings.setValue(node->fullPath(), value);
@@ -1085,7 +1129,7 @@ void SettingsModel::resetDefaults(const QString& name)
     resetDefaults_(rootNode);
   else
   {
-    SIM_ERROR << "rootNode is NULL, cannot reset defaults for a NULL node\n";
+    SIM_ERROR << "rootNode is null, cannot reset defaults for a null node\n";
     assert(0);
   }
 }
@@ -1157,6 +1201,8 @@ void SettingsModel::setValue(const QString& name, const QVariant& value, const M
       fire = false;
   }
   node->addObserver(observer);
+  if (!loading_)
+    node->setActivated(true);
 
   if (fire)
   {
@@ -1186,7 +1232,11 @@ QVariant SettingsModel::value(const QString& name) const
 {
   TreeNode* node = getNode_(name);
   if (node != nullptr)
+  {
+    if (!loading_)
+      node->setActivated(true);
     return node->data(Qt::DisplayRole, TreeNode::COLUMN_VALUE);
+  }
 
   return QVariant();
 }
@@ -1196,6 +1246,8 @@ QVariant SettingsModel::value(const QString& name, const MetaData& metaData, Obs
   TreeNode* node = getNode_(name);
   if (node != nullptr)
   {
+    if (!loading_)
+      node->setActivated(true);
     node->addObserver(observer);
     if (node->setMetaData(metaData) == 0)
     {
@@ -1217,6 +1269,8 @@ QVariant SettingsModel::value(const QString& name, const MetaData& metaData, Obs
   node->setMetaData(metaData);
   node->addObserver(observer);
   node->setDataValue(metaData.defaultValue());
+  if (!loading_)
+    node->setActivated(true);
   refreshKey_(name);
 
   return metaData.defaultValue();
@@ -1228,12 +1282,16 @@ QVariant SettingsModel::value(const QString& name, ObserverPtr observer)
   if (node != nullptr)
   {
     addObserver(name, observer);
+    if (!loading_)
+      node->setActivated(true);
     return node->data(Qt::DisplayRole, TreeNode::COLUMN_VALUE);
   }
 
   QModelIndex idx = addKeyToTree_(name);
   node = static_cast<TreeNode*>(idx.internalPointer());
   node->addObserver(observer);
+  if (!loading_)
+    node->setActivated(true);
   refreshKey_(name);
   return QVariant();
 }
@@ -1405,8 +1463,10 @@ void SettingsModel::initMetaData_(QSettings& settings)
     {
       TreeNode* node = getNode_(key);
       // set the meta data, but do not override
-      if (node != nullptr)
+      if (node != nullptr && (!saveOnlyActivated_ || node->isActivated()))
+      {
         node->setMetaData(qvMetaData.value<MetaData>(), false);
+      }
     }
   }
   settings.endGroup();
@@ -1434,7 +1494,8 @@ void SettingsModel::storeMetaData_(QSettings& settings, TreeNode* node)
     // const bool relevant = (node->data(DataLevelRole, TreeNode::COLUMN_NAME).toInt() != simQt::Settings::PRIVATE);
     // ... then only write out the data if relevant is true.
 
-    if (hasValue && node->hasMetaDataChanged())
+    // Need to always write out meta data when saving activated to ensure the meta data exists as it would in the standard case
+    if (hasValue && ((node->hasMetaDataChanged() && !saveOnlyActivated_) || (saveOnlyActivated_ && node->isActivated())))
     {
       settings.setValue(node->fullPath(), QVariant::fromValue(node->metaData()));
     }
@@ -1465,6 +1526,11 @@ bool SettingsModel::isReadOnly() const
 void SettingsModel::setReadOnly(bool readOnly)
 {
   readOnly_ = readOnly;
+}
+
+void SettingsModel::setSaveOnlyActivated(bool saveOnlyActivated)
+{
+  saveOnlyActivated_ = saveOnlyActivated;
 }
 
 }

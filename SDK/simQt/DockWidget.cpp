@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,18 +22,20 @@
  */
 #include <iostream>
 #include <cassert>
-#include <QTimer>
 #include <QAction>
-#include <QPainter>
 #include <QApplication>
 #include <QDesktopWidget>
-#include <QMainWindow>
-#include <QScreen>
-#include <QTabBar>
-#include <QToolButton>
-#include <QLabel>
+#include <QDir>
+#include <QFileInfo>
 #include <QHBoxLayout>
 #include <QKeyEvent>
+#include <QLabel>
+#include <QMainWindow>
+#include <QPainter>
+#include <QScreen>
+#include <QTabBar>
+#include <QTimer>
+#include <QToolButton>
 #include "simNotify/Notify.h"
 #include "simQt/SearchLineEdit.h"
 #include "simQt/BoundSettings.h"
@@ -204,17 +206,23 @@ private:
 class DockWidget::TabDragDropEventFilter : public QObject
 {
 public:
-  TabDragDropEventFilter(DockWidget& dockWidget, QTabBar* tabBar)
-    : QObject(tabBar),
+  TabDragDropEventFilter(DockWidget& dockWidget)
+    : QObject(),
       dockWidget_(dockWidget),
-      tabBar_(tabBar)
+      tabBar_(nullptr)
   {
-    tabBar_->installEventFilter(this);
+  }
+
+  void setTabBar(QTabBar* tabBar)
+  {
+    tabBar_ = tabBar;
+    if (tabBar_)
+      tabBar_->installEventFilter(this);
   }
 
   bool eventFilter(QObject* object, QEvent* event)
   {
-    if (object != tabBar_)
+    if (object != tabBar_ || !tabBar_)
       return false;
 
     if (event->type() == QEvent::DragEnter)
@@ -315,17 +323,85 @@ public:
     return false;
   }
 
-  void uninstall()
+  void uninstall(QMainWindow* mainWindow)
   {
-    // This is safe because tabBar_ is the parent of the filter. If the tab bar had been deleted
-    // before now, the filter would not still exist
-    tabBar_->removeEventFilter(this);
+    // remove event filter from previous tab bar, if it still exists
+    if (mainWindow)
+    {
+      QList<QTabBar*> tabBars = mainWindow->findChildren<QTabBar*>();
+      for (auto tabBar : tabBars)
+      {
+        if (tabBar == tabBar_)
+        {
+          tabBar_->removeEventFilter(this);
+          break;
+        }
+      }
+    }
+    tabBar_ = nullptr;
   }
 
 private:
   DockWidget& dockWidget_;
   QTabBar* tabBar_ = nullptr;
   QString prevTab_;
+};
+
+///////////////////////////////////////////////////////////////
+
+// Adapted from https://doc.qt.io/qt-5/qtwidgets-widgets-elidedlabel-example.html and
+// https://stackoverflow.com/questions/73684307
+class DockWidget::ElidedTitleLabel : public QFrame
+{
+public:
+  explicit ElidedTitleLabel(QWidget* parent = nullptr)
+    : QFrame(parent)
+  {
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+    setMinimumSize(40, 6);
+  }
+
+  void setText(const QString& txt)
+  {
+    content_ = txt;
+    update();
+  }
+
+  void setElideMode(Qt::TextElideMode elideMode)
+  {
+    elideMode_ = elideMode;
+    update();
+  }
+
+  const QString& text() const
+  {
+    return content_;
+  }
+
+  QSize sizeHint() const override
+  {
+    const auto& margins = contentsMargins();
+    const QSize marginSize(margins.left() + margins.right(), margins.top() + margins.bottom());
+    const auto& metrics = fontMetrics();
+    return marginSize + QSize{ metrics.averageCharWidth() * 4, metrics.height() };
+  }
+
+protected:
+  virtual void paintEvent(QPaintEvent* evt) override
+  {
+    QFrame::paintEvent(evt);
+
+    QPainter painter(this);
+    const QFontMetrics& fontMetrics = painter.fontMetrics();
+
+    const auto& margins = contentsMargins();
+    const QString& elidedLine = fontMetrics.elidedText(content_, elideMode_, width() - margins.left() - margins.right());
+    painter.drawText(QPoint(margins.left(), fontMetrics.ascent() + margins.bottom()), elidedLine);
+  }
+
+private:
+  QString content_;
+  Qt::TextElideMode elideMode_ = Qt::ElideRight;
 };
 
 ///////////////////////////////////////////////////////////////
@@ -419,6 +495,8 @@ DockWidget::~DockWidget()
   disconnect(QApplication::instance(), SIGNAL(focusChanged(QWidget*, QWidget*)), this, SLOT(changeTitleColorsFromFocusChange_(QWidget*, QWidget*)));
 
   uninstallTabEventFilter_();
+  delete tabDragFilter_;
+  tabDragFilter_ = nullptr;
 
   delete noTitleBar_;
   noTitleBar_ = nullptr;
@@ -428,6 +506,10 @@ DockWidget::~DockWidget()
 
 void DockWidget::init_()
 {
+  // SIM-17647: the event filter cannot be a child of the tab bar, must persist for the life of the widget
+  // This is because after unloading plug-ins, the QTabBar might still reference the event filter after it has been destroyed
+  tabDragFilter_ = new TabDragDropEventFilter(*this);
+
   // default title bar text size to application text size
   titleBarPointSize_ = QApplication::font().pointSize();
   searchLineEdit_ = nullptr;
@@ -581,12 +663,13 @@ QWidget* DockWidget::createTitleBar_()
   titleBarIcon_->setSizePolicy(QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed));
 
   // Set the title bar's caption
-  titleBarTitle_ = new QLabel();
+  titleBarTitle_ = new ElidedTitleLabel();
   titleBarTitle_->setObjectName("titleBarTitle");
-  titleBarTitle_->setText(windowTitle());
   titleBarTitle_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
   // Note a padding of 0 pixels looks bad, especially on Ubuntu 14
   titleBarTitle_->setContentsMargins(4, 0, 0, 0);
+
+  updateTitleBarText_(); // Calls titleBarTitle_->setText() in a consistent manner
 
   // Create tool buttons for each button that might show on the GUI
   restoreButton_ = newToolButton_(restoreAction_);
@@ -686,7 +769,7 @@ void DockWidget::updateTitleBar_()
 
   // Make sure the pixmap and text are correct
   updateTitleBarIcon_();
-  titleBarTitle_->setText(windowTitle());
+  updateTitleBarText_(); // Calls titleBarTitle_->setText() in a consistent manner
 
   // Need to make sure icons are right colors too
   updateTitleBarColors_(haveFocus_);
@@ -792,6 +875,8 @@ void DockWidget::closeWindow_()
 
 void DockWidget::fixTabIcon_()
 {
+  // always uninstall tab event filter in case widget went from tabbed to floating
+  uninstallTabEventFilter_();
   // Break out early if we're floating, or if there's no main window
   if (isFloating() || !mainWindow_)
     return;
@@ -859,7 +944,20 @@ void DockWidget::setTitleBarVisible(bool show)
 
 void DockWidget::updateTitleBarText_()
 {
-  titleBarTitle_->setText(windowTitle());
+  const QString& filePath = windowFilePath();
+  if (filePath.isEmpty())
+  {
+    titleBarTitle_->setText(windowTitle());
+    return;
+  }
+
+  // Form a string that includes the file path
+  const QFileInfo fi(filePath);
+  titleBarTitle_->setText(tr("%1   [%2]  %3")
+    .arg(windowTitle())
+    .arg(fi.fileName())
+    .arg(QDir::toNativeSeparators(fi.absolutePath()))
+  );
 }
 
 void DockWidget::updateTitleBarIcon_()
@@ -975,6 +1073,27 @@ void DockWidget::setDockable(bool dockable)
 bool DockWidget::allDockingDisabled() const
 {
   return (disableAllDocking_ != nullptr && disableAllDocking_->value());
+}
+
+void DockWidget::restoreDefaultLayout()
+{
+  // remove geometry from saved settings
+  if (settings_)
+  {
+    settings_->setValue(path_() + DOCK_WIDGET_GEOMETRY, QVariant());
+    settings_->setValue(path_() + DOCK_WIDGET_UNMAX_GEOMETRY, QVariant());
+  }
+  else
+  {
+    QSettings settings;
+    settings.setValue(path_() + DOCK_WIDGET_GEOMETRY, QVariant());
+    settings.setValue(path_() + DOCK_WIDGET_UNMAX_GEOMETRY, QVariant());
+  }
+  // remove main window temporarily to restore a default state in loadSettings_()
+  auto mainWindow = mainWindow_;
+  mainWindow_ = nullptr;
+  loadSettings_();
+  mainWindow_ = mainWindow;
 }
 
 void DockWidget::verifyDockState_(bool floating)
@@ -1254,6 +1373,12 @@ void DockWidget::show()
   setFocus();
 }
 
+void DockWidget::setWindowFilePath(const QString& path)
+{
+  QDockWidget::setWindowFilePath(path);
+  updateTitleBarText_();
+}
+
 void DockWidget::setGlobalSettings(Settings* globalSettings)
 {
   if (globalSettings_ == globalSettings)
@@ -1309,10 +1434,7 @@ void DockWidget::restoreFloating_(const QByteArray& geometryBytes)
     // Must be floatable, because we can't dock without it
     assert(features().testFlag(DockWidgetFloatable));
     if (features().testFlag(DockWidgetFloatable))
-    {
-      setFloating(true);
-      restoreGeometry(geometryBytes);
-    }
+      setFloatingGeometry_(geometryBytes);
     return;
   }
 
@@ -1322,27 +1444,7 @@ void DockWidget::restoreFloating_(const QByteArray& geometryBytes)
     const bool globalNoDocking = (disableAllDocking_ != nullptr && disableAllDocking_->value());
     // Restoration failed; new window.  Respect the features() flag to pop up or dock.
     if (features().testFlag(DockWidgetFloatable) || globalNoDocking)
-    {
-      setFloating(true);
-      if (!restoreGeometry(geometryBytes))
-      {
-        // if restoreGeometry failed, use the default size if it is valid
-        if (!defaultSize_.isEmpty())
-          resize(defaultSize_);
-        else // otherwise, resize to the sizeHint, in case the initial resize hasn't happened yet
-          resize(sizeHint());
-
-        // Qt on Linux RHEL8+ (esp Wayland) with multi-screen has problems with positioning widgets such
-        // that the dock widget defaults to (0,0) global instead of near the parent window. This attempts to
-        // fix the position so that it stays on the same screen as the main window in these cases. Attempt to
-        // fix SIM-16068 and SIMDIS-3901. This happens on Qt 5.9 and 5.15 both.
-        QWidget* parentWidget = dynamic_cast<QWidget*>(parent());
-        if (!parentWidget)
-          parentWidget = mainWindow_;
-        QtUtils::centerWidgetOnParent(*this, parentWidget);
-      }
-
-    }
+      setFloatingGeometry_(geometryBytes);
     else
     {
       // Need to dock into a place, because floatable is disabled
@@ -1394,6 +1496,28 @@ QString DockWidget::path_() const
   return QString("Private/%1/%2/").arg(windowTitle(), combined);
 }
 
+void DockWidget::setFloatingGeometry_(const QByteArray& geometryBytes)
+{
+  setFloating(true);
+  if (!restoreGeometry(geometryBytes))
+  {
+    // if restoreGeometry failed, use the default size if it is valid
+    if (!defaultSize_.isEmpty())
+      resize(defaultSize_);
+    else // otherwise, resize to the sizeHint, in case the initial resize hasn't happened yet
+      resize(sizeHint());
+
+    // Qt on Linux RHEL8+ (esp Wayland) with multi-screen has problems with positioning widgets such
+    // that the dock widget defaults to (0,0) global instead of near the parent window. This attempts to
+    // fix the position so that it stays on the same screen as the main window in these cases. Attempt to
+    // fix SIM-16068 and SIMDIS-3901. This happens on Qt 5.9 and 5.15 both.
+    QWidget* parentWidget = dynamic_cast<QWidget*>(parent());
+    if (!parentWidget)
+      parentWidget = mainWindow_;
+    QtUtils::centerWidgetOnParent(*this, parentWidget);
+  }
+}
+
 void DockWidget::setGlobalNotDockableFlag_(bool disallowDocking)
 {
   if (dockableAction_)
@@ -1426,21 +1550,18 @@ void DockWidget::applyGlobalSettings_()
 
 void DockWidget::installTabEventFilter_(QTabBar* tabBar)
 {
-  // Only 1 event filter needs to exist at once, but there could be stale filters from old tab bars if the dock widget
+  // Only register with 1 tab bar, may still be registered with old tab bars if the dock widget
   // is being moved between tabs. Uninstall old filters first if necessary
   uninstallTabEventFilter_();
 
-  // Filter installs itself on creation
-  tabDragFilter_ = new TabDragDropEventFilter(*this, tabBar);
+  if (tabDragFilter_)
+    tabDragFilter_->setTabBar(tabBar);
 }
 
 void DockWidget::uninstallTabEventFilter_()
 {
-  if (tabDragFilter_.isNull())
-    return;
-
-  tabDragFilter_->uninstall();
-  tabDragFilter_ = nullptr;
+  if (tabDragFilter_)
+    tabDragFilter_->uninstall(mainWindow_);
 }
 
 }

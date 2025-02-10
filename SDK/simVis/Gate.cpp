@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -250,6 +250,25 @@ void GateCentroid::setVisible(bool visible)
 {
   // setting the geometry node mask can turn the draw off without turning off the centroid/locator node
   geom_->setNodeMask(visible ? DISPLAY_MASK_GATE : DISPLAY_MASK_NONE);
+}
+
+void GateCentroid::setColor(const simData::GatePrefs* prefs)
+{
+  auto color = simVis::Color(prefs->centroidcolor(), simVis::Color::RGBA);
+
+  // if alpha only use the gate color adjusted by the alpha component
+  if ((color.r() == 0.0) && (color.g() == 0.0) && (color.b() == 0.0))
+  {
+    auto alpha = color.a();
+    color = (prefs->commonprefs().useoverridecolor()) ?
+      simVis::Color(prefs->commonprefs().overridecolor(), simVis::Color::RGBA) :
+      simVis::Color(prefs->commonprefs().color(), simVis::Color::RGBA);
+    // if all centroid color & alpha components are 0, centroid is exactly same color as gate
+    if (alpha != 0)
+      color.a() = alpha;
+  }
+
+  geom_->setColor(color);
 }
 
 // perform an in-place update to an existing centroid
@@ -735,6 +754,7 @@ void GateNode::apply_(const simData::GateUpdate* newUpdate, const simData::GateP
   // Fix the draw flag on the centroid - note that the logic here means that: if in fillpattern centroid, drawcentroid pref toggle does not hide it
   const bool drawCentroid = activePrefs->drawcentroid() || activePrefs->fillpattern() == simData::GatePrefs_FillPattern_CENTROID;
   centroid_->setVisible(drawCentroid);
+  centroid_->setColor(activePrefs);
 
   // centroid must be kept up-to-date, even if it is not shown, due to gate tethering/picking dependency on centroid
   // update the centroid for changes in size; locator takes care of centroid positioning

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -190,6 +190,7 @@ simVis::Registry::Registry()
   modelExtensions_.push_back("opt");
   modelExtensions_.push_back("ive");
   modelExtensions_.push_back("flt");
+  modelExtensions_.push_back("fbx");
 
   // these may be used for models, but are not model-specific formats
   modelExtensions_.push_back("png");
@@ -331,11 +332,7 @@ void simVis::Registry::setShareArticulatedIconModels(bool value)
 
 std::string simVis::Registry::findModelFile(const std::string& name) const
 {
-#ifdef HAVE_OSGEARTH_THREADING
   osgEarth::Threading::ScopedRecursiveMutexLock lock(fileSearchMutex_);
-#else
-  osgEarth::Threading::ScopedMutexLock lock(fileSearchMutex_);
-#endif
 
   if (!name.empty())
   {
@@ -465,11 +462,7 @@ osgText::Font* simVis::Registry::getOrCreateFont(const std::string& name) const
 
 std::string simVis::Registry::findFontFile(const std::string& name) const
 {
-#ifdef HAVE_OSGEARTH_THREADING
   osgEarth::Threading::ScopedRecursiveMutexLock lock(fileSearchMutex_);
-#else
-  osgEarth::Threading::ScopedMutexLock lock(fileSearchMutex_);
-#endif
 
   if (!name.empty())
   {
@@ -560,11 +553,7 @@ simCore::Clock* simVis::Registry::getClock() const
 
 void simVis::Registry::setFileSearch(simCore::FileSearchPtr fileSearch)
 {
-#ifdef HAVE_OSGEARTH_THREADING
   osgEarth::Threading::ScopedRecursiveMutexLock lock(fileSearchMutex_);
-#else
-  osgEarth::Threading::ScopedMutexLock lock(fileSearchMutex_);
-#endif
 
   if (fileSearch == nullptr)
     fileSearch_.reset(new simCore::NoSearchFileSearch());
@@ -574,11 +563,7 @@ void simVis::Registry::setFileSearch(simCore::FileSearchPtr fileSearch)
 
 std::string simVis::Registry::findFile_(const std::string& filename, simCore::FileSearch::SearchFileType fileType) const
 {
-#ifdef HAVE_OSGEARTH_THREADING
   osgEarth::Threading::ScopedRecursiveMutexLock lock(fileSearchMutex_);
-#else
-  osgEarth::Threading::ScopedMutexLock lock(fileSearchMutex_);
-#endif
 
   if (fileSearch_ == nullptr)
     return "";

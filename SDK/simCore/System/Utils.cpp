@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -47,6 +47,8 @@ inline const std::string PYTHONHOME = "PYTHONHOME";
 inline const std::string PYTHONPATH = "PYTHONPATH";
 inline const std::string PYTHONPYCACHEPREFIX = "PYTHONPYCACHEPREFIX";
 inline const std::string QT_PLUGIN_PATH = "QT_PLUGIN_PATH";
+inline const std::string ROCKY_DEFAULT_FONT = "ROCKY_DEFAULT_FONT";
+inline const std::string ROCKY_FILE_PATH = "ROCKY_FILE_PATH";
 inline const std::string SIMDIS_DIR = "SIMDIS_DIR";
 inline const std::string SIMDIS_FONTPATH = "SIMDIS_FONTPATH";
 inline const std::string SIMDIS_HOME = "SIMDIS_HOME";
@@ -317,8 +319,17 @@ int initializeSimdisEnvironmentVariables(const InitializeEnvironmentConfig& conf
 #else
     simCore::setEnvVar(GDAL_DRIVER_PATH, simCore::pathJoin({ simdisDir, "lib", HWOS, "gdalplugins" }), false);
 #endif
+  }
+  if (config.gdal || config.rocky)
+  {
     // PROJ_LIB
     simCore::setEnvVar(PROJ_LIB, simCore::pathJoin({ simdisDir, "data", "proj" }), true);
+  }
+
+  if (config.rocky)
+  {
+    simCore::setEnvVar(ROCKY_DEFAULT_FONT, simCore::pathJoin({ simdisDir, "data", "fonts", "arialbd.ttf" }), false);
+    simCore::setEnvVar(ROCKY_FILE_PATH, simCore::pathJoin({ simdisDir, "data", "rocky" }), false);
   }
 
   if (config.qt)

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -148,6 +148,7 @@ void MyMainWindow::createViewDialog_()
   QWidget* viewWidget = new simQt::ViewWidget(view.get());
   lastCreatedGlWindow_ = viewWidget->windowHandle();
   viewWidget->setMinimumSize(2, 2);
+  dialog->setWindowFlag(Qt::WindowContextHelpButtonHint, false);
   dialog->setWindowTitle(viewName);
   dialog->setLayout(new QHBoxLayout());
   dialog->layout()->addWidget(viewWidget);
@@ -206,6 +207,17 @@ simVis::View* MyMainWindow::createView_(const QString& name) const
 }
 ////////////////////////////////////////////////////////////////////
 
+void warningMessageFilter(QtMsgType type, const QMessageLogContext& context, const QString& msg)
+{
+  // Block spammed warning message from setGeometry() calls caused when manually resizing a QDialog.
+  // This is a known Qt bug in Qt 5.15 that is unresolved: https://bugreports.qt.io/browse/QTBUG-73258
+  if (type != QtWarningMsg || !msg.startsWith("QWindowsWindow::setGeometry"))
+  {
+    QByteArray localMsg = msg.toLocal8Bit();
+    fprintf(stdout, localMsg.constData());
+  }
+}
+
 int main(int argc, char** argv)
 {
   simCore::checkVersionThrow();
@@ -227,6 +239,7 @@ int main(int argc, char** argv)
     framerate = 20;
 
   // OK, time to set up the Qt Application and windows.
+  qInstallMessageHandler(warningMessageFilter);
   QApplication qapp(argc, argv);
 
   // Our custom main window contains a ViewManager.

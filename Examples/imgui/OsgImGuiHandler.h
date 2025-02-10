@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -25,9 +25,11 @@
 
 #include <memory>
 #include <osgViewer/ViewerEventHandlers>
+#include <osgEarth/Version>
 
 namespace osg { class Camera; }
 namespace osgEarth { namespace GUI { class BaseGUI; } }
+namespace osgEarth { class ImGuiPanel; }
 
 struct ImFont;
 struct ImGuiSettingsHandler;
@@ -54,7 +56,12 @@ public:
   virtual bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
 
   /** Add a GUI to the manager */
+#if OSGEARTH_SOVERSION >= 159
+  void add(osgEarth::ImGuiPanel* gui);
+#else
   void add(osgEarth::GUI::BaseGUI* gui);
+#endif
+
   /** Add deprecated GUI to the manager. TODO: Remove once ::GUI::BaseGUI is removed */
   void add(::GUI::BaseGui* gui);
 
@@ -103,15 +110,17 @@ private:
   void render_(osg::RenderInfo& renderInfo);
 
   double time_;
-  bool mousePressed_[3];
-  bool mouseDoubleClicked_[3];
-  float mouseWheel_;
   bool initialized_;
   bool firstFrame_;
   bool firstDraw_;
   bool autoAdjustProjectionMatrix_;
 
+#if OSGEARTH_SOVERSION >= 159
+  std::map<std::string, std::vector<std::unique_ptr<osgEarth::ImGuiPanel> > > menus_;
+#else
   std::map<std::string, std::vector<std::unique_ptr<osgEarth::GUI::BaseGUI> > > menus_;
+#endif
+
   std::vector<std::unique_ptr<::GUI::BaseGui> > deprecatedGuis_;
 
   ImFont* defaultFont_;

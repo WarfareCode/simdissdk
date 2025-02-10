@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -111,7 +111,7 @@ void EyePositionState::fillFromView_(simVis::View* view)
 {
   view_ = view;
 
-  if (view_ == nullptr)
+  if (!view_.valid())
   {
     tetherNode_ = nullptr;
     watchedNode_ = nullptr;
@@ -278,7 +278,7 @@ ViewpointMonitor::ViewpointMonitor(simVis::View* mainView)
   viewManagerObserver_ = new ViewManagerObserver(*this);
 
   // Initialize all the view eye position states
-  simVis::ViewManager* viewManager = mainView_->getViewManager();
+  simVis::ViewManager* viewManager = mainView_.valid() ? mainView_->getViewManager() : nullptr;
   if (viewManager != nullptr)
   {
     // Add an observer so we know when views are added or removed

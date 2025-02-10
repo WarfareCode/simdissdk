@@ -1,9 +1,10 @@
-// Add a date here to trigger forced regeneration: 10/18/2022
+%ignore simCore::Vec3::Vec3(Vec3&&);
 %ignore simCore::Vec3::operator=;
 %ignore simCore::Vec3::operator[];
 %ignore simCore::Coordinate::operator=;
 %ignore simCore::CoordinateConverter::operator=;
 %ignore simCore::SquareMatrix::operator=;
+%ignore simCore::rayIntersectsPlane;
 
 ////////////////////////////////////////////////
 // simCore/Calc
@@ -19,8 +20,6 @@
 // Handling output parameter for toScientific() from simCore/calc/Math.cpp
 %apply int* OUTPUT { int* exp };
 
-// v3Scale() needs a custom wrapper for proper return value
-%rename("wrap_v3Scale") simCore::v3Scale;
 %include "simCore/Calc/Math.h"
 
 %rename("wrap_convert") simCore::CoordinateConverter::convert;
@@ -59,6 +58,7 @@ CoordinateConverter.convert = CoordConvert_convert
 %include "simCore/Calc/Gars.h"
 
 %include "simCore/Calc/Geometry.h"
+%include "simCore/Calc/GeoFence.h"
 %include "simCore/Calc/Interpolation.h"
 
 // simCore::WorldMagneticModel::calculateMagneticVariance()
@@ -129,6 +129,7 @@ CoordinateConverter.convert = CoordConvert_convert
 
 %include "simCore/Calc/Random.h"
 %include "simCore/Calc/SquareMatrix.h"
+%include "simCore/Calc/Dcm.h"
 
 %include "simCore/Calc/Units.h"
 %include "simCore/Calc/VerticalDatum.h"
@@ -155,10 +156,6 @@ CoordinateConverter.convert = CoordConvert_convert
 
 // Various Python overrides
 %pythoncode %{
-def v3Scale(scalar, inVec):
-  outVec = Vec3()
-  wrap_v3Scale(scalar, inVec, outVec)
-  return outVec
 def tangentPlane2Sphere(llaVec, tpVec):
   sphereVec = Vec3()
   sphereTpOrigin = Vec3()
@@ -213,4 +210,19 @@ def getClosestPoint(startLla, endLla, toLla):
   closestLla = Vec3()
   dist = wrap_getClosestPoint(startLla, endLla, toLla, closestLla)
   return dist, closestLla
+%}
+
+%inline %{
+double rayIntersectsPlaneWrapped(const simCore::Ray& ray, const simCore::Plane& plane, bool& OUTPUT)
+{
+  const auto& dOpt = simCore::rayIntersectsPlane(ray, plane);
+  OUTPUT = dOpt.has_value();
+  return dOpt.value_or(0.);
+}
+%}
+
+%pythoncode %{
+def rayIntersectsPlane(ray, plane):
+  value, valid = rayIntersectsPlaneWrapped(ray, plane)
+  return value if valid else None
 %}

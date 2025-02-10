@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,6 +23,7 @@
 #ifndef SIMQT_SEGMENTED_LINE_H
 #define SIMQT_SEGMENTED_LINE_H
 
+#include <optional>
 #include <QSpinBox>
 #include "simCore/Time/Constants.h"
 #include "simCore/Time/TimeClass.h"
@@ -140,12 +141,12 @@ protected:
   bool optional_;  ///< The segment is optional
 };
 
-/// An abbreviated month name ("Jan", "Feb", etc)
+/// An abbreviated month name ("Jan", "Feb", etc) or integer month representation
 class SDKQT_EXPORT MonthText : public SegmentedText
 {
 public:
-  /** Constructor */
-  MonthText(SegmentedTexts* parentLine);
+  /** Constructor. Set intMode to true to use in integer mode */
+  MonthText(SegmentedTexts* parentLine, bool intMode = false);
 
   /// current month setting (Jan is 0 to 11 Dec)
   int intValue() const;
@@ -171,6 +172,7 @@ private:
 
   SegmentedTexts* line_;  ///< Parent that contains all the segments
   int currentMonth_; ///< 0 is Jan
+  bool intMode_ = false;
 };
 
 /// Implements the base logic for a segmented line, Time is limited to year 2046
@@ -264,14 +266,21 @@ protected:
   /// convert the field representation of the fraction to a # of ns
   int fractionFromField_(int fractionFieldValue, int precision) const;
 
-  simCore::TimeStamp start_;  ///< Start Time
-  simCore::TimeStamp end_;  ///< End time
+  /** Returns true if the day is valid for the given year/month pair
+   * param[in] year Four digit year
+   * param[in] month 0 to 11
+   * param[in] day 1 to 31
+   */
+  bool isValidMonthDay_(int year, int month, int day) const;
+
+  simCore::TimeStamp start_ = simCore::MIN_TIME_STAMP;  ///< Start Time
+  simCore::TimeStamp end_ = simCore::MAX_TIME_STAMP;  ///< End time
   simCore::TimeStamp adjustedStart_;  ///< Start Time adjusted down by the precision
   simCore::TimeStamp adjustedEnd_;  ///< End time adjusted up by the precision
-  int scenarioReferenceYear_;  ///< Scenario Reference Year
-  unsigned int precision_; ///< The number of digits after the decimal point, must be between 1 and 6
-  bool limitBeforeStart_; ///< If true times before the start time are rejected
-  bool limitAfterEnd_;  ///< If true times after the end time are rejected
+  std::optional<int> scenarioReferenceYear_;  ///< Scenario Reference Year
+  unsigned int precision_ = 3; ///< The number of digits after the decimal point, must be between 1 and 6
+  bool limitBeforeStart_ = true; ///< If true times before the start time are rejected
+  bool limitAfterEnd_ = true;  ///< If true times after the end time are rejected
 
 private:
   /// Adjust the time range to account for the precision
@@ -403,6 +412,13 @@ public:
   virtual void setTimeZone(simCore::TimeZone zone);
   virtual simCore::TimeZone timeZone() const;
 
+  /** Returns four digit year */
+  int year() const;
+  /** Returns 0 to 11 */
+  int month() const;
+  /** Returns 1 to 31 */
+  int day() const;
+
 protected:
   virtual void makeSegments_();
 
@@ -416,6 +432,44 @@ private:
   NumberText* fraction_;  // Displays the fraction
   simCore::TimeZone zone_;
 };
+
+//----------------------------------------------------------------------------
+/// Implements the ISO-8601 format, YYYY-MM-DDTHH:MM:SS.sssZ, with optional [.sss]
+class SDKQT_EXPORT Iso8601Texts : public SegmentedTexts
+{
+public:
+  Iso8601Texts();
+  virtual ~Iso8601Texts();
+
+  virtual simCore::TimeStamp timeStamp() const;
+  virtual void setTimeStamp(const simCore::TimeStamp& value);
+  virtual void valueEdited();
+  virtual void valueChanged();
+  virtual QValidator::State validateText(const QString& text) const;
+  virtual void setTimeZone(simCore::TimeZone zone);
+  virtual simCore::TimeZone timeZone() const;
+
+  /** Returns four digit year */
+  int year() const;
+  /** Returns 0 to 11 */
+  int month() const;
+  /** Returns 1 to 31 */
+  int day() const;
+
+protected:
+  virtual void makeSegments_();
+
+private:
+  NumberText* years_;  // Displays the year
+  MonthText* months_;  // Displays the month
+  NumberText* days_;  // Displays the day of month
+  NumberText* hours_;  // Displays the hours
+  NumberText* minutes_; // Displays the minutes
+  NumberText* seconds_;  // Displays the seconds
+  NumberText* fraction_;  // Displays the fraction
+  simCore::TimeZone zone_;
+};
+
 }
 
 #endif

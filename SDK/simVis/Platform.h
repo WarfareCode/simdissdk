@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -136,6 +136,9 @@ public:
 
   /// Set the creator for the LOS nodes
   void setLosCreator(LosCreator* losCreator);
+
+  /// Set the time range from the update slice
+  void setTimeRange(double start, double end);
 
 public: // EntityNode interface
 
@@ -316,8 +319,6 @@ private:
   simData::PlatformUpdate         lastUnfilteredUpdate_;
   /// the last time a data store update came in
   double                          lastUpdateTime_;
-  /// the time of the earliest history point that still exists in the data slice
-  double                          firstHistoryTime_;
   /// the ECI locator, which supports ECI track history, and provides the SRS for non-ECI locators
   osg::ref_ptr<Locator>           eciLocator_;
   /// container for trackHistory and vaporTrail, which must be different from the platform node to support expiremode
@@ -348,6 +349,12 @@ private:
   bool                            forceUpdateFromDataStore_;
   /// queue up the invalidate to apply on the next data store update
   bool                            queuedInvalidate_;
+  /// Cache start time of the update slice to improve performance when there are many platforms
+  double startTime_ = std::numeric_limits<double>::max();
+  /// Cache end time of the update slice to improve performance when there are many platforms
+  double endTime_ = -std::numeric_limits<double>::max();
+  /// Cache call sign to improve performance when there are many platforms
+  std::string callSign_;
 };
 
 } // namespace simVis

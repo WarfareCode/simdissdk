@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -40,6 +40,7 @@ static const double MAXIMUM_PITCH = 85.0; // Cut off the angle a little early to
 NavigationMode::NavigationMode()
 {
   // configure common settings.
+  setZoomToMouse(true);
 
   // actions that will break a tether.
   getBreakTetherActions().push_back(EarthManipulator::ACTION_GOTO);

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -42,6 +42,9 @@ namespace
     explicit OnRealize(simVis::ViewManager* viewman) : viewman_(viewman) { }
     void operator()(osg::Object* gc_obj)
     {
+      if (!viewman_.valid())
+        return;
+
       osg::GraphicsContext* gc = dynamic_cast<osg::GraphicsContext*>(gc_obj);
       simVis::applyCoreProfileValidity(gc);
       simVis::applyMesaGeometryShaderFix(gc);
@@ -105,27 +108,6 @@ namespace
     osg::View* resizeView_;
   };
 }
-
-#if 0
-//........................................................................
-
-
-ViewManager::AddView::AddView(ViewManager* viewman, View* view) :
-osg::Operation("ViewManager::AddView", false),
-view_(view),
-viewman_(viewman)
-{
-    //nop
-}
-
-void
-ViewManager::AddView::operator()(osg::Object* obj)
-{
-    //viewman_->viewer_->addView( view );
-    view_->setViewManager(viewman_.get());
-    viewman_->fireCallbacks(view, Callback::VIEW_ADDED);
-}
-#endif
 
 //........................................................................
 namespace simVis

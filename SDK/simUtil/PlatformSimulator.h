@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,8 +23,8 @@
 #ifndef SIMUTIL_PLATFORM_SIMULATOR_H
 #define SIMUTIL_PLATFORM_SIMULATOR_H
 
+#include <optional>
 #include "simCore/Common/Common.h"
-#include "simCore/Common/Optional.h"
 #include "simCore/Calc/Math.h"
 #include "simData/ObjectId.h"
 #include "simData/DataTypes.h"
@@ -63,8 +63,8 @@ public:
   double alt_m_;      ///< Altitude, in degrees
   double duration_s_; ///< How long to take to get there
 
-  simCore::Optional<double> pitch_deg_; ///< Pitch in degrees
-  simCore::Optional<double> roll_deg_; ///< Roll in degrees
+  std::optional<double> pitch_deg_; ///< Pitch in degrees
+  std::optional<double> roll_deg_; ///< Roll in degrees
 };
 typedef std::deque<Waypoint> Waypoints; ///< a queue of Waypoints
 

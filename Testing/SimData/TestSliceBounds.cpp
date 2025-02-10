@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -236,9 +236,23 @@ int testInterp(simUtil::DataStoreTestHelper& helper)
   helper.dataStore()->setInterpolator(&interpolator);
   helper.dataStore()->enableInterpolation(true);
   rv += SDK_ASSERT(helper.dataStore()->isInterpolationEnabled());
-  helper.dataStore()->update(15.0);
   slice = helper.dataStore()->platformUpdateSlice(id);
+  helper.dataStore()->update(15.0);
   rv += SDK_ASSERT(simCore::areEqual(slice->current()->time(), 15.0));
+  helper.dataStore()->update(16.0);
+  rv += SDK_ASSERT(simCore::areEqual(slice->current()->time(), 16.0));
+  helper.dataStore()->update(17.0);
+  rv += SDK_ASSERT(simCore::areEqual(slice->current()->time(), 17.0));
+
+  helper.dataStore()->enableInterpolation(simData::DataStore::InterpolatorState::INTERNAL);
+  rv += SDK_ASSERT(helper.dataStore()->isInterpolationEnabled());
+  helper.dataStore()->update(15.0);
+  rv += SDK_ASSERT(simCore::areEqual(slice->current()->time(), 15.0));
+  helper.dataStore()->update(16.0);
+  rv += SDK_ASSERT(simCore::areEqual(slice->current()->time(), 16.0));
+  helper.dataStore()->update(17.0);
+  rv += SDK_ASSERT(simCore::areEqual(slice->current()->time(), 17.0));
+
   return rv;
 }
 

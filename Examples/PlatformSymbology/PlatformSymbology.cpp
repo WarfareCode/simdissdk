@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -162,7 +162,7 @@ public:
     ImGui::Begin(name(), visible(), ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::TextUnformatted(s_help.c_str());
     if (!text_.empty())
-      ImGui::TextColored(ImVec4(0.f, 1.f, 0.f, 1.f), text_.c_str());
+      ImGui::TextColored(ImVec4(0.f, 1.f, 0.f, 1.f), "%s", text_.c_str());
     ImGui::End();
   }
 

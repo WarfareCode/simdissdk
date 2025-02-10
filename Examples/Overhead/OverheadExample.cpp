@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -152,6 +152,97 @@ struct ControlPanel : public simExamples::SimExamplesGui
     dynamicScaleOn_(true),
     labelsOn_(true)
   {
+    addKeyFunc_(ImGuiKey_O, [this]()
+      {
+        simVis::View* curView = viewer_->getMainView()->getFocusManager()->getFocusedView();
+        if (curView)
+          curView->enableOverheadMode(!curView->isOverheadEnabled());
+      });
+    addKeyFunc_(ImGuiKey_I, [this]()
+      {
+        insertViewPortMode_ = !insertViewPortMode_;
+        if (handler_.valid())
+          handler_->setEnabled(insertViewPortMode_);
+      });
+    addKeyFunc_(ImGuiKey_V, [this]()
+      {
+        simVis::View* main = viewer_->getMainView();
+        for (unsigned i = 0; i < main->getNumInsets(); ++i)
+        {
+          simVis::View* inset = main->getInset(i);
+          inset->setVisible(!inset->isVisible());
+        }
+      });
+    addKeyFunc_(ImGuiKey_R, [this]()
+      {
+        removeAllRequested_ = true;
+        simVis::View::Insets insets;
+        viewer_->getMainView()->getInsets(insets);
+        for (unsigned i = 0; i < insets.size(); ++i)
+          viewer_->getMainView()->removeInset(insets[i].get());
+
+        SIM_NOTICE << LC << "Removed all insets." << std::endl;
+      });
+    addKeyFunc_(ImGuiKey_C, [this]()
+      {
+        // find the next platform to center on
+        std::vector<simData::ObjectId>  ids;
+        dataStore_.idList(&ids, simData::PLATFORM);
+        if (centeredPlat_ == 0)
+          centeredPlat_ = ids.front();
+        else
+        {
+          for (auto iter = ids.begin(); iter != ids.end(); ++iter)
+          {
+            // find current centered
+            if (centeredPlat_ == *iter)
+            {
+              ++iter;
+              if (iter == ids.end())
+                centeredPlat_ = ids.front();
+              else
+                centeredPlat_ = *iter;
+              return;
+            }
+          }
+        }
+
+        simVis::EntityNode* plat = viewer_->getSceneManager()->getScenario()->find<simVis::EntityNode>(centeredPlat_);
+        simVis::View* curView = viewer_->getMainView()->getFocusManager()->getFocusedView();
+        if (curView)
+        {
+          simVis::Viewpoint vp = curView->getViewpoint();
+          // Reset the position offset if there was one
+          vp.positionOffset() = osg::Vec3();
+          curView->tetherCamera(plat, vp, 0.0);
+        }
+      });
+    addKeyFunc_(ImGuiKey_N, [this]()
+      {
+        labelsOn_ = !labelsOn_;
+        std::vector<simData::ObjectId> ids;
+        dataStore_.idList(&ids, simData::PLATFORM);
+        for (auto iter = ids.begin(); iter != ids.end(); ++iter)
+        {
+          simData::DataStore::Transaction tn;
+          simData::PlatformPrefs* prefs = dataStore_.mutable_platformPrefs(*iter, &tn);
+          prefs->mutable_commonprefs()->mutable_labelprefs()->set_draw(labelsOn_);
+          tn.complete(&prefs);
+        }
+      });
+    addKeyFunc_(ImGuiKey_D, [this]()
+      {
+        dynamicScaleOn_ = !dynamicScaleOn_;
+        std::vector<simData::ObjectId> ids;
+        dataStore_.idList(&ids, simData::PLATFORM);
+        for (auto iter = ids.begin(); iter != ids.end(); ++iter)
+        {
+          simData::DataStore::Transaction tn;
+          simData::PlatformPrefs* prefs = dataStore_.mutable_platformPrefs(*iter, &tn);
+          prefs->set_dynamicscale(dynamicScaleOn_);
+          tn.complete(&prefs);
+        }
+      });
   }
 
   void draw(osg::RenderInfo& ri) override
@@ -179,11 +270,11 @@ struct ControlPanel : public simExamples::SimExamplesGui
 
     std::stringstream ss;
     ss << "Dynamic Scale: " << (dynamicScaleOn_ ? "ON" : "OFF");
-    ImGui::Text(ss.str().c_str()); ss.str(""); ss.clear();
+    ImGui::Text("%s", ss.str().c_str()); ss.str(""); ss.clear();
 
     const simVis::View* focusedView = viewer_->getMainView()->getFocusManager()->getFocusedView();
     ss << std::fixed << std::setprecision(2) << "Camera Distance: " << focusedView->getViewpoint().range().value().getValue() << " m";
-    ImGui::Text(ss.str().c_str()); ss.str(""); ss.clear();
+    ImGui::Text("%s", ss.str().c_str()); ss.str(""); ss.clear();
 
     ss << "Centered: ";
     centeredPlat_ = getCenteredPlatformId(focusedView);
@@ -197,10 +288,10 @@ struct ControlPanel : public simExamples::SimExamplesGui
       if (prefs)
         ss << prefs->commonprefs().name();
     }
-    ImGui::Text(ss.str().c_str()); ss.str(""); ss.clear();
+    ImGui::Text("%s", ss.str().c_str()); ss.str(""); ss.clear();
 
     ss << "Focused View: " << focusedView->getName() << (focusedView->isOverheadEnabled() ? " OVERHEAD" : " PERSPECTIVE");
-    ImGui::Text(ss.str().c_str()); ss.str(""); ss.clear();
+    ImGui::Text("%s", ss.str().c_str()); ss.str(""); ss.clear();
 
     // Avoid showing the sentinel value for off-map
     if (latLonElevListener_->lat() == simUtil::MousePositionManipulator::INVALID_POSITION_VALUE)
@@ -215,112 +306,9 @@ struct ControlPanel : public simExamples::SimExamplesGui
       if (showElevation_)
         ss << ", elev: " << latLonElevListener_->elev();
     }
-    ImGui::Text(ss.str().c_str());
-
-    auto& io = ImGui::GetIO();
-    if (io.InputQueueCharacters.size() > 0)
-    {
-      switch (io.InputQueueCharacters.front())
-      {
-      case 'o':
-      {
-        simVis::View* curView = viewer_->getMainView()->getFocusManager()->getFocusedView();
-        if (curView)
-          curView->enableOverheadMode(!curView->isOverheadEnabled());
-        break;
-      }
-      case 'i':
-        insertViewPortMode_ = !insertViewPortMode_;
-        handler_->setEnabled(insertViewPortMode_);
-        break;
-      case 'v':
-      {
-        simVis::View* main = viewer_->getMainView();
-        for (unsigned i = 0; i < main->getNumInsets(); ++i)
-        {
-          simVis::View* inset = main->getInset(i);
-          inset->setVisible(!inset->isVisible());
-        }
-        break;
-      }
-      case 'r':
-      {
-        removeAllRequested_ = true;
-        simVis::View::Insets insets;
-        viewer_->getMainView()->getInsets(insets);
-        for (unsigned i = 0; i < insets.size(); ++i)
-          viewer_->getMainView()->removeInset(insets[i].get());
-
-        SIM_NOTICE << LC << "Removed all insets." << std::endl;
-        break;
-      }
-      case 'c':
-      {
-        // find the next platform to center on
-        std::vector<simData::ObjectId>  ids;
-        dataStore_.idList(&ids, simData::PLATFORM);
-        if (centeredPlat_ == 0)
-          centeredPlat_ = ids.front();
-        else
-        {
-          for (auto iter = ids.begin(); iter != ids.end(); ++iter)
-          {
-            // find current centered
-            if (centeredPlat_ == *iter)
-            {
-              ++iter;
-              if (iter == ids.end())
-                centeredPlat_ = ids.front();
-              else
-                centeredPlat_ = *iter;
-              break;
-            }
-          }
-        }
-
-        simVis::EntityNode* plat = viewer_->getSceneManager()->getScenario()->find<simVis::EntityNode>(centeredPlat_);
-        simVis::View* curView = viewer_->getMainView()->getFocusManager()->getFocusedView();
-        if (curView)
-        {
-          simVis::Viewpoint vp = curView->getViewpoint();
-          // Reset the position offset if there was one
-          vp.positionOffset() = osg::Vec3();
-          curView->tetherCamera(plat, vp, 0.0);
-        }
-        break;
-      }
-      case 'n': // lowercase
-      {
-        labelsOn_ = !labelsOn_;
-        std::vector<simData::ObjectId> ids;
-        dataStore_.idList(&ids, simData::PLATFORM);
-        for (auto iter = ids.begin(); iter != ids.end(); ++iter)
-        {
-          simData::DataStore::Transaction tn;
-          simData::PlatformPrefs* prefs = dataStore_.mutable_platformPrefs(*iter, &tn);
-          prefs->mutable_commonprefs()->mutable_labelprefs()->set_draw(labelsOn_);
-          tn.complete(&prefs);
-        }
-        break;
-      }
-      case 'd':
-      {
-        dynamicScaleOn_ = !dynamicScaleOn_;
-        std::vector<simData::ObjectId> ids;
-        dataStore_.idList(&ids, simData::PLATFORM);
-        for (auto iter = ids.begin(); iter != ids.end(); ++iter)
-        {
-          simData::DataStore::Transaction tn;
-          simData::PlatformPrefs* prefs = dataStore_.mutable_platformPrefs(*iter, &tn);
-          prefs->set_dynamicscale(dynamicScaleOn_);
-          tn.complete(&prefs);
-        }
-        break;
-      }
-      }
-    }
-
+    ImGui::Text("%s", ss.str().c_str());
     ImGui::End();
+    handlePressedKeys_();
   }
 
 private:

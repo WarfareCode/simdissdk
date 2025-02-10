@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -142,7 +142,7 @@ public:
 
       ImGui::TableNextColumn(); ImGui::Text("Clock:"); ImGui::TableNextColumn();
       if (!app_.timeLabel_.empty())
-        ImGui::Text(app_.timeLabel_.c_str());
+        ImGui::Text("%s", app_.timeLabel_.c_str());
 
       ImGui::EndTable();
     }

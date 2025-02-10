@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -699,7 +699,7 @@ void simulate(const AppData& app, std::vector<simData::ObjectId>& targetIds, sim
 
 //----------------------------------------------------------------------------
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
   int numBeams = 10;
   int numTargets = 100;
@@ -718,8 +718,8 @@ int main(int argc, char **argv)
 
   // Set up the data:
   AppData app;
-  app.viewer   = viewer.get();
-  app.scene    = viewer->getSceneManager();
+  app.viewer = viewer.get();
+  app.scene = viewer->getSceneManager();
   app.scenario = app.scene->getScenario();
   app.scenario->bind(&app.dataStore);
 
@@ -792,14 +792,19 @@ int main(int argc, char **argv)
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
   viewer->getMainView()->getEventHandlers().push_front(gui);
   gui->add(new ControlPanel(app));
+  if (view.valid())
+  {
 #else
-  view->addOverlayControl(createUI(app));
+  if (view.valid())
+  {
+    view->addOverlayControl(createUI(app));
 #endif
-  view->setLighting(false);
+    view->setLighting(false);
 
-  // zoom the camera
-  view->tetherCamera(platform.get());
-  view->setFocalOffsets(180, -45, 350000);
+    // zoom the camera
+    view->tetherCamera(platform.get());
+    view->setFocalOffsets(180, -45, 350000);
+  }
 
   // add some stock OSG handlers and go
   viewer->installDebugHandlers();

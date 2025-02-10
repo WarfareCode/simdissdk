@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -494,6 +494,24 @@ int testFilterSerialize()
     rv += SDK_ASSERT(filter.serialize(false) == iter->second);
   }
 
+  // test deserializing first instance of a category when filter is auto updating, SIM-17456
+  const std::string newValue = "NewName(1)~NewValue(1)";
+  {
+    simData::CategoryFilter autoFilter(&ds, true);
+    autoFilter.deserialize(newValue, false, &reFactory);
+    rv += SDK_ASSERT(autoFilter.serialize(false) == newValue);
+    autoFilter.deserialize(newValue, false, &reFactory);
+    rv += SDK_ASSERT(autoFilter.serialize(false) == newValue);
+  }
+  // verify behavior matches when not auto updating
+  {
+    simData::CategoryFilter normalFilter(&ds);
+    normalFilter.deserialize(newValue, false, &reFactory);
+    rv += SDK_ASSERT(normalFilter.serialize(false) == newValue);
+    normalFilter.deserialize(newValue, false, &reFactory);
+    rv += SDK_ASSERT(normalFilter.serialize(false) == newValue);
+  }
+
   return rv;
 }
 
@@ -864,7 +882,7 @@ int testIsDuplicateValue()
 
     cdChangeCounter = 0;
     ds.update(21.0);
-    rv += SDK_ASSERT(id == cdChangeCounter);
+    rv += SDK_ASSERT(1 == cdChangeCounter);
 
     ds.removeListener(cdListener);
   }

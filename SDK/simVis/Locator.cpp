@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -62,6 +62,12 @@ Locator::Locator(Locator* parentLoc, unsigned int inheritMask)
 
 bool Locator::isValidlyParented_() const
 {
+  /*
+   * This code depends on a dangle parentLoc_ pointer.  If parentLoc is null, then this object has
+   * no parent and is therefore correctly parented (ie. top level, no parent).  If parentLoc_ is
+   * valid and it is correctly parented then this object is correctly parented.  If parentLoc_ is
+   * not null and not valid it means the parent went away and this object is not correctly parented.
+   */
   return (parentLoc_ == nullptr || (parentLoc_.valid() && parentLoc_->isValidlyParented_()));
 }
 

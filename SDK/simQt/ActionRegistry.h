@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -157,6 +157,9 @@ public:
   /** add a binding to the described action, will search aliases; returns 0 on success */
   int addHotKey(const QString& actionDesc, QKeySequence hotkey);
 
+  /** Get aliases associated with the given action description */
+  std::vector<QString> getAliasesForAction(const QString& actionDesc) const;
+
   /** Memento interface (narrow) for saving and restoring settings opaquely */
   class SettingsMemento
   {
@@ -177,6 +180,11 @@ public:
   /** Loads the file provided, returning 0 on success and non-zero on error */
   int deserialize(const QString& settingsFile, const QString& groupName="KeyBindings", bool clearExisting = false);
 
+  /** Remove the hot keys from all registered actions */
+  int removeAllHotkeys();
+  /** Reset all actions to the hot keys they were registered with */
+  void resetToDefaultHotkeys();
+
 Q_SIGNALS:
   /** notice that a new action has been registered */
   void actionAdded(simQt::Action* action);
@@ -186,6 +194,8 @@ Q_SIGNALS:
   void hotKeysChanged(simQt::Action* action);
   /** notice that a hot key has been removed from an action */
   void hotKeyLost(const simQt::Action* fromAction, const QKeySequence& hotkey);
+  /** notice that an alias has been registered for an action */
+  void aliasRegistered(const QString& actionDesc, const QString& alias);
 
 private:
   /** In debug mode, will validate all actions to ensure no sync loss between action registry and action */
@@ -199,6 +209,8 @@ private:
   QMap<QKeySequence, Action*> actionsByKey_;
   /// Sorted by alias
   QMap<QString, QString> aliases_;
+  /// Remember the hot key sequences provided when actions are registered
+  QMap<Action*, QList<QKeySequence> > defaultKeysByAction_;
 
   /// Maintains a list of hotkeys associated with a given action, by description
   struct UnknownAction

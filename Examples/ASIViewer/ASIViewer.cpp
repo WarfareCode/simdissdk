@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -909,8 +909,8 @@ public:
 
     if (ImGui::BeginTable("Table", 2))
     {
-      float time = static_cast<float>(app_.lastTime_);
-      IMGUI_ADD_ROW(ImGui::SliderFloat, "Time", &time, static_cast<float>(app_.startTime_), static_cast<float>(app_.endTime_), "", ImGuiSliderFlags_AlwaysClamp);
+      double time = app_.lastTime_;
+      IMGUI_ADD_ROW(ImGui::SliderScalar, "Time", ImGuiDataType_Double, &time, &app_.startTime_, &app_.endTime_, "", ImGuiSliderFlags_AlwaysClamp);
       if (time != app_.lastTime_)
       {
         app_.lastTime_ = time;
@@ -919,7 +919,7 @@ public:
 
       ImGui::TableNextColumn();
       ImGui::TableNextColumn();
-      ImGui::Text(app_.nowTimeStr_.c_str());
+      ImGui::Text("%s", app_.nowTimeStr_.c_str());
 
       bool playing = app_.playing_;
       IMGUI_ADD_ROW(ImGui::Checkbox, "Playing", &app_.playing_);

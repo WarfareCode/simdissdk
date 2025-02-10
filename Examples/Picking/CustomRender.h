@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -51,11 +51,11 @@ public:
   virtual bool update(const simData::DataSliceBase* updateSlice, bool force = false)
   {
     // Break out if the node isn't currently valid
-    if (node_ == nullptr)
+    if (!node_)
       return false;
 
     // Create the geometry if it hasn't been created yet
-    if (transform_ == nullptr)
+    if (!transform_)
     {
       simVis::LocatorNode* locatorNode = node_->locatorNode();
       locatorNode->removeChildren(0, locatorNode->getNumChildren());

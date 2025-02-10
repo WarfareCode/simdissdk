@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -26,6 +26,10 @@
 #include <map>
 #include <memory>
 #include <vector>
+
+#ifdef HAVE_ENTT
+#include "entt/container/dense_map.hpp"
+#endif
 #include "simData/CategoryData/CategoryData.h"
 
 namespace simData {
@@ -64,6 +68,9 @@ public:
   typedef std::shared_ptr<Listener> ListenerPtr;
 
   CategoryNameManager();
+
+  /** Return the case-sensitive state of the manager. */
+  bool isCaseSensitive() const;
 
   /**
    * By default the category manager is case sensitive; call this routine with false to make category manager case insensitive.
@@ -141,11 +148,19 @@ private:
   bool caseSensitive_;
   int nextInt_;
 
+#ifdef HAVE_ENTT
   /// all the values for a given category name
-  std::map<int, std::vector<int> > categoryStringInts_;
+  entt::dense_map<int, std::vector<int>> categoryStringInts_;
+
+  entt::dense_map<std::string, int> map_;
+  entt::dense_map<int, std::string> reverseMap_;
+#else
+  /// all the values for a given category name
+  std::map<int, std::vector<int>> categoryStringInts_;
 
   std::map<std::string, int> map_;
   std::map<int, std::string> reverseMap_;
+#endif
 
   std::vector<ListenerPtr> listeners_;
 };

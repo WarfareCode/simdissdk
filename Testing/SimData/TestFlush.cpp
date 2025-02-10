@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -210,7 +210,7 @@ private:
 int dataTableEntries(simData::DataStore* ds, uint64_t tableId)
 {
   auto table = ds->dataTableManager().getTable(tableId);
-  if (table == NULL)
+  if (table == nullptr)
     return -1;
 
   DataTableCounter counter;

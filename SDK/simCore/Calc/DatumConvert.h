@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -84,7 +84,7 @@ typedef std::shared_ptr<DatumConvert> DatumConvertPtr;
 /**
  * Datum convert that can convert between magnetic data, and user/WGS84 vertical data.
  * EGM96 conversion is not supported by this implementation.  This can be used as a
- * NULL-object implementation of the DatumConvert implementation.
+ * Null Object implementation of the DatumConvert implementation.
  */
 class SDKCORE_EXPORT MagneticDatumConvert : public DatumConvert
 {

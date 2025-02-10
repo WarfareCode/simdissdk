@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -72,16 +72,25 @@ void OverrideColor::setCombineMode(CombineMode combineMode)
 
 void OverrideColor::setColor(osg::StateSet* stateset, const simVis::Color& color)
 {
+  if (!stateset)
+    return;
+
   stateset->getOrCreateUniform(OVERRIDECOLOR_UNIFORM, osg::Uniform::FLOAT_VEC4)->set(color);
 }
 
 void OverrideColor::setCombineMode(osg::StateSet* stateset, CombineMode combineMode)
 {
+  if (!stateset)
+    return;
+
   stateset->getOrCreateUniform(OVERRIDECOLOR_COMBINEMODE_UNIFORM, osg::Uniform::INT)->set(combineMode);
 }
 
 void OverrideColor::setDefaultValues_(osg::StateSet* stateSet)
 {
+  if (!stateSet)
+    return;
+
   stateSet
     ->getOrCreateUniform(OVERRIDECOLOR_COMBINEMODE_UNIFORM, osg::Uniform::INT)
     ->set(OFF);

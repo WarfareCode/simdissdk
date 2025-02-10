@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -26,6 +26,8 @@
  *
  * Demonstrates the asynchronous loading of 3D models.
  */
+
+#include <cassert>
 
 #include "osg/ProxyNode"
 #include "osg/ShapeDrawable"
@@ -251,10 +253,10 @@ public:
       ImGui::Text("Timing"); ImGui::TableNextColumn(); ImGui::TableNextColumn();
       popLargeFont_();
 
-      ImGui::Text("Platform:"); ImGui::TableNextColumn(); ImGui::Text(app_.entityTimerStr.c_str()); ImGui::TableNextColumn();
-      ImGui::Text("Asynchronous:"); ImGui::TableNextColumn(); ImGui::Text(app_.asyncTimerStr.c_str()); ImGui::TableNextColumn();
-      ImGui::Text("Async Round-Trip:"); ImGui::TableNextColumn(); ImGui::Text(app_.asyncRoundTripStr.c_str()); ImGui::TableNextColumn();
-      ImGui::Text("Synchronous:"); ImGui::TableNextColumn(); ImGui::Text(app_.syncTimerStr.c_str()); ImGui::TableNextColumn();
+      ImGui::Text("Platform:"); ImGui::TableNextColumn(); ImGui::Text("%s", app_.entityTimerStr.c_str()); ImGui::TableNextColumn();
+      ImGui::Text("Asynchronous:"); ImGui::TableNextColumn(); ImGui::Text("%s", app_.asyncTimerStr.c_str()); ImGui::TableNextColumn();
+      ImGui::Text("Async Round-Trip:"); ImGui::TableNextColumn(); ImGui::Text("%s", app_.asyncRoundTripStr.c_str()); ImGui::TableNextColumn();
+      ImGui::Text("Synchronous:"); ImGui::TableNextColumn(); ImGui::Text("%s", app_.syncTimerStr.c_str()); ImGui::TableNextColumn();
 
       ImGui::EndTable();
     }
@@ -627,6 +629,8 @@ int main(int argc, char **argv)
 
   // Tether camera to platform
   osg::observer_ptr<simVis::EntityNode> obj1Node = scene->getScenario()->find(app.platId);
+  // The platform was just created so the node should exist
+  assert(obj1Node.valid());
   app.entityNode = obj1Node->getChild(0); // First child is the platform model node
   app.mainView = viewer->getMainView();
 

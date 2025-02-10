@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -326,7 +326,7 @@ TableStatus SubTable::addColumn(const std::string& columnName, TableColumnId col
                                        VariableType storageType, UnitType unitType, TableColumn** newCol)
 {
   if (!empty())
-    return TableStatus::Error("Attempting to add column to a non-empty subtable, violates NULL-less state.");
+    return TableStatus::Error("Attempting to add column to a non-empty subtable, violates null-less state.");
   DataColumn* newColumn = new DataColumn(timeContainer_, columnName, tableId_, columnId, storageType, unitType);
   columns_.push_back(newColumn);
   if (newCol != nullptr) *newCol = newColumn;

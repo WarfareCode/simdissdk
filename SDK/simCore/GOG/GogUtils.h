@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -23,9 +23,9 @@
 #ifndef SIMCORE_GOG_GOGUTILS_H
 #define SIMCORE_GOG_GOGUTILS_H
 
+#include <optional>
 #include <string>
 #include "simCore/Common/Common.h"
-#include "simCore/Common/Optional.h"
 #include "simCore/Calc/Units.h"
 
 namespace simCore {
@@ -38,7 +38,7 @@ namespace GOG
 class ParsedShape;
 
 /// Recommended GOG serialization precision (number of total digits, not decimal places)
-static constexpr int GOG_PRECISION = 12;
+inline constexpr int GOG_PRECISION = 12;
 
 /** Generic reusable GOG-related methods */
 class SDKCORE_EXPORT GogUtils
@@ -99,12 +99,12 @@ public:
    * @param unitsRegistry supplies to-string conversion for units
    * @param units parsed output
    */
-  void parse(const std::string& unitString, const simCore::UnitsRegistry& unitsRegistry, Optional<simCore::Units>& units);
+  void parse(const std::string& unitString, const simCore::UnitsRegistry& unitsRegistry, std::optional<simCore::Units>& units);
 
 private:
-  Optional<simCore::Units> altitudeUnits_; ///< Altitude units
-  Optional<simCore::Units> rangeUnits_; ///< Range units
-  Optional<simCore::Units> angleUnits_; ///< Angle units
+  std::optional<simCore::Units> altitudeUnits_; ///< Altitude units
+  std::optional<simCore::Units> rangeUnits_; ///< Range units
+  std::optional<simCore::Units> angleUnits_; ///< Angle units
 };
 
 /**

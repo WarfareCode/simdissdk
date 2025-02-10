@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -56,6 +56,8 @@ public:
     {
       /** Platform bounds changed. */
       BOUNDS_CHANGED,
+      /** Platform model node has finished changing, announced after async model loader finishes, will fire after BOUNDS_CHANGED */
+      MODEL_CHANGED
     };
 
     /// Provide this method to receive an event
@@ -123,6 +125,8 @@ public:
 
   /** Retrieves the offsetXform node */
   osg::Node* offsetNode() const;
+  /** Retrieves the currently set model node. This is typically under the offsetNode() */
+  osg::Node* modelNode() const;
 
   /** Retrieves the platform's tag ID in the registry object index, for picking. */
   unsigned int objectIndexTag() const;

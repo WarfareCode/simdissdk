@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -153,6 +153,9 @@ public:
   public: // methods
     virtual ~Listener() {}
 
+    /// Controls the order that listeners are invoked; higher numbers are invoked later
+    virtual int weight() const = 0;
+
     /// new entity has been added, with the given id and type
     virtual void onAddEntity(DataStore *source, ObjectId newId, simData::ObjectType ot) = 0;
 
@@ -191,35 +194,38 @@ public:
   public: // methods
     virtual ~DefaultListener() {}
 
+    /// Controls the order that listeners are invoked; higher numbers are invoked later
+    virtual int weight() const override { return 0; }
+
     /// new entity has been added, with the given id and type
-    virtual void onAddEntity(DataStore *source, ObjectId newId, simData::ObjectType ot) {}
+    virtual void onAddEntity(DataStore *source, ObjectId newId, simData::ObjectType ot) override {}
 
     /// entity with the given id and type will be removed after all notifications are processed
-    virtual void onRemoveEntity(DataStore *source, ObjectId removedId, simData::ObjectType ot) {}
+    virtual void onRemoveEntity(DataStore *source, ObjectId removedId, simData::ObjectType ot) override {}
 
     /// entity with the given id and type has been removed
-    virtual void onPostRemoveEntity(DataStore *source, ObjectId removedId, ObjectType ot) {}
+    virtual void onPostRemoveEntity(DataStore *source, ObjectId removedId, ObjectType ot) override {}
 
     /// prefs for the given entity have been changed
-    virtual void onPrefsChange(DataStore *source, ObjectId id) {}
+    virtual void onPrefsChange(DataStore *source, ObjectId id) override {}
 
     /// properties for the given entity have been changed
-    virtual void onPropertiesChange(DataStore *source, ObjectId id) {}
+    virtual void onPropertiesChange(DataStore *source, ObjectId id) override {}
 
     /// data store has changed
-    virtual void onChange(DataStore *source) {}
+    virtual void onChange(DataStore *source) override {}
 
     /// something has changed in the entity category data
-    virtual void onCategoryDataChange(DataStore *source, ObjectId changedId, simData::ObjectType ot) {}
+    virtual void onCategoryDataChange(DataStore *source, ObjectId changedId, simData::ObjectType ot) override {}
 
     /// entity name or alias has changed
-    virtual void onNameChange(DataStore *source, ObjectId changeId) {}
+    virtual void onNameChange(DataStore *source, ObjectId changeId) override {}
 
     /// entity's data was flushed, 0 means entire scenario was flushed
-    virtual void onFlush(DataStore *source, ObjectId flushedId) {}
+    virtual void onFlush(DataStore *source, ObjectId flushedId) override {}
 
     /// The scenario is about to be deleted
-    virtual void onScenarioDelete(DataStore* source) {}
+    virtual void onScenarioDelete(DataStore* source) override {}
   };
 
   /// Managed pointer to be used when holding a pointer to a Listener object.
@@ -234,7 +240,6 @@ public:
 
     /// Scenario Property changed
     virtual void onScenarioPropertiesChange(DataStore *source) = 0;
-
   };
 
   /// Observer interface for a class that gets notified when Updates and Rows are added to the data store
@@ -258,11 +263,11 @@ public:
   {
   public:
     /// New update was added for the entity ID provided, at the time provided.  Query the data store for the contents of the update.
-    virtual void onEntityUpdate(simData::DataStore* source, simData::ObjectId id, double dataTime) {}
+    virtual void onEntityUpdate(simData::DataStore* source, simData::ObjectId id, double dataTime) override {}
     /// New table row was added for the entity ID provided, at the time provided.  Query the data table for contents of the row.
-    virtual void onNewRowData(simData::DataStore* source, simData::DataTable& table, simData::ObjectId id, double dataTime) {}
+    virtual void onNewRowData(simData::DataStore* source, simData::DataTable& table, simData::ObjectId id, double dataTime) override {}
     /// Notification of flush, which may interleave other entity updates.  @see simData::DataStore::Listener::onFlush()
-    virtual void onFlush(simData::DataStore* source, simData::ObjectId flushedId) {}
+    virtual void onFlush(simData::DataStore* source, simData::ObjectId flushedId) override {}
   };
 
   /// opaque class used to store internals when swapping data stores
@@ -429,6 +434,20 @@ public: // methods
   virtual Interpolator* interpolator() const = 0;
   ///@}
 
+  /// Type and source of interpolation
+  enum class InterpolatorState
+  {
+    OFF, ///< No interpolation
+    EXTERNAL, ///< Uses externally provided interpolator
+    INTERNAL ///< Use internally provided interpolator that provides significant improvement in preformance for TSPI points
+  };
+
+  /// Sets the interpolation state; returns true if interpolation is enabled
+  virtual bool enableInterpolation(InterpolatorState state) = 0;
+
+  /// Returns the interpolation state
+  virtual InterpolatorState interpolatorState() const = 0;
+
   /**@name ID Lists
    * @{
    */
@@ -510,14 +529,33 @@ public: // methods
   virtual const ProjectorPrefs*         projectorPrefs(ObjectId id, Transaction *transaction) const = 0;
   virtual const  LobGroupPrefs*          lobGroupPrefs(ObjectId id, Transaction *transaction) const = 0;
   virtual const    CommonPrefs*            commonPrefs(ObjectId id, Transaction* transaction) const = 0;
-  virtual        PlatformPrefs*  mutable_platformPrefs(ObjectId id, Transaction *transaction) = 0;
-  virtual            BeamPrefs*      mutable_beamPrefs(ObjectId id, Transaction *transaction) = 0;
-  virtual            GatePrefs*      mutable_gatePrefs(ObjectId id, Transaction *transaction) = 0;
-  virtual           LaserPrefs*     mutable_laserPrefs(ObjectId id, Transaction *transaction) = 0;
-  virtual       ProjectorPrefs* mutable_projectorPrefs(ObjectId id, Transaction *transaction) = 0;
-  virtual        LobGroupPrefs*  mutable_lobGroupPrefs(ObjectId id, Transaction *transaction) = 0;
+
+  /** Results of a preference commit */
+  enum class CommitResult
+  {
+    NO_CHANGE, ///< The commit resulted in no changes
+    PREFERENCE_CHANGED, ///< The commit resulted in a preference changes
+    NAME_CHANGED ///< The commit resulted in a name change, which implies a PREFERENCE_CHANGED
+  };
+
+  /**
+   * The mutable_* routines have two modes of operation, one for external users and one for internal users.  External users should
+   * always set the results argument to nullptr.  The mutable_* routines will generate a callback(s) in the commit() routine if the
+   * preference changed and if the name changed.  As always, the routine must be called from the main thread.   An internal user can
+   * set the results argument that will disable the callback(s) and return if preference has changed due to the commit() routine.
+   * This allows an internal user to use worker threads to update preferences and accumulate the results for eventual callbacks in
+   * the main thread.  The design of the code made it not practical to hide the argument from the public interface.  External users
+   * should always set results to nullptr.
+   */
+
+  virtual        PlatformPrefs*  mutable_platformPrefs(ObjectId id, Transaction *transaction, CommitResult* results = nullptr) = 0;
+  virtual            BeamPrefs*      mutable_beamPrefs(ObjectId id, Transaction *transaction, CommitResult* results = nullptr) = 0;
+  virtual            GatePrefs*      mutable_gatePrefs(ObjectId id, Transaction *transaction, CommitResult* results = nullptr) = 0;
+  virtual           LaserPrefs*     mutable_laserPrefs(ObjectId id, Transaction *transaction, CommitResult* results = nullptr) = 0;
+  virtual       ProjectorPrefs* mutable_projectorPrefs(ObjectId id, Transaction *transaction, CommitResult* results = nullptr) = 0;
+  virtual        LobGroupPrefs*  mutable_lobGroupPrefs(ObjectId id, Transaction *transaction, CommitResult* results = nullptr) = 0;
   virtual const CustomRenderingPrefs* customRenderingPrefs(ObjectId id, Transaction *transaction) const = 0;
-  virtual       CustomRenderingPrefs* mutable_customRenderingPrefs(ObjectId id, Transaction *transaction) = 0;
+  virtual       CustomRenderingPrefs* mutable_customRenderingPrefs(ObjectId id, Transaction *transaction, CommitResult* results = nullptr) = 0;
   virtual          CommonPrefs*    mutable_commonPrefs(ObjectId id, Transaction* transaction) = 0;
   ///@}
 
@@ -626,6 +664,12 @@ public: // methods
   ///@}
 
   /**
+   * The function is called when the time range of the platform update changes
+   * @param id The unique ID of the platform to monitor
+   * @param fn The function to call when the time range changes
+   */
+  virtual void installSliceTimeRangeMonitor(ObjectId id, std::function<void(double startTime, double endTime)> fn) = 0;
+  /**
    * Modify commands for a given platform
    * Does not support modifying acceptsProjectors
    * @param id Platform that needs commands modified
@@ -670,8 +714,9 @@ public: // methods
   /**@name NewUpdatesListener
   * @{
   */
-  /// Sets a listener for when entity updates are added; use nullptr to remove.
-  virtual void setNewUpdatesListener(NewUpdatesListenerPtr callback) = 0;
+  /// Add or remove a listener for when entity updates are added
+  virtual void addNewUpdatesListener(NewUpdatesListenerPtr callback) = 0;
+  virtual void removeNewUpdatesListener(NewUpdatesListenerPtr callback) = 0;
   ///@}
 
   /**@name Get a handle to the CategoryNameManager

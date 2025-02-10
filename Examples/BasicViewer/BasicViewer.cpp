@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -59,7 +59,6 @@ static std::string s_help =
   "2 : activate 'Overhead' navigation mode \n"
   "3 : activate 'GIS' navigation mode \n"
   "h : toggle between click-to-focus and hover-to-focus \n"
-  "l : toggle sky lighting \n"
   "tab : cycle focus (in click-to-focus mode only) \n";
 
 static ui::Control* createHelp()
@@ -104,6 +103,53 @@ struct ControlPanel : public simExamples::SimExamplesGui
     insetViewHandler_(insetViewHandler),
     createHandler_(createHandler)
   {
+    addKeyFunc_(ImGuiKey_I, [this]() { if (createHandler_.valid()) createHandler_->setEnabled(!createHandler_->isEnabled()); });
+    addKeyFunc_(ImGuiKey_V, [this]()
+      {
+        simVis::View* main = viewer_->getMainView();
+        for (unsigned i = 0; i < main->getNumInsets(); ++i)
+        {
+          simVis::View* inset = main->getInset(i);
+          inset->setVisible(!inset->isVisible());
+        }
+      });
+    addKeyFunc_(ImGuiKey_R, [this]()
+      {
+        simVis::View::Insets insets;
+        viewer_->getMainView()->getInsets(insets);
+        for (unsigned int i = 0; i < insets.size(); ++i)
+          viewer_->getMainView()->removeInset(insets[i].get());
+
+        SIM_NOTICE << LC << "Removed all insets." << std::endl;
+      });
+    addKeyFunc_(ImGuiKey_1, [this]()
+      {
+        viewer_->getMainView()->enableOverheadMode(false);
+        viewer_->setNavigationMode(simVis::NAVMODE_ROTATEPAN);
+      });
+    addKeyFunc_(ImGuiKey_2, [this]()
+      {
+        viewer_->getMainView()->enableOverheadMode(true);
+        viewer_->setNavigationMode(simVis::NAVMODE_ROTATEPAN);
+      });
+    addKeyFunc_(ImGuiKey_3, [this]() { viewer_->setNavigationMode(simVis::NAVMODE_GIS); });
+    addKeyFunc_(ImGuiKey_H, [this]()
+      {
+        int mask = 0;
+        bool hover = (mask & simVis::InsetViewEventHandler::ACTION_HOVER) != 0;
+        if (hover)
+        {
+          mask = simVis::InsetViewEventHandler::ACTION_CLICK_SCROLL | simVis::InsetViewEventHandler::ACTION_TAB;
+          SIM_NOTICE << LC << "Switched to click-to-focus mode." << std::endl;
+        }
+        else
+        {
+          mask = simVis::InsetViewEventHandler::ACTION_HOVER;
+          SIM_NOTICE << LC << "Switched to hover-to-focus mode." << std::endl;
+        }
+        if (insetViewHandler_.valid())
+          insetViewHandler_->setFocusActions(mask);
+      });
   }
 
   void draw(osg::RenderInfo& ri) override
@@ -118,9 +164,6 @@ struct ControlPanel : public simExamples::SimExamplesGui
     }
     ImGui::SetNextWindowBgAlpha(.6f);
     ImGui::Begin(name(), visible(), ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
-
-    auto& io = ImGui::GetIO();
-
     ImGui::Text("i : toggles the mode for creating a new inset");
     ImGui::Text("v : toggle visibility of all insets");
     ImGui::Text("r : remove all insets");
@@ -128,79 +171,9 @@ struct ControlPanel : public simExamples::SimExamplesGui
     ImGui::Text("2 : activate 'Overhead' navigation mode");
     ImGui::Text("3 : active 'GIS' navigation mode");
     ImGui::Text("h : toggle between click-to-focus and hover-to-focus");
-    ImGui::Text("l : toggle sky lighting");
     ImGui::Text("tab : cycle focus (in click-to-focus mode only)");
-
-    if (io.InputQueueCharacters.size() > 0)
-    {
-      switch (io.InputQueueCharacters.front())
-      {
-      case 'i':
-        createHandler_->setEnabled(!createHandler_->isEnabled());
-        break;
-      case 'v':
-      {
-        simVis::View* main = viewer_->getMainView();
-        for (unsigned i = 0; i < main->getNumInsets(); ++i)
-        {
-          simVis::View* inset = main->getInset(i);
-          inset->setVisible(!inset->isVisible());
-        }
-        break;
-      }
-      case 'r':
-      {
-        simVis::View::Insets insets;
-        viewer_->getMainView()->getInsets(insets);
-        for (unsigned int i = 0; i < insets.size(); ++i)
-          viewer_->getMainView()->removeInset(insets[i].get());
-
-        SIM_NOTICE << LC << "Removed all insets." << std::endl;
-        break;
-      }
-      case '1':
-        viewer_->getMainView()->enableOverheadMode(false);
-        viewer_->setNavigationMode(simVis::NAVMODE_ROTATEPAN);
-        break;
-      case '2':
-        viewer_->getMainView()->enableOverheadMode(true);
-        viewer_->setNavigationMode(simVis::NAVMODE_ROTATEPAN);
-        break;
-      case '3':
-        viewer_->setNavigationMode(simVis::NAVMODE_GIS);
-        break;
-      case 'h':
-      {
-        int mask = insetViewHandler_->getFocusActions();
-        bool hover = (mask & simVis::InsetViewEventHandler::ACTION_HOVER) != 0;
-        if (hover)
-        {
-          mask = simVis::InsetViewEventHandler::ACTION_CLICK_SCROLL | simVis::InsetViewEventHandler::ACTION_TAB;
-          SIM_NOTICE << LC << "Switched to click-to-focus mode." << std::endl;
-        }
-        else
-        {
-          mask = simVis::InsetViewEventHandler::ACTION_HOVER;
-          SIM_NOTICE << LC << "Switched to hover-to-focus mode." << std::endl;
-        }
-        insetViewHandler_->setFocusActions(mask);
-        break;
-      }
-      case 'l':
-      {
-        osgEarth::SkyNode* sky = viewer_->getSceneManager()->getSkyNode();
-        if (sky)
-        {
-          osg::StateAttribute::OverrideValue ov = sky->getLighting();
-          ov = (ov & osg::StateAttribute::ON) ? osg::StateAttribute::OFF : osg::StateAttribute::ON;
-          sky->setLighting(ov);
-        }
-        break;
-      }
-      }
-    }
-
     ImGui::End();
+    handlePressedKeys_();
   }
 
 private:

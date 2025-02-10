@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -62,6 +62,10 @@ int testCombinations(const std::string& token, double degreeVal)
   rv += testOne(token + " s", -degreeVal);
   rv += testOne(token + " e",  degreeVal);
   rv += testOne(token + " w", -degreeVal);
+  rv += testOne("N " + token, degreeVal);
+  rv += testOne("S " + token, -degreeVal);
+  rv += testOne("E " + token, degreeVal);
+  rv += testOne("W " + token, -degreeVal);
 
   return rv;
 }

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,7 +30,6 @@
 #include <vector>
 #include "osgEarth/Controls"
 #include "osgEarth/LabelNode"
-#include "osgEarth/MouseCoordsTool"
 #include "osgEarth/NodeUtils"
 #include "osgEarth/optional"
 #include "osgEarth/PlaceNode"
@@ -469,8 +468,8 @@ struct ControlPanel : public simExamples::SimExamplesGui
     ImGui::SetNextWindowBgAlpha(.6f);
     ImGui::Begin(name(), visible(), ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
 
-    ImGui::Text(s_help.c_str());
-    ImGui::Text(handler_.statusText().c_str());
+    ImGui::Text("%s", s_help.c_str());
+    ImGui::Text("%s", handler_.statusText().c_str());
 
     float opacity = opacity_;
     ImGui::Text("Opacity: "); ImGui::SameLine();

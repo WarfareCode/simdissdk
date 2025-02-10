@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -347,12 +347,23 @@ private:
   void addCategoryValue_(int nameIndex, int valueIndex);
   /** Clear all data */
   void clear_();
+  /**
+  * Recursive method to de-serialize a category filter string from a SIMDIS 9 compatible string
+  * @param checksString serialization of the category filter
+  * @param skipEmptyCategories if true, optimize filter by skipping unchecked categories
+  * @param regExpFactory Factory to use for generating regular expressions in the checks string.  If
+  *   nullptr, then filters with regular expressions will not be parsed properly.
+  * @param recurseOnAutoUpdate if true, recurse when checksAutoUpdated_ is true to resolve checks state
+  * @return true on success, false if there is any problem
+  */
+  bool deserialize_(const std::string& checksString, bool skipEmptyCategories, RegExpFilterFactory* regExpFactory, bool recurseOnAutoUpdate);
 
   /** True if category affects filter; Precondition: category is simplified */
   bool doesCategoryAffectFilter_(int nameInt, const CategoryFilter::CategoryValues& values) const;
 
-  simData::DataStore* dataStore_; ///< reference to the data store
-  bool autoUpdate_; ///< If true the Category Filter automatically updates and there is no need to call buildPrefRulesCategoryFilter
+  simData::DataStore* dataStore_ = nullptr; ///< reference to the data store
+  bool autoUpdate_ = false; ///< If true the Category Filter automatically updates and there is no need to call buildPrefRulesCategoryFilter
+  bool checksAutoUpdated_ = false; ///< Flag to track if categoryCheck has been auto updated
   CategoryCheck categoryCheck_; ///< category filter structure
   CategoryRegExp categoryRegExp_; ///< category reg exp filter structure
   std::shared_ptr<CategoryFilterListener> listenerPtr_;

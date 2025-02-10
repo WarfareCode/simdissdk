@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -1166,7 +1166,7 @@ int ProjectorNode::removeProjectionFromNode(osg::Node* entity)
     return 1;
 
   auto attachmentPoint = projectedNodes_.find(entity);
-  if (attachmentPoint == projectedNodes_.end())
+  if ((attachmentPoint == projectedNodes_.end()) || !attachmentPoint->second.valid())
     return 1;
 
   // Find the management callback:

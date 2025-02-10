@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -81,6 +81,13 @@ namespace simVis
     void update(const simData::GateUpdate& update);
     /** Clears the geometry from the centroid; use this instead of setting node mask, to avoid center-on-entity issues. */
     void setVisible(bool visible);
+    /**
+     * Set the color for the centroid.
+     * Use centroidColor if any of the color components are non-zero. If all the color components of centroidColor
+     * are zero use the gate color, but replace the alpha component with the centroidColor alpha component.
+     * If all centroid color & alpha components are 0, centroid will have exactly same color as gate.
+     */
+    void setColor(const simData::GatePrefs* prefs);
 
     /** Return the proper library name */
     virtual const char* libraryName() const { return "simVis"; }

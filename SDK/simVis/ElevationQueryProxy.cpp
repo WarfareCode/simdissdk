@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -26,12 +26,7 @@
 #include "osgEarth/Version"
 #include "simVis/osgEarthVersion.h"
 #include "simVis/ElevationQueryProxy.h"
-
-#ifdef HAVE_OSGEARTH_THREADING
 #include "osgEarth/Threading"
-#else
-#include "osgEarth/ThreadingUtils"
-#endif
 
 namespace
 {
@@ -63,11 +58,7 @@ namespace simVis
 struct ElevationQueryProxy::PrivateData
 {
  /// Future object that monitors the status of the elevation query result
-#if OSGEARTH_SOVERSION > 100
   osgEarth::Threading::Future<osgEarth::ElevationSample> elevationResult_;
-#else
-  osgEarth::Threading::Future<osgEarth::RefElevationSample> elevationResult_;
-#endif
 };
 
 /**

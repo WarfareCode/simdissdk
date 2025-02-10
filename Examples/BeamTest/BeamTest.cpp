@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -109,7 +109,7 @@ public:
       std::string type = (props->type() == simData::BeamProperties_BeamType_ABSOLUTE_POSITION ? "ABSOLUTE" : "BODY RELATIVE");
       xaction.complete(&props);
 
-      ImGui::TableNextColumn(); ImGui::Text("Type"); ImGui::TableNextColumn(); ImGui::Text(type.c_str());
+      ImGui::TableNextColumn(); ImGui::Text("Type"); ImGui::TableNextColumn(); ImGui::Text("%s", type.c_str());
 
       // Draw mode combo box
       ImGui::TableNextColumn(); ImGui::Text("Draw Mode"); ImGui::TableNextColumn();

@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -229,7 +229,7 @@ int ScenarioManager::SimpleEntityGraph::addOrUpdate(EntityRecord* record)
       return 0;
 
     // custom rendering nodes hosted by platforms are attached to the scenegraph by their host; see ScenarioManager::addCustomRendering
-    simData::ObjectId hostId;
+    simData::ObjectId hostId = 0;
     if ((node->type() == simData::CUSTOM_RENDERING) && (node->getHostId(hostId) != 0) && dynamic_cast<CustomRenderingNode*>(node))
       return 0;
   }
@@ -674,7 +674,7 @@ void ScenarioManager::removeEntity(simData::ObjectId id)
     // remove from the hoster table
     hosterTable_.erase(id);
 
-    simData::ObjectId hostId;
+    simData::ObjectId hostId = 0;
     if (record->getEntityNode()->getHostId(hostId))
     {
       const auto& range = hosterTable_.equal_range(hostId);
@@ -717,6 +717,8 @@ PlatformNode* ScenarioManager::addPlatform(const simData::PlatformProperties& pr
     new Locator(scenarioEciLocator_.get()),
     dataStore.referenceYear());
   node->getModel()->addCallback(new BeamNoseFixer(this));
+
+  dataStore.installSliceTimeRangeMonitor(node->getId(), [node](double start, double end) { node->setTimeRange(start, end); });
 
   // put it in the vis database.
   entities_[node->getId()] = new EntityRecord(
@@ -882,7 +884,7 @@ CustomRenderingNode* ScenarioManager::addCustomRendering(const simData::CustomRe
     host = find(props.hostid());
 
   // put the custom into our entity db:
-  auto node = new CustomRenderingNode(this, props, host, dataStore.referenceYear());
+  auto node = new CustomRenderingNode(props, host, dataStore.referenceYear());
   if (host)
   {
     // host will attach the cr to the scenegraph; ScenarioManager::SimpleEntityGraph::addOrUpdate will understand not to attach to scenario's group
@@ -1062,7 +1064,7 @@ const EntityNode* ScenarioManager::getHostPlatform(const EntityNode* entity) con
   if (entity == nullptr)
     return nullptr;
 
-  simData::ObjectId hostId;
+  simData::ObjectId hostId = 0;
   while (entity->getHostId(hostId))
   {
     entity = find(hostId);
@@ -1108,7 +1110,7 @@ private:
 
 }
 
-EntityNode* ScenarioManager::find(osg::View* _view, float x, float y, int typeMask) const
+osg::ref_ptr<osgUtil::LineSegmentIntersector> ScenarioManager::findHelper_(osg::View* _view, float x, float y, int typeMask) const
 {
   View* view = dynamic_cast<View*>(_view);
   if (!view)
@@ -1189,6 +1191,13 @@ EntityNode* ScenarioManager::find(osg::View* _view, float x, float y, int typeMa
     cam->accept(setOverheadMode);
   }
 
+  return lsi;
+}
+
+EntityNode* ScenarioManager::find(osg::View* _view, float x, float y, int typeMask) const
+{
+  osg::ref_ptr<osgUtil::LineSegmentIntersector> lsi = findHelper_(_view, x, y, typeMask);
+
   if (lsi->containsIntersections())
   {
     for (osgUtil::LineSegmentIntersector::Intersections::iterator i = lsi->getIntersections().begin();
@@ -1205,6 +1214,30 @@ EntityNode* ScenarioManager::find(osg::View* _view, float x, float y, int typeMa
   }
 
   return nullptr;
+}
+
+std::vector<EntityNode*> ScenarioManager::findAll(osg::View* _view, float x, float y, int typeMask) const
+{
+  osg::ref_ptr<osgUtil::LineSegmentIntersector> lsi = findHelper_(_view, x, y, typeMask);
+  std::vector<EntityNode*> rv;
+
+
+  if (lsi->containsIntersections())
+  {
+    for (osgUtil::LineSegmentIntersector::Intersections::iterator i = lsi->getIntersections().begin();
+      i != lsi->getIntersections().end();
+      ++i)
+    {
+      const osg::NodePath& path = i->nodePath;
+      for (osg::NodePath::const_reverse_iterator p = path.rbegin(); p != path.rend(); ++p)
+      {
+        if (dynamic_cast<EntityNode*>(*p))
+          rv.push_back(static_cast<EntityNode*>(*p));
+      }
+    }
+  }
+
+  return rv;
 }
 
 void ScenarioManager::addTool(ScenarioTool* tool)
@@ -1267,6 +1300,22 @@ void ScenarioManager::notifyToolsOfFlush_(simData::ObjectId flushedId)
   for (const auto& scenarioToolRefPtr : scenarioTools_)
     scenarioToolRefPtr->onFlush(*this, flushedId);
 }
+
+/**
+ * Functor (for use with ViewVisitor) that notifies a view that it needs to
+ * redraw the scene because something has changed; from osgEarth's legacy NodeUtils.
+ * Usage: ViewVisitor<RequestRedraw> vis; node->accept(vis);
+ */
+struct RequestRedraw
+{
+  void operator()(osg::View* view)
+  {
+    osgGA::GUIActionAdapter* aa = dynamic_cast<osgGA::GUIActionAdapter*>(view);
+    if (aa)
+      aa->requestRedraw();
+  }
+};
+
 
 void ScenarioManager::update(simData::DataStore* ds, bool force)
 {
@@ -1331,7 +1380,7 @@ void ScenarioManager::update(simData::DataStore* ds, bool force)
   {
     SAFETRYBEGIN;
     // "dirty" the scene graph
-    osgEarth::ViewVisitor<osgEarth::RequestRedraw> visitor;
+    osgEarth::ViewVisitor<RequestRedraw> visitor;
     this->accept(visitor);
     SAFETRYEND("requesting redraw on scenario");
   }

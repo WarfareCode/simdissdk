@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -30,10 +30,9 @@
 #include "osgEarth/Ocean"
 #endif
 
-// Potentially defines HAVE_TRITON_NODEKIT, include first
 #include "simVis/osgEarthVersion.h"
 
-#ifdef HAVE_TRITON_NODEKIT
+#ifdef HAVE_OSGEARTH_TRITON
 #include "osgEarthTriton/TritonLayer"
 #if OSGEARTH_VERSION_LESS_THAN(3,0,0)
 #include "osgEarthTriton/TritonOptions"
@@ -117,7 +116,7 @@ void InstallOcean::install(simVis::SceneManager& scene)
   }
 
   // Install the driver for the ocean
-#ifdef HAVE_TRITON_NODEKIT
+#ifdef HAVE_OSGEARTH_TRITON
   if (type_ == TRITON)
   {
     osg::ref_ptr<osgEarth::Triton::TritonLayer> layer = new osgEarth::Triton::TritonLayer();
@@ -127,6 +126,10 @@ void InstallOcean::install(simVis::SceneManager& scene)
     layer->setUseHeightMap(false);
     layer->setMaxAltitude(30000.0f);
     layer->setRenderBinNumber(simVis::BIN_OCEAN);
+#if OSGEARTH_SOVERSION >= 154
+    // render Triton on the ellipsoid (old default)
+    layer->setVerticalDatum("");
+#endif
 
     // Configure it to work in overhead mode
     simVis::OverheadMode::configureOceanLayer(layer.get());
@@ -135,7 +138,7 @@ void InstallOcean::install(simVis::SceneManager& scene)
     scene.getMap()->addLayer(layer.get());
   }
   else // type_ == SIMPLE
-#endif
+#endif /* HAVE_OSGEARTH_TRITON */
   {
     osgEarth::SimpleOceanLayer* ocean = new osgEarth::SimpleOceanLayer();
     ocean->getOrCreateStateSet()->setRenderBinDetails(simVis::BIN_OCEAN, simVis::BIN_GLOBAL_SIMSDK);

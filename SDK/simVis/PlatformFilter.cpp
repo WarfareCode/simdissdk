@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -97,7 +97,7 @@ public:
   {
     bool autoClamp = false;
     if (prefs.clamporientationatlowvelocity())
-      autoClamp = simCore::v3Length(llaCoord.velocity()) < 0.001;
+      autoClamp = llaCoord.velocity().length() < 0.001;
 
     if (!prefs.useclampyaw() && !prefs.useclamppitch() && !prefs.useclamproll() && !autoClamp)
       return PlatformTspiFilterManager::POINT_UNCHANGED;

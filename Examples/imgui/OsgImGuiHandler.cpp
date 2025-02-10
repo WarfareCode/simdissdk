@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -24,36 +24,63 @@
 #include <osg/Camera>
 #include <osg/RenderInfo>
 #include "imgui.h"
-#include "imgui_impl_opengl3.h"
+#include "backends/imgui_impl_opengl3.h"
 #include "BaseGui.h"
 #include "OsgImGuiHandler.h"
 #include "osgEarth/Version"
 #include "osgEarth/ShaderLoader"
 #include "osgEarth/VirtualProgram"
-#include "osgEarth/ImGui/CameraGUI"
-#include "osgEarth/ImGui/EnvironmentGUI"
+
+#if OSGEARTH_SOVERSION >= 159
+  #include "osgEarthImGui/CameraGUI"
+  #include "osgEarthImGui/EnvironmentGUI"
+  using namespace osgEarth;
+#else
+  #include "osgEarth/ImGui/ImGui"
+  #include "osgEarth/ImGui/CameraGUI"
+  #include "osgEarth/ImGui/EnvironmentGUI"
+  using namespace osgEarth::GUI;
+#endif
 
 #if OSGEARTH_SOVERSION < 146
 #undef NOMINMAX
 #endif
 
 #if OSGEARTH_SOVERSION >= 148
- // Fix 3.4.0 bugs with namespace in osgEarth/ImGui/AnnotationsGUI
-#include "osgEarth/AnnotationData"
-using AnnotationData = osgEarth::AnnotationData;
-using EarthManipulator = osgEarth::EarthManipulator;
+  // Fix 3.4.0 bugs with namespace in osgEarth/ImGui/AnnotationsGUI
+  #include "osgEarth/AnnotationData"
+  using AnnotationData = osgEarth::AnnotationData;
+  using EarthManipulator = osgEarth::EarthManipulator;
 
-#include "osgEarth/ImGui/AnnotationsGUI"
+  #if OSGEARTH_SOVERSION >= 159
+    #include "osgEarthImGui/AnnotationsGUI"
+  #else
+    #include "osgEarth/ImGui/AnnotationsGUI"
+  #endif
 #endif
 
+#if 0
 #include "osgEarth/ImGui/LayersGUI"
-#include "osgEarth/ImGui/NetworkMonitorGUI"
-#include "osgEarth/ImGui/RenderingGUI"
-#include "osgEarth/ImGui/SceneGraphGUI"
-#include "osgEarth/ImGui/SystemGUI"
-#include "osgEarth/ImGui/TerrainGUI"
-#include "osgEarth/ImGui/TextureInspectorGUI"
-#include "osgEarth/ImGui/ViewpointsGUI"
+#endif
+
+#if OSGEARTH_SOVERSION >= 159
+  #include "osgEarthImGui/NetworkMonitorGUI"
+  #include "osgEarthImGui/RenderingGUI"
+  #include "osgEarthImGui/SceneGraphGUI"
+  #include "osgEarthImGui/SystemGUI"
+  #include "osgEarthImGui/TerrainGUI"
+  #include "osgEarthImGui/TextureInspectorGUI"
+  #include "osgEarthImGui/ViewpointsGUI"
+#else
+  #include "osgEarth/ImGui/NetworkMonitorGUI"
+  #include "osgEarth/ImGui/RenderingGUI"
+  #include "osgEarth/ImGui/SceneGraphGUI"
+  #include "osgEarth/ImGui/SystemGUI"
+  #include "osgEarth/ImGui/TerrainGUI"
+  #include "osgEarth/ImGui/TextureInspectorGUI"
+  #include "osgEarth/ImGui/ViewpointsGUI"
+#endif
+
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Interpolation.h"
 #include "simVis/Registry.h"
@@ -118,35 +145,44 @@ private:
 
 OsgImGuiHandler::OsgImGuiHandler()
   : time_(0.0f),
-  mousePressed_{false},
-  mouseWheel_(0.0f),
   initialized_(false),
   firstFrame_(true),
   firstDraw_(true),
   autoAdjustProjectionMatrix_(true)
 {
 #if OSGEARTH_SOVERSION >= 148
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::AnnotationsGUI>(new osgEarth::GUI::AnnotationsGUI));
+  menus_["Tools"].push_back(std::unique_ptr<AnnotationsGUI>(new AnnotationsGUI));
 #endif
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::CameraGUI>(new osgEarth::GUI::CameraGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::EnvironmentGUI>(new osgEarth::GUI::EnvironmentGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::LayersGUI>(new osgEarth::GUI::LayersGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::NetworkMonitorGUI>(new osgEarth::GUI::NetworkMonitorGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::NVGLInspectorGUI>(new osgEarth::GUI::NVGLInspectorGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::RenderingGUI>(new osgEarth::GUI::RenderingGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::SceneGraphGUI>(new osgEarth::GUI::SceneGraphGUI));
+  menus_["Tools"].push_back(std::unique_ptr<CameraGUI>(new CameraGUI));
+  menus_["Tools"].push_back(std::unique_ptr<EnvironmentGUI>(new EnvironmentGUI));
+#if 0
+  menus_["Tools"].push_back(std::unique_ptr<LayersGUI>(new LayersGUI));
+#endif
+
+  menus_["Tools"].push_back(std::unique_ptr<NetworkMonitorGUI>(new NetworkMonitorGUI));
+  menus_["Tools"].push_back(std::unique_ptr<NVGLInspectorGUI>(new NVGLInspectorGUI));
+  menus_["Tools"].push_back(std::unique_ptr<RenderingGUI>(new RenderingGUI));
+  menus_["Tools"].push_back(std::unique_ptr<SceneGraphGUI>(new SceneGraphGUI));
   // Not including ShaderGUI as it expects command line arguments. Can be added later if needed
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::SystemGUI>(new osgEarth::GUI::SystemGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::TerrainGUI>(new osgEarth::GUI::TerrainGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::TextureInspectorGUI>(new osgEarth::GUI::TextureInspectorGUI));
-  menus_["Tools"].push_back(std::unique_ptr<osgEarth::GUI::ViewpointsGUI>(new osgEarth::GUI::ViewpointsGUI));
+  menus_["Tools"].push_back(std::unique_ptr<SystemGUI>(new SystemGUI));
+  menus_["Tools"].push_back(std::unique_ptr<TerrainGUI>(new TerrainGUI));
+  menus_["Tools"].push_back(std::unique_ptr<TextureInspectorGUI>(new TextureInspectorGUI));
+  menus_["Tools"].push_back(std::unique_ptr<ViewpointsGUI>(new ViewpointsGUI));
 }
 
+#if OSGEARTH_SOVERSION >= 159
+void OsgImGuiHandler::add(osgEarth::ImGuiPanel* gui)
+{
+  if (gui != nullptr)
+    menus_["User"].push_back(std::unique_ptr<ImGuiPanel>(gui));
+}
+#else
 void OsgImGuiHandler::add(osgEarth::GUI::BaseGUI* gui)
 {
   if (gui != nullptr)
     menus_["User"].push_back(std::unique_ptr<osgEarth::GUI::BaseGUI>(gui));
 }
+#endif
 
 void OsgImGuiHandler::add(::GUI::BaseGui* gui)
 {
@@ -154,51 +190,63 @@ void OsgImGuiHandler::add(::GUI::BaseGui* gui)
   deprecatedGuis_.push_back(std::unique_ptr<::GUI::BaseGui>(gui));
 }
 
-/**
- * Important Note: Dear ImGui expects the control Keys indices not to be
- * greater than 511. It actually uses an array of 512 elements. However,
- * OSG has indices greater than that. So here I do a conversion for special
- * keys between ImGui and OSG.
- */
-static int ConvertFromOSGKey(int key)
+static ImGuiKey convertKey(int c)
 {
-  using KEY = osgGA::GUIEventAdapter::KeySymbol;
+  // If you are holding CTRL, OSG remaps A-Z to 1-26. Undo that.
+  if (c >= 1 && c <= 26)
+    return static_cast<ImGuiKey>(static_cast<int>(ImGuiKey_A) + c - 1);
 
-  switch (key)
+  if (c >= osgGA::GUIEventAdapter::KEY_0 && c <= osgGA::GUIEventAdapter::KEY_9)
+    return static_cast<ImGuiKey>(static_cast<int>(ImGuiKey_0) + c - osgGA::GUIEventAdapter::KEY_0);
+
+  if (c >= osgGA::GUIEventAdapter::KEY_A && c <= osgGA::GUIEventAdapter::KEY_Z)
+    return static_cast<ImGuiKey>(static_cast<int>(ImGuiKey_A) + c - osgGA::GUIEventAdapter::KEY_A);
+
+  switch (c)
   {
-    case KEY::KEY_Tab:
-        return ImGuiKey_Tab;
-    case KEY::KEY_Left:
-        return ImGuiKey_LeftArrow;
-    case KEY::KEY_Right:
-        return ImGuiKey_RightArrow;
-    case KEY::KEY_Up:
-        return ImGuiKey_UpArrow;
-    case KEY::KEY_Down:
-        return ImGuiKey_DownArrow;
-    case KEY::KEY_Page_Up:
-        return ImGuiKey_PageUp;
-    case KEY::KEY_Page_Down:
-        return ImGuiKey_PageDown;
-    case KEY::KEY_Home:
-        return ImGuiKey_Home;
-    case KEY::KEY_End:
-        return ImGuiKey_End;
-    case KEY::KEY_Delete:
-        return ImGuiKey_Delete;
-    case KEY::KEY_BackSpace:
-        return ImGuiKey_Backspace;
-    case KEY::KEY_Return:
-        return ImGuiKey_Enter;
-    case KEY::KEY_Escape:
-        return ImGuiKey_Escape;
-    case 22:
-        return osgGA::GUIEventAdapter::KeySymbol::KEY_V;
-    case 3:
-        return osgGA::GUIEventAdapter::KeySymbol::KEY_C;
-    default: // Not found
-        return key;
+  case osgGA::GUIEventAdapter::KEY_Tab:
+    return ImGuiKey_Tab;
+  case osgGA::GUIEventAdapter::KEY_Left:
+    return ImGuiKey_LeftArrow;
+  case osgGA::GUIEventAdapter::KEY_Right:
+    return ImGuiKey_RightArrow;
+  case osgGA::GUIEventAdapter::KEY_Up:
+    return ImGuiKey_UpArrow;
+  case osgGA::GUIEventAdapter::KEY_Down:
+    return ImGuiKey_DownArrow;
+  case osgGA::GUIEventAdapter::KEY_Page_Up:
+    return ImGuiKey_PageUp;
+  case osgGA::GUIEventAdapter::KEY_Page_Down:
+    return ImGuiKey_PageDown;
+  case osgGA::GUIEventAdapter::KEY_Home:
+    return ImGuiKey_Home;
+  case osgGA::GUIEventAdapter::KEY_End:
+    return ImGuiKey_End;
+  case osgGA::GUIEventAdapter::KEY_Delete:
+    return ImGuiKey_Delete;
+  case osgGA::GUIEventAdapter::KEY_BackSpace:
+    return ImGuiKey_Backspace;
+  case osgGA::GUIEventAdapter::KEY_Return:
+    return ImGuiKey_Enter;
+  case osgGA::GUIEventAdapter::KEY_Escape:
+    return ImGuiKey_Escape;
+  case osgGA::GUIEventAdapter::KEY_Space:
+    return ImGuiKey_Space;
   }
+
+  return ImGuiKey_None;
+}
+
+static ImGuiButtonFlags convertMouseButton(int m)
+{
+  ImGuiButtonFlags flags = 0;
+  if (m & osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON)
+    flags |= ImGuiMouseButton_Left;
+  if (m & osgGA::GUIEventAdapter::RIGHT_MOUSE_BUTTON)
+    flags |= ImGuiMouseButton_Right;
+  if (m & osgGA::GUIEventAdapter::MIDDLE_MOUSE_BUTTON)
+    flags |= ImGuiMouseButton_Middle;
+  return flags;
 }
 
 ImFont* OsgImGuiHandler::getDefaultFont() const
@@ -225,27 +273,6 @@ void OsgImGuiHandler::init_()
 {
   ImGui::CreateContext();
   ImGuiIO& io = ImGui::GetIO();
-
-  // Keyboard mapping. ImGui will use those indices to peek into the io.KeyDown[] array.
-  io.KeyMap[ImGuiKey_Tab] = ImGuiKey_Tab;
-  io.KeyMap[ImGuiKey_LeftArrow] = ImGuiKey_LeftArrow;
-  io.KeyMap[ImGuiKey_RightArrow] = ImGuiKey_RightArrow;
-  io.KeyMap[ImGuiKey_UpArrow] = ImGuiKey_UpArrow;
-  io.KeyMap[ImGuiKey_DownArrow] = ImGuiKey_DownArrow;
-  io.KeyMap[ImGuiKey_PageUp] = ImGuiKey_PageUp;
-  io.KeyMap[ImGuiKey_PageDown] = ImGuiKey_PageDown;
-  io.KeyMap[ImGuiKey_Home] = ImGuiKey_Home;
-  io.KeyMap[ImGuiKey_End] = ImGuiKey_End;
-  io.KeyMap[ImGuiKey_Delete] = ImGuiKey_Delete;
-  io.KeyMap[ImGuiKey_Backspace] = ImGuiKey_Backspace;
-  io.KeyMap[ImGuiKey_Enter] = ImGuiKey_Enter;
-  io.KeyMap[ImGuiKey_Escape] = ImGuiKey_Escape;
-  io.KeyMap[ImGuiKey_A] = osgGA::GUIEventAdapter::KeySymbol::KEY_A;
-  io.KeyMap[ImGuiKey_C] = osgGA::GUIEventAdapter::KeySymbol::KEY_C;
-  io.KeyMap[ImGuiKey_V] = osgGA::GUIEventAdapter::KeySymbol::KEY_V;
-  io.KeyMap[ImGuiKey_X] = osgGA::GUIEventAdapter::KeySymbol::KEY_X;
-  io.KeyMap[ImGuiKey_Y] = osgGA::GUIEventAdapter::KeySymbol::KEY_Y;
-  io.KeyMap[ImGuiKey_Z] = osgGA::GUIEventAdapter::KeySymbol::KEY_Z;
 
   ImGui_ImplOpenGL3_Init();
 
@@ -286,19 +313,6 @@ void OsgImGuiHandler::newFrame_(osg::RenderInfo& renderInfo)
   double currentTime = renderInfo.getView()->getFrameStamp()->getSimulationTime();
   io.DeltaTime = currentTime - time_ + 0.0000001;
   time_ = currentTime;
-
-  for (int i = 0; i < 3; i++)
-  {
-    io.MouseDown[i] = mousePressed_[i];
-  }
-
-  for (int i = 0; i < 3; i++)
-  {
-    io.MouseDoubleClicked[i] = mouseDoubleClicked_[i];
-  }
-
-  io.MouseWheel = mouseWheel_;
-  mouseWheel_ = 0.0f;
 
   ImGui::NewFrame();
 }
@@ -390,8 +404,6 @@ bool OsgImGuiHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionA
   }
 
   ImGuiIO& io = ImGui::GetIO();
-  const bool wantCaptureMouse = io.WantCaptureMouse;
-  const bool wantCaptureKeyboard = io.WantCaptureKeyboard;
 
   switch (ea.getEventType())
   {
@@ -399,72 +411,61 @@ bool OsgImGuiHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionA
   case osgGA::GUIEventAdapter::KEYUP:
   {
     const bool isKeyDown = ea.getEventType() == osgGA::GUIEventAdapter::KEYDOWN;
-    const int c = ea.getKey();
+    int c = ea.getKey();
 
-    // Always update the mod key status.
-    io.KeyCtrl = ea.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_CTRL;
-    io.KeyShift = ea.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_SHIFT;
-    io.KeyAlt = ea.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_ALT;
-    io.KeySuper = ea.getModKeyMask() & osgGA::GUIEventAdapter::MODKEY_SUPER;
+    // Always update the mod key status
+    io.AddKeyEvent(ImGuiMod_Ctrl, (ea.getModKeyMask() & ea.MODKEY_CTRL) != 0);
+    io.AddKeyEvent(ImGuiMod_Shift, (ea.getModKeyMask() & ea.MODKEY_SHIFT) != 0);
+    io.AddKeyEvent(ImGuiMod_Alt, (ea.getModKeyMask() & ea.MODKEY_ALT) != 0);
+    io.AddKeyEvent(ImGuiMod_Super, (ea.getModKeyMask() & ea.MODKEY_SUPER) != 0);
 
-    const int imgui_key = ConvertFromOSGKey(c);
-    if (imgui_key > 0 && imgui_key < 512)
+    // ImGuiIo::AddKeyEvent() requires a "translated" key input,
+    // so manually translate the OSG int key to ImGuiKey
+    const ImGuiKey imguiKey = convertKey(c);
+    io.AddKeyEvent(imguiKey, isKeyDown);
+
+    // Send any raw ASCII characters to ImGui as input
+    if (isKeyDown)
     {
-      //assert((imgui_key >= 0 && imgui_key < 512) && "ImGui KeysMap is an array of 512");
-      io.KeysDown[imgui_key] = isKeyDown;
-    }
-
-    // Not sure this < 512 is correct here....
-    if (isKeyDown && imgui_key >= 32 && imgui_key < 512)
-    {
+      // Convert keypad numbers to their normal ASCII equivalents before sending
+      if (c >= osgGA::GUIEventAdapter::KEY_KP_0 && c <= osgGA::GUIEventAdapter::KEY_KP_9)
+        c = osgGA::GUIEventAdapter::KEY_0 + c - osgGA::GUIEventAdapter::KEY_KP_0;
       io.AddInputCharacter(static_cast<unsigned int>(c));
     }
 
-    return wantCaptureKeyboard;
+    return io.WantCaptureKeyboard;
   }
-  case osgGA::GUIEventAdapter::RELEASE:
+  case (osgGA::GUIEventAdapter::PUSH):
   {
-    io.MousePos = ImVec2(ea.getX(), io.DisplaySize.y - ea.getY());
-    mousePressed_[0] = ea.getButtonMask() & osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON;
-    mousePressed_[1] = ea.getButtonMask() & osgGA::GUIEventAdapter::RIGHT_MOUSE_BUTTON;
-    mousePressed_[2] = ea.getButtonMask() & osgGA::GUIEventAdapter::MIDDLE_MOUSE_BUTTON;
+    if (io.WantCaptureMouse)
+    {
+      auto imguiButton = convertMouseButton(ea.getButtonMask());
+      io.AddMousePosEvent(ea.getX(), io.DisplaySize.y - ea.getY());
+      io.AddMouseButtonEvent(imguiButton, true); // true = push
+    }
+    return io.WantCaptureMouse;
+  }
+  case (osgGA::GUIEventAdapter::RELEASE):
+  {
+    if (io.WantCaptureMouse)
+      io.AddMousePosEvent(ea.getX(), io.DisplaySize.y - ea.getY());
 
-    mouseDoubleClicked_[0] = ea.getButtonMask() & osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON;
-    mouseDoubleClicked_[1] = ea.getButtonMask() & osgGA::GUIEventAdapter::RIGHT_MOUSE_BUTTON;
-    mouseDoubleClicked_[2] = ea.getButtonMask() & osgGA::GUIEventAdapter::MIDDLE_MOUSE_BUTTON;
-    return wantCaptureMouse;
+    const ImGuiButtonFlags imguiButton = convertMouseButton(ea.getButtonMask());
+    io.AddMouseButtonEvent(imguiButton, false); // false = release
+
+    return io.WantCaptureMouse;
   }
-  case osgGA::GUIEventAdapter::PUSH:
+  case (osgGA::GUIEventAdapter::DRAG):
+  case (osgGA::GUIEventAdapter::MOVE):
   {
-    io.MousePos = ImVec2(ea.getX(), io.DisplaySize.y - ea.getY());
-    mousePressed_[0] = ea.getButtonMask() & osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON;
-    mousePressed_[1] = ea.getButtonMask() & osgGA::GUIEventAdapter::RIGHT_MOUSE_BUTTON;
-    mousePressed_[2] = ea.getButtonMask() & osgGA::GUIEventAdapter::MIDDLE_MOUSE_BUTTON;
-    return wantCaptureMouse;
+    io.AddMousePosEvent(ea.getX(), io.DisplaySize.y - ea.getY());
+    return io.WantCaptureMouse;
   }
-  case osgGA::GUIEventAdapter::DOUBLECLICK:
+  case (osgGA::GUIEventAdapter::SCROLL):
   {
-    io.MousePos = ImVec2(ea.getX(), io.DisplaySize.y - ea.getY());
-    // Need to set mousePressed_ flags in addition to mouseDoubleClicked_ flags to satisfy
-    // double click requirements of some ImGui elements like ImGui::TreeNodeEx
-    mousePressed_[0] = ea.getButtonMask() & osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON;
-    mousePressed_[1] = ea.getButtonMask() & osgGA::GUIEventAdapter::RIGHT_MOUSE_BUTTON;
-    mousePressed_[2] = ea.getButtonMask() & osgGA::GUIEventAdapter::MIDDLE_MOUSE_BUTTON;
-    mouseDoubleClicked_[0] = ea.getButtonMask() & osgGA::GUIEventAdapter::LEFT_MOUSE_BUTTON;
-    mouseDoubleClicked_[1] = ea.getButtonMask() & osgGA::GUIEventAdapter::RIGHT_MOUSE_BUTTON;
-    mouseDoubleClicked_[2] = ea.getButtonMask() & osgGA::GUIEventAdapter::MIDDLE_MOUSE_BUTTON;
-    return wantCaptureMouse;
-  }
-  case osgGA::GUIEventAdapter::DRAG:
-  case osgGA::GUIEventAdapter::MOVE:
-  {
-    io.MousePos = ImVec2(ea.getX(), io.DisplaySize.y - ea.getY());
-    return wantCaptureMouse;
-  }
-  case osgGA::GUIEventAdapter::SCROLL:
-  {
-    mouseWheel_ = ea.getScrollingMotion() == osgGA::GUIEventAdapter::SCROLL_UP ? 1.0 : -1.0;
-    return wantCaptureMouse;
+    auto scrolling = ea.getScrollingMotion() == osgGA::GUIEventAdapter::SCROLL_UP ? 1.0 : -1.0;
+    io.AddMouseWheelEvent(0.0, io.MouseWheel += scrolling);
+    return io.WantCaptureMouse;
   }
   default:
     break;

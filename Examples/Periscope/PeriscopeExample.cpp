@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -47,11 +47,11 @@
 #include "osgEarth/SimpleOceanLayer"
 #include "osgEarth/Version"
 
-#ifdef HAVE_TRITON_NODEKIT
+#ifdef HAVE_OSGEARTH_TRITON
 #include "osgEarthTriton/TritonLayer"
 #endif
 
-#ifdef HAVE_SILVERLINING_NODEKIT
+#ifdef HAVE_OSGEARTH_SILVERLINING
 #include "osgEarthSilverLining/SilverLiningNode"
 #endif
 
@@ -207,7 +207,7 @@ namespace
   /** Factory for a sky node */
   osgEarth::SkyNode* makeSky(osgEarth::MapNode* mapNode, bool useSilverLining, const std::string& slUser="", const std::string& slLicense="", const std::string& resourcePath="")
   {
-#ifdef HAVE_SILVERLINING_NODEKIT
+#ifdef HAVE_OSGEARTH_SILVERLINING
     if (useSilverLining)
     {
       osgEarth::SilverLining::SilverLiningOptions sl;
@@ -306,7 +306,7 @@ int main(int argc, char** argv)
   s_shipId = createShip(dataStore);
 
   // add an ocean surface to the scene.
-#ifdef HAVE_TRITON_NODEKIT
+#ifdef HAVE_OSGEARTH_TRITON
   if (useTriton)
   {
     osgEarth::Triton::TritonLayer* layer = new osgEarth::Triton::TritonLayer();
@@ -316,6 +316,10 @@ int main(int argc, char** argv)
     layer->setUseHeightMap(false);
     layer->setMaxAltitude(30000.0f);
     layer->setRenderBinNumber(simVis::BIN_OCEAN);
+#if OSGEARTH_SOVERSION >= 154
+    // render Triton on the ellipsoid (old default)
+    layer->setVerticalDatum("");
+#endif
     scene->getMap()->addLayer(layer);
   }
   else
@@ -331,12 +335,6 @@ int main(int argc, char** argv)
   sky->attach(viewer->getMainView());
   sky->setDateTime(osgEarth::DateTime(2014, 4, 22, 16.5));
   scene->setSkyNode(sky.get());
-
-  // Set ambient light
-  //s_viewer->getMainView()->getLight()->setAmbient(osg::Vec4(0.6, 0.6, 0.6, 1.0));
-
-  // zoom to the starting AOI:
-  osg::observer_ptr<simVis::PlatformNode> shipNode = scene->getScenario()->find<simVis::PlatformNode>(s_shipId);
 
   // remove the default manipulator; we will set the camera manually
   viewer->getMainView()->setUpViewInWindow(20, 20, width, height, 0);

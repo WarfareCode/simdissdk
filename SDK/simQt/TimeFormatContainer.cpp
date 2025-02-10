@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -22,7 +22,6 @@
  */
 #include <QAction>
 #include <QDateTimeEdit>
-#include "simQt/ScopedSignalBlocker.h"
 #include "simQt/SegmentedSpinBox.h"
 #include "simQt/SegmentedTexts.h"
 #include "simQt/QtFormatting.h"
@@ -66,6 +65,25 @@ void TimeFormatContainer::setAction(QAction* action)
   action_ = action;
 }
 
+void TimeFormatContainer::setPrecision_(unsigned int digits, SegmentedSpinBox* widget) const
+{
+  if (digits == widget->line()->precision())
+    return;
+
+  const auto& utcTimeStamp = widget->timeStamp();
+  widget->line()->setPrecision(digits);
+  widget->setTimeStamp(utcTimeStamp);
+}
+
+void TimeFormatContainer::setTimeZone_(simCore::TimeZone zone, SegmentedSpinBox* widget) const
+{
+  if (zone == widget->line()->timeZone())
+    return;
+
+  const auto& utcTimeStamp = widget->timeStamp();
+  widget->line()->setTimeZone(zone);
+  widget->setTimeStamp(utcTimeStamp);
+}
 
 //----------------------------------------------------------------------------------------------
 SecondsContainer::SecondsContainer(QWidget* parent)
@@ -134,19 +152,24 @@ void SecondsContainer::setColorCode(bool value)
   widget_->setColorCode(value);
 }
 
-void SecondsContainer::setPrecision(unsigned int digits)
+void SecondsContainer::setProcessEnterKey(bool process)
 {
-  widget_->line()->setPrecision(digits);
+  widget_->setProcessEnterKey(process);
 }
 
-unsigned int SecondsContainer::precision()
+void SecondsContainer::setPrecision(unsigned int digits)
+{
+  setPrecision_(digits, widget_);
+}
+
+unsigned int SecondsContainer::precision() const
 {
   return widget_->line()->precision();
 }
 
 void SecondsContainer::setTimeZone(simCore::TimeZone zone)
 {
-  widget_->line()->setTimeZone(zone);
+  setTimeZone_(zone, widget_);
 }
 
 simCore::TimeZone SecondsContainer::timeZone() const
@@ -232,19 +255,24 @@ void MonthContainer::setColorCode(bool value)
   colorCode_ = value;
 }
 
-void MonthContainer::setPrecision(unsigned int digits)
+void MonthContainer::setProcessEnterKey(bool process)
 {
-  widget_->line()->setPrecision(digits);
+  widget_->setProcessEnterKey(process);
 }
 
-unsigned int MonthContainer::precision()
+void MonthContainer::setPrecision(unsigned int digits)
+{
+  setPrecision_(digits, widget_);
+}
+
+unsigned int MonthContainer::precision() const
 {
   return widget_->line()->precision();
 }
 
 void MonthContainer::setTimeZone(simCore::TimeZone zone)
 {
-  widget_->line()->setTimeZone(zone);
+  setTimeZone_(zone, widget_);
 }
 
 simCore::TimeZone MonthContainer::timeZone() const
@@ -310,7 +338,6 @@ void OrdinalContainer::setTimeRange(int scenarioReferenceYear, const simCore::Ti
   widget_->setTimeRange(scenarioReferenceYear, start, end);
 }
 
-
 void OrdinalContainer::getEnforceLimits(bool& limitBeforeStart, bool& limitAfterEnd) const
 {
   widget_->getEnforceLimits(limitBeforeStart, limitAfterEnd);
@@ -331,19 +358,24 @@ void OrdinalContainer::setColorCode(bool value)
   widget_->setColorCode(value);
 }
 
-void OrdinalContainer::setPrecision(unsigned int digits)
+void OrdinalContainer::setProcessEnterKey(bool process)
 {
-  widget_->line()->setPrecision(digits);
+  widget_->setProcessEnterKey(process);
 }
 
-unsigned int OrdinalContainer::precision()
+void OrdinalContainer::setPrecision(unsigned int digits)
+{
+  setPrecision_(digits, widget_);
+}
+
+unsigned int OrdinalContainer::precision() const
 {
   return widget_->line()->precision();
 }
 
 void OrdinalContainer::setTimeZone(simCore::TimeZone zone)
 {
-  widget_->line()->setTimeZone(zone);
+  setTimeZone_(zone, widget_);
 }
 
 simCore::TimeZone OrdinalContainer::timeZone() const
@@ -429,19 +461,24 @@ void MinutesContainer::setColorCode(bool value)
   widget_->setColorCode(value);
 }
 
-void MinutesContainer::setPrecision(unsigned int digits)
+void MinutesContainer::setProcessEnterKey(bool process)
 {
-  widget_->line()->setPrecision(digits);
+  widget_->setProcessEnterKey(process);
 }
 
-unsigned int MinutesContainer::precision()
+void MinutesContainer::setPrecision(unsigned int digits)
+{
+  setPrecision_(digits, widget_);
+}
+
+unsigned int MinutesContainer::precision() const
 {
   return widget_->line()->precision();
 }
 
 void MinutesContainer::setTimeZone(simCore::TimeZone zone)
 {
-  widget_->line()->setTimeZone(zone);
+  setTimeZone_(zone, widget_);
 }
 
 simCore::TimeZone MinutesContainer::timeZone() const
@@ -527,19 +564,24 @@ void HoursContainer::setColorCode(bool value)
   widget_->setColorCode(value);
 }
 
-void HoursContainer::setPrecision(unsigned int digits)
+void HoursContainer::setProcessEnterKey(bool process)
 {
-  widget_->line()->setPrecision(digits);
+  widget_->setProcessEnterKey(process);
 }
 
-unsigned int HoursContainer::precision()
+void HoursContainer::setPrecision(unsigned int digits)
+{
+  setPrecision_(digits, widget_);
+}
+
+unsigned int HoursContainer::precision() const
 {
   return widget_->line()->precision();
 }
 
 void HoursContainer::setTimeZone(simCore::TimeZone zone)
 {
-  widget_->line()->setTimeZone(zone);
+  setTimeZone_(zone, widget_);
 }
 
 simCore::TimeZone HoursContainer::timeZone() const
@@ -555,6 +597,107 @@ void HoursContainer::disableToolTip()
 QString HoursContainer::toolTipText() const
 {
   return simQt::formatTooltip(tr("Time"), tr("Set the time in hours since beginning of reference year.") + USAGE_STR);
+}
+
+Iso8601Container::Iso8601Container(QWidget* parent)
+  : TimeFormatContainer(simCore::TIMEFORMAT_ISO8601, "ISO-8601")
+{
+  widget_ = new SegmentedSpinBox(parent);
+  widget_->setToolTip(toolTipText());
+
+  widget_->setLine(new Iso8601Texts());
+  connect(widget_->line(), SIGNAL(timeEdited(simCore::TimeStamp)), this, SIGNAL(timeEdited(simCore::TimeStamp)));
+  connect(widget_->line(), SIGNAL(timeChanged(simCore::TimeStamp)), this, SIGNAL(timeChanged(simCore::TimeStamp)));
+  connect(widget_, SIGNAL(customContextMenuRequested(const QPoint&)), this, SIGNAL(customContextMenuRequested(const QPoint&)));
+}
+
+Iso8601Container::~Iso8601Container()
+{
+}
+
+QWidget* Iso8601Container::widget()
+{
+  return widget_;
+}
+
+bool Iso8601Container::hasFocus() const
+{
+  return widget_->hasFocus();
+}
+
+simCore::TimeStamp Iso8601Container::timeStamp() const
+{
+  return widget_->timeStamp();
+}
+
+QString Iso8601Container::timeText() const
+{
+  return widget_->text();
+}
+
+void Iso8601Container::setTimeStamp(const simCore::TimeStamp& value)
+{
+  widget_->setTimeStamp(value);
+}
+
+void Iso8601Container::setTimeRange(int scenarioReferenceYear, const simCore::TimeStamp& start, const simCore::TimeStamp& end)
+{
+  widget_->setTimeRange(scenarioReferenceYear, start, end);
+}
+
+void Iso8601Container::getEnforceLimits(bool& limitBeforeStart, bool& limitAfterEnd) const
+{
+  widget_->getEnforceLimits(limitBeforeStart, limitAfterEnd);
+}
+
+void Iso8601Container::setEnforceLimits(bool limitBeforeStart, bool limitAfterEnd)
+{
+  widget_->setEnforceLimits(limitBeforeStart, limitAfterEnd);
+}
+
+bool Iso8601Container::colorCode() const
+{
+  return widget_->colorCode();
+}
+
+void Iso8601Container::setColorCode(bool value)
+{
+  return widget_->setColorCode(value);
+}
+
+void Iso8601Container::setProcessEnterKey(bool process)
+{
+  widget_->setProcessEnterKey(process);
+}
+
+void Iso8601Container::setPrecision(unsigned int digits)
+{
+  setPrecision_(digits, widget_);
+}
+
+unsigned int Iso8601Container::precision() const
+{
+  return widget_->line()->precision();
+}
+
+void Iso8601Container::setTimeZone(simCore::TimeZone zone)
+{
+  setTimeZone_(zone, widget_);
+}
+
+simCore::TimeZone Iso8601Container::timeZone() const
+{
+  return widget_->line()->timeZone();
+}
+
+void Iso8601Container::disableToolTip()
+{
+  widget_->setToolTip("");
+}
+
+QString Iso8601Container::toolTipText() const
+{
+  return simQt::formatTooltip(tr("Time"), tr("Set the time in ISO-8601 format.") + USAGE_STR);
 }
 
 }

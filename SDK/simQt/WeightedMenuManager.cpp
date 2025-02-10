@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -207,11 +207,18 @@ void WeightedMenuManager::insertBefore_(QWidget* widget, int weight, QAction* ac
   // Insert the action before other actions
   QAction* beforeAct = actionByIndex_(widget, std::distance(weights.begin(), insertBefore));
 
+  const int numChildren = widget->actions().count();
+
   // Add the action to the menu or tool bar
   if (action == nullptr)
     insertSeparator_(widget, beforeAct);
   else
     widget->insertAction(beforeAct, action);
+
+  // Do not update weights if action was not added.
+  // Only known failure is if action already exists.
+  if (numChildren == widget->actions().count())
+    return;
 
   // Add the new weight to the previous text
   if (debugMenuWeights_ && action != nullptr)

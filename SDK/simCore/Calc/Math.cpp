@@ -14,7 +14,7 @@
  *               Washington, D.C. 20375-5339
  *
  * License for source code is in accompanying LICENSE.txt file. If you did
- * not receive a LICENSE.txt with this code, email simdis@nrl.navy.mil.
+ * not receive a LICENSE.txt with this code, email simdis@us.navy.mil.
  *
  * The U.S. Government retains all rights to use, duplicate, distribute,
  * disclose, or release this software.
@@ -72,11 +72,11 @@ void simCore::v3RotY(const Vec3 &a, const double ang, Vec3 &vp)
 /// Computes angle between two input vectors
 double simCore::v3Angle(const Vec3 &u, const Vec3 &v)
 {
-  const double length = v3Length(u) * v3Length(v);
+  const double length = u.length() * v.length();
   if (length == 0.0)
     return 0.0;
 
-  const double arg = v3Dot(u, v) / length;
+  const double arg = u.dot(v) / length;
   return simCore::inverseCosine(arg);
 }
 

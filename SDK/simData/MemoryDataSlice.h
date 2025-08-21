@@ -29,6 +29,7 @@
 #include "simData/DataSlice.h"
 #include "simData/DataSliceUpdaters.h"
 #include "simData/DataStore.h"
+#include "simData/DataTypeReflection.h"
 #include "simData/Interpolator.h"
 #include "simData/ObjectId.h"
 #include "simData/UpdateComp.h"
@@ -289,8 +290,8 @@ protected:
   bool mdsHasChanged_;
   /// used to mark if this slice needs to be updated (i.e. the updates_ have been modified)
   bool dirty_;
-  /// list of state updates
-  std::deque<T*> updates_;
+  /// list of state updates, mutable so that fastUpdate_ can be modified in const methods
+  mutable std::deque<T*> updates_;
   /// the current state, can either point to a real state, or a "virtual" interpolated state
   T *current_;
   /// a cache of the interpolated state for the current time
@@ -299,8 +300,8 @@ protected:
   bool interpolated_;
   /// specifies the interpolation bounds; the bounds will be nullptr if no interpolation is specified
   typename DataSlice<T>::Bounds bounds_;
-  /// Used to optimize updates by looking at data near the last update
-  typename MemorySliceHelper::SafeDequeIterator<T*> fastUpdate_;
+  /// Used to optimize updates by looking at data near the last update; mutable so it can be modified in const methods
+  mutable typename MemorySliceHelper::SafeDequeIterator<T*> fastUpdate_;
   /// Used to notify parent that the slice changed
   std::function<void()> notifierFn_;
 };
@@ -387,6 +388,9 @@ public:
 
   /// A function that is called every time the slice is modified
   void installNotifier(const std::function<void()>& fn);
+
+  /// Reflection to clear out commands
+  void setReflection(std::shared_ptr<simData::Reflection> reflection);
 
   /// reduce the data store to only have points within the given 'timeWindow'
   /// @param timeWindow amount of time to keep in window (negative for no limit)
@@ -500,7 +504,8 @@ protected: // data
   double earliestInsert_;
   /// Used to notify parent that the slice changed
   std::function<void()> notifierFn_;
-
+  /// Used for reflection to clear out commands
+  std::shared_ptr<simData::Reflection> reflection_;
 };
 
 /**

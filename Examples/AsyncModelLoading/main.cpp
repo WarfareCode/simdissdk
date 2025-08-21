@@ -615,7 +615,7 @@ int main(int argc, char **argv)
     simData::PlatformPrefs* prefs = dataStore.mutable_platformPrefs(app.platId, &txn);
     prefs->set_dynamicscale(true);
     prefs->set_nodepthicons(false);
-    prefs->mutable_trackprefs()->set_trackdrawmode(simData::TrackPrefs_Mode_POINT);
+    prefs->mutable_trackprefs()->set_trackdrawmode(simData::TrackPrefs::Mode::POINT);
     prefs->mutable_trackprefs()->set_linewidth(1);
     prefs->mutable_commonprefs()->mutable_labelprefs()->set_draw(true);
     prefs->mutable_commonprefs()->set_name("Platform");
@@ -660,8 +660,6 @@ int main(int argc, char **argv)
   viewer->addEventHandler(new MenuHandler(app));
 
 #ifdef HAVE_IMGUI
-  // Pass in existing realize operation as parent op, parent op will be called first
-  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
   viewer->getMainView()->getEventHandlers().push_front(gui);
   gui->add(new ControlPanel(app));

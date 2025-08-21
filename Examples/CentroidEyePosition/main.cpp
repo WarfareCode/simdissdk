@@ -351,7 +351,7 @@ simData::ObjectId createPlatform(simData::DataStore& dataStore, bool ship = fals
   simData::PlatformPrefs* prefs = dataStore.mutable_platformPrefs(id, &txn);
   prefs->set_dynamicscale(true);
   prefs->set_nodepthicons(false);
-  prefs->mutable_trackprefs()->set_trackdrawmode(simData::TrackPrefs_Mode_LINE);
+  prefs->mutable_trackprefs()->set_trackdrawmode(simData::TrackPrefs::Mode::LINE);
   prefs->mutable_trackprefs()->set_linewidth(2.0);
   prefs->mutable_commonprefs()->mutable_labelprefs()->set_draw(true);
   prefs->mutable_commonprefs()->mutable_labelprefs()->set_color(0xFFFFFFFF);
@@ -487,8 +487,6 @@ int main(int argc, char **argv)
   app.mainView->setFocalOffsets(270, -20, 650);
 
 #ifdef HAVE_IMGUI
-  // Pass in existing realize operation as parent op, parent op will be called first
-  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
   app.mainView->getEventHandlers().push_front(gui);
   gui->add(new ControlPanel(app));

@@ -1,5 +1,5 @@
-# MSVC 2022 support in 3.20
-cmake_minimum_required(VERSION 3.20)
+# MSVC 2022 support in 3.21
+cmake_minimum_required(VERSION 3.21)
 
 # Disable in-source builds and avoid writing to source directories directly
 set(CMAKE_DISABLE_SOURCE_CHANGES ON)
@@ -175,6 +175,7 @@ include(CreateInstallProperties)
 
 find_package(OpenGL QUIET)
 find_package(OpenSceneGraph COMPONENTS osgDB osgGA osgSim osgText osgUtil osgViewer QUIET)
+find_package(osgQOpenGL 4.0 QUIET)
 find_package(GDAL CONFIG)
 find_package(osgEarth)
 
@@ -197,7 +198,9 @@ if(MSVC AND TARGET Qt5::Core AND Qt5Core_VERSION VERSION_LESS 5.15.17)
     target_compile_definitions(Qt5::Core INTERFACE _SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
 endif()
 
-include(ImportOSGQt)
+if(ENABLE_DEPRECATED_SIMDISSDK_API)
+    include(ImportOSGQt)
+endif()
 
 # Find and include the OpenGL core header
 # By default search for the GLCORE header in the OSG include path.  Non-default locations for the header
@@ -238,6 +241,7 @@ if(INSTALL_THIRDPARTY_LIBRARIES)
     include(InstallData.3rd.MrSID)
     include(InstallData.3rd.OSG)
     include(InstallData.3rd.osgEarth)
+    include(InstallData.3rd.osgQOpenGL)
     include(InstallData.3rd.osgQt)
     include(InstallData.3rd.Qt5)
 endif()

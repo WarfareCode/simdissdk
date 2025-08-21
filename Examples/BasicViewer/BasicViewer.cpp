@@ -136,6 +136,8 @@ struct ControlPanel : public simExamples::SimExamplesGui
     addKeyFunc_(ImGuiKey_H, [this]()
       {
         int mask = 0;
+        if (insetViewHandler_.valid())
+          mask = insetViewHandler_->getFocusActions();
         bool hover = (mask & simVis::InsetViewEventHandler::ACTION_HOVER) != 0;
         if (hover)
         {
@@ -358,8 +360,6 @@ int main(int argc, char** argv)
   hud->addOverlayControl(createHelp());
 
 #else
-  // Pass in existing realize operation as parent op, parent op will be called first
-  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
   mainView->getEventHandlers().push_front(gui);
 

@@ -328,7 +328,7 @@ void testLobGroup_insert()
   {
     simData::LobGroupUpdate* u = ds->addLobGroupUpdate(lobId1, &t);
     u->set_time(0.0);
-    simData::LobGroupUpdatePoint *up = u->mutable_datapoints()->Add();
+    simData::LobGroupUpdatePoint* up = u->add_datapoints();
     up->set_time(0.0);
     up->set_azimuth(19.0);
     up->set_elevation(100.0);
@@ -340,7 +340,7 @@ void testLobGroup_insert()
   {
     simData::LobGroupUpdate* u = ds->addLobGroupUpdate(lobId1, &t);
     u->set_time(1.0);
-    simData::LobGroupUpdatePoint *up = u->mutable_datapoints()->Add();
+    simData::LobGroupUpdatePoint* up = u->add_datapoints();
     up->set_time(1.0);
     up->set_azimuth(11.0);
     up->set_elevation(100.0);
@@ -352,7 +352,7 @@ void testLobGroup_insert()
   {
     simData::LobGroupUpdate* u = ds->addLobGroupUpdate(lobId1, &t);
     u->set_time(1.0);
-    simData::LobGroupUpdatePoint *up2 = u->mutable_datapoints()->Add();
+    simData::LobGroupUpdatePoint* up2 = u->add_datapoints();
     up2->set_time(1.0);
     up2->set_azimuth(12.0);
     up2->set_elevation(100.0);
@@ -365,12 +365,12 @@ void testLobGroup_insert()
   {
     simData::LobGroupUpdate* u = ds->addLobGroupUpdate(lobId1, &t);
     u->set_time(2.0);
-    simData::LobGroupUpdatePoint *up = u->mutable_datapoints()->Add();
+    simData::LobGroupUpdatePoint* up = u->add_datapoints();
     up->set_time(2.0);
     up->set_azimuth(15.0);
     up->set_elevation(150.0);
     up->set_range(3000.0);
-    simData::LobGroupUpdatePoint *up2 = u->mutable_datapoints()->Add();
+    simData::LobGroupUpdatePoint* up2 = u->add_datapoints();
     up2->set_time(2.0);
     up2->set_azimuth(16.0);
     up2->set_elevation(150.0);
@@ -382,17 +382,17 @@ void testLobGroup_insert()
   {
     simData::LobGroupUpdate* u = ds->addLobGroupUpdate(lobId1, &t);
     u->set_time(3.0);
-    simData::LobGroupUpdatePoint *up = u->mutable_datapoints()->Add();
+    simData::LobGroupUpdatePoint* up = u->add_datapoints();
     up->set_time(3.0);
     up->set_azimuth(24.0);
     up->set_elevation(170.0);
     up->set_range(4000.0);
-    simData::LobGroupUpdatePoint *up2 = u->mutable_datapoints()->Add();
+    simData::LobGroupUpdatePoint* up2 = u->add_datapoints();
     up2->set_time(4.0); // this time will be reset to 3.0 on insert
     up2->set_azimuth(35.0);
     up2->set_elevation(180.0);
     up2->set_range(4000.0);
-    simData::LobGroupUpdatePoint *up3 = u->mutable_datapoints()->Add();
+    simData::LobGroupUpdatePoint* up3 = u->add_datapoints();
     up3->set_time(3.0);
     up3->set_azimuth(25.0);
     up3->set_elevation(175.0);
@@ -421,17 +421,17 @@ void testLobGroup_insert()
 
   // verify data point values
   mdsAssertEquals(lobSliceCopy.updates[1].datapoints_size(), 2);
-  rv += SDK_ASSERT(lobSliceCopy.updates[1].datapoints(0).azimuth() == 12.0 ||
-    lobSliceCopy.updates[1].datapoints(0).azimuth() == 11.0);
-  mdsAssertEquals(lobSliceCopy.updates[1].datapoints(0).elevation(), 100.0);
-  mdsAssertEquals(lobSliceCopy.updates[1].datapoints(0).range(), 3000.0);
-  rv += SDK_ASSERT(lobSliceCopy.updates[1].datapoints(1).azimuth() == 11.0 ||
-    lobSliceCopy.updates[1].datapoints(1).azimuth() == 12.0);
-  rv += SDK_ASSERT(lobSliceCopy.updates[2].datapoints(0).azimuth() == 16.0 ||
-    lobSliceCopy.updates[2].datapoints(0).azimuth() == 15.0);
-  rv += SDK_ASSERT(lobSliceCopy.updates[2].datapoints(1).azimuth() == 16.0 ||
-    lobSliceCopy.updates[2].datapoints(1).azimuth() == 15.0);
-  mdsAssertEquals(lobSliceCopy.updates[2].datapoints(0).elevation(), 150.0);
+  rv += SDK_ASSERT(lobSliceCopy.updates[1].datapoints()[0].azimuth() == 12.0 ||
+    lobSliceCopy.updates[1].datapoints()[0].azimuth() == 11.0);
+  mdsAssertEquals(lobSliceCopy.updates[1].datapoints()[0].elevation(), 100.0);
+  mdsAssertEquals(lobSliceCopy.updates[1].datapoints()[0].range(), 3000.0);
+  rv += SDK_ASSERT(lobSliceCopy.updates[1].datapoints()[1].azimuth() == 11.0 ||
+    lobSliceCopy.updates[1].datapoints()[1].azimuth() == 12.0);
+  rv += SDK_ASSERT(lobSliceCopy.updates[2].datapoints()[0].azimuth() == 16.0 ||
+    lobSliceCopy.updates[2].datapoints()[0].azimuth() == 15.0);
+  rv += SDK_ASSERT(lobSliceCopy.updates[2].datapoints()[1].azimuth() == 16.0 ||
+    lobSliceCopy.updates[2].datapoints()[1].azimuth() == 15.0);
+  mdsAssertEquals(lobSliceCopy.updates[2].datapoints()[0].elevation(), 150.0);
 
   // update to first time
   ds->update(0.0);
@@ -443,12 +443,12 @@ void testLobGroup_insert()
   ds->update(1.0);
   const simData::LobGroupUpdate *c1 = lobPointSlice->current();
   mdsAssertEquals(c1->datapoints_size(), 3); // since only 1 second of data available, only 3 points from time 0.0 and 1.0
-  rv += SDK_ASSERT(c1->datapoints(1).azimuth() == 12.0 ||
-    c1->datapoints(1).azimuth() == 11.0);
-  rv += SDK_ASSERT(c1->datapoints(1).azimuth() == 11.0 ||
-    c1->datapoints(2).azimuth() == 12.0);
-  mdsAssertEquals(c1->datapoints(1).elevation(), 100.0);
-  mdsAssertEquals(c1->datapoints(1).range(), 3000.0);
+  rv += SDK_ASSERT(c1->datapoints()[1].azimuth() == 12.0 ||
+    c1->datapoints()[1].azimuth() == 11.0);
+  rv += SDK_ASSERT(c1->datapoints()[1].azimuth() == 11.0 ||
+    c1->datapoints()[2].azimuth() == 12.0);
+  mdsAssertEquals(c1->datapoints()[1].elevation(), 100.0);
+  mdsAssertEquals(c1->datapoints()[1].range(), 3000.0);
 
   // test prefs
   const simData::LobGroupCommand* com1 = cslice->current();
@@ -463,17 +463,17 @@ void testLobGroup_insert()
   ds->update(2.0);
   const simData::LobGroupUpdate *c2 = lobPointSlice->current();
   mdsAssertEquals(c2->datapoints_size(), 4); // only 2 seconds of data, and all point are within limits, so 4 points
-  rv += SDK_ASSERT(c2->datapoints(0).azimuth() == 11.0 ||
-    c2->datapoints(0).azimuth() == 12.0);
-  mdsAssertEquals(c2->datapoints(0).elevation(), 100.0);
-  mdsAssertEquals(c2->datapoints(0).range(), 3000.0);
-  rv += SDK_ASSERT(c2->datapoints(1).azimuth() == 11.0 ||
-    c2->datapoints(1).azimuth() == 12.0);
-  rv += SDK_ASSERT(c2->datapoints(2).azimuth() == 15.0 ||
-    c2->datapoints(2).azimuth() == 16.0);
-  rv += SDK_ASSERT(c2->datapoints(3).azimuth() == 15.0 ||
-    c2->datapoints(3).azimuth() == 16.0);
-  mdsAssertEquals(c2->datapoints(2).elevation(), 150.0);
+  rv += SDK_ASSERT(c2->datapoints()[0].azimuth() == 11.0 ||
+    c2->datapoints()[0].azimuth() == 12.0);
+  mdsAssertEquals(c2->datapoints()[0].elevation(), 100.0);
+  mdsAssertEquals(c2->datapoints()[0].range(), 3000.0);
+  rv += SDK_ASSERT(c2->datapoints()[1].azimuth() == 11.0 ||
+    c2->datapoints()[1].azimuth() == 12.0);
+  rv += SDK_ASSERT(c2->datapoints()[2].azimuth() == 15.0 ||
+    c2->datapoints()[2].azimuth() == 16.0);
+  rv += SDK_ASSERT(c2->datapoints()[3].azimuth() == 15.0 ||
+    c2->datapoints()[3].azimuth() == 16.0);
+  mdsAssertEquals(c2->datapoints()[2].elevation(), 150.0);
 
   // test prefs
   const simData::LobGroupCommand* com2 = cslice->current();
@@ -498,25 +498,25 @@ void testLobGroup_insert()
   ds->update(2.0);
   const simData::LobGroupUpdate *c3 = lobPointSlice->current();
   mdsAssertEquals(c3->datapoints_size(), 2); // only 1 data point time set, so should only have the 2 points at time 2.0
-  rv += SDK_ASSERT(c3->datapoints(0).azimuth() == 15.0 ||
-    c3->datapoints(0).azimuth() == 16.0);
+  rv += SDK_ASSERT(c3->datapoints()[0].azimuth() == 15.0 ||
+    c3->datapoints()[0].azimuth() == 16.0);
 
   // update time
   ds->update(3.0);
   const simData::LobGroupUpdate *c4 = lobPointSlice->current();
   mdsAssertEquals(c4->datapoints_size(), 3); // only 1 data point time set, so should only have the 3 points at time 3.0
-  mdsAssertEquals(c4->datapoints(0).time(), 3.0);
-  mdsAssertEquals(c4->datapoints(1).time(), 3.0); // note that point added with time 4.0 should now be 3.0
-  mdsAssertEquals(c4->datapoints(2).time(), 3.0);
-  rv += SDK_ASSERT(c4->datapoints(0).azimuth() == 24.0 ||
-   c4->datapoints(0).azimuth() == 25.0 ||
-   c4->datapoints(0).azimuth() == 35.0);
-  rv += SDK_ASSERT(c4->datapoints(1).azimuth() == 24.0 ||
-   c4->datapoints(1).azimuth() == 25.0 ||
-   c4->datapoints(1).azimuth() == 35.0);
-  rv += SDK_ASSERT(c4->datapoints(0).elevation() == 170.0 ||
-    c4->datapoints(0).elevation() == 175.0 ||
-    c4->datapoints(0).elevation() == 180.0);
+  mdsAssertEquals(c4->datapoints()[0].time(), 3.0);
+  mdsAssertEquals(c4->datapoints()[1].time(), 3.0); // note that point added with time 4.0 should now be 3.0
+  mdsAssertEquals(c4->datapoints()[2].time(), 3.0);
+  rv += SDK_ASSERT(c4->datapoints()[0].azimuth() == 24.0 ||
+   c4->datapoints()[0].azimuth() == 25.0 ||
+   c4->datapoints()[0].azimuth() == 35.0);
+  rv += SDK_ASSERT(c4->datapoints()[1].azimuth() == 24.0 ||
+   c4->datapoints()[1].azimuth() == 25.0 ||
+   c4->datapoints()[1].azimuth() == 35.0);
+  rv += SDK_ASSERT(c4->datapoints()[0].elevation() == 170.0 ||
+    c4->datapoints()[0].elevation() == 175.0 ||
+    c4->datapoints()[0].elevation() == 180.0);
 
   // now setting max data points to 3, but max data seconds is 2
   {
@@ -541,18 +541,18 @@ void testLobGroup_insert()
   const simData::LobGroupUpdate *c5 = lobPointSlice->current();
   mdsAssertEquals(c5->datapoints_size(), 5); //  should have data from [1.0+epsilon, 3.0+epsilon]
   // data should be time ordered
-  mdsAssertEquals(c5->datapoints(0).time(), 2.0);
-  mdsAssertEquals(c5->datapoints(1).time(), 2.0);
-  mdsAssertEquals(c5->datapoints(2).time(), 3.0);
-  mdsAssertEquals(c5->datapoints(3).time(), 3.0);
-  mdsAssertEquals(c5->datapoints(4).time(), 3.0);
-  rv += SDK_ASSERT(c5->datapoints(0).azimuth() == 15.0 ||
-    c5->datapoints(0).azimuth() == 16.0);
-  rv += SDK_ASSERT(c5->datapoints(1).azimuth() == 15.0 ||
-    c5->datapoints(1).azimuth() == 16.0);
-  rv += SDK_ASSERT(c5->datapoints(2).azimuth() == 24.0 ||
-   c5->datapoints(2).azimuth() == 25.0 ||
-   c5->datapoints(2).azimuth() == 35.0);
+  mdsAssertEquals(c5->datapoints()[0].time(), 2.0);
+  mdsAssertEquals(c5->datapoints()[1].time(), 2.0);
+  mdsAssertEquals(c5->datapoints()[2].time(), 3.0);
+  mdsAssertEquals(c5->datapoints()[3].time(), 3.0);
+  mdsAssertEquals(c5->datapoints()[4].time(), 3.0);
+  rv += SDK_ASSERT(c5->datapoints()[0].azimuth() == 15.0 ||
+    c5->datapoints()[0].azimuth() == 16.0);
+  rv += SDK_ASSERT(c5->datapoints()[1].azimuth() == 15.0 ||
+    c5->datapoints()[1].azimuth() == 16.0);
+  rv += SDK_ASSERT(c5->datapoints()[2].azimuth() == 24.0 ||
+   c5->datapoints()[2].azimuth() == 25.0 ||
+   c5->datapoints()[2].azimuth() == 35.0);
 
   // test prefs
   const simData::LobGroupCommand* com3 = cslice->current();
@@ -577,21 +577,21 @@ void testLobGroup_insert()
   const simData::LobGroupUpdate *c6 = lobPointSlice->current();
   mdsAssertEquals(c6->datapoints_size(), 8); //  should have data from time 0.0, 1.0, 2.0, and 3.0
   // data should be time ordered
-  mdsAssertEquals(c6->datapoints(0).time(), 0.0);
-  mdsAssertEquals(c6->datapoints(1).time(), 1.0);
-  mdsAssertEquals(c6->datapoints(2).time(), 1.0);
-  mdsAssertEquals(c6->datapoints(3).time(), 2.0);
-  mdsAssertEquals(c6->datapoints(4).time(), 2.0);
-  mdsAssertEquals(c6->datapoints(5).time(), 3.0);
-  mdsAssertEquals(c6->datapoints(6).time(), 3.0);
-  mdsAssertEquals(c6->datapoints(7).time(), 3.0);
+  mdsAssertEquals(c6->datapoints()[0].time(), 0.0);
+  mdsAssertEquals(c6->datapoints()[1].time(), 1.0);
+  mdsAssertEquals(c6->datapoints()[2].time(), 1.0);
+  mdsAssertEquals(c6->datapoints()[3].time(), 2.0);
+  mdsAssertEquals(c6->datapoints()[4].time(), 2.0);
+  mdsAssertEquals(c6->datapoints()[5].time(), 3.0);
+  mdsAssertEquals(c6->datapoints()[6].time(), 3.0);
+  mdsAssertEquals(c6->datapoints()[7].time(), 3.0);
 
   // test iterator
   simData::LobGroupUpdateSlice::Iterator iter = lobPointSlice->lower_bound(2.0);
   rv += SDK_ASSERT(iter.hasNext());
   const simData::LobGroupUpdate* lobUpdate = iter.next();
-  rv += SDK_ASSERT(lobUpdate->datapoints(0).azimuth() == 15 ||
-                   lobUpdate->datapoints(1).azimuth() == 16);
+  rv += SDK_ASSERT(lobUpdate->datapoints()[0].azimuth() == 15 ||
+                   lobUpdate->datapoints()[1].azimuth() == 16);
 
   MemDsTestListener *testListen = new MemDsTestListener;
   simData::DataStore::ListenerPtr testListenShared(testListen);
@@ -610,12 +610,12 @@ void testLobGroup_insert()
 bool findOnce(const simData::GenericData *g1, const std::string& key, const std::string& value)
 {
   int occurances = 0;
-  for (int ii = 0; ii < g1->entry().size(); ii++)
+  for (int ii = 0; ii < g1->entry_size(); ii++)
   {
-    if (g1->entry().Get(ii).key() == key)
+    if (g1->entry(ii).key() == key)
     {
       occurances++;
-      if (g1->entry().Get(ii).value() != value)
+      if (g1->entry(ii).value() != value)
         return false;
     }
   }
@@ -627,15 +627,15 @@ bool findOnce(const simData::GenericData *g1, const std::string& key, const std:
 bool findMany(const simData::GenericData *g1, const std::string& key, const std::vector<std::string>& values)
 {
   size_t occurances = 0;
-  for (int ii = 0; ii < g1->entry().size(); ii++)
+  for (int ii = 0; ii < g1->entry_size(); ii++)
   {
-    if (g1->entry().Get(ii).key() == key)
+    if (g1->entry(ii).key() == key)
     {
       occurances++;
       bool found = false;
       for (size_t jj = 0; jj < values.size(); jj++)
       {
-        if (g1->entry().Get(ii).value() == values[jj])
+        if (g1->entry(ii).value() == values[jj])
         {
           found = true;
           break;
@@ -1027,15 +1027,15 @@ int testCategoryData_insert()
   rv += SDK_ASSERT(sc.updates.size() == 4 && sc.updates[0].entry_size() == 1);
 
   // verify data point values
-  rv += SDK_ASSERT(sc.updates[0].entry().Get(0).key() == "key1");
-  rv += SDK_ASSERT(sc.updates[0].entry().Get(0).value() == "value1");
-  rv += SDK_ASSERT(sc.updates[1].entry().Get(0).key() == "key2");
-  rv += SDK_ASSERT(sc.updates[1].entry().Get(0).value() == "value2");
+  rv += SDK_ASSERT(sc.updates[0].entry(0).key() == "key1");
+  rv += SDK_ASSERT(sc.updates[0].entry(0).value() == "value1");
+  rv += SDK_ASSERT(sc.updates[1].entry(0).key() == "key2");
+  rv += SDK_ASSERT(sc.updates[1].entry(0).value() == "value2");
 
-  rv += SDK_ASSERT(sc.updates[2].entry().Get(0).key() == "key3");
-  rv += SDK_ASSERT(sc.updates[2].entry().Get(0).value() == "value3");
-  rv += SDK_ASSERT(sc.updates[3].entry().Get(0).key() == "key4");
-  rv += SDK_ASSERT(sc.updates[3].entry().Get(0).value() == "value4");
+  rv += SDK_ASSERT(sc.updates[2].entry(0).key() == "key3");
+  rv += SDK_ASSERT(sc.updates[2].entry(0).value() == "value3");
+  rv += SDK_ASSERT(sc.updates[3].entry(0).key() == "key4");
+  rv += SDK_ASSERT(sc.updates[3].entry(0).value() == "value4");
 
   return rv;
 }
@@ -1792,46 +1792,46 @@ int testDataStoreHelperPlatformLifespan()
   auto& isFileModePlatformActive = simData::DataStoreHelpers::isFileModePlatformActive;
 
   // Static slice, LIFE_FIRST_LAST_POINT (always active)
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, staticSlice, 4.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, staticSlice, 5.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, staticSlice, 10.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, staticSlice, 15.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, staticSlice, 20.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, staticSlice, 4.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, staticSlice, 5.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, staticSlice, 10.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, staticSlice, 15.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, staticSlice, 20.0));
 
   // Static slice, LIFE_EXTEND_SINGLE_POINT (no change)
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, staticSlice, 4.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, staticSlice, 5.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, staticSlice, 10.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, staticSlice, 15.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, staticSlice, 20.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, staticSlice, 4.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, staticSlice, 5.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, staticSlice, 10.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, staticSlice, 15.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, staticSlice, 20.0));
 
   // Two points slice, LIFE_FIRST_LAST_POINT (active between 5-15 inclusive)
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, twoSlice, 4.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, twoSlice, 5.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, twoSlice, 10.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, twoSlice, 15.0));
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, twoSlice, 20.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, twoSlice, 4.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, twoSlice, 5.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, twoSlice, 10.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, twoSlice, 15.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, twoSlice, 20.0));
 
   // Two points slice, LIFE_EXTEND_SINGLE_POINT (no change)
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, twoSlice, 4.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, twoSlice, 5.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, twoSlice, 10.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, twoSlice, 15.0));
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, twoSlice, 20.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, twoSlice, 4.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, twoSlice, 5.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, twoSlice, 10.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, twoSlice, 15.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, twoSlice, 20.0));
 
   // Single point slice, LIFE_FIRST_LAST_POINT (active only at 5)
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, oneSlice, 4.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, oneSlice, 5.0));
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, oneSlice, 10.0));
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, oneSlice, 15.0));
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_FIRST_LAST_POINT, oneSlice, 20.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, oneSlice, 4.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, oneSlice, 5.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, oneSlice, 10.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, oneSlice, 15.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_FIRST_LAST_POINT, oneSlice, 20.0));
 
   // Single point slice, LIFE_EXTEND_SINGLE_POINT (active after 5)
-  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, oneSlice, 4.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, oneSlice, 5.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, oneSlice, 10.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, oneSlice, 15.0));
-  rv += SDK_ASSERT(isFileModePlatformActive(simData::LIFE_EXTEND_SINGLE_POINT, oneSlice, 20.0));
+  rv += SDK_ASSERT(!isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, oneSlice, 4.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, oneSlice, 5.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, oneSlice, 10.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, oneSlice, 15.0));
+  rv += SDK_ASSERT(isFileModePlatformActive(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT, oneSlice, 20.0));
 
   return rv;
 }
@@ -1843,7 +1843,7 @@ int testDataStorePlatformLifespan()
   int rv = 0;
 
   simData::PlatformPrefs prefs;
-  prefs.set_lifespanmode(simData::LIFE_FIRST_LAST_POINT);
+  prefs.set_lifespanmode(simData::LifespanMode::LIFE_FIRST_LAST_POINT);
 
   simUtil::DataStoreTestHelper testHelper;
   simData::DataStore& ds = *testHelper.dataStore();
@@ -1884,7 +1884,7 @@ int testDataStorePlatformLifespan()
   rv += SDK_ASSERT(ds.platformUpdateSlice(onePlatform)->current() != nullptr);
 
   // Swap to other lifespan, extend single point
-  prefs.set_lifespanmode(simData::LIFE_EXTEND_SINGLE_POINT);
+  prefs.set_lifespanmode(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT);
   testHelper.updatePlatformPrefs(prefs, staticPlat);
   testHelper.updatePlatformPrefs(prefs, twoPlatform);
   testHelper.updatePlatformPrefs(prefs, onePlatform);
@@ -1913,7 +1913,7 @@ int testDataStorePlatformLifespan()
 
   // Turn off live mode, swap to original legacy first/last mode
   ds.setDataLimiting(false);
-  prefs.set_lifespanmode(simData::LIFE_FIRST_LAST_POINT);
+  prefs.set_lifespanmode(simData::LifespanMode::LIFE_FIRST_LAST_POINT);
   testHelper.updatePlatformPrefs(prefs, staticPlat);
   testHelper.updatePlatformPrefs(prefs, twoPlatform);
   testHelper.updatePlatformPrefs(prefs, onePlatform);
@@ -1940,7 +1940,7 @@ int testDataStorePlatformLifespan()
   rv += SDK_ASSERT(ds.platformUpdateSlice(onePlatform)->current() == nullptr);
 
   // Swap to other lifespan, extend single point
-  prefs.set_lifespanmode(simData::LIFE_EXTEND_SINGLE_POINT);
+  prefs.set_lifespanmode(simData::LifespanMode::LIFE_EXTEND_SINGLE_POINT);
   testHelper.updatePlatformPrefs(prefs, staticPlat);
   testHelper.updatePlatformPrefs(prefs, twoPlatform);
   testHelper.updatePlatformPrefs(prefs, onePlatform);
@@ -1967,7 +1967,7 @@ int testDataStorePlatformLifespan()
   rv += SDK_ASSERT(ds.platformUpdateSlice(onePlatform)->current() != nullptr);
 
   // Changing the preference back works, but doesn't change the result until next update of DS
-  prefs.set_lifespanmode(simData::LIFE_FIRST_LAST_POINT);
+  prefs.set_lifespanmode(simData::LifespanMode::LIFE_FIRST_LAST_POINT);
   testHelper.updatePlatformPrefs(prefs, onePlatform);
   // Same result as above
   rv += SDK_ASSERT(ds.platformUpdateSlice(onePlatform)->current() != nullptr);

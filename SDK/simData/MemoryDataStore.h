@@ -519,6 +519,7 @@ private:
   {
   public:
     ScenarioSettingsTransactionImpl(ScenarioProperties *settings, MemoryDataStore *store, ScenarioListenerList *observers);
+    SDK_DISABLE_COPY_MOVE(ScenarioSettingsTransactionImpl);
 
     /// Retrieve the settings object to be modified during the transaction
     ScenarioProperties *settings() { return modifiedSettings_; }
@@ -535,12 +536,12 @@ private:
     virtual ~ScenarioSettingsTransactionImpl();
 
   private:
-    bool committed_;                              // The changes have been committed to the data structure
-    bool notified_;                               // Observers have been notified of the entry's modification
-    ScenarioProperties *currentSettings_;         // Pointer to current settings object stored by DataStore; Will not be modified until the transaction is committed
-    ScenarioProperties *modifiedSettings_;        // The mutable settings object provided to the transaction initiator for modification
-    MemoryDataStore *store_;
-    ScenarioListenerList *observers_;
+    bool committed_ = false;                                // The changes have been committed to the data structure
+    bool notified_ = false;                                 // Observers have been notified of the entry's modification
+    ScenarioProperties *currentSettings_ = nullptr;         // Pointer to current settings object stored by DataStore; Will not be modified until the transaction is committed
+    ScenarioProperties *modifiedSettings_ = nullptr;        // The mutable settings object provided to the transaction initiator for modification
+    MemoryDataStore *store_ = nullptr;
+    ScenarioListenerList *observers_ = nullptr;
   };
 
   /// Perform transactions to add new object entry to the MemoryDataStore
@@ -657,6 +658,9 @@ private:
   };
 
 private:
+  /// Look for transitions from Live mode to File mode to force an update to hide expired platforms
+  class ClockModeMonitor;
+
   /// Invokes the appropriate callbacks for the given entities
   void invokePreferenceChangeCallback_(const std::map<simData::ObjectId, CommitResult>& results, ListenerList& localCopy);
 
@@ -668,7 +672,7 @@ private:
   /// Updates all the beams
   void updateBeams_(double time);
   /// Gets the beam that corresponds to specified gate
-  BeamEntry* getBeamForGate_(google::protobuf::uint64 gateID);
+  BeamEntry* getBeamForGate_(uint64_t gateID);
   /// Updates a target gate
   void updateTargetGate_(GateEntry* gate, double time);
 
@@ -735,6 +739,8 @@ private:
   class OriginalIdCache;
   /// Improve performance by caching the slice state
   class SliceCacheObserver;
+  /// Add refelection to newly added entities
+  class ReflectionObserver;
 
   /// Key by host id and child type
   struct IdAndTypeKey {
@@ -796,6 +802,9 @@ private:
 
   /// Links together the TableManager::NewRowDataListener to our newUpdatesListener_
   std::shared_ptr<NewRowDataToNewUpdatesAdapter> newRowDataListener_;
+
+  /// Look for transitions from Live mode to File mode to force an update to hide expired platforms
+  std::shared_ptr<ClockModeMonitor> clockModeMonitor_;
 
 }; // End of class MemoryDataStore
 

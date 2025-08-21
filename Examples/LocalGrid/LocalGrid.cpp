@@ -179,7 +179,7 @@ struct ControlPanel : public simExamples::SimExamplesGui
       if (currentTypeIdx + 1 != static_cast<int>(type_))
       {
         needUpdate = true;
-        type_ = static_cast<simData::LocalGridPrefs_Type>(currentTypeIdx + 1);
+        type_ = static_cast<simData::LocalGridPrefs::Type>(currentTypeIdx + 1);
       }
 
       int prec = prec_;
@@ -210,7 +210,7 @@ private:
   simData::DataStore& ds_;
   simData::ObjectId id_;
   bool drawGrid_ = true;
-  simData::LocalGridPrefs::Type type_ = simData::LocalGridPrefs::POLAR;
+  simData::LocalGridPrefs::Type type_ = simData::LocalGridPrefs::Type::POLAR;
   int prec_ = 1;
 };
 
@@ -395,8 +395,6 @@ int main(int argc, char** argv)
   simData::ObjectId platformId = createPlatform(dataStore);
 
 #ifdef HAVE_IMGUI
-  // Pass in existing realize operation as parent op, parent op will be called first
-  viewer->getViewer()->setRealizeOperation(new GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
   viewer->getMainView()->getEventHandlers().push_front(gui);
   gui->add(new ControlPanel(dataStore, platformId));

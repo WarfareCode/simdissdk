@@ -42,6 +42,7 @@
 #include "osgEarth/Style"
 #include "osgEarth/TextSymbol"
 #include "osgEarth/Units"
+#include "osgEarth/Version"
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/CoordinateConverter.h"
@@ -536,14 +537,14 @@ void GogNodeInterface::applyToStyle(const ParsedShape& parent, const UnitsState&
     if (parent.hasValue(GOG_TEXTOUTLINECOLOR))
       outlineColor = osgEarth::Color(parent.stringValue(GOG_TEXTOUTLINECOLOR));
 
-    simData::TextOutline outlineThickness = simData::TO_THIN;
+    simData::TextOutline outlineThickness = simData::TextOutline::TO_THIN;
     if (parent.hasValue(GOG_TEXTOUTLINETHICKNESS))
     {
       std::string thicknessStr = parent.stringValue(GOG_TEXTOUTLINETHICKNESS);
       if (simCore::caseCompare(thicknessStr, "thick") == 0)
-        outlineThickness = simData::TO_THICK;
+        outlineThickness = simData::TextOutline::TO_THICK;
       else if (simCore::caseCompare(thicknessStr, "none") == 0)
-        outlineThickness = simData::TO_NONE;
+        outlineThickness = simData::TextOutline::TO_NONE;
       else if (simCore::caseCompare(thicknessStr, "thin") != 0)
         SIM_WARN << "Found invalid text outline thickness value \"" << thicknessStr << "\" while parsing GOG\n";
   }
@@ -775,13 +776,13 @@ void GogNodeInterface::serializeToStream(std::ostream& gogOutputStream)
       std::string outlineThicknessStr;
       switch (outlineThickness)
       {
-      case simData::TO_THICK:
+      case simData::TextOutline::TO_THICK:
         outlineThicknessStr = "thick";
         break;
-      case simData::TO_THIN:
+      case simData::TextOutline::TO_THIN:
         outlineThicknessStr = "thin";
         break;
-      case simData::TO_NONE:
+      case simData::TextOutline::TO_NONE:
         outlineThicknessStr = "none";
         break;
       }
@@ -939,9 +940,14 @@ int GogNodeInterface::getLineState(bool& outlineState, osg::Vec4f& color, Utils:
     return 0;
 
   const osgEarth::LineSymbol* linePtr = style_.getSymbol<osgEarth::LineSymbol>();
+#if OSGEARTH_SOVERSION < 169
   lineWidth = static_cast<int>(*(linePtr->stroke()->width()));
-  // now figure out line style based on the stipple value
   unsigned short stipple = *(linePtr->stroke()->stipple());
+#else
+  lineWidth = static_cast<int>(linePtr->stroke()->width()->literal().getValue());
+  unsigned short stipple = *(linePtr->stroke()->stipplePattern());
+#endif
+  // now figure out line style based on the stipple value
   lineStyle = Utils::getLineStyleFromStipple(stipple);
   return 0;
 }
@@ -1319,7 +1325,11 @@ void GogNodeInterface::setLineStyle(Utils::LineStyle style)
   // use some default values to represent various draw styles
   unsigned short lineStyle = Utils::getStippleFromLineStyle(style);
   osgEarth::LineSymbol* lineSymbol = style_.getOrCreate<osgEarth::LineSymbol>();
+#if OSGEARTH_SOVERSION < 169
   lineSymbol->stroke()->stipple() = lineStyle;
+#else
+  lineSymbol->stroke()->stipplePattern() = lineStyle;
+#endif
   setStyle_(style_);
 
   simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
@@ -1336,7 +1346,11 @@ void GogNodeInterface::setLineWidth(int lineWidth)
   metaData_.setExplicitly(GOG_LINE_WIDTH_SET);
 
   osgEarth::LineSymbol* lineSymbol = style_.getOrCreate<osgEarth::LineSymbol>();
+#if OSGEARTH_SOVERSION < 169
   lineSymbol->stroke()->width() = static_cast<float>(lineWidth);
+#else
+  lineSymbol->stroke()->width() = osgEarth::Distance(static_cast<float>(lineWidth), osgEarth::Units::PIXELS);
+#endif
   setStyle_(style_);
 
   simCore::GOG::FillableShape* fillable = dynamic_cast<simCore::GOG::FillableShape*>(shape_.get());
@@ -2009,7 +2023,11 @@ void FeatureNodeInterface::setStyle_(const osgEarth::Style& style)
     style_ = style;
   if (!deferringStyleUpdates_() && featureNode_.valid())
   {
+#if OSGEARTH_SOVERSION >= 175
+    featureNode_->getFeature()->setStyle(style_);
+#else
     featureNode_->getFeature()->style() = style_;
+#endif
     featureNode_->setStyle(style_);
   }
 }
@@ -2121,7 +2139,7 @@ void LocalGeometryNodeInterface::applyOrientationOffsets_()
 LabelNodeInterface::LabelNodeInterface(osgEarth::GeoPositionNode* labelNode, const simVis::GOG::GogMetaData& metaData)
   : GogNodeInterface(labelNode, metaData),
     labelNode_(labelNode),
-    outlineThickness_(simData::TO_THIN)
+    outlineThickness_(simData::TextOutline::TO_THIN)
 {
   if (labelNode_.valid())
   {
@@ -2244,7 +2262,7 @@ void LabelNodeInterface::setTextOutline(const osg::Vec4f& outlineColor, simData:
 
   ts->haloOffset() = simVis::outlineThickness(outlineThickness);
   // Backdrop type must be set to none when outline thickness is none to avoid artifacts
-  ts->haloBackdropType() = (outlineThickness == simData::TO_NONE ? osgText::Text::NONE : osgText::Text::OUTLINE);
+  ts->haloBackdropType() = (outlineThickness == simData::TextOutline::TO_NONE ? osgText::Text::NONE : osgText::Text::OUTLINE);
 
   setStyle_(style_);
 
@@ -2851,7 +2869,11 @@ void LatLonAltBoxInterface::setStyle_(const osgEarth::Style& style)
     style_ = style;
   if (!deferringStyleUpdates_() && bottomNode_.valid())
   {
+#if OSGEARTH_SOVERSION >= 175
+    bottomNode_->getFeature()->setStyle(style_);
+#else
     bottomNode_->getFeature()->style() = style_;
+#endif
     bottomNode_->setStyle(style_);
   }
 }

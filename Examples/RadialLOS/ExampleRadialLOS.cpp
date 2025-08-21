@@ -43,6 +43,7 @@
 #include "osgEarth/Feature"
 #include "osgEarth/FeatureNode"
 #include "osgEarth/LocalGeometryNode"
+#include "osgEarth/Version"
 
 #ifdef HAVE_IMGUI
 #include "SimExamplesGui.h"
@@ -158,7 +159,12 @@ namespace
         {
           p2pFeature->setNodeMask(~0);
           p2pFeature->getFeature()->getGeometry()->back() = p.vec3d();
+#if OSGEARTH_SOVERSION >= 175
+          auto newStyle = *p2pFeature->getFeature()->style();
+          auto line = newStyle.getOrCreate<osgEarth::LineSymbol>();
+#else
           osg::ref_ptr<osgEarth::LineSymbol> line = p2pFeature->getFeature()->style()->getOrCreate<osgEarth::LineSymbol>();
+#endif
 
           if (visible)
           {
@@ -178,6 +184,10 @@ namespace
 #endif
             line->stroke()->color() = simVis::Color::Red;
           }
+
+#if OSGEARTH_SOVERSION >= 175
+          p2pFeature->getFeature()->setStyle(newStyle);
+#endif
 
           p2pFeature->dirty();
         }
@@ -354,6 +364,7 @@ private:
   }
 #endif
 
+#if OSGEARTH_SOVERSION < 173
   /**
    * Adapter to fire off a point-to-point LOS test
    */
@@ -370,7 +381,7 @@ private:
       }
     }
   };
-
+#endif
 
   /**
    * Creates the crosshairs that you can position to calculate a line of sight
@@ -396,7 +407,11 @@ private:
     osgEarth::Style style;
     osg::ref_ptr<osgEarth::LineSymbol> line = style.getOrCreate<osgEarth::LineSymbol>();
     line->stroke()->color() = simVis::Color::Yellow;
+#if OSGEARTH_SOVERSION < 169
     line->stroke()->width() = 5.0f;
+#else
+    line->stroke()->width() = osgEarth::Distance(5.0f, osgEarth::Units::PIXELS);
+#endif
     osg::ref_ptr<osgEarth::AltitudeSymbol> alt = style.getOrCreate<osgEarth::AltitudeSymbol>();
     alt->clamping() = osgEarth::AltitudeSymbol::CLAMP_TO_TERRAIN;
     alt->technique() = osgEarth::AltitudeSymbol::TECHNIQUE_SCENE;
@@ -421,7 +436,14 @@ private:
     editorGroup->addChild(node.get());
     editorGroup->addChild(app.p2pFeature.get());
 
+#if OSGEARTH_SOVERSION < 173
     dragger->addPositionChangedCallback(new RunPointToPointLOSCallback(app));
+#else
+    dragger->onPositionChanged([&app](const auto* sender, const auto& geoPoint) {
+      if (sender && sender->getDragging() == false)
+        app.runPointToPointLOS(geoPoint);
+      });
+#endif
     return editorGroup;
   }
 }
@@ -473,8 +495,6 @@ int main(int argc, char **argv)
     osgEarth::Viewpoint("Start", RLOS_LON, RLOS_LAT, RLOS_ALT, 0.0, -45.0, INIT_RANGE_MAX*2000.0));
 
 #ifdef HAVE_IMGUI
-  // Pass in existing realize operation as parent op, parent op will be called first
-  viewer->getViewer()->setRealizeOperation(new ::GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
   ::GUI::OsgImGuiHandler* gui = new ::GUI::OsgImGuiHandler();
   viewer->getMainView()->getEventHandlers().push_front(gui);
   gui->add(new ControlPanel(app));

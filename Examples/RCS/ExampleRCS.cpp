@@ -69,7 +69,7 @@ struct AppData
 #ifdef HAVE_IMGUI
   bool draw2D = true;
   bool draw3D = true;
-  simData::Polarity polarity = simData::POL_UNKNOWN;
+  simData::Polarity polarity = simData::Polarity::POL_UNKNOWN;
   float freq = 7000.f;
   float elev = 45.f;
   float detail = 5.;
@@ -329,8 +329,6 @@ int main(int argc, char **argv)
   AppData app;
 
 #ifdef HAVE_IMGUI
-  // Pass in existing realize operation as parent op, parent op will be called first
-  viewer->getViewer()->setRealizeOperation(new ::GUI::OsgImGuiHandler::RealizeOperation(viewer->getViewer()->getRealizeOperation()));
   ::GUI::OsgImGuiHandler* gui = new ::GUI::OsgImGuiHandler();
   viewer->getMainView()->getEventHandlers().push_front(gui);
   gui->add(new ControlPanel(app));

@@ -591,8 +591,11 @@ SettingsModel::~SettingsModel()
 
 void SettingsModel::init_()
 {
+  qRegisterMetaType<simQt::Settings::MetaData>("simQt::Settings::MetaData");
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   // Register operators to avoid "Unable to load type" and "Unknown user type"
   qRegisterMetaTypeStreamOperators<simQt::Settings::MetaData>("simQt::Settings::MetaData");
+#endif
 
   // Note that QFileIconProvider requires QApplication and will crash with QCoreApplication
   bool hasGuiApp = (qobject_cast<QApplication*>(QCoreApplication::instance()) != nullptr);

@@ -46,6 +46,7 @@
 #include <QLayout>
 #include <QMainWindow>
 #include <QResizeEvent>
+#include <QStyleHints>
 #include <QTimer>
 #include <QToolBar>
 #include <QWindow>
@@ -82,7 +83,7 @@ MyMainWindow::MyMainWindow(int framerate)
   // set a blank central widget
   QWidget* center = new QWidget(this);
   center->setLayout(new QHBoxLayout());
-  center->layout()->setMargin(0);
+  center->layout()->setContentsMargins(0, 0, 0, 0);
   setCentralWidget(center);
 
   // we need a map.
@@ -130,7 +131,7 @@ void MyMainWindow::createViewDialog_()
   dialog->setWindowFlag(Qt::WindowContextHelpButtonHint, false);
   dialog->setWindowTitle(viewName);
   dialog->setLayout(new QHBoxLayout());
-  dialog->layout()->setMargin(0);
+  dialog->layout()->setContentsMargins(0, 0, 0, 0);
   dialog->layout()->addWidget(newWidget_(viewName));
   dialog->resize(100, 100);
   dialog->show();
@@ -215,6 +216,11 @@ int main(int argc, char** argv)
   // OK, time to set up the Qt Application and windows.
   qInstallMessageHandler(warningMessageFilter);
   QApplication qapp(argc, argv);
+  
+  // Force light mode for now until we fully support dark mode
+#if QT_VERSION >= QT_VERSION_CHECK(6, 8, 0)
+  qapp.styleHints()->setColorScheme(Qt::ColorScheme::Light);
+#endif
 
   // Our custom main window contains a ViewManager.
   MyMainWindow win(framerate);

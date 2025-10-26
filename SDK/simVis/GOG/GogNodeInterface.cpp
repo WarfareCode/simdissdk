@@ -1435,7 +1435,7 @@ void GogNodeInterface::setGeoPositionAltitude_(osgEarth::GeoPositionNode& node, 
 {
   bool extrude = false;
   osgEarth::AltitudeMode mode = osgEarth::ALTMODE_ABSOLUTE;
-  double altitude = altitude_ + altOffset_ + altitudeAdjustment;
+  double altitude = altitude_ + altOffset_;
 
   switch (altMode_)
   {
@@ -1443,6 +1443,7 @@ void GogNodeInterface::setGeoPositionAltitude_(osgEarth::GeoPositionNode& node, 
     break;
   case ALTITUDE_GROUND_RELATIVE:
     mode = osgEarth::ALTMODE_RELATIVE;
+    altitude += altitudeAdjustment;
     break;
   case ALTITUDE_GROUND_CLAMPED:
     mode = osgEarth::ALTMODE_RELATIVE;
@@ -1450,6 +1451,7 @@ void GogNodeInterface::setGeoPositionAltitude_(osgEarth::GeoPositionNode& node, 
     break;
   case ALTITUDE_EXTRUDE:
     mode = osgEarth::ALTMODE_RELATIVE;
+    altitude += altitudeAdjustment;
     extrude = true;
     break;
   }
@@ -2435,7 +2437,7 @@ void CylinderNodeInterface::setStyle_(const osgEarth::Style& style)
 
 void CylinderNodeInterface::applyOrientationOffsets_()
 {
-  if (!shapeObject() || !shapeObject()->isRelative())
+  if (!shapeObject() || !shapeObject()->canRotate())
     return;
   applyOrientationOffsetsToNode_(*shapeObject(), topCapNode_.get());
   applyOrientationOffsetsToNode_(*shapeObject(), bottomCapNode_.get());
@@ -2537,7 +2539,7 @@ void ArcNodeInterface::setStyle_(const osgEarth::Style& style)
 
 void ArcNodeInterface::applyOrientationOffsets_()
 {
-  if (!shapeObject() || !shapeObject()->isRelative())
+  if (!shapeObject() || !shapeObject()->canRotate())
     return;
   applyOrientationOffsetsToNode_(*shapeObject(), shapeNode_.get());
   applyOrientationOffsetsToNode_(*shapeObject(), fillNode_.get());

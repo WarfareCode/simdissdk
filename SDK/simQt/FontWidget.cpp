@@ -44,13 +44,11 @@ FontWidget::FontWidget(QWidget* parent)
     ui_(nullptr),
     useFriendlyFontName_(true)
 {
-
   ui_ = new Ui_FontWidget();
   ui_->setupUi(this);
-  connect(ui_->fontNameComboBox, SIGNAL(currentIndexChanged(QString)),
-    this, SLOT(fontNameChanged_(QString)));
-  connect(ui_->fontSizeSpinBox, SIGNAL(valueChanged(int)), this, SIGNAL(fontSizeChanged(int)));
-  connect(ui_->fontColorWidget, SIGNAL(colorChanged(QColor)), this, SIGNAL(fontColorChanged(QColor)));
+  connect(ui_->fontNameComboBox, &QComboBox::currentTextChanged, this, &FontWidget::fontNameChanged_);
+  connect(ui_->fontSizeSpinBox, qOverload<int>(&QSpinBox::valueChanged), this, &FontWidget::fontSizeChanged);
+  connect(ui_->fontColorWidget, &simQt::ColorWidget::colorChanged, this, & FontWidget::fontColorChanged);
 
   // set tool tips
   ui_->fontNameComboBox->setToolTip(simQt::formatTooltip(tr("Fonts"), tr("Provides a list of available system fonts.")));
@@ -118,10 +116,18 @@ void FontWidget::setFontDir(const QString& fontDir)
   // On some Windows systems, specific WinAPI calls can fail when trying to
   // use SIMDIS fonts. Test to make sure we are able to use SIMDIS fonts. SDK-119
   const QString& absPath = fonts.front().absoluteFilePath();
+
+#if QT_VERSION_MAJOR == 6
+  if (AddFontResourceEx(absPath.toStdWString().c_str(), FR_PRIVATE, 0) == 0)
+    useFriendlyFontName_ = false;
+  // Make sure to remove added font resource
+  RemoveFontResourceEx(absPath.toStdWString().c_str(), FR_PRIVATE, 0);
+#else
   if (AddFontResourceEx(absPath.toStdString().c_str(), FR_PRIVATE, 0) == 0)
     useFriendlyFontName_ = false;
   // Make sure to remove added font resource
   RemoveFontResourceEx(absPath.toStdString().c_str(), FR_PRIVATE, 0);
+#endif
 #endif
 
   for (auto it = fonts.begin(); it != fonts.end(); ++it)

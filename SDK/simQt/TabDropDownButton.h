@@ -20,21 +20,45 @@
  * disclose, or release this software.
  *
  */
-// Include guard is intentionally omitted
-@PROTOBUF_WRAPPER_PREFACE@
+#ifndef SIMQT_TABDROPDOWNBUTTON_H
+#define SIMQT_TABDROPDOWNBUTTON_H
 
-#ifdef _MSC_VER // [
-#pragma warning( push )
-// Disable C4244: "conversion from __int64 to int, possible loss of data"
-// Disable C4251: "identifier' : class 'type' needs to have dll-interface to be used by clients of class 'type2'"
-// Disable C4267: "conversion from size_t to int, possible loss of data"
-// Disable C4275: non-DLL-interface classkey 'identifier' used as base for DLL-interface classkey 'identifier'
-#pragma warning( disable : 4244 4251 4267 4275 )
-#endif // _MSC_VER ]
+#include <QPointer>
+#include <QToolButton>
+#include "simCore/Common/Export.h"
 
-#include "@_FILE_PREFIX@.pb.h"
+class QMenu;
+class QTabWidget;
 
-#ifdef _MSC_VER // [
-#pragma warning( pop )
-#endif // _MSC_VER ]
+namespace simQt {
 
+/**
+ * Creates a QToolButton with a drop down menu to set the current index on a QTabWidget.
+ * Installs itself as part of construction, and memory is managed by Qt parentage. Example usage:
+ *
+ *   QTabWidget* tabWidget = new QTabWidget();
+ *   new simQt::TabDropDownButton(tabWidget);
+ */
+class SDKQT_EXPORT TabDropDownButton : public QToolButton
+{
+  Q_OBJECT;
+
+public:
+  explicit TabDropDownButton(QTabWidget* parent = nullptr);
+  virtual ~TabDropDownButton();
+
+private Q_SLOTS:
+  /**
+   * Update the menu to the current tabs in tab widget.
+   * Triggered when the menu is about to be shown.
+   */
+  void updateMenu_();
+
+private:
+  QPointer<QTabWidget> tabWidget_;
+  QPointer<QMenu> menu_;
+};
+
+}
+
+#endif /* SIMQT_TABDROPDOWNBUTTON_H */

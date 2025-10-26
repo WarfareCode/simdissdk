@@ -161,19 +161,31 @@ std::unique_ptr<QEvent> cloneDragDropEvent_(const QEvent* evt)
   case QEvent::DragEnter:
   {
     const QDragEnterEvent* dragEnterEvent = static_cast<const QDragEnterEvent*>(evt);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     return std::make_unique<QDragEnterEvent>(dragEnterEvent->pos(), dragEnterEvent->possibleActions(), dragEnterEvent->mimeData(), dragEnterEvent->mouseButtons(), dragEnterEvent->keyboardModifiers());
+#else
+    return std::make_unique<QDragEnterEvent>(dragEnterEvent->position().toPoint(), dragEnterEvent->possibleActions(), dragEnterEvent->mimeData(), dragEnterEvent->buttons(), dragEnterEvent->modifiers());
+#endif
   }
   case QEvent::DragLeave:
     return std::make_unique<QDragLeaveEvent>();
   case QEvent::DragMove:
   {
     const QDragMoveEvent* dragMoveEvent = static_cast<const QDragMoveEvent*>(evt);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     return std::make_unique<QDragMoveEvent>(dragMoveEvent->pos(), dragMoveEvent->possibleActions(), dragMoveEvent->mimeData(), dragMoveEvent->mouseButtons(), dragMoveEvent->keyboardModifiers());
+#else
+    return std::make_unique<QDragMoveEvent>(dragMoveEvent->position().toPoint(), dragMoveEvent->possibleActions(), dragMoveEvent->mimeData(), dragMoveEvent->buttons(), dragMoveEvent->modifiers());
+#endif
   }
   case QEvent::Drop:
   {
     const QDropEvent* dropEvent = static_cast<const QDropEvent*>(evt);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
     return std::make_unique<QDropEvent>(dropEvent->pos(), dropEvent->possibleActions(), dropEvent->mimeData(), dropEvent->mouseButtons(), dropEvent->keyboardModifiers());
+#else
+    return std::make_unique<QDropEvent>(dropEvent->position().toPoint(), dropEvent->possibleActions(), dropEvent->mimeData(), dropEvent->buttons(), dropEvent->modifiers());
+#endif
   }
   default:
     break;
@@ -340,6 +352,7 @@ public:
 
 private:
   SignalingGlWidget* adaptedWidget_ = nullptr;
+  QMetaObject::Connection delProxyContext_;
   std::unique_ptr<QOpenGLContext> proxyContext_;
   std::unique_ptr<QOffscreenSurface> offscreenSurface_;
 };
@@ -486,12 +499,11 @@ GlWidgetPlatform::GlWidgetPlatform(QWidget* parent)
 
   // Set up a first connection to the initialized signal, so that we delete and
   // clear out our surface and proxy context if it was previously created.
-  QMetaObject::Connection delProxyContext;
-  delProxyContext = QObject::connect(adaptedWidget_, &SignalingGlWidget::initialized, [this, delProxyContext]() {
+  delProxyContext_ = QObject::connect(adaptedWidget_, &SignalingGlWidget::initialized, [this]() {
     proxyContext_.reset();
     offscreenSurface_.reset();
     // Only ever initialize once
-    QTimer::singleShot(0, [delProxyContext, this]() { adaptedWidget_->disconnect(delProxyContext); });
+    QTimer::singleShot(0, [this]() { adaptedWidget_->disconnect(delProxyContext_); });
     });
 }
 
@@ -657,11 +669,11 @@ void GlWidgetPlatform::connectToAboutToRenderFirstFrameSignal(const std::functio
 
 ///////////////////////////////////////////////////////////////////////
 
-GlPlatformInterface* createGlPlatform(GlImplementation glImpl, QWidget* parent)
+std::unique_ptr<GlPlatformInterface> createGlPlatform(GlImplementation glImpl, QWidget* parent)
 {
   if (glImpl == GlImplementation::Widget)
-    return new GlWidgetPlatform(parent);
-  return new GlWindowPlatform(parent);
+    return std::make_unique<GlWidgetPlatform>(parent);
+  return std::make_unique<GlWindowPlatform>(parent);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -669,6 +681,7 @@ GlPlatformInterface* createGlPlatform(GlImplementation glImpl, QWidget* parent)
 ViewerWidgetAdapter::ViewerWidgetAdapter(GlImplementation glImpl, QWidget* parent)
   : QWidget(parent)
 {
+  simVis::applyMesaGlVersionOverride();
   glPlatform_ = createGlPlatform(glImpl, this);
 
   glPlatform_->setResizeSignal([this](int w, int h) { Q_EMIT glResized(w, h); });

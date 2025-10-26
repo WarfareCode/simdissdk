@@ -30,6 +30,9 @@
 
 namespace simQt {
 
+/** Sets the internal text margin around the label, between the background edge and label text. */
+constexpr int DEFAULT_LABEL_BG_MARGIN_PX = 6;
+
 /** Binds together a Bin identifier, the OSG node, the back-end data, and a dirty flag */
 struct HudTextBinManager::TextBin
 {
@@ -49,24 +52,28 @@ class TextBoxRenderer : public osg::MatrixTransform
 public:
   TextBoxRenderer();
 
-  /** Changes the alignment on the text, which also impacts the screen positioning. */
+  /** Alignment on the text, which also impacts the screen positioning (anchor position). */
   void setAlignment(Qt::Alignment qtAlignment);
-  /** Set the position of the rendering box. */
   void setRect(const QRect& rectPx);
 
-  /** Change the color */
+  /** Change the text color */
   void setColor(const QColor& color);
-  /** Retrieve the set color */
   QColor color() const;
 
-  /** Set the text size in pixels */
-  void setTextSize(int pixels);
-  /** Retrieve the set text size (in pixels) */
-  int textSize() const;
+  /** Background color to make text easier to read. Alpha of 0 means no backdrop. Defaults to (0,0,0,0) */
+  void setBackgroundColor(const QColor& color);
+  QColor backgroundColor() const;
+
+  /** Indicates distance for drop shadow offset; use 0 to not render a shadow. */
+  void setShadowOffset(int shadowOffsetPx);
+  int shadowOffset() const;
+
+  /** Text font size in points */
+  void setTextSize(double textSizePoints);
+  double textSize() const;
 
   /** Changes the text string displayed; OK to be multi-line. */
   void setText(const QString& text);
-  /** Returns the text string displayed; likely multi-line */
   QString text() const;
 
   // From osg::Node:
@@ -80,10 +87,12 @@ protected:
 private:
   QString buildStyleSheet_() const;
   void render_();
+  QSize sizeForText_() const;
 
   QRect rectPx_ = QRect(10, 10, 400, 200);
   QColor color_ = Qt::white;
-  int textSizePx_ = 20;
+  QColor backgroundColor_ = QColor(0, 0, 0, 128);
+  double textSizePoints_ = 13.5;
   bool dirty_ = true;
 
   std::unique_ptr<QLabel> label_;
@@ -137,7 +146,10 @@ TextBoxRenderer::TextBoxRenderer()
   node_(new simQt::QLabelDropShadowNode)
 {
   addChild(node_.get());
-  label_ = std::make_unique<QLabel>();
+
+  const int textSizePoints = label_->font().pointSize();
+  textSizePoints_ = label_->font().pointSizeF();
+  label_->setMargin(DEFAULT_LABEL_BG_MARGIN_PX);
   label_->setStyleSheet(buildStyleSheet_());
   label_->setFixedWidth(rectPx_.width());
   label_->setWordWrap(true);
@@ -182,18 +194,47 @@ QColor TextBoxRenderer::color() const
   return color_;
 }
 
-void TextBoxRenderer::setTextSize(int pixels)
+void TextBoxRenderer::setBackgroundColor(const QColor& color)
 {
-  if (textSizePx_ == pixels)
+  if (backgroundColor_ == color)
     return;
-  textSizePx_ = pixels;
+  backgroundColor_ = color;
   label_->setStyleSheet(buildStyleSheet_());
   dirty_ = true;
 }
 
-int TextBoxRenderer::textSize() const
+QColor TextBoxRenderer::backgroundColor() const
 {
-  return textSizePx_;
+  return backgroundColor_;
+}
+
+void TextBoxRenderer::setShadowOffset(int shadowOffsetPx)
+{
+  if (shadowOffsetPx == node_->shadowOffset())
+    return;
+  node_->setShadowOffset(shadowOffsetPx);
+  dirty_ = true;
+}
+
+int TextBoxRenderer::shadowOffset() const
+{
+  return node_->shadowOffset();
+}
+
+void TextBoxRenderer::setTextSize(double textSizePoints)
+{
+  if (textSizePoints_ == textSizePoints)
+    return;
+  textSizePoints_ = textSizePoints;
+  QFont font = label_->font();
+  font.setPointSizeF(textSizePoints);
+  label_->setFont(font);
+  dirty_ = true;
+}
+
+double TextBoxRenderer::textSize() const
+{
+  return textSizePoints_;
 }
 
 void TextBoxRenderer::setText(const QString& text)
@@ -209,42 +250,101 @@ QString TextBoxRenderer::text() const
   return label_->text();
 }
 
+QSize TextBoxRenderer::sizeForText_() const
+{
+  // Available space is in rectPx_
+  if (label_->text().isEmpty())
+    return QSize(0, 0);
+
+  const auto& oldPolicy = label_->sizePolicy();
+
+  // Need to turn off word-wrap to get a default width that is accurate. Word wrap being
+  // on makes the label's size policy guess roughly, rather than exactly. We want exact.
+  label_->setWordWrap(false);
+  label_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+  label_->setMinimumSize(0, 0);
+  label_->setMaximumSize(rectPx_.width(), rectPx_.height());
+
+  // Force the label to a min of the preferred, and the rectangular box
+  const int preferredWidth = label_->sizeHint().width();
+  const int actualWidth = std::min(preferredWidth, rectPx_.width());
+
+  // Tighten the "height" value now using word wrap
+  label_->setWordWrap(true);
+  const int preferredHeight = label_->heightForWidth(actualWidth);
+  const int actualHeight = std::min(preferredHeight, rectPx_.height());
+
+  // Restore changes that matter
+  label_->setSizePolicy(oldPolicy);
+
+  return QSize(actualWidth, actualHeight);
+}
+
 void TextBoxRenderer::render_()
 {
   if (!dirty_)
     return;
 
-  // Need to recalculate the height on each render_ because changing
-  // things like the text size or contents will change the width and
-  // potentially the height too.
-  const int labelWidth = rectPx_.width();
-  label_->setFixedWidth(labelWidth);
-  const int labelHeight = label_->heightForWidth(labelWidth);
-  label_->resize(labelWidth, labelHeight);
+  // Determine the size of the text box with tight wrapping, and set fixed size
+  // on the label so that it doesn't stretch out.
+  const auto& desireSize = sizeForText_();
+  const bool validSize = (desireSize.width() > 0 && desireSize.height() > 0);
+  if (validSize)
+  {
+    label_->setFixedSize(desireSize);
+    node_->setNodeMask(~0);
+  }
+  else
+  {
+    // No need to render; can happen for empty strings
+    node_->setNodeMask(0);
+    return;
+  }
 
-  // Calculate the Y position of the label; not required for X because of fixed width
+  // Create the image of the label, which will then tell us the on-screen size
+  node_->render(label_.get());
+
+  // Image should match our desired size
+  assert(node_->width() == desireSize.width());
+  assert(node_->height() == desireSize.height());
+
   const auto alignment = label_->alignment();
+
+  // Calculate the X position of the label
+  int translateX = rectPx_.x();
+  if (alignment.testFlag(Qt::AlignHCenter))
+    translateX = rectPx_.center().x() - desireSize.width() / 2;
+  else if (alignment.testFlag(Qt::AlignRight))
+    translateX = rectPx_.right() - desireSize.width();
+
+  // Calculate the Y position of the label
   int translateY = rectPx_.y();
   // Note that rectPx_.bottom is actually the TOP due to inversion of Qt/OSG coord systems
-  if (alignment.testFlag(Qt::AlignTop))
-    translateY = rectPx_.bottom() - labelHeight;
-  else if (alignment.testFlag(Qt::AlignVCenter))
-    translateY = rectPx_.center().y() - labelHeight / 2;
+  if (alignment.testFlag(Qt::AlignVCenter))
+    translateY = rectPx_.center().y() - desireSize.height() / 2;
+  else if (alignment.testFlag(Qt::AlignTop))
+    translateY = rectPx_.bottom() - desireSize.height();
 
   // Move to the expected image location based on alignment
-  setMatrix(osg::Matrix::translate(rectPx_.x(), translateY, 0.));
-  node_->render(label_.get());
+  setMatrix(osg::Matrix::translate(translateX, translateY, 0.));
   dirty_ = false;
 }
 
 QString TextBoxRenderer::buildStyleSheet_() const
 {
-  return QString("font-size: %1px; color: rgba(%2, %3, %4, %5);")
-    .arg(textSizePx_)
+  const QString color = QString("color: rgba(%1, %2, %3, %4); ")
     .arg(color_.red())
     .arg(color_.green())
     .arg(color_.blue())
     .arg(color_.alpha());
+  const QString bgColor = (backgroundColor_.alpha() == 0)
+    ? ""
+    : QString("background-color: rgba(%1, %2, %3, %4); ")
+    .arg(backgroundColor_.red())
+    .arg(backgroundColor_.green())
+    .arg(backgroundColor_.blue())
+    .arg(backgroundColor_.alpha());
+  return color + bgColor;
 }
 
 ///////////////////////////////////////////////////////////
@@ -513,7 +613,7 @@ void HudTextBinManager::refreshDirtyTextBin_(TextBin& bin)
   // Precondition, handled by caller
   assert(bin.dataDirty_);
   const auto& combinedText = bin.data_->combinedText();
-  bin.node_->setText(QString::fromStdString(combinedText).trimmed());
+  bin.node_->setText(QString::fromStdString(combinedText));
   bin.dataDirty_ = false;
 }
 
@@ -538,20 +638,62 @@ QColor HudTextBinManager::color(BinId binId) const
   return bin->node_->color();
 }
 
-void HudTextBinManager::setTextSize(BinId binId, int textSizePx)
+void HudTextBinManager::setBackgroundColor(BinId binId, const QColor& color)
 {
   auto* bin = textBinForBinId_(binId);
   if (bin)
-    bin->node_->setTextSize(textSizePx);
+    bin->node_->setBackgroundColor(color);
 }
 
-void HudTextBinManager::setTextSize(int textSizePx)
+void HudTextBinManager::setBackgroundColor(const QColor& color)
 {
   for (const auto& binPtr : bins_)
-    binPtr->node_->setTextSize(textSizePx);
+    binPtr->node_->setBackgroundColor(color);
 }
 
-int HudTextBinManager::textSize(BinId binId) const
+QColor HudTextBinManager::backgroundColor(BinId binId) const
+{
+  auto* bin = textBinForBinId_(binId);
+  if (!bin)
+    return Qt::white;
+  return bin->node_->backgroundColor();
+}
+
+void HudTextBinManager::setShadowOffset(BinId binId, int shadowOffsetPx)
+{
+  auto* bin = textBinForBinId_(binId);
+  if (bin)
+    bin->node_->setShadowOffset(shadowOffsetPx);
+}
+
+void HudTextBinManager::setShadowOffset(int shadowOffsetPx)
+{
+  for (const auto& binPtr : bins_)
+    binPtr->node_->setShadowOffset(shadowOffsetPx);
+}
+
+int HudTextBinManager::shadowOffset(BinId binId) const
+{
+  auto* bin = textBinForBinId_(binId);
+  if (!bin)
+    return 0;
+  return bin->node_->shadowOffset();
+}
+
+void HudTextBinManager::setTextSize(BinId binId, double textSizePoints)
+{
+  auto* bin = textBinForBinId_(binId);
+  if (bin)
+    bin->node_->setTextSize(textSizePoints);
+}
+
+void HudTextBinManager::setTextSize(double textSizePoints)
+{
+  for (const auto& binPtr : bins_)
+    binPtr->node_->setTextSize(textSizePoints);
+}
+
+double HudTextBinManager::textSize(BinId binId) const
 {
   auto* bin = textBinForBinId_(binId);
   if (!bin)

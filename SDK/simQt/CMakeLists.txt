@@ -1,6 +1,10 @@
 # ----- simQt -----------------------------------------------------
 
-if(NOT Qt5Core_FOUND)
+if(Qt6_FOUND)
+    set(SIMQT_QT_VERSION 6)
+elseif(Qt5_FOUND)
+    set(SIMQT_QT_VERSION 5)
+else()
     message(STATUS "Cannot configure simQt without Qt.")
     return()
 endif()
@@ -46,6 +50,7 @@ set(SIMQT_HEADERS_TO_MOC
     ${SIMQT_INC}SplashScreen.h
     ${SIMQT_INC}StartupLayoutTask.h
     ${SIMQT_INC}StdStreamConsoleChannel.h
+    ${SIMQT_INC}TabDropDownButton.h
     ${SIMQT_INC}TimeButtons.h
     ${SIMQT_INC}TimeFormatContainer.h
     ${SIMQT_INC}TimeSliderClockBinding.h
@@ -203,6 +208,7 @@ set(SIMQT_SOURCES
     ${SIMQT_SRC}StartupLayoutManager.cpp
     ${SIMQT_SRC}StartupLayoutTask.cpp
     ${SIMQT_SRC}StdStreamConsoleChannel.cpp
+    ${SIMQT_SRC}TabDropDownButton.cpp
     ${SIMQT_SRC}TimeButtons.cpp
     ${SIMQT_SRC}TimeFormatContainer.cpp
     ${SIMQT_SRC}TimeSliderClockBinding.cpp
@@ -215,14 +221,15 @@ set(SIMQT_SOURCES
     ${SIMQT_SRC}WidgetSettings.cpp
 )
 
-if(Qt5OpenGL_FOUND)
+if(Qt${SIMQT_QT_VERSION}OpenGL_FOUND)
+    set(SIMQT_HAVE_QOPENGL ON)
     list(APPEND SIMQT_HEADERS ${SIMQT_INC}Gl3FormatGuesser.h)
     list(APPEND SIMQT_SOURCES ${SIMQT_SRC}Gl3FormatGuesser.cpp)
     if(NOT MSVC)
         set_source_files_properties(Gl3FormatGuesser.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
     endif()
 else()
-    set(Qt5OpenGL_FOUND OFF) # Helpful for correct Config.cmake
+    set(SIMQT_HAVE_QOPENGL OFF)
 endif()
 
 # Parts of simQt depend on simData
@@ -377,8 +384,8 @@ if(TARGET simVis)
         $<BUILD_INTERFACE:${osgEarth_INCLUDE_DIR}>
     )
 endif()
-if(Qt5OpenGL_FOUND)
-    target_link_libraries(simQt PUBLIC Qt5::OpenGL)
+if(Qt${SIMQT_QT_VERSION}OpenGL_FOUND)
+    target_link_libraries(simQt PUBLIC Qt::OpenGL)
 endif()
 
 # Link against OpenGL if OSGQT is found to support simQt::ViewWidget
@@ -390,8 +397,9 @@ endif()
 # Link against osgQt::osgQOpenGL if found; but only needs be a private depend
 if(TARGET osgQt::osgQOpenGL)
     target_link_libraries(simQt PRIVATE osgQt::osgQOpenGL)
+    set(SIMQT_HAVE_OSGQOPENGL ON)
 else()
-    set(osgQOpenGL_FOUND OFF) # Helpful for correct Config.cmake
+    set(SIMQT_HAVE_OSGQOPENGL OFF)  # Helpful for correct Config.cmake
 endif()
 
 if(UNIX)
@@ -429,8 +437,6 @@ else()
 endif()
 
 if(INSTALL_SIMDIS_SDK_LIBRARIES)
-    # Configure the simQtConfig.cmake file; its dependencies are dynamic
-    configure_file(simQtConfig.cmake.in simQtConfig.cmake @ONLY)
     vsi_install_export(simQt ${SIMDIS_SDK_VERSION_STRING} AnyNewerVersion)
 endif()
 

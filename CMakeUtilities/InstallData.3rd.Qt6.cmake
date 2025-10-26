@@ -1,21 +1,21 @@
-# Return early if Qt5 isn't found
-if(NOT TARGET Qt5::Core)
+# Return early if Qt6 isn't found
+if(NOT TARGET Qt6::Core)
     return()
 endif()
 
 # sets up installation preferences for LIBNAME, i.e. Core; uses ARGN for component list
-function(vsi_install_qt5_lib LIBNAME)
+function(vsi_install_qt6_lib LIBNAME)
     # Ui Plug-in has nothing to install
     if(${LIBNAME} STREQUAL "UiPlugin")
         return()
     endif()
 
     if(WIN32)
-        if(NOT TARGET Qt5::${LIBNAME})
+        if(NOT TARGET Qt6::${LIBNAME})
             return()
         endif()
-        get_target_property(RELEASE_DLL Qt5::${LIBNAME} LOCATION_Release)
-        get_target_property(DEBUG_DLL Qt5::${LIBNAME} LOCATION_Debug)
+        get_target_property(RELEASE_DLL Qt6::${LIBNAME} LOCATION_Release)
+        get_target_property(DEBUG_DLL Qt6::${LIBNAME} LOCATION_Debug)
         if(RELEASE_DLL)
             INSTALL(FILES ${RELEASE_DLL}
                 DESTINATION ${INSTALLSETTINGS_SHARED_LIBRARY_DIR}
@@ -31,14 +31,14 @@ function(vsi_install_qt5_lib LIBNAME)
             )
         endif()
     else()
-        set(_QT_LIBRARY_DIR "${Qt5Core_DIR}/../..")
-        INSTALL(FILES ${_QT_LIBRARY_DIR}/libQt5${LIBNAME}.so.${Qt5Core_VERSION_MAJOR}
+        set(_QT_LIBRARY_DIR "${Qt6Core_DIR}/../..")
+        INSTALL(FILES ${_QT_LIBRARY_DIR}/libQt6${LIBNAME}.so.${Qt6Core_VERSION_MAJOR}
             DESTINATION ${INSTALLSETTINGS_SHARED_LIBRARY_DIR}
             CONFIGURATIONS Release
             COMPONENT ThirdPartyLibs
             OPTIONAL
         )
-        INSTALL(FILES ${_QT_LIBRARY_DIR}/libQt5${LIBNAME}.so.${Qt5Core_VERSION}
+        INSTALL(FILES ${_QT_LIBRARY_DIR}/libQt6${LIBNAME}.so.${Qt6Core_VERSION}
             DESTINATION ${INSTALLSETTINGS_SHARED_LIBRARY_DIR}
             CONFIGURATIONS Release
             COMPONENT ThirdPartyLibs
@@ -48,19 +48,19 @@ function(vsi_install_qt5_lib LIBNAME)
 endfunction()
 
 # Macro for installing platform, media, image, xcbglintegrations plug-ins for Qt
-function(vsi_install_qtplugins dir)
-    if(NOT EXISTS "${_qt5Gui_install_prefix}/plugins/${dir}")
+function(vsi_install_qt6plugins dir)
+    if(NOT EXISTS "${QT6_INSTALL_PREFIX}/plugins/${dir}")
         return()
     endif()
     if(WIN32)
-        INSTALL(DIRECTORY ${_qt5Gui_install_prefix}/plugins/${dir}
+        INSTALL(DIRECTORY ${QT6_INSTALL_PREFIX}/plugins/${dir}
             DESTINATION ${INSTALLSETTINGS_RUNTIME_DIR}/
             OPTIONAL
             COMPONENT ThirdPartyLibs
             CONFIGURATIONS Release RelWithDebInfo
             FILES_MATCHING PATTERN *.dll
             PATTERN *d.dll EXCLUDE)
-        INSTALL(DIRECTORY ${_qt5Gui_install_prefix}/plugins/${dir}
+        INSTALL(DIRECTORY ${QT6_INSTALL_PREFIX}/plugins/${dir}
             DESTINATION ${INSTALLSETTINGS_RUNTIME_DIR}/
             OPTIONAL
             COMPONENT ThirdPartyLibs
@@ -68,11 +68,13 @@ function(vsi_install_qtplugins dir)
             FILES_MATCHING PATTERN *d.dll)
     else()
         # Note that Qt requires the Linux shared objects in the executable's subdirectory (e.g. bin)
-        INSTALL(DIRECTORY ${_qt5Gui_install_prefix}/plugins/${dir}
+        INSTALL(DIRECTORY ${QT6_INSTALL_PREFIX}/plugins/${dir}
             DESTINATION ${INSTALLSETTINGS_RUNTIME_DIR}/
             OPTIONAL
             COMPONENT ThirdPartyLibs
-            FILES_MATCHING PATTERN *.so)
+            FILES_MATCHING PATTERN *.so
+            PATTERN libqgtk3.so EXCLUDE
+            PATTERN *wayland* EXCLUDE)
     endif()
 endfunction()
 
@@ -81,25 +83,25 @@ if(DEFINED INSTALL_THIRDPARTY_LIBRARIES AND NOT INSTALL_THIRDPARTY_LIBRARIES)
 endif()
 
 # Install common DLLs, if the appropriate target is found
-foreach(PACKAGENAME IN ITEMS Core DBus Gui OpenGL Widgets XcbQpa)
-    vsi_install_qt5_lib(${PACKAGENAME})
+foreach(PACKAGENAME IN ITEMS Core DBus Gui OpenGL OpenGLWidgets Widgets XcbQpa)
+    vsi_install_qt6_lib(${PACKAGENAME})
 endforeach()
 
 # Each install needs some defaults
-foreach(PLUGINNAME IN ITEMS imageformats platforms styles xcbglintegrations)
-    vsi_install_qtplugins(${PLUGINNAME})
+foreach(PLUGINNAME IN ITEMS imageformats platforminputcontexts platforms platformthemes styles xcbglintegrations)
+    vsi_install_qt6plugins(${PLUGINNAME})
 endforeach()
 
-# Users can add custom modules to install using QT5_MODULES variable
-if(DEFINED QT5_MODULES)
-    foreach(PACKAGENAME IN LISTS QT5_MODULES)
-        vsi_install_qt5_lib(${PACKAGENAME})
+# Users can add custom modules to install using QT6_MODULES variable
+if(DEFINED QT6_MODULES)
+    foreach(PACKAGENAME IN LISTS QT6_MODULES)
+        vsi_install_qt6_lib(${PACKAGENAME})
     endforeach()
 endif()
 
-# Users can add custom modules to install using the QT5_PLUGINS variable
-if(DEFINED QT5_PLUGINS)
-    foreach(PLUGINNAME IN LISTS QT5_PLUGINS)
-        vsi_install_qtplugins(${PLUGINNAME})
+# Users can add custom modules to install using the QT6_PLUGINS variable
+if(DEFINED QT6_PLUGINS)
+    foreach(PLUGINNAME IN LISTS QT6_PLUGINS)
+        vsi_install_qt6plugins(${PLUGINNAME})
     endforeach()
 endif()

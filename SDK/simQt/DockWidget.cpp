@@ -25,7 +25,6 @@
 #include <QAction>
 #include <QApplication>
 #include <QBitmap>
-#include <QDesktopWidget>
 #include <QDir>
 #include <QFileInfo>
 #include <QHBoxLayout>
@@ -35,6 +34,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QScreen>
+#include <QStyleHints>
 #include <QTabBar>
 #include <QTimer>
 #include <QToolButton>
@@ -241,7 +241,11 @@ public:
         return false;
 
       bool evtConsumed = false;
-      int tabIndex = tabBar_->tabAt(dragEvt->pos());
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+      const int tabIndex = tabBar_->tabAt(dragEvt->pos());
+#else
+      const int tabIndex = tabBar_->tabAt(dragEvt->position().toPoint());
+#endif
       QString tabName = tabBar_->tabText(tabIndex);
 
       if (tabIndex < 0)
@@ -285,7 +289,11 @@ public:
         return false;
 
       QString thisTitle = dockWidget_.windowTitle();
-      int mouseIndex = tabBar_->tabAt(dragEvt->pos());
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+      const int mouseIndex = tabBar_->tabAt(dragEvt->pos());
+#else
+      const int mouseIndex = tabBar_->tabAt(dragEvt->position().toPoint());
+#endif
       QString mouseTitle = tabBar_->tabText(mouseIndex);
 
       // Nothing to do if the mouse isn't over this widget's tab or the move remained over the same tab
@@ -298,7 +306,11 @@ public:
       }
 
       // Construct a drag enter event from the drag move and pass it to our dock widget
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
       QDragEnterEvent simulatedEvent(dragEvt->pos(), dragEvt->possibleActions(), dragEvt->mimeData(), dragEvt->mouseButtons(), dragEvt->keyboardModifiers());
+#else
+      QDragEnterEvent simulatedEvent(dragEvt->position().toPoint(), dragEvt->possibleActions(), dragEvt->mimeData(), dragEvt->buttons(), dragEvt->modifiers());
+#endif
       simulatedEvent.ignore();
       dockWidget_.dragEnterEvent(&simulatedEvent);
 
@@ -313,7 +325,11 @@ public:
     else if (event->type() == QEvent::Drop)
     {
       QDropEvent* dropEvt = dynamic_cast<QDropEvent*>(event);
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
       if (!dropEvt || tabBar_->tabText(tabBar_->tabAt(dropEvt->pos())) != dockWidget_.windowTitle())
+#else
+      if (!dropEvt || tabBar_->tabText(tabBar_->tabAt(dropEvt->position().toPoint())) != dockWidget_.windowTitle())
+#endif
         return false;
 
       // Don't interfere with moving the dock widget between tabs
@@ -592,7 +608,7 @@ void DockWidget::init_()
   // Widget needs a layout, else QWidget::sizeHint() returns (-1,-1), which adversely
   // affects the size of the OpenGL widget in SIMDIS in fullscreen mode.
   QHBoxLayout* noLayout = new QHBoxLayout;
-  noLayout->setMargin(0);
+  noLayout->setContentsMargins(0, 0, 0, 0);
   noTitleBar_->setLayout(noLayout);
   noTitleBar_->setMinimumSize(1, 1);
 
@@ -637,13 +653,15 @@ void DockWidget::createStylesheets_()
     "#titleBarTitle {color: %2;} "
     ;
 
-  const QColor inactiveBackground = QColor("#e0e0e0"); // Light gray
-  inactiveTextColor_ = QColor("#404040"); // Darker gray
+  const bool lightMode = !simQt::QtUtils::isDarkTheme();
+
+  const QColor inactiveBackground = lightMode ? QColor("#e0e0e0") : QColor("#3C3C3C"); // Light gray vs dark gray
+  inactiveTextColor_ = lightMode ? QColor("#404040") : Qt::white; // Darker gray or white
   const QColor darkerInactiveBg = QColor("#d0d0d0");
 
   // Get the focus colors
-  const QColor focusBackground = QColor("#d8d8d8"); // Lighter gray
-  focusTextColor_ = QColor("#202020"); // Darkest gray
+  const QColor focusBackground = lightMode ? QColor("#d8d8d8") : QColor("#0078D7"); // Lighter gray or blue
+  focusTextColor_ = lightMode ? QColor("#202020") : Qt::white; // Darkest gray or white
   const QColor darkerFocusBg = QColor("#b0b0b0");
 
   // Create the inactive stylesheet
@@ -938,8 +956,8 @@ void DockWidget::fixTabIcon_()
 
   // Tabified, now set icon to tab
   // First, find all the tab bars, since QMainWindow doesn't provide
-  // direct access to the DockArea QTabBar
-  QList<QTabBar*> tabBars = mainWindow_->findChildren<QTabBar*>();
+  // direct access to the DockArea QTabBar, making sure to only get direct children of the main window
+  QList<QTabBar*> tabBars = mainWindow_->findChildren<QTabBar*>(QString(), Qt::FindDirectChildrenOnly);
 
   // Locate the tab bar that contains this window, based on the window title
   int index = 0;
@@ -1398,6 +1416,10 @@ void DockWidget::showEvent(QShowEvent* evt)
 
   // Queue a raise() to occur AFTER the actual show() finishes, to make window pop up
   QTimer::singleShot(0, this, SLOT(raise()));
+
+  // Schedule a fix to the tabs, if it is tabified
+  if (!isFloating())
+    QTimer::singleShot(0, this, SLOT(fixTabIcon_()));
 
   // Do nothing if dock title styling is turned off
   if (extraFeatures_.testFlag(DockNoTitleStylingHint) || titleBarWidget() == noTitleBar_)

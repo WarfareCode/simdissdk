@@ -275,10 +275,12 @@ int testPersistentMetaData()
 {
   int rv = 0;
 
+  qRegisterMetaType<simQt::Settings::MetaData>("simQt::Settings::MetaData");
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   // Force a registration of the simQt::Settings::MetaData, even though it's also done elsewhere,
   // so that this test is more standalone.  Without this, a SettingsModel is required to instantiate.
   qRegisterMetaTypeStreamOperators<simQt::Settings::MetaData>("simQt::Settings::MetaData");
-
+#endif
 
   // Create a few sample meta data items
   QMap<int, QString> enumValues;

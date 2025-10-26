@@ -21,6 +21,7 @@
  *
  */
 #include <cassert>
+#include <QGuiApplication>
 #include <QDateTime>
 #include <QColor>
 #include <QTimer>
@@ -29,8 +30,13 @@
 #include "simCore/Time/Utils.h"
 #include "simCore/Calc/Math.h"
 #include "simQt/QtFormatting.h"
+#include "simQt/QtUtils.h"
 #include "simQt/ConsoleChannel.h"
 #include "simQt/ConsoleDataModel.h"
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+Q_DECLARE_METATYPE(simNotify::NotifySeverity);
+#endif
 
 namespace simQt {
 
@@ -506,16 +512,17 @@ void ConsoleDataModel::limitData_()
 
 QVariant ConsoleDataModel::colorForSeverity_(simNotify::NotifySeverity severity) const
 {
+  const bool isLightMode = !simQt::QtUtils::isDarkTheme();
   switch (severity)
   {
   case simNotify::NOTIFY_FATAL: // Bright red fatal
     return QColor::fromRgb(255, 0, 0);
   case simNotify::NOTIFY_ERROR:  // Red errors
-    return QColor::fromRgb(128, 0, 0);
+    return isLightMode ? QColor::fromRgb(128, 0, 0) : QColor::fromRgb(212, 0, 0);
   case simNotify::NOTIFY_WARN:  // Yellow warnings
-    return QColor::fromRgb(64, 64, 0);
+    return isLightMode ? QColor::fromRgb(64, 64, 0) : QColor::fromRgb(192, 192, 0);
   case simNotify::NOTIFY_DEBUG_FP: // Gray-ish so it can be easily ignored
-    return QColor::fromRgb(128, 128, 128);
+    return isLightMode ? QColor::fromRgb(128, 128, 128) : QColor::fromRgb(180, 180, 180);
   default: // Everything else is default (likely black)
     break;
   }

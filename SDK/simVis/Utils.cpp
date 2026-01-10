@@ -33,6 +33,7 @@
 #include "osg/MatrixTransform"
 #include "osg/NodeVisitor"
 #include "osg/PositionAttitudeTransform"
+#include "osgAnimation/BasicAnimationManager"
 #include "osgDB/FileNameUtils"
 #include "osgDB/Registry"
 #include "osgSim/DOFTransform"
@@ -60,6 +61,7 @@
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/Calculations.h"
 #include "simCore/Calc/CoordinateConverter.h"
+#include "simCore/String/FilePatterns.h"
 #include "simCore/String/Format.h"
 #include "simNotify/Notify.h"
 #include "simVis/AlphaTest.h"
@@ -370,11 +372,16 @@ bool isImageFile(const std::string& location)
   std::string ext = osgDB::getLowerCaseFileExtension(location);
   if (!ext.empty())
   {
-    // first check some known extensions (based on SIMDIS_MODEL_FILE_PATTERNS in simCore/String/FilePatterns.h)
-    if (ext == "3db" || ext == "opt" || ext == "ive" || ext == "flt" || ext == "3ds" || ext == "obj" || ext == "lwo" || ext == "dxf" || ext == "osg" || ext == "osga" || ext == "osgb" || ext == "gltf" || ext == "fbx")
+    // first check known model format extensions
+    if (simCore::SIMDIS_MODEL_FILE_PATTERNS_SET.contains(ext))
       return false;
 
-    if (ext == "jpg" || ext == "png" || ext == "gif" || ext == "bmp" || ext == "tmd" || ext == "lst")
+    // video icons
+    if (simCore::SIMDIS_VIDEO_ICON_PATTERS_SET.contains(ext))
+      return true;
+
+    // image files
+    if (simCore::SIMDIS_IMAGE_FILE_PATTERNS_SET.contains(ext))
       return true;
 
     // something else; so check for rw support.
@@ -1671,4 +1678,55 @@ FilteringOsgNotifyDecorator* installFilteringOsgNotifyDecorator()
   osg::setNotifyHandler(decorator.get());
   return decorator.get();
 }
+
+/** Node visitor that searches for animation management; use with accept() */
+class AnimationVisitor : public osg::NodeVisitor
+{
+public:
+  /** Constructs the visitor */
+  AnimationVisitor()
+    : osg::NodeVisitor(osg::NodeVisitor::TRAVERSE_ALL_CHILDREN)
+  {
+  }
+
+  /** Override the apply() method to traverse the node and subgraph */
+  virtual void apply(osg::Node& node) override
+  {
+    if (mgr_.valid())
+      return;
+
+    // Visit all update callbacks for the node
+    auto* callback = node.getUpdateCallback();
+    while (callback)
+    {
+      mgr_ = dynamic_cast<osgAnimation::BasicAnimationManager*>(callback);
+      if (mgr_.valid())
+        return;
+      if (callback->getNestedCallback() == callback)
+        break;
+      callback = callback->getNestedCallback();
+    }
+
+    traverse(node);
+  }
+
+  /** Returns the manager that was found in the search, or nullptr if none */
+  osgAnimation::BasicAnimationManager* foundManager() const
+  {
+    return mgr_.get();
+  }
+
+private:
+  osg::observer_ptr<osgAnimation::BasicAnimationManager> mgr_;
+};
+
+osgAnimation::BasicAnimationManager* findAnimationManager(osg::Node* node)
+{
+  if (!node)
+    return nullptr;
+  AnimationVisitor v;
+  node->accept(v);
+  return v.foundManager();
+}
+
 }

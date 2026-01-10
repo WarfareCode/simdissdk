@@ -20,8 +20,8 @@
  * disclose, or release this software.
  *
  */
-
 #include "osgEarth/CullingUtils"
+#include "osgEarth/Version"
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Angle.h"
 #include "simCore/Common/Version.h"
@@ -42,14 +42,17 @@
 #include "simUtil/Replaceables.h"
 #include "simUtil/StatusText.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <osgViewer/api/Win32/GraphicsWindowWin32>
+#endif
+
 // Uncomment this define to add various GridTransform test grids
 // #define GRID_TESTING
 
 #ifdef HAVE_IMGUI
 #include "SimExamplesGui.h"
 #include "OsgImGuiHandler.h"
-#else
-namespace ui = osgEarth::Util::Controls;
 #endif
 
 static const std::string KEY_MAP_SCALE = "MapScale";
@@ -62,33 +65,52 @@ static const std::string KEY_LEGEND = "Legend";
 
 //----------------------------------------------------------------------------
 
-static std::string s_title =
-  "HUD Position Manager Example \n";
+/** Helper that returns the device pixel ratio for a given graphics context. */
+float getGraphicsContextDpr(const osg::GraphicsContext* gc)
+{
+#ifdef _WIN32
+  // Convert from DPI to a device pixel ratio, assuming 96 (default screen) DPI for 1.0
+  if (auto* win = dynamic_cast<const osgViewer::GraphicsWindowWin32*>(gc))
+    return GetDpiForWindow(win->getHWND()) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
+  return GetDpiForSystem() / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
+#endif
+  return 1.f;
+}
 
-static std::string s_help =
-  "1 : Move 'Demo Text' to the mouse position\n"
-  "2 : Move 'Map Scale' to the mouse position\n"
-  "3 : Move 'Status Text' to mouse position\n"
-  "4 : Move 'Top Classification' to mouse position\n"
-  "5 : Move 'Bottom Classification' to mouse position\n"
-  "6 : Move 'Compass' to mouse position\n"
-  "7 : Move 'Legend' to mouse position\n"
-  "c : Cycle classification string and color\n"
-  "e : Toggle HUD Editor mode\n"
-  "r : Reset all to default positions\n"
-  "W : Toggle Wind Vane on Compass\n"
-  "z : Cycle wind angle and speed values\n"
-  ;
+/** Contains vital parts of the application */
+struct HudApp
+{
+  osg::ref_ptr<simVis::Viewer> viewer;
+  osg::ref_ptr<simVis::View> mainView;
+  osg::ref_ptr<simVis::View> hud;
+  float dpr = 1.f;
+};
 
 #ifdef HAVE_IMGUI
 
 struct ControlPanel : public simExamples::SimExamplesGui
 {
-  ControlPanel(simUtil::HudPositionEditor& hudEditor, simData::DataStore& dataStore)
+  ControlPanel(simUtil::HudPositionEditor& hudEditor, simData::DataStore& dataStore, HudApp& app)
     : simExamples::SimExamplesGui("HUD Position Manager Example"),
     hudEditor_(hudEditor),
-    dataStore_(dataStore)
+    dataStore_(dataStore),
+    app_(app)
   {
+#ifndef _WIN32
+    // Unsupported on Linux
+    autoDpr_ = false;
+#endif
+
+#if OSGEARTH_SOVERSION >= 180
+    // configure osgEarth:
+    osgEarth::Registry::instance()->setDevicePixelRatioFunction([this](osg::GraphicsContext* gc)
+      {
+        if (autoDpr_)
+          app_.dpr = getGraphicsContextDpr(gc);
+        return app_.dpr;
+      });
+#endif
+
     addKeyFunc_(ImGuiKey_1, [this]() { moveWindowToMouse_(KEY_DEMO_TEXT); });
     addKeyFunc_(ImGuiKey_2, [this]() { moveWindowToMouse_(KEY_MAP_SCALE); });
     addKeyFunc_(ImGuiKey_3, [this]() { moveWindowToMouse_(KEY_STATUS_TEXT); });
@@ -151,12 +173,8 @@ struct ControlPanel : public simExamples::SimExamplesGui
   {
     if (!isVisible())
       return;
-
-    if (firstDraw_)
-    {
-      ImGui::SetNextWindowPos(ImVec2(5, 25));
-      firstDraw_ = false;
-    }
+    ImGui::GetIO().FontGlobalScale = app_.dpr;
+    ImGui::SetNextWindowPos(ImVec2(5 * app_.dpr, 25 * app_.dpr), ImGuiCond_Once);
     ImGui::SetNextWindowBgAlpha(.6f);
     ImGui::Begin(name(), visible(), ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::Text("1 : Move 'Demo Text' to the mouse position");
@@ -171,7 +189,28 @@ struct ControlPanel : public simExamples::SimExamplesGui
     ImGui::Text("r : Reset all to default positions");
     ImGui::Text("W : Toggle Wind Vane on Compass");
     ImGui::Text("z : Cycle wind angle and speed values");
+
+    ImGui::Separator();
+
+#ifdef _WIN32
+    // Only Windows can adjust DPR automatically at this time
+    ImGui::Checkbox("Automatic DPR", &autoDpr_);
+#endif
+
+    ImGui::Text("DPR: %.2f", app_.dpr);
+    // Slider to adjust the DPR (Disabled when in auto mode)
+    ImGui::BeginDisabled(autoDpr_);
+    ImGui::SliderFloat("Manual DPR", &app_.dpr, 0.5f, 2.0f, "%.2f");
+    ImGui::EndDisabled();
+
     ImGui::End();
+
+#if OSGEARTH_SOVERSION < 180
+    // The callback handles this in newer osgEarth; we must manually do it here in older osgEarth
+    if (autoDpr_)
+      app_.dpr = getGraphicsContextDpr(app_.mainView->getCamera()->getGraphicsContext());
+    osgEarth::Registry::instance()->setDevicePixelRatio(app_.dpr);
+#endif
 
     handlePressedKeys_();
   }
@@ -193,164 +232,11 @@ private:
   simUtil::HudPositionEditor& hudEditor_;
   osg::observer_ptr<simVis::CompassNode> compass_;
   simData::DataStore& dataStore_;
-  int classificationCycle_;
-  int windCycle_;
-};
+  int classificationCycle_ = 0;
+  int windCycle_ = 0;
 
-#else
-
-static ui::Control* createHelp()
-{
-  // vbox is returned to caller, memory owned by caller
-  ui::VBox* vbox = new ui::VBox();
-  vbox->setPadding(10);
-  vbox->setBackColor(0, 0, 0, 0.6);
-  vbox->addControl(new ui::LabelControl(s_title, 20, simVis::Color::Yellow));
-  vbox->addControl(new ui::LabelControl(s_help, 14, simVis::Color::Silver));
-  // Move it down just a bit
-  vbox->setPosition(10, 40);
-  return vbox;
-}
-
-//----------------------------------------------------------------------------
-
-// An event handler to assist in testing the Inset functionality.
-struct MenuHandler : public osgGA::GUIEventHandler
-{
-  MenuHandler(simUtil::HudPositionEditor& hudEditor, simData::DataStore& ds)
-    : hudEditor_(hudEditor),
-      dataStore_(ds),
-      classificationCycle_(0),
-      windCycle_(0)
-  {
-  }
-
-  void setCompass(simVis::CompassNode* compass)
-  {
-    compass_ = compass;
-  }
-
-  virtual bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa)
-  {
-    if (ea.getEventType() != osgGA::GUIEventAdapter::KEYDOWN)
-      return false;
-
-    bool handled = false;
-    std::string windowName;
-    // Figure out which key was pressed
-    switch (ea.getKey())
-    {
-    case '1':
-      windowName = KEY_DEMO_TEXT;
-      break;
-    case '2':
-      windowName = KEY_MAP_SCALE;
-      break;
-    case '3':
-      windowName = KEY_STATUS_TEXT;
-      break;
-    case '4':
-      windowName = KEY_CLASSIFICATION_TOP;
-      break;
-    case '5':
-      windowName = KEY_CLASSIFICATION_BOTTOM;
-      break;
-    case '6':
-      windowName = KEY_COMPASS;
-      break;
-    case '7':
-      windowName = KEY_LEGEND;
-      break;
-
-    case 'c':
-    {
-      // Cycle through a few different classification strings
-      classificationCycle_ = ((classificationCycle_ + 1) % 3);
-      simData::DataStore::Transaction txn;
-      simData::ScenarioProperties* props = dataStore_.mutable_scenarioProperties(&txn);
-      switch (classificationCycle_)
-      {
-      case 0:
-        props->mutable_classification()->set_label("UNCLASSIFIED");
-        props->mutable_classification()->set_fontcolor(0x00ff0080);
-        break;
-      case 1:
-        props->mutable_classification()->set_label("U N C L A S S I F I E D");
-        props->mutable_classification()->set_fontcolor(0xffffff80);
-        break;
-      case 2:
-        props->mutable_classification()->set_label("YOUR STRING HERE");
-        props->mutable_classification()->set_fontcolor(0xffff0080);
-        break;
-      }
-      txn.complete(&props);
-      handled = true;
-      break;
-    }
-
-    case 'e':
-      hudEditor_.setVisible(!hudEditor_.isVisible());
-      handled = true;
-      break;
-
-    case 'r':
-      hudEditor_.resetAllPositions();
-      handled = true;
-      break;
-
-    case 'W':
-      if (compass_.valid())
-      {
-        compass_->setWindVaneVisible(!compass_->isWindVaneVisible());
-        handled = true;
-      }
-      break;
-
-    case 'z':
-    {
-      // Cycle through a few different wind settings
-      windCycle_ = ((windCycle_ + 1) % 3);
-      simData::DataStore::Transaction txn;
-      simData::ScenarioProperties* props = dataStore_.mutable_scenarioProperties(&txn);
-      switch (windCycle_)
-      {
-      case 0:
-        props->set_windangle(35.0 * simCore::DEG2RAD);
-        props->set_windspeed(11.0);
-        break;
-      case 1:
-        props->set_windangle(282.0 * simCore::DEG2RAD);
-        props->set_windspeed(6.0);
-        break;
-      case 2:
-        props->set_windangle(179.625 * simCore::DEG2RAD);
-        props->set_windspeed(36.15698);
-        break;
-      }
-      txn.complete(&props);
-      handled = true;
-      break;
-    }
-    }
-
-    // Assign the position to the mouse's location
-    if (!windowName.empty())
-    {
-      // Rescale normalized from (-1,+1) to (0,1)
-      const osg::Vec2d pos(0.5 * (1.0 + ea.getXnormalized()),
-        0.5 * (1.0 + ea.getYnormalized()));
-      hudEditor_.setPosition(windowName, pos);
-      handled = true;
-    }
-    return handled;
-  }
-
-private:
-  simUtil::HudPositionEditor& hudEditor_;
-  osg::observer_ptr<simVis::CompassNode> compass_;
-  simData::DataStore& dataStore_;
-  int classificationCycle_;
-  int windCycle_;
+  HudApp& app_;
+  bool autoDpr_ = true;
 };
 
 #endif
@@ -450,9 +336,8 @@ protected:
 private:
   osg::ref_ptr<osgText::Text> title_;
   osg::ref_ptr<osgText::Text> content_;
-  float titleHeight_;
+  float titleHeight_ = 0.f;
 };
-
 
 int main(int argc, char** argv)
 {
@@ -461,31 +346,32 @@ int main(int argc, char** argv)
   simExamples::configureSearchPaths();
 
   // initialize a SIMDIS viewer and load a planet.
-  osg::ref_ptr<simVis::Viewer> viewer = new simVis::Viewer(arguments);
-  viewer->setMap(simExamples::createDefaultExampleMap());
+  HudApp app;
+  app.viewer = new simVis::Viewer(arguments);
+  app.viewer->setMap(simExamples::createDefaultExampleMap());
+  app.mainView = app.viewer->getMainView();
+  app.dpr = getGraphicsContextDpr(app.mainView->getCamera()->getGraphicsContext());
 
   // Create a mouse dispatcher for the HUD Editor
   simUtil::MouseDispatcher mouseDispatcher;
-  mouseDispatcher.setViewManager(viewer.get());
+  mouseDispatcher.setViewManager(app.viewer.get());
 
   // Create a HUD position manager that will move on-screen objects
   simUtil::HudPositionEditor hudEditor;
   osg::ref_ptr<simUtil::HudPositionManager> hud = hudEditor.hud();
 
   // add sky node
-  simExamples::addDefaultSkyNode(viewer.get());
+  simExamples::addDefaultSkyNode(app.viewer.get());
   // Demonstrate the view-drawing service.  This is used to create new inset views with the mouse.
-  simVis::View* mainView = viewer->getMainView();
+  simVis::View* mainView = app.mainView;
   // set an initial viewpoint
   mainView->lookAt(45, 0, 0, 0, -89, 7e6);
+  mainView->setUpViewInWindow(100 * app.dpr, 100 * app.dpr, 1024 * app.dpr, 768 * app.dpr);
 
   // Create a "Super HUD" on top of all other views and insets
-  simVis::View* superHUD = new simVis::View();
+  app.hud = new simVis::View();
+  simVis::View* superHUD = app.hud;
   superHUD->setUpViewAsHUD(mainView);
-#ifndef HAVE_IMGUI
-  // Add a help control
-  superHUD->addOverlayControl(createHelp());
-#endif
   mainView->getViewManager()->addView(superHUD);
 
   // For osgEarth::LineDrawable to work on SuperHUD, need an InstallCameraUniform
@@ -508,12 +394,8 @@ int main(int argc, char** argv)
 #ifdef HAVE_IMGUI
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
   mainView->getEventHandlers().push_front(gui);
-  ControlPanel* controlPanel = new ControlPanel(hudEditor, dataStore);
+  ControlPanel* controlPanel = new ControlPanel(hudEditor, dataStore, app);
   gui->add(controlPanel);
-#else
-  // Install a handler to respond to the demo keys in this sample.
-  MenuHandler* menuHandler = new MenuHandler(hudEditor, dataStore);
-  mainView->getCamera()->addEventCallback(menuHandler);
 #endif
 
   // Configure text replacement variables that will be used for status text
@@ -577,8 +459,6 @@ int main(int argc, char** argv)
     compass->setActiveView(mainView);
 #ifdef HAVE_IMGUI
     controlPanel->setCompass(compass.get());
-#else
-    menuHandler->setCompass(compass.get());
 #endif
     std::shared_ptr<simVis::UpdateWindVaneListener> dsUpdate(new simVis::UpdateWindVaneListener(compass.get()));
     dataStore.addScenarioListener(dsUpdate);
@@ -714,7 +594,7 @@ int main(int argc, char** argv)
   }
 
   // for status and debugging
-  viewer->installDebugHandlers();
+  app.viewer->installDebugHandlers();
 
-  viewer->run();
+  app.viewer->run();
 }

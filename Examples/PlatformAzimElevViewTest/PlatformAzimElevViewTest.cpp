@@ -285,6 +285,7 @@ int main(int argc, char **argv)
 
   // Set up the scene:
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
 
   osg::ref_ptr<osgEarth::Map> map = simExamples::createDefaultExampleMap();
@@ -343,7 +344,7 @@ int main(int argc, char **argv)
   osg::observer_ptr<simVis::View> view = viewer->getMainView();
 #ifdef HAVE_IMGUI
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(app));
 #endif
   if (view.valid())

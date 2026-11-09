@@ -26,6 +26,7 @@
 #include "simCore/Calc/Angle.h"
 #include "simCore/Calc/Math.h"
 #include "simCore/String/Constants.h"
+#include "simVis/DevicePixelRatioUtils.h"
 #include "simVis/Registry.h"
 #include "simVis/Utils.h"
 #include "simVis/View.h"
@@ -79,7 +80,7 @@ public:
   explicit FocusCallback(CompassFocusManagerAdapter* adapter) : adapter_(adapter)
   {}
   /** Changes the compass to start monitoring a new view when view focus changes */
-  virtual void operator()(simVis::View *view, const simVis::FocusManager::Callback::EventType &e)
+  void operator()(simVis::View *view, const simVis::FocusManager::Callback::EventType &e) override
   {
     // if a focus event, update our state
     if (e == simVis::FocusManager::Callback::VIEW_FOCUSED)
@@ -145,6 +146,12 @@ void CompassNode::initCompass_(const std::string& compassFilename)
 
   valueText_->setName("Compass Value Readout");
   valueText_->setText("0.00");
+
+  // Scale font resolution for crispness
+  const double dpr = simVis::DevicePixelRatioUtils::getDpr();
+  unsigned int res = static_cast<unsigned int>(simCore::sdkMax(32.0, TEXT_POINT_SIZE * dpr));
+  valueText_->setFontResolution(res, res);
+
   valueText_->setCharacterSize(TEXT_POINT_SIZE);
   valueText_->setFont(simVis::Registry::instance()->getOrCreateFont(COMPASS_FONT));
   valueText_->setAlignment(ALIGN_COMPASS);
@@ -393,7 +400,7 @@ public:
   }
 
   /** Handle frame updates, searching for viewport size changes for repositioning */
-  virtual bool handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa)
+  bool handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa) override
   {
     if (ea.getEventType() == osgGA::GUIEventAdapter::FRAME)
     {
@@ -402,10 +409,14 @@ public:
       const osg::Viewport* viewport = (camera ? camera->getViewport() : nullptr);
       if (viewport)
       {
-        osg::Vec2d newWh(viewport->width(), viewport->height());
+        // Convert physical viewport size to logical bounds
+        const double dpr = simVis::DevicePixelRatioUtils::getDpr();
+        osg::Vec2d newWh(viewport->width() / dpr, viewport->height() / dpr);
+
         if (newWh != oldWh_)
         {
           oldWh_ = newWh;
+
           // New position has bottom-right being 25,25 away from lower-right corner.
           // Since the anchor is at center, offset by 64 pixels (half size of the compass)
           const osg::Vec3f newPos(oldWh_.x() - 89.f, 89.f, 0.f);

@@ -24,9 +24,14 @@
 #define SIMQT_QTUTILS_HH
 
 #include <QObject>
+#include <QPointer>
 #include <QRect>
 #include "simCore/Common/Export.h"
 
+class QHeaderView;
+class QTabBar;
+class QTabWidget;
+class QTreeView;
 class QWidget;
 
 namespace simQt {
@@ -37,6 +42,11 @@ namespace simQt {
 class SDKQT_EXPORT QtUtils
 {
 public:
+
+  /** QColor::lightness() high threshold value. Higher lightness colors may cause issues in some places. */
+  static const int LIGHTNESS_HIGH_THRESHOLD = 200;
+  /** QColor::lightness() low threshold value. Lower lightness colors may cause issues in some places. */
+  static const int LIGHTNESS_LOW_THRESHOLD = 60;
 
   /**
   * Moves the specified widget so that it is centered on the specified parent widget. If the parent widget's center is not onscreen, will
@@ -57,13 +67,38 @@ public:
 
   /** Returns true if the current QApplication is in a dark theme. */
   static bool isDarkTheme();
+  /** Returns true if configured Windows 11 accent color might make some text hard to read. */
+  static bool hasAccentColorProblems();
 
   /**
-  * Get the QMainWindow parent widget for the specified widget, simply returns the input if no QMainWindow parent is found.
-  * @param widget input widget to search parent tree for a QMainWidget
-  * @return the QMainWidget if found, otherwise returns the input widget
+  * Get the QMainWindow or Modal QDialog parent widget for the specified widget, simply returns the input if no relevant parent is found.
+  * @param widget input widget to search parent tree for a QMainWidget or Modal QDialog
+  * @return the QMainWidget or earliest Model QDialog parent if found, otherwise returns the input widget
   */
   static QWidget* getMainWindowParent(QWidget* widget);
+
+  /**
+   * Given a tab widget, creates OverrideShortcuts (immune to Ambiguity errors) for selecting
+   * tabs using common hot keys: Ctrl+1 through Ctrl+9 for selecting a tab; Ctrl+Tab or Ctrl+PgDn
+   * for new tab; Ctrl+Shift+Tab (Ctrl+Backtab) or Ctrl+PgUp for previous tab.
+   * @param tabs Holds the tab widget, and impacted by the hot keys.
+   * @param parentScope Parent of the override shortcuts; shortcuts activate as children of this.
+   */
+  static void addTabShortcuts(QTabWidget& tabs, QWidget& parentScope);
+};
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+/** Utility methods for QTreeView */
+class SDKQT_EXPORT TreeViewUtils
+{
+public:
+  /** For all sections in the header view, reset the view order to match the section order ("unmove" sections) */
+  static void resetColumnOrder(QHeaderView& header);
+  /** Adds "Size All Columns to Fit" and "Reset Column Order" actions to header, and sets context menu policy to actions. */
+  static void addTreeHeaderColumnActions(QHeaderView& header);
+  /** Add checkable actions for showing and hiding columns to the tree's header. Precondition: Columns exist. */
+  static void addToggleVisibilityActions(QTreeView& treeView);
 };
 
 }

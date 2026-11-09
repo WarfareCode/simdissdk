@@ -261,9 +261,9 @@ public:
   BeamCenterLine();
   SDK_DISABLE_COPY(BeamCenterLine);
   /** Return the proper library name */
-  virtual const char* libraryName() const override  { return "simVis"; }
+  const char* libraryName() const override  { return "simVis"; }
   /** Return the class name */
-  virtual const char* className() const override  { return "BeamCenterLine"; }
+  const char* className() const override  { return "BeamCenterLine"; }
 
   /// update the beam line for range and color from update and prefs
   void update(const simData::BeamUpdate& update, const simData::BeamPrefs& activePrefs);
@@ -409,7 +409,7 @@ void BeamNode::updateLabel_(const simData::BeamPrefs& prefs)
 
     std::string text;
     if (prefs.commonprefs().labelprefs().draw())
-      text = labelContentCallback().createString(prefs, lastUpdateFromDS_, prefs.commonprefs().labelprefs().displayfields());
+      text = labelContentCallback().createString(prefs, lastUpdateFromDS_, prefs.commonprefs().labelprefs().displayfields(), LabelContentCallback::TextType::DISPLAY);
 
     if (!text.empty())
     {
@@ -436,7 +436,7 @@ std::string BeamNode::popupText() const
         prefix = getEntityName(EntityNode::ALIAS_NAME);
       prefix += "\n";
     }
-    return prefix + labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().hoverdisplayfields());
+    return prefix + labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().hoverdisplayfields(), LabelContentCallback::TextType::HOVER);
   }
 
   return "";
@@ -445,14 +445,14 @@ std::string BeamNode::popupText() const
 std::string BeamNode::hookText() const
 {
   if (hasLastPrefs_ && hasLastUpdate_)
-    return labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().hookdisplayfields());
+    return labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().hookdisplayfields(), LabelContentCallback::TextType::HOOK);
   return "";
 }
 
 std::string BeamNode::legendText() const
 {
   if (hasLastPrefs_ && hasLastUpdate_)
-    return labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().legenddisplayfields());
+    return labelContentCallback().createString(lastPrefsFromDS_, lastUpdateFromDS_, lastPrefsFromDS_.commonprefs().labelprefs().legenddisplayfields(), LabelContentCallback::TextType::LEGEND);
 
   return "";
 }
@@ -1127,12 +1127,12 @@ void BeamNode::getVisibleEndPoints(std::vector<osg::Vec3d>& ecefVec) const
   simCore::Vec3 startEcef;
   if (0 != getPosition(&startEcef, simCore::COORD_SYS_ECEF))
     return;
-  ecefVec.push_back({ startEcef.x(), startEcef.y(), startEcef.z() });
+  ecefVec.emplace_back( startEcef.x(), startEcef.y(), startEcef.z() );
 
   // Convert end point into ECEF
   simCore::Vec3 endEcef;
   simCore::CoordinateConverter::convertGeodeticPosToEcef(endPosition, endEcef);
-  ecefVec.push_back({ endEcef.x(), endEcef.y(), endEcef.z() });
+  ecefVec.emplace_back( endEcef.x(), endEcef.y(), endEcef.z() );
 }
 
 unsigned int BeamNode::objectIndexTag() const

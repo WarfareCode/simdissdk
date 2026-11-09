@@ -418,6 +418,7 @@ private:
 int main(int argc, char **argv)
 {
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
 
   osg::ArgumentParser argParse(&argc, argv);
@@ -433,7 +434,7 @@ int main(int argc, char **argv)
 
 #ifdef HAVE_IMGUI
   ::GUI::OsgImGuiHandler* gui = new ::GUI::OsgImGuiHandler();
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(mapSRS, graph.get()));
 #endif
 

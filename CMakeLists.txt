@@ -92,10 +92,6 @@ if(NOT USING_VCPKG)
     include(AddExecutablePostfix)
 endif()
 
-# Set architecture identifiers
-string(TOUPPER ${BUILD_SYSTEM_ARCH} ARCH)
-add_definitions(-D${ARCH})
-
 # Set system identifiers
 if(WIN32)
     if(MSVC)
@@ -151,6 +147,8 @@ endif()
 
 # Build Release mode by default on Linux, unless otherwise specified
 include(DefaultToReleaseBuildType)
+# Define the various target directories for installation
+include(InstallSettingsDirs)
 
 # Copy the helper script into the build directory
 configure_file("${PROJECT_SOURCE_DIR}/CMakeUtilities/ExperimentalSubmit.cmake" "${PROJECT_BINARY_DIR}/ExperimentalSubmit.cmake")
@@ -175,24 +173,13 @@ endif()
 
 # Setup third party dependencies
 
-# Prepopulate the installation runtime and library directory to override SIMDIS defaults
-set(INSTALLSETTINGS_RUNTIME_DIR "bin" CACHE STRING "Directory containing exectuables and DLLs; non-absolute paths are relative to CMAKE_INSTALL_PREFIX")
-set(INSTALLSETTINGS_LIBRARY_DIR "lib" CACHE STRING "Directory containing shared object files (UNIX only); non-absolute paths are relative to CMAKE_INSTALL_PREFIX")
-include(CreateInstallProperties)
-
-
 # --- System Libraries --------------------
 
 find_package(OpenGL QUIET)
 find_package(OpenSceneGraph COMPONENTS osgAnimation osgDB osgGA osgSim osgText osgUtil osgViewer QUIET)
 find_package(GDAL CONFIG)
 find_package(osgEarth)
-
-# vcpkg installs plugins into the plugins/ folder, not bin or lib
-set(INSTALLSETTINGS_OSGPLUGINS_DIR "${INSTALLSETTINGS_SHARED_LIBRARY_DIR}")
-if(USING_VCPKG)
-    set(INSTALLSETTINGS_OSGPLUGINS_DIR "plugins")
-endif()
+find_package(osgQOpenGL 4.0 QUIET)
 
 # Find SQLite for DB file support in simVis and simUtil
 find_package(SQLite3 QUIET)
@@ -201,7 +188,7 @@ if(NOT SQLite3_FOUND)
     # Support vcpkg SQLite3 package/target name
     find_package(unofficial-sqlite3 CONFIG QUIET)
     if(unofficial-sqlite3_FOUND)
-        add_target(SQLite::SQLite3 ALIAS unofficial::sqlite3::sqlite3)
+        add_target(SQLite3::SQLite3 ALIAS unofficial::sqlite3::sqlite3)
         set(SQLite3_FOUND TRUE)
         set(SQLite3_VCPKG ON)
     endif()
@@ -226,8 +213,6 @@ else()
         message(WARNING "Neither Qt5 nor Qt6 was found. simQt and Qt-based examples will not build.")
     endif()
 endif()
-# Search for the matching qt version of osgQOpenGL
-find_package(osgQOpenGL-qt${_SDK_QT_VERSION} 4.0 QUIET)
 
 # Old osgQt is only supported in Qt5
 if(ENABLE_DEPRECATED_SIMDISSDK_API AND Qt5_FOUND)

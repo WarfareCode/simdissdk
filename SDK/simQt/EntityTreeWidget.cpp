@@ -44,7 +44,7 @@ public:
   /** Constructor */
   explicit EntitySettingsObserver(EntityTreeWidget* parent) : parent_(parent) {}
   virtual ~EntitySettingsObserver() {}
-  virtual void onSettingChange(const QString& name, const QVariant& value)
+  void onSettingChange(const QString& name, const QVariant& value) override
   {
     parent_->toggleTreeView(value.toBool());
   }
@@ -83,6 +83,7 @@ EntityTreeWidget::EntityTreeWidget(QTreeView* view)
   connect(proxyModel_, SIGNAL(rowsInserted(QModelIndex, int, int)), this, SLOT(delaySend_()));
   connect(proxyModel_, SIGNAL(rowsRemoved(QModelIndex, int, int)), this, SLOT(delaySend_()));
   connect(proxyModel_, SIGNAL(filterSettingsChanged(QMap<QString, QVariant>)), this, SIGNAL(filterSettingsChanged(QMap<QString, QVariant>))); // Echo out the signal
+  connect(proxyModel_, &EntityProxyModel::pinnedEntitiesChanged, this, &EntityTreeWidget::pinnedEntitiesChanged);
   connect(view_->selectionModel(), SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)), this, SLOT(selectionChanged_(const QItemSelection&, const QItemSelection&)));
   connect(view_, SIGNAL(doubleClicked(const QModelIndex&)), this, SLOT(doubleClicked_(const QModelIndex&)));
   connect(emitItemsSelectedTimer_, SIGNAL(timeout()), this, SLOT(emitItemsSelected_()));
@@ -204,7 +205,7 @@ void EntityTreeWidget::captureVisible_()
     if (!rect.isValid() || (rect.bottom() < 0)  || (rect.top() > height))
       continue;
 
-    entries.push_back(Entry(rect, index));
+    entries.emplace_back(rect, index);
   }
 
   std::sort(entries.begin(), entries.end());
@@ -427,6 +428,16 @@ void EntityTreeWidget::setAlwaysShow(simData::ObjectId id)
   proxyModel_->setAlwaysShow(id);
 }
 
+QSet<simData::ObjectId> EntityTreeWidget::pinnedEntities() const
+{
+  return proxyModel_->pinnedEntities();
+}
+
+void EntityTreeWidget::setPinnedEntities(const QSet<simData::ObjectId>& ids)
+{
+  proxyModel_->setPinnedEntities(ids);
+}
+
 void EntityTreeWidget::getFilterSettings(QMap<QString, QVariant>& settings) const
 {
   proxyModel_->getFilterSettings(settings);
@@ -585,6 +596,9 @@ void EntityTreeWidget::selectionCleared_()
 
 void EntityTreeWidget::emitItemsSelected_()
 {
+  // Cache current selected IDs to determine if selection actually changed
+  QSet<uint64_t> previousSelections = selectionSet_;
+
   // Clear out our selection
   selectionList_.clear();
   selectionSet_.clear();
@@ -608,8 +622,11 @@ void EntityTreeWidget::emitItemsSelected_()
   // that either the data store reported a duplicate ID, or tree is storing a dupe ID
   assert(selectionSet_.size() == selectionList_.size());
 
-  // Tell listeners about the new selections (could be empty list)
-  Q_EMIT itemsSelected(selectionList_);
+  // QTreeWidget's selection model may emit a selection changed signal if the row indexes shifted (if rows were inserted, for instance)
+  // but actual selection did not change. Check to see if any of the selected IDs actually changed.
+  // Tell listeners about the new selections if there was a change in selected IDs (could be empty list)
+  if (selectionSet_ != previousSelections)
+    Q_EMIT itemsSelected(selectionList_);
   emitItemsSelectedTimer_->stop();
   lastSelectionChangedTime_ = simCore::getSystemTime();
 }

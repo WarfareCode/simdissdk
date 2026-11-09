@@ -20,21 +20,22 @@
  * disclose, or release this software.
  *
  */
+#include "osg/CullFace"
 #include "osg/Geometry"
 #include "osg/ImageStream"
 #include "osg/MatrixTransform"
 #include "osg/Notify"
-#include "osg/CullFace"
 #include "osg/PolygonOffset"
 #include "osgDB/ReadFile"
 #include "osgUtil/CullVisitor"
+#include "osgEarth/CameraUtils"
+#include "osgEarth/LineDrawable"
 #include "osgEarth/Horizon"
-#include "osgEarth/Shadowing"
+#include "osgEarth/LogarithmicDepthBuffer"
 #include "osgEarth/NodeUtils"
 #include "osgEarth/ObjectIndex"
-#include "osgEarth/CameraUtils"
+#include "osgEarth/Shadowing"
 #include "osgEarth/TerrainEngineNode"
-#include "osgEarth/LogarithmicDepthBuffer"
 
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Angle.h"
@@ -56,43 +57,60 @@
 
 namespace
 {
-static const double DEFAULT_PROJECTOR_FOV_IN_DEG = 45.0;
-static const float DEFAULT_ALPHA_VALUE = 0.1f;
+
+/**
+ * Maximum number of projectors supported on one entity node.
+ *
+ * Each projector requires one element in the entity projector sampler and
+ * uniform arrays, and one texture image unit in the contiguous range beginning
+ * at ENTITY_PROJECTOR_FIRST_TEXTURE_UNIT. This value therefore controls the
+ * maximum simultaneous projectors on a node and the size of the fixed texture
+ * image-unit range used below.
+ *
+ * If changed, verify the projector-on-entity shader expectations, uniform-array
+ * setup, and texture-attribute cleanup.
+ */
+static constexpr unsigned int MAX_NODE_PROJECTORS = 4u;
+
+/**
+ * First texture image unit in the fixed contiguous range used for entity
+ * projector textures. With the current MAX_NODE_PROJECTORS value, entity
+ * projectors use texture image units 7 through 10 inclusive.
+ *
+ * These textures are applied through an entity node's StateSet, rather than as
+ * terrain-layer textures, so they are not allocated through
+ * osgEarth::TerrainResources. A fixed range is used because this code needs
+ * one known texture image unit per projector for the simProjSampler array.
+ *
+ * Unit 7 is a legacy starting point. If this value or MAX_NODE_PROJECTORS
+ * changes, verify that the full resulting range does not conflict with texture
+ * image units used by entity model materials, including PBR textures, or by
+ * other inherited rendering state.
+ */
+static constexpr unsigned int ENTITY_PROJECTOR_FIRST_TEXTURE_UNIT = 7u;
+
+static constexpr double DEFAULT_PROJECTOR_FOV_IN_DEG = 45.0;
+static constexpr float DEFAULT_ALPHA_VALUE = 0.1f;
 
   // draws the geometry of the projection frustum.
   // (NOTE: some of this code is borrowed from OSG's osgthirdpersonview example)
   void makeFrustum(const osg::Matrixd& proj, const osg::Matrixd& mv, osg::MatrixTransform* mt)
   {
-    osg::ref_ptr<osg::Geometry> geom;
-    osg::ref_ptr<osg::Vec3Array> v;
-
+    osgEarth::LineDrawable* line;
     if (mt->getNumChildren() > 0)
-    {
-      geom = dynamic_cast<osg::Geometry*>(mt->getChild(0));
-      v = dynamic_cast<osg::Vec3Array*>(geom->getVertexArray());
-    }
+      line = dynamic_cast<osgEarth::LineDrawable*>(mt->getChild(0));
     else
     {
-      geom = new osg::Geometry();
-      v = new osg::Vec3Array(9);
-      v->setDataVariance(osg::Object::DYNAMIC);
-      geom->setVertexArray(v.get());
-      geom->setDataVariance(osg::Object::DYNAMIC);
+      line = new osgEarth::LineDrawable(GL_LINES);
+      // 4 apex lines + 4 near plane lines + 4 far plane lines = 12 lines (24 vertices)
+      line->allocate(24);
+      line->setDataVariance(osg::Object::DYNAMIC);
 
-      osg::ref_ptr<osg::Vec4Array> c = new osg::Vec4Array(osg::Array::BIND_OVERALL);
-      c->push_back(simVis::Color::White);
-      geom->setColorArray(c.get());
+      line->setColor(simVis::Color::White);
+      line->setLineSmooth(true);
+      simVis::setLighting(line->getOrCreateStateSet(), osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
 
-      GLubyte idxLines[8] = { 0, 5, 0, 6, 0, 7, 0, 8 };
-      GLubyte idxLoops0[4] = { 1, 2, 3, 4 };
-      GLubyte idxLoops1[4] = { 5, 6, 7, 8 };
-      geom->addPrimitiveSet(new osg::DrawElementsUByte(osg::PrimitiveSet::LINES, 8, idxLines));
-      geom->addPrimitiveSet(new osg::DrawElementsUByte(osg::PrimitiveSet::LINE_LOOP, 4, idxLoops0));
-      geom->addPrimitiveSet(new osg::DrawElementsUByte(osg::PrimitiveSet::LINE_LOOP, 4, idxLoops1));
-
-      simVis::setLighting(geom->getOrCreateStateSet(), osg::StateAttribute::OFF | osg::StateAttribute::PROTECTED);
-
-      mt->addChild(geom.get());
+      mt->addChild(line);
     }
 
     // Get near and far from the Projection matrix.
@@ -111,16 +129,38 @@ static const float DEFAULT_ALPHA_VALUE = 0.1f;
     const double fTop = fz * (1.0+proj(2, 1)) / proj(1, 1);
     const double fBottom = fz * (proj(2, 1)-1.0) / proj(1, 1);
 
-    (*v)[0].set(0., 0., 0.);
-    (*v)[1].set(nLeft, nBottom, -nz);
-    (*v)[2].set(nRight, nBottom, -nz);
-    (*v)[3].set(nRight, nTop, -nz);
-    (*v)[4].set(nLeft, nTop, -nz);
-    (*v)[5].set(fLeft, fBottom, -fz);
-    (*v)[6].set(fRight, fBottom, -fz);
-    (*v)[7].set(fRight, fTop, -fz);
-    (*v)[8].set(fLeft, fTop, -fz);
-    v->dirty();
+    // Precalculate corner positions
+    const osg::Vec3 v0(0., 0., 0.);
+    const osg::Vec3 v1(nLeft, nBottom, -nz);
+    const osg::Vec3 v2(nRight, nBottom, -nz);
+    const osg::Vec3 v3(nRight, nTop, -nz);
+    const osg::Vec3 v4(nLeft, nTop, -nz);
+    const osg::Vec3 v5(fLeft, fBottom, -fz);
+    const osg::Vec3 v6(fRight, fBottom, -fz);
+    const osg::Vec3 v7(fRight, fTop, -fz);
+    const osg::Vec3 v8(fLeft, fTop, -fz);
+
+    unsigned int idx = 0;
+
+    // Apex to far plane corners
+    line->setVertex(idx++, v0); line->setVertex(idx++, v5);
+    line->setVertex(idx++, v0); line->setVertex(idx++, v6);
+    line->setVertex(idx++, v0); line->setVertex(idx++, v7);
+    line->setVertex(idx++, v0); line->setVertex(idx++, v8);
+
+    // Near plane loop
+    line->setVertex(idx++, v1); line->setVertex(idx++, v2);
+    line->setVertex(idx++, v2); line->setVertex(idx++, v3);
+    line->setVertex(idx++, v3); line->setVertex(idx++, v4);
+    line->setVertex(idx++, v4); line->setVertex(idx++, v1);
+
+    // Far plane loop
+    line->setVertex(idx++, v5); line->setVertex(idx++, v6);
+    line->setVertex(idx++, v6); line->setVertex(idx++, v7);
+    line->setVertex(idx++, v7); line->setVertex(idx++, v8);
+    line->setVertex(idx++, v8); line->setVertex(idx++, v5);
+
+    line->dirty();
 
     mt->setMatrix(osg::Matrixd::inverse(mv));
   }
@@ -132,8 +172,6 @@ static const float DEFAULT_ALPHA_VALUE = 0.1f;
    * will be replaced with osg::Callback, after which these two can be
    * unified.
    */
-#define SIM_MAX_NODE_PROJECTORS 4
-
   class ProjectOnNodeUpdater : public osg::NodeCallback
   {
     using ProjectorObserver = osg::observer_ptr<simVis::ProjectorNode>;
@@ -151,13 +189,13 @@ static const float DEFAULT_ALPHA_VALUE = 0.1f;
     int add(simVis::ProjectorNode* node)
     {
       OE_SOFT_ASSERT_AND_RETURN(node != nullptr, -1);
-      OE_SOFT_ASSERT_AND_RETURN(projectors_.size() < SIM_MAX_NODE_PROJECTORS, -1);
+      OE_SOFT_ASSERT_AND_RETURN(projectors_.size() < MAX_NODE_PROJECTORS, -1);
 
       prune();
 
       if (std::find(projectors_.begin(), projectors_.end(), node) == projectors_.end())
       {
-        projectors_.push_back(node);
+        projectors_.emplace_back(node);
         return projectors_.size();
       }
       else
@@ -202,17 +240,17 @@ static const float DEFAULT_ALPHA_VALUE = 0.1f;
         "simProjSampler",
         osg::Uniform::SAMPLER_2D,
         ss,
-        SIM_MAX_NODE_PROJECTORS);
+        MAX_NODE_PROJECTORS);
 
       unsigned count = projectors_.size();
       unsigned index = 0;
 
       for (auto& proj : projectors_)
       {
-        sampler.setElement(index, (int)(simVis::ProjectorManager::getTextureImageUnit() + index));
+        sampler.setElement(index, (int)(ENTITY_PROJECTOR_FIRST_TEXTURE_UNIT + index));
 
         ss->setTextureAttribute(
-          simVis::ProjectorManager::getTextureImageUnit() + index,
+          ENTITY_PROJECTOR_FIRST_TEXTURE_UNIT + index,
           proj->getTexture());
 
         ++index;
@@ -234,15 +272,15 @@ static const float DEFAULT_ALPHA_VALUE = 0.1f;
       }
 
       // disable projector-active on the stateset for any remaining projectors
-      for (; index < SIM_MAX_NODE_PROJECTORS; ++index)
+      for (; index < MAX_NODE_PROJECTORS; ++index)
       {
-        osgEarth::Util::ArrayUniform u("projectorActive", osg::Uniform::BOOL, ss, SIM_MAX_NODE_PROJECTORS);
+        osgEarth::Util::ArrayUniform u("projectorActive", osg::Uniform::BOOL, ss, MAX_NODE_PROJECTORS);
         u.setElement(index, false);
       }
     }
 
     //! Prunes the projector list and updates all texgen matrices
-    void operator()(osg::Node* node, osg::NodeVisitor* nv)
+    void operator()(osg::Node* node, osg::NodeVisitor* nv) override
     {
       prune();
 
@@ -255,7 +293,7 @@ static const float DEFAULT_ALPHA_VALUE = 0.1f;
 
       // TODO: can we just put this on the node's stateset??
       osg::ref_ptr<osg::StateSet> ss = new osg::StateSet();
-      osg::Uniform* u = new osg::Uniform(osg::Uniform::FLOAT_MAT4, "simProjTexGenMat", SIM_MAX_NODE_PROJECTORS);
+      osg::Uniform* u = new osg::Uniform(osg::Uniform::FLOAT_MAT4, "simProjTexGenMat", MAX_NODE_PROJECTORS);
       ss->addUniform(u);
 
       osgUtil::CullVisitor* cv = dynamic_cast<osgUtil::CullVisitor*>(nv);
@@ -321,7 +359,7 @@ ProjectorNode::~ProjectorNode()
     hostLocator_->removeCallback(locatorCallback_.get());
 
   auto localCopy = projectedNodes_;
-  for (auto node : localCopy)
+  for (const auto& node : localCopy)
   {
     osg::ref_ptr<osg::Node> lock;
     if (node.first.lock(lock))
@@ -443,7 +481,7 @@ void ProjectorNode::updateLabel_(const simData::ProjectorPrefs& prefs)
 
   std::string text;
   if (prefs.commonprefs().labelprefs().draw())
-    text = labelContentCallback().createString(prefs, lastUpdate_, prefs.commonprefs().labelprefs().displayfields());
+    text = labelContentCallback().createString(prefs, lastUpdate_, prefs.commonprefs().labelprefs().displayfields(), LabelContentCallback::TextType::DISPLAY);
 
   if (!text.empty())
   {
@@ -534,7 +572,7 @@ std::string ProjectorNode::popupText() const
         prefix = getEntityName(EntityNode::ALIAS_NAME);
       prefix += "\n";
     }
-    return prefix + labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().hoverdisplayfields());
+    return prefix + labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().hoverdisplayfields(), LabelContentCallback::TextType::HOVER);
   }
 
   return "";
@@ -543,14 +581,14 @@ std::string ProjectorNode::popupText() const
 std::string ProjectorNode::hookText() const
 {
   if (hasLastUpdate_ && hasLastPrefs_)
-    return labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().hookdisplayfields());
+    return labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().hookdisplayfields(), LabelContentCallback::TextType::HOOK);
   return "";
 }
 
 std::string ProjectorNode::legendText() const
 {
   if (hasLastUpdate_ && hasLastPrefs_)
-    return labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().legenddisplayfields());
+    return labelContentCallback().createString(lastPrefs_, lastUpdate_, lastPrefs_.commonprefs().labelprefs().legenddisplayfields(), LabelContentCallback::TextType::LEGEND);
   return "";
 }
 
@@ -936,13 +974,14 @@ void ProjectorNode::syncWithLocator()
 
   const osg::Vec3d& hostPosEcef = locatorMat.getTrans();
   simCore::Vec3 hostPosLla;
-  if (0 == simCore::CoordinateConverter::convertEcefToGeodeticPos(convertToSim(hostPosEcef), hostPosLla))
+  const std::optional<simCore::Vec3> hostPosLlaOpt = simCore::CoordinateConverter::convertEcefToGeodeticPos(convertToSim(hostPosEcef));
+  if (hostPosLlaOpt)
   {
     // extend the projector vector at least as far as the earth surface to guarantee an intersection
-    const osg::Vec3d& vector = osg::Vec3d(cen - eye) * 2.0 * hostPosLla.alt();
+    const osg::Vec3d& vector = osg::Vec3d(cen - eye) * 2.0 * hostPosLlaOpt->alt();
     const osg::Vec3d& endpoint = eye + vector;
     osg::Vec3d ellipsoidIntersection;
-    if (calculateEarthIntersection(hostPosLla.lat(), eye, endpoint, ellipsoidIntersection))
+    if (calculateEarthIntersection(hostPosLlaOpt->lat(), eye, endpoint, ellipsoidIntersection))
     {
       // if ellipsoid intersection can be calculated, use that result as the projector position
       const simCore::Vec3& intersection = convertToSim(ellipsoidIntersection);
@@ -1202,7 +1241,11 @@ int ProjectorNode::removeProjectionFromNode(osg::Node* entity)
 
       stateSet->removeDefine("SIMVIS_NUM_PROJECTORS");
       stateSet->removeUniform("simProjSampler");
-      stateSet->removeTextureAttribute(ProjectorManager::getTextureImageUnit(), getTexture());
+      for (unsigned int i = 0; i < MAX_NODE_PROJECTORS; ++i)
+      {
+        stateSet->removeTextureAttribute(ENTITY_PROJECTOR_FIRST_TEXTURE_UNIT + i,
+          osg::StateAttribute::TEXTURE);
+      }
 
       removeFromStateSet(stateSet);
     }
@@ -1211,7 +1254,7 @@ int ProjectorNode::removeProjectionFromNode(osg::Node* entity)
       projOnNodeCallback->configureStateSet(stateSet);
 
       // remove the last one
-      stateSet->removeTextureAttribute(count, osg::StateAttribute::TEXTURE);
+      stateSet->removeTextureAttribute(ENTITY_PROJECTOR_FIRST_TEXTURE_UNIT + count, osg::StateAttribute::TEXTURE);
     }
   }
 

@@ -69,6 +69,7 @@
 
 #define EXAMPLE_ROCKET_BURN_TEXTURE       "p.rgb"
 
+namespace osg { class GraphicsContext; }
 namespace osgEarth { class Map; }
 namespace simCore { class ClockImpl; }
 namespace simData { class DataStore; }
@@ -80,6 +81,19 @@ namespace simVis
 
 namespace simExamples
 {
+  /**
+   * Enables High DPI support for a standalone application. Will register the application executable
+   * as DPI-aware and install an osgEarth callback for testing GraphicsContext DPR values. If called
+   * before instantiation of OSG windows, this will allow for support of DPI-awareness V2 on Windows;
+   * if not, OSG's initial setting of DPI-awareness V1 will take effect.
+   *
+   * This function is not required or useful for Qt-based applications that use simQt::ViewerWidgetAdapter.
+   */
+  extern SDKUTIL_EXPORT void enableHighDpiSupport();
+
+  /** Helper that returns the device pixel ratio for a given graphics context. */
+  extern SDKUTIL_EXPORT float getGraphicsContextDpr(const osg::GraphicsContext* gc);
+
   /** Creates a map for use with the examples. */
   extern SDKUTIL_EXPORT osgEarth::Map* createDefaultExampleMap();
 
@@ -146,11 +160,11 @@ namespace simExamples
     /** Changes the scene manager */
     void setSceneManager(simVis::SceneManager* mgr);
     /** Update the scene manager's sky node with current clock time */
-    virtual void onSetTime(const simCore::TimeStamp &t, bool isJump);
+    void onSetTime(const simCore::TimeStamp &t, bool isJump) override;
     /** No-op for sky node time updater */
-    virtual void onTimeLoop();
+    void onTimeLoop() override;
     /** No-op for sky node time updater */
-    virtual void adjustTime(const simCore::TimeStamp& oldTime, simCore::TimeStamp& newTime);
+    void adjustTime(const simCore::TimeStamp& oldTime, simCore::TimeStamp& newTime) override;
     /** Changes an "hours" offset intended to help adjust daylight */
     void setHoursOffset(double hours);
     /** Retrieves the current hours offset */
@@ -180,7 +194,7 @@ namespace simExamples
     IdleClockCallback(simCore::ClockImpl& clock, simData::DataStore& dataStore);
 
     /** Overrides NodeCallback::operator() to service the callback */
-    virtual void operator()(osg::Node* node, osg::NodeVisitor* nv);
+    void operator()(osg::Node* node, osg::NodeVisitor* nv) override;
 
   private:
     simCore::ClockImpl& clock_;

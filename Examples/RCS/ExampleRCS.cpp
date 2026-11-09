@@ -234,6 +234,7 @@ int main(int argc, char **argv)
 {
   // Set up the scene:
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
 
   osg::ref_ptr<simVis::Viewer> viewer = new simVis::Viewer();
@@ -247,7 +248,7 @@ int main(int argc, char **argv)
 
 #ifdef HAVE_IMGUI
   ::GUI::OsgImGuiHandler* gui = new ::GUI::OsgImGuiHandler();
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(app));
 #endif
 

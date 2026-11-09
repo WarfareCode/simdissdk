@@ -239,19 +239,9 @@ simData::AnimatedLineBend AnimatedLineNode::getLineBending() const
 
 void AnimatedLineNode::setShiftsPerSecond(double value)
 {
-  const bool wasDynamicStippled = (shiftsPerSecond_ != 0.);
-
   shiftsPerSecond_ = value;
   // Need to reset the time shift to recalculate shifting correctly, per SIMDIS-3104
   timeLastShift_ = 0.0;
-
-  const bool isDynamicStippled = (shiftsPerSecond_ != 0.);
-  if (isDynamicStippled != wasDynamicStippled)
-  {
-    // enable dynamic stipple shader when needed
-    osg::StateSet* stateSet = lineGroup_->getOrCreateStateSet();
-    stateSet->setDefine("USE_DYNAMIC_STIPPLE_SHADER", osg::StateAttribute::OverrideValue(isDynamicStippled ? 1 : 0));
-  }
 }
 
 void AnimatedLineNode::initializeGeometry_()
@@ -495,18 +485,18 @@ void AnimatedLineNode::update_(double t)
   if (numShifts >= 1.0)
   {
     // note: lines are tessellated end-to-start,
-    // so we bit-shift in the opposite direction to achieve
-    // proper stippling direction.
+    // but to match osgEarth's default shader stipple direction,
+    // we swap the bit-shift directions here.
     const unsigned short bits = shortRound(numShifts);
     if (shiftsPerSecond_ > 0.0)
     {
-      rol(stipple1_, bits);
-      rol(stipple2_, bits);
+      ror(stipple1_, bits);
+      ror(stipple2_, bits);
     }
     else
     {
-      ror(stipple1_, bits);
-      ror(stipple2_, bits);
+      rol(stipple1_, bits);
+      rol(stipple2_, bits);
     }
 
     firstHalf_.line1->setStipplePattern(stipple1_);
@@ -682,9 +672,8 @@ void AnimatedLineNode::drawBendingLine_(const simCore::MultiFrameCoordinate& coo
       const double alt = lla1.alt() + percentOfFull * (lla2.alt() - lla1.alt());
 
       // Convert back to ECEF and add the vertex
-      simCore::Vec3 ecefPos;
-      simCore::CoordinateConverter::convertGeodeticPosToEcef(simCore::Vec3(lat, lon, alt), ecefPos);
-      verts->push_back(osg::Vec3f(ecefPos.x(), ecefPos.y(), ecefPos.z()) - zeroPoint);
+      simCore::Vec3 ecefPosVec = simCore::CoordinateConverter::convertGeodeticPosToEcef(simCore::Vec3(lat, lon, alt));
+      verts->push_back(osg::Vec3f(ecefPosVec.x(), ecefPosVec.y(), ecefPosVec.z()) - zeroPoint);
     }
 
 
@@ -713,9 +702,8 @@ void AnimatedLineNode::drawBendingLine_(const simCore::MultiFrameCoordinate& coo
       const double alt = lla1.alt() + percentOfFull * (lla2.alt() - lla1.alt());
 
       // Convert back to ECEF and add the vertex
-      simCore::Vec3 ecefPos;
-      simCore::CoordinateConverter::convertGeodeticPosToEcef(simCore::Vec3(lat, lon, alt), ecefPos);
-      verts->push_back(osg::Vec3f(ecefPos.x(), ecefPos.y(), ecefPos.z()) - zeroPoint);
+      simCore::Vec3 ecefPosVec = simCore::CoordinateConverter::convertGeodeticPosToEcef(simCore::Vec3(lat, lon, alt));
+      verts->push_back(osg::Vec3f(ecefPosVec.x(), ecefPosVec.y(), ecefPosVec.z()) - zeroPoint);
     }
 
     // Finish up

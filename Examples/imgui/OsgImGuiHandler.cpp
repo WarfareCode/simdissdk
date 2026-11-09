@@ -23,11 +23,11 @@
 #include <osg/Camera>
 #include <osg/RenderInfo>
 #include "imgui.h"
-#include "backends/imgui_impl_opengl3.h"
-#include "BaseGui.h"
+#include "imgui_impl_opengl3.h"
 #include "OsgImGuiHandler.h"
-#include "osgEarth/Version"
 #include "osgEarth/ShaderLoader"
+#include "osgEarth/TerrainEngineNode"
+#include "osgEarth/Version"
 #include "osgEarth/VirtualProgram"
 
 #if OSGEARTH_SOVERSION >= 159
@@ -82,6 +82,7 @@
 
 #include "simNotify/Notify.h"
 #include "simCore/Calc/Interpolation.h"
+#include "simVis/DevicePixelRatioUtils.h"
 #include "simVis/Registry.h"
 #include "SimExamplesGui.h"
 
@@ -163,12 +164,6 @@ void OsgImGuiHandler::add(osgEarth::GUI::BaseGUI* gui)
     menus_["User"].push_back(std::unique_ptr<osgEarth::GUI::BaseGUI>(gui));
 }
 #endif
-
-void OsgImGuiHandler::add(::GUI::BaseGui* gui)
-{
-  std::cerr << "GUI \"" << gui->name() << "\" is of a deprecated type (::GUI::BaseGui). Update to simExamples::SimExamplesGui\n";
-  deprecatedGuis_.push_back(std::unique_ptr<::GUI::BaseGui>(gui));
-}
 
 static ImGuiKey convertKey(int c)
 {
@@ -260,14 +255,20 @@ void OsgImGuiHandler::init_()
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 #endif
 
+  const float dpr = simVis::DevicePixelRatioUtils::getDpr();
   std::string font = simVis::Registry::instance()->findFontFile("droidsdans.ttf");
   // Attempt fallback to arial if droidsans isn't available
   if (font.empty())
     font = simVis::Registry::instance()->findFontFile("arial.ttf");
   if (!font.empty())
   {
-    defaultFont_ = io.Fonts->AddFontFromFileTTF(font.c_str(), 14.f);
-    largeFont_ = io.Fonts->AddFontFromFileTTF(font.c_str(), 24.f);
+    // Load fonts scaled up to the physical DPR for crisp rendering
+    defaultFont_ = io.Fonts->AddFontFromFileTTF(font.c_str(), 14.f * dpr);
+    largeFont_ = io.Fonts->AddFontFromFileTTF(font.c_str(), 24.f * dpr);
+
+    // Now, scale them down internally, so that we can use logical pixels
+    defaultFont_->Scale = 1.0f / dpr;
+    largeFont_->Scale = 1.0f / dpr;
   }
 }
 
@@ -290,9 +291,17 @@ void OsgImGuiHandler::newFrame_(osg::RenderInfo& renderInfo)
 
   ImGuiIO& io = ImGui::GetIO();
 
-  io.DisplaySize = ImVec2(renderInfo.getCurrentCamera()->getGraphicsContext()->getTraits()->width, renderInfo.getCurrentCamera()->getGraphicsContext()->getTraits()->height);
+  const float dpr = simVis::DevicePixelRatioUtils::getDpr();
+  auto* gc = renderInfo.getCurrentCamera()->getGraphicsContext();
+  const int physWidth = gc->getTraits()->width;
+  const int physHeight = gc->getTraits()->height;
 
-  double currentTime = renderInfo.getView()->getFrameStamp()->getSimulationTime();
+  // Set display size to use logical coordinates
+  io.DisplaySize = ImVec2(physWidth / dpr, physHeight / dpr);
+  // But have the GL3 backend scale the physical viewport to use whole space
+  io.DisplayFramebufferScale = ImVec2(dpr, dpr);
+
+  const double currentTime = renderInfo.getView()->getFrameStamp()->getSimulationTime();
   io.DeltaTime = currentTime - time_ + 0.0000001;
   time_ = currentTime;
 
@@ -320,10 +329,13 @@ void OsgImGuiHandler::render_(osg::RenderInfo& ri)
   auto centralNode = ImGui::DockBuilderGetCentralNode(dockSpaceId);
 
   auto io = ImGui::GetIO();
-  const double newX = centralNode->Pos.x;
-  const double newY = io.DisplaySize.y - centralNode->Size.y - centralNode->Pos.y;
-  const double newWidth = centralNode->Size.x;
-  const double newHeight = centralNode->Size.y;
+  const float dpr = simVis::DevicePixelRatioUtils::getDpr();
+
+  // ImGui provides logical pixels, but we need physical pixels for OSG viewport
+  const double newX = centralNode->Pos.x * dpr;
+  const double newY = (io.DisplaySize.y - centralNode->Size.y - centralNode->Pos.y) * dpr;
+  const double newWidth = centralNode->Size.x * dpr;
+  const double newHeight = centralNode->Size.y * dpr;
 
   // If we do not adjust viewport, no need to adjust projection matrix
   if (osg::equivalent(viewport->x(), newX) && osg::equivalent(viewport->y(), newY) &&
@@ -389,6 +401,14 @@ bool OsgImGuiHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionA
     }
   }
 
+  // SIM-19436: It's possible to enter here, before the first FRAME event,
+  // and after initialization of the setCameraCallbacks. We could either return
+  // in that case to avoid an invalid GetIO(), or just initialize early. If we
+  // initialize early outside of a FRAME, the GL context won't initialize
+  // properly, so instead we return.
+  if (firstFrame_)
+    return false;
+
   ImGuiIO& io = ImGui::GetIO();
 
   switch (ea.getEventType())
@@ -426,7 +446,8 @@ bool OsgImGuiHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionA
     if (io.WantCaptureMouse)
     {
       auto imguiButton = convertMouseButton(ea.getButtonMask());
-      io.AddMousePosEvent(ea.getX(), io.DisplaySize.y - ea.getY());
+      io.AddMousePosEvent(simVis::DevicePixelRatioUtils::toLogical(ea.getX()),
+        io.DisplaySize.y - simVis::DevicePixelRatioUtils::toLogical(ea.getY()));
       io.AddMouseButtonEvent(imguiButton, true); // true = push
     }
     return io.WantCaptureMouse;
@@ -434,7 +455,8 @@ bool OsgImGuiHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionA
   case (osgGA::GUIEventAdapter::RELEASE):
   {
     if (io.WantCaptureMouse)
-      io.AddMousePosEvent(ea.getX(), io.DisplaySize.y - ea.getY());
+      io.AddMousePosEvent(simVis::DevicePixelRatioUtils::toLogical(ea.getX()),
+        io.DisplaySize.y - simVis::DevicePixelRatioUtils::toLogical(ea.getY()));
 
     const ImGuiButtonFlags imguiButton = convertMouseButton(ea.getButtonMask());
     io.AddMouseButtonEvent(imguiButton, false); // false = release
@@ -444,13 +466,14 @@ bool OsgImGuiHandler::handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionA
   case (osgGA::GUIEventAdapter::DRAG):
   case (osgGA::GUIEventAdapter::MOVE):
   {
-    io.AddMousePosEvent(ea.getX(), io.DisplaySize.y - ea.getY());
+    io.AddMousePosEvent(simVis::DevicePixelRatioUtils::toLogical(ea.getX()),
+      io.DisplaySize.y - simVis::DevicePixelRatioUtils::toLogical(ea.getY()));
     return io.WantCaptureMouse;
   }
   case (osgGA::GUIEventAdapter::SCROLL):
   {
     auto scrolling = ea.getScrollingMotion() == osgGA::GUIEventAdapter::SCROLL_UP ? 1.0 : -1.0;
-    io.AddMouseWheelEvent(0.0, io.MouseWheel += scrolling);
+    io.AddMouseWheelEvent(0.f, scrolling);
     return io.WantCaptureMouse;
   }
   default:
@@ -505,18 +528,6 @@ void OsgImGuiHandler::draw_(osg::RenderInfo& ri)
       }
       gui->draw(ri);
     }
-  }
-
-  for (auto& gui : deprecatedGuis_)
-  {
-    if (firstDraw_)
-    {
-      if (defaultFont_)
-        gui->setDefaultFont(defaultFont_);
-      if (largeFont_)
-        gui->setLargeFont(largeFont_);
-    }
-    gui->draw(ri);
   }
 
   firstDraw_ = false;

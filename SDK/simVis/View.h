@@ -49,7 +49,8 @@ enum NavMode
   NAVMODE_CENTERVIEW,
   NAVMODE_GIS,
   NAVMODE_BUILDER,
-  NAVMODE_NGTS
+  NAVMODE_NGTS,
+  NAVMODE_PLANAR
 };
 
 /// A camera viewpoint configuration
@@ -102,23 +103,25 @@ public:
 
   /**
    * Extents defines the size of the view and whether the units
-   * are in pixels or as a percentage of a host view.
+   * are in pixels or as a percentage of a host view. The pixels
+   * it represents are logical and not physical. Note that percentage
+   * values are generally between range [0.0, 1.0]
    */
   struct Extents
   {
     /// Constructor for extents
     Extents(float x, float y, float width, float height, bool isRatio = false)
       : x_(x), y_(y), width_(width), height_(height), isRatio_(isRatio) { }
-    /// X coordinate for the extents (either pixels or percentage based on isRatio_)
-    float x_;
-    /// Y coordinate for the extents (either pixels or percentage based on isRatio_)
-    float y_;
-    /// Width for the extents (either pixels or percentage based on isRatio_)
-    float width_;
-    /// Height for the extents (either pixels or percentage based on isRatio_)
-    float height_;
+    /// X coordinate for the extents (either pixels or percentage based on isRatio_) - logical not physical
+    float x_ = 0.f;
+    /// Y coordinate for the extents (either pixels or percentage based on isRatio_) - logical not physical
+    float y_ = 0.f;
+    /// Width for the extents (either pixels or percentage based on isRatio_) - logical not physical
+    float width_ = 200.f;
+    /// Height for the extents (either pixels or percentage based on isRatio_) - logical not physical
+    float height_ = 200.f;
     /// Flags whether extents are specified as absolute pixels or relative percentages
-    bool  isRatio_;
+    bool isRatio_ = false;
   };
 
   /** Vector of View ref_ptr */
@@ -143,7 +146,7 @@ public:
 
   protected:
     /// osg::Referenced-derived
-    virtual ~Callback() {}
+    virtual ~Callback() = default;
   };
 
 public:
@@ -243,7 +246,8 @@ public:
   /**
    * Sets this view's viewport extents. This can either be absolute
    * extents (pixels) or ratio extents (percentage of a host view's
-   * extents, if this is an inset view).
+   * extents, if this is an inset view). The extents should be logical
+   * pixels and not physical pixels.
    *
    * @param[in ] extents Extents to which to size the view
    */
@@ -574,7 +578,7 @@ public:
   bool isVisible() const;
 
   /** Set the name of object using C++ style string. (override from osg::Object) */
-  virtual void setName(const std::string& name);
+  void setName(const std::string& name) override;
 
   /**
     * Install a callback that will be notified on view events.
@@ -616,7 +620,7 @@ public:
   /// internal - gets the HUD camera
   osg::Camera* getOrCreateHUD();
 
-  /// handle window resize events for ratio-insets.
+  /// handle window resize events for ratio-insets. Expects physical width/height, not logical
   void processResize(int newwidth, int newheight);
 
   /// assigns the view manager observer.
@@ -650,10 +654,10 @@ public:
   simVis::EntityNode* getEntityNode(osg::Node* node) const;
 
   /** Return the proper library name */
-  virtual const char* libraryName() const { return "simVis"; }
+  const char* libraryName() const override { return "simVis"; }
 
   /** Return the class name */
-  virtual const char* className() const { return "View"; }
+  const char* className() const override { return "View"; }
 
 protected: // methods
 
@@ -781,7 +785,7 @@ class InsetAddDelete : public simVis::ViewManager::Callback
 public:
   InsetAddDelete(FocusManager& parent);
 
-  virtual void operator()(simVis::View* inset, const EventType& e);
+  void operator()(simVis::View* inset, const EventType& e) override;
 
 protected:
   virtual ~InsetAddDelete();
@@ -797,7 +801,7 @@ public:
   /** Constructor */
   InsetChange(FocusManager& parent);
 
-  virtual void operator()(simVis::View* inset, const EventType& e);
+  void operator()(simVis::View* inset, const EventType& e) override;
 
 protected:
   virtual ~InsetChange();
@@ -828,7 +832,7 @@ public:
 
   protected:
     /// osg::Referenced-derived
-    virtual ~Callback() {}
+    virtual ~Callback() = default;
   };
 
   /** Construct a FocusManager. */

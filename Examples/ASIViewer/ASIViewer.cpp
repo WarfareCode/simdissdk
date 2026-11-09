@@ -193,7 +193,7 @@ struct AppData
 
     if (tetherIndex_ < 0)
     {
-      view_->tetherCamera(0L);
+      view_->tetherCamera(nullptr);
     }
     else
     {
@@ -938,6 +938,7 @@ void readASI(osg::ArgumentParser& args, AppData& app)
 int main(int argc, char **argv)
 {
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
 
   osg::ArgumentParser args(&argc, argv);
@@ -966,7 +967,7 @@ int main(int argc, char **argv)
   /// show the instructions overlay
 #ifdef HAVE_IMGUI
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(app));
 #endif
   app.apply();

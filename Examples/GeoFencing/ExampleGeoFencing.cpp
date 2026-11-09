@@ -149,7 +149,11 @@ void styleAnnotation(osgEarth::Style& style, const simVis::Color& fillColor, boo
   style.getOrCreate<sym::LineSymbol>()->stroke()->width() = osgEarth::Distance(2.f, osgEarth::Units::PIXELS);
 #endif
   style.getOrCreate<sym::LineSymbol>()->tessellationSize()->set(100, osgEarth::Units::KILOMETERS);
+#if OSGEARTH_SOVERSION < 181
   style.getOrCreate<sym::AltitudeSymbol>()->verticalOffset() = 10000;
+#else
+  style.getOrCreate<sym::AltitudeSymbol>()->verticalOffset() = osgEarth::Distance(10000, osgEarth::Units::METERS);
+#endif
   style.getOrCreate<sym::RenderSymbol>()->backfaceCulling() = false;
   style.getOrCreate<sym::RenderSymbol>()->depthTest() = depthTest;
   style.getOrCreate<sym::RenderSymbol>()->clipPlane() = simVis::CLIPPLANE_VISIBLE_HORIZON;
@@ -321,7 +325,7 @@ struct Tester : public osgGA::GUIEventHandler
   }
 
   /** On mouse move, test the new ECEF point and print to screen/modify graphics */
-  virtual bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa, osg::Object*, osg::NodeVisitor*) override
+  bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa, osg::Object*, osg::NodeVisitor*) override
   {
     if (ea.getEventType() == ea.MOVE)
     {
@@ -387,6 +391,7 @@ int main(int argc, char **argv)
 {
   // Set up the scene:
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
   osg::ref_ptr<osgEarth::Map> map = simExamples::createDefaultExampleMap();
 
@@ -406,7 +411,7 @@ int main(int argc, char **argv)
 
 #ifdef HAVE_IMGUI
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(app));
 #endif
 

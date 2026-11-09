@@ -137,18 +137,18 @@ static const std::string SIMDIS10_IMAGERY_CONFIG_SAVE_PATTERNS =
     "All Files (*)";
 
 /** SIMDIS supported model format file patterns, separated by commas. */
-static const std::string ALL_SIMDIS_MODEL_FILE_PATTERNS = "*.opt,*.3db,*.flt,*.fbx,*.osg,*.osgb,*.osgt,*.osgx,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac,*.gltf,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.rgba,*.tga,*.tif,*.tiff,*.bmp,*.tmd,*.lst";
+static const std::string ALL_SIMDIS_MODEL_FILE_PATTERNS = "*.opt,*.3db,*.flt,*.fbx,*.osg,*.osgb,*.osgt,*.osgx,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac,*.gltf,*.glb,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.rgba,*.tga,*.tif,*.tiff,*.bmp,*.tmd,*.lst";
 /** SIMDIS supported texture file format file patterns, separated by commas */
 static const std::string ALL_SIMDIS_TEXTURE_FILE_PATTERNS = "*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.rgba,*.tga,*.tif,*.tiff,*.bmp,*.bw,*.inta,*.int,*.raw,*.pgm";
 /** Dialog-oriented user-friendly list of SIMDIS supported model format patterns. */
 static const std::string SIMDIS_MODEL_FILE_PATTERNS =
-  "All Supported Formats (*.opt,*.3db,*.flt,*.fbx,*.osg,*.osgb,*.osgt,*.osgx,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac,*.gltf,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.rgba,*.tga,*.tif,*.tiff,*.bmp,*.tmd,*.lst)\n"
-  "SIMDIS Model Files (*.opt,*.3db,*.flt,*.fbx,*.osg,*.osgb,*.osgt,*.osgx,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac,*.gltf)\n"
+  "All Supported Formats (*.opt,*.3db,*.flt,*.fbx,*.osg,*.osgb,*.osgt,*.osgx,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac,*.gltf,*.glb,*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.rgba,*.tga,*.tif,*.tiff,*.bmp,*.tmd,*.lst)\n"
+  "SIMDIS Model Files (*.opt,*.3db,*.flt,*.fbx,*.osg,*.osgb,*.osgt,*.osgx,*.ive,*.obj,*.stl,*.3ds,*.lwo,*.dxf,*.ac,*.gltf,*.glb)\n"
   "Image Files (*.png,*.gif,*.jpg,*.jpeg,*.rgb,*.rgba,*.tga,*.tif,*.tiff,*.bmp,*.webp)\n"
   "Media Player Video Icons (*.tmd,*.lst)\n"
   "All Files (*)";
 /** Code-oriented set of SIMDIS supported model format patters. Based on the "SIMDIS Model Files" section of SIMDIS_MODEL_FILE_PATTERNS above. */
-static const std::set<std::string> SIMDIS_MODEL_FILE_PATTERNS_SET{ "opt", "3db", "flt", "fbx", "osg", "osgb", "osgt", "osgx", "ive", "obj", "stl", "3ds", "lwo", "dxf", "ac", "gltf" };
+static const std::set<std::string> SIMDIS_MODEL_FILE_PATTERNS_SET{ "opt", "3db", "flt", "fbx", "osg", "osgb", "osgt", "osgx", "ive", "obj", "stl", "3ds", "lwo", "dxf", "ac", "gltf", "glb" };
 /** Code-oriented set of SIMDIS supported image format patterns. Based on the "Image Files" section of SIMDIS_MODEL_FILE_PATTERNS above. */
 static const std::set<std::string> SIMDIS_IMAGE_FILE_PATTERNS_SET{ "png", "gif", "jpg", "jpeg", "rgb", "rgba", "tga", "tif", "tiff", "bmp", "webp" };
 /** Code-oriented set of SIMDIS supported video icon format patterns. Based on the "Media Player Video Icons" section of SIMDIS_MODEL_FILE_PATTERNS above. */
@@ -195,10 +195,10 @@ static const std::string ANTENNA_FILE_PATTERNS =
   "All Files (*)\n";
 
 /** SIMDIS GOG Overlay Format patterns, separated by commas */
-static const std::string ALL_GOG_FILE_PATTERNS = "*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct,*.geojson";
+static const std::string ALL_GOG_FILE_PATTERNS = "*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct,*.geojson,*.csv";
 /** Dialog-oriented user-friendly list of SIMDIS GOG Overlay Format files */
 static const std::string GOG_FILE_PATTERNS =
-  "All Supported GOG Formats (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct,*.geojson)\n"
+  "All Supported GOG Formats (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz,*.ovl,*.kml,*.kmz,*.lgf,*.asc,*.fpn,*.rct,*.geojson,*.csv)\n"
   "GOG Files (*.gog,*.ll,*.lla,*.xy,*.xyz,*.rxy,*.rxyz)\n"
   "Misc GOG (*.gog)\nxygeo (*.ll,*.lla)\nxygeo and crossplot (*.xy,*.xyz)\n"
   "Relative xygeo and crossplot (*.rxy,*.rxyz)\n"
@@ -208,6 +208,7 @@ static const std::string GOG_FILE_PATTERNS =
   "GCCS OVLY Files (*.ovl)\n"
   "JDS ASC Files (*.asc)\n"
   "GeoJSON Files (*.geojson)\n"
+  "MK39 Files (*.csv)\n"
   "All Files (*)";
 
 /** Dialog-oriented user-friendly list of SIMDIS absolute GOG Overlay Format files */

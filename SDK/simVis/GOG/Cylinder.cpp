@@ -32,11 +32,9 @@
 #include "simCore/GOG/GogShape.h"
 #include "simNotify/Notify.h"
 #include "simVis/GOG/Cylinder.h"
-#include "simVis/GOG/ErrorHandler.h"
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
 #include "simVis/GOG/LoaderUtils.h"
-#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 
 using namespace osgEarth;
@@ -53,195 +51,26 @@ Angle angFix2PI(Angle angle)
 
 namespace simVis { namespace GOG {
 
-GogNodeInterface* Cylinder::deserialize(const ParsedShape& parsedShape,
-                      simVis::GOG::ParserData& p,
-                      const GOGNodeType&       nodeType,
-                      const GOGContext&        context,
-                      const GogMetaData&       metaData,
-                      MapNode*                 mapNode)
-{
-  Distance radius(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_RADIUS, 1000.)), Units::METERS);
-  Angle    rotation(0., Units::DEGREES); // Rotation handled by parameters in GOG_ORIENT
-  Distance height(p.units_.altitudeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_HEIGHT, 1000.)), Units::METERS);
-  Angle    start(p.units_.angleUnits_.convertTo(simCore::Units::DEGREES, parsedShape.doubleValue(GOG_ANGLESTART, 0.)), Units::DEGREES);
-  // angFix() the start between 0,360.  osgEarth takes the direct path between two angles
-  // when drawing the arc.  Two angles (start+end) between [0,360) means no crossing 0
-  start = angFix2PI(start);
-
-  Angle    end = start;
-  const size_t lineNumber = parsedShape.lineNumber();
-  if (parsedShape.hasValue(GOG_ANGLEDEG))
-  {
-    Angle sweep(parsedShape.doubleValue(GOG_ANGLEDEG, 90.0), Units::DEGREES);
-    const double sweepRadians = sweep.as(Units::RADIANS);
-
-    // If the sweep is 0, then clear out the radius to draw nothing.  Else an angledeg
-    // of 0 will end up drawing a circle incorrectly (note sweep of 360 is fine).
-    // Because of this, we use areEqual, NOT areAnglesEqual().
-    if (simCore::areEqual(sweepRadians, 0.0))
-    {
-      radius = Distance(0, Units::METERS);
-      context.errorHandler_->printError(lineNumber, "Cylinder AngleDeg cannot be 0");
-    }
-    else if (sweepRadians > M_TWOPI || sweepRadians < -M_TWOPI)
-    {
-      context.errorHandler_->printWarning(lineNumber, "Cylinder AngleDeg larger than 360 detected");
-    }
-
-    // Use fmod to keep the correct sign for correct sweep angle
-    end = start + Angle(::fmod(sweep.as(Units::RADIANS), M_TWOPI), Units::RADIANS);
-  }
-  else if (parsedShape.hasValue(GOG_ANGLEEND))
-  {
-    end = Angle(p.units_.angleUnits_.convertTo(simCore::Units::DEGREES, parsedShape.doubleValue(GOG_ANGLEEND, 0.0)), Units::DEGREES);
-    // angFix2PI() forces end between [0,360).  Since start is in the same range, we'll
-    // never cross 0 with the osgEarth drawing algorithm.
-    end = angFix2PI(end);
-
-    // If the end and start are the same value, return nullptr to draw nothing.  Cannot
-    // use the angleend command to draw circles (use angledeg instead)
-    if (simCore::areAnglesEqual(start.as(Units::RADIANS), end.as(Units::RADIANS)))
-    {
-      context.errorHandler_->printError(lineNumber, "Cylinder AngleEnd cannot be same value as AngleStart");
-      return nullptr;
-    }
-  }
-
-  osgEarth::GeometryFactory gf;
-  osg::ref_ptr<Geometry> tgeom = simCore::areAnglesEqual(start.as(Units::RADIANS), end.as(Units::RADIANS)) ? dynamic_cast<Geometry*>(new Ring()) : dynamic_cast<Geometry*>(new LineString());
-  osg::ref_ptr<Geometry> shape;
-
-  if (parsedShape.hasValue(GOG_MAJORAXIS))
-  {
-    radius = Distance(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, 0.5 * parsedShape.doubleValue(GOG_MAJORAXIS, 2000.0)), Units::METERS);
-    if (parsedShape.hasValue(GOG_MINORAXIS))
-    {
-      Distance minorRadius = Distance(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, 0.5 * parsedShape.doubleValue(GOG_MINORAXIS, 2000.0)), Units::METERS);
-      shape = gf.createEllipticalArc(osg::Vec3d(0, 0, 0), radius, minorRadius, rotation, start, end, 0u, tgeom.get(), true);
-    }
-    else
-      shape = gf.createArc(osg::Vec3d(0, 0, 0), radius, start + rotation, end + rotation, 0u, tgeom.get(), true);
-  }
-  else
-    shape = gf.createArc(osg::Vec3d(0, 0, 0), radius, start + rotation, end + rotation, 0u, tgeom.get(), true);
-
-  osg::ref_ptr<osg::Group> g = new osg::Group();
-  float heightValue = height.as(Units::METERS);
-
-  // first the extruded side shape:
-  LocalGeometryNode* sideNode = nullptr;
-  {
-    Style style(p.style_);
-    style.getOrCreate<ExtrusionSymbol>()->height() = heightValue;
-
-    // remove a line symbol so we don't stripe the sides
-    style.remove<LineSymbol>();
-
-    // Need to turn backface culling off for unfilled cylinders so the sides are visible
-    if (!parsedShape.hasValue(GOG_FILLED))
-      style.getOrCreateSymbol<osgEarth::RenderSymbol>()->backfaceCulling() = false;
-
-    if (nodeType == GOGNODE_GEOGRAPHIC)
-    {
-      sideNode = new LocalGeometryNode(shape.get(), style);
-      sideNode->setMapNode(mapNode);
-    }
-    else
-    {
-      sideNode = new HostedLocalGeometryNode(shape.get(), style);
-    }
-    sideNode->setName("Cylinder Side");
-    Utils::applyLocalGeometryOffsets(*sideNode, p, nodeType);
-    g->addChild(sideNode);
-  }
-
-  // next the top cap:
-  LocalGeometryNode* topCapNode = nullptr;
-  {
-    Style style(p.style_);
-
-    // remove the extrusion symbol
-    style.remove<ExtrusionSymbol>();
-    if (!parsedShape.hasValue(GOG_FILLED))
-      style.remove<PolygonSymbol>();
-
-    if (nodeType == GOGNODE_GEOGRAPHIC)
-    {
-      topCapNode = new LocalGeometryNode(shape.get(), style);
-      topCapNode->setMapNode(mapNode);
-    }
-    else
-    {
-      topCapNode = new HostedLocalGeometryNode(shape.get(), style);
-    }
-    topCapNode->setName("Cylinder Top");
-
-    // apply a local offset to get the cap node to the correct height
-    osg::Vec3d localOffset = p.getLTPOffset();
-    localOffset[2] += heightValue;
-    Utils::applyLocalGeometryOffsets(*topCapNode, p, nodeType);
-    // offset the top cap node's altitude by the height
-    topCapNode->getPositionAttitudeTransform()->setPivotPoint(osg::Vec3(0, 0, -heightValue));
-
-    g->addChild(topCapNode);
-  }
-
-  // next the bottom cap:
-  LocalGeometryNode* bottomCapNode = nullptr;
-  {
-    Style style(p.style_);
-
-    // remove the extrusion symbol
-    style.remove<ExtrusionSymbol>();
-    if (!parsedShape.hasValue(GOG_FILLED))
-      style.remove<PolygonSymbol>();
-
-    if (nodeType == GOGNODE_GEOGRAPHIC)
-    {
-      bottomCapNode = new LocalGeometryNode(shape.get(), style);
-      bottomCapNode->setMapNode(mapNode);
-    }
-    else
-    {
-      bottomCapNode = new HostedLocalGeometryNode(shape.get(), style);
-    }
-    bottomCapNode->setName("Cylinder Bottom");
-    Utils::applyLocalGeometryOffsets(*bottomCapNode, p, nodeType);
-
-    // Set the frontface on bottom to clockwise, since we cannot easily rewind vertices
-    bottomCapNode->getOrCreateStateSet()->setAttributeAndModes(new osg::FrontFace(osg::FrontFace::CLOCKWISE), osg::StateAttribute::ON);
-    g->addChild(bottomCapNode);
-  }
-
-  CylinderNodeInterface* rv = nullptr;
-  if (sideNode && topCapNode && bottomCapNode)
-  {
-    rv = new CylinderNodeInterface(g.get(), sideNode, topCapNode, bottomCapNode, metaData);
-    rv->applyToStyle(parsedShape, p.units_);
-  }
-  return rv;
-}
-
 GogNodeInterface* Cylinder::createCylinder(const simCore::GOG::Cylinder& cyl, bool attached, const simCore::Vec3& refPoint, osgEarth::MapNode* mapNode)
 {
-  double radiusM = 0.;
-  cyl.getRadius(radiusM);
-  Distance radius(radiusM, Units::METERS);
+  const double radiusMeters = cyl.getRadius().value_or(
+    cyl.originalUnits().rangeUnits().convertTo(
+      simCore::Units::METERS, 1000.));
+  Distance radius(radiusMeters, Units::METERS);
+
   Angle rotation(0., Units::DEGREES); // Rotation handled in setShapePositionOffsets()
-  double heightM = 0.;
-  cyl.getHeight(heightM);
-  double angleStart = 0;
-  cyl.getAngleStart(angleStart);
+  const double heightM = cyl.getHeight().value_or(cyl.originalUnits().altitudeUnits().convertTo(simCore::Units::METERS, 1000.));
+  const double angleStart = cyl.getAngleStart().value_or(0.);
   Angle start(angleStart * simCore::RAD2DEG, Units::DEGREES);
 
   // default to a full circle if no angle sweep specified
   Angle end(360., Units::DEGREES);
-  double sweepRad = 0.;
-  if (cyl.getAngleSweep(sweepRad) == 0)
+  const std::optional<double> sweepRad = cyl.getAngleSweep();
+  if (sweepRad.has_value())
   {
-    if (simCore::areEqual(sweepRad, 0.))
+    if (simCore::areEqual(sweepRad.value(), 0.))
       radius = Distance(0, Units::METERS);
-    Angle sweep = Angle(sweepRad * simCore::RAD2DEG, Units::DEGREES);
+    Angle sweep = Angle(sweepRad.value() * simCore::RAD2DEG, Units::DEGREES);
     // Use fmod to keep the correct sign for correct sweep angle
     end = start + Angle(::fmod(sweep.as(Units::RADIANS), M_TWOPI), Units::RADIANS);
   }
@@ -249,16 +78,16 @@ GogNodeInterface* Cylinder::createCylinder(const simCore::GOG::Cylinder& cyl, bo
   osg::ref_ptr<Geometry> tgeom = simCore::areAnglesEqual(start.as(Units::RADIANS), end.as(Units::RADIANS)) ? dynamic_cast<Geometry*>(new Ring()) : dynamic_cast<Geometry*>(new LineString());
   osg::ref_ptr<Geometry> shape;
 
-  double majorAxis = 0.;
+  const std::optional<double> majorAxis = cyl.getMajorAxis();
   bool elliptical = false;
-  if (cyl.getMajorAxis(majorAxis) == 0)
+  if (majorAxis.has_value())
   {
-    radius = Distance(0.5 * majorAxis, Units::METERS);
-    double minorAxis = 0.;
-    if (cyl.getMinorAxis(minorAxis) == 0)
+    radius = Distance(0.5 * majorAxis.value(), Units::METERS);
+    const std::optional<double> minorAxis = cyl.getMinorAxis();
+    if (minorAxis.has_value())
     {
       elliptical = true;
-      Distance minorRadius = Distance(0.5 * minorAxis, Units::METERS);
+      Distance minorRadius = Distance(0.5 * minorAxis.value(), Units::METERS);
       shape = gf.createEllipticalArc(osg::Vec3d(0, 0, 0), radius, minorRadius, rotation, start, end, 0u, tgeom.get(), true);
     }
     else
@@ -268,19 +97,24 @@ GogNodeInterface* Cylinder::createCylinder(const simCore::GOG::Cylinder& cyl, bo
     shape = gf.createArc(osg::Vec3d(0, 0, 0), radius, start, end, 0u, tgeom.get(), true);
 
   osg::ref_ptr<osg::Group> g = new osg::Group();
-  bool filled = false;
-  cyl.getIsFilled(filled);
+  const bool filled = cyl.getIsFilled().value_or(false);
 
   // use the ref point as the center if no center defined by the shape
-  simCore::Vec3 center;
-  if (cyl.getCenterPosition(center) != 0 && !attached)
+  std::optional<simCore::Vec3> center = cyl.getCenterPosition();
+  if (!center.has_value() && !attached)
     center = refPoint;
+  else if (!center.has_value())
+    center = simCore::Vec3();
 
   // first the extruded side shape:
   LocalGeometryNode* sideNode = nullptr;
   {
     Style style;
+#if OSGEARTH_SOVERSION < 181
     style.getOrCreate<ExtrusionSymbol>()->height() = heightM;
+#else
+    style.getOrCreate<ExtrusionSymbol>()->height() = osgEarth::Distance(heightM, osgEarth::Units::METERS);
+#endif
 
     // remove a line symbol so we don't stripe the sides
     style.remove<LineSymbol>();
@@ -302,7 +136,7 @@ GogNodeInterface* Cylinder::createCylinder(const simCore::GOG::Cylinder& cyl, bo
       sideNode->getOrCreateStateSet()->setAttributeAndModes(new osg::FrontFace(osg::FrontFace::CLOCKWISE), osg::StateAttribute::ON);
 
     sideNode->setName("Cylinder Side");
-    LoaderUtils::setShapePositionOffsets(*sideNode, cyl, center, refPoint, attached, false);
+    LoaderUtils::setShapePositionOffsets(*sideNode, cyl, *center, refPoint, attached, false);
     g->addChild(sideNode);
   }
 
@@ -325,7 +159,7 @@ GogNodeInterface* Cylinder::createCylinder(const simCore::GOG::Cylinder& cyl, bo
       topCapNode = new HostedLocalGeometryNode(shape.get(), style);
     topCapNode->setName("Cylinder Top");
 
-    LoaderUtils::setShapePositionOffsets(*topCapNode, cyl, center, refPoint, attached, false);
+    LoaderUtils::setShapePositionOffsets(*topCapNode, cyl, *center, refPoint, attached, false);
     // offset the top cap node's altitude by the height
     topCapNode->getPositionAttitudeTransform()->setPivotPoint(osg::Vec3(0, 0, -heightM));
 
@@ -350,7 +184,7 @@ GogNodeInterface* Cylinder::createCylinder(const simCore::GOG::Cylinder& cyl, bo
     else
       bottomCapNode = new HostedLocalGeometryNode(shape.get(), style);
     bottomCapNode->setName("Cylinder Bottom");
-    LoaderUtils::setShapePositionOffsets(*bottomCapNode, cyl, center, refPoint, attached, false);
+    LoaderUtils::setShapePositionOffsets(*bottomCapNode, cyl, *center, refPoint, attached, false);
 
     // Set the frontface on bottom to clockwise, since we cannot easily rewind vertices
     bottomCapNode->getOrCreateStateSet()->setAttributeAndModes(new osg::FrontFace(osg::FrontFace::CLOCKWISE), osg::StateAttribute::ON);

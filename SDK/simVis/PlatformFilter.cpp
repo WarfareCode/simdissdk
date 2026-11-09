@@ -23,6 +23,7 @@
 
 #include <algorithm>
 
+#include "simNotify/Notify.h"
 #include "simCore/Calc/Math.h"
 #include "simCore/Calc/CoordinateConverter.h"
 
@@ -45,12 +46,12 @@ public:
   {
   }
 
-  virtual bool isApplicable(const simData::PlatformPrefs& prefs) const
+  bool isApplicable(const simData::PlatformPrefs& prefs) const override
   {
     return prefs.useclampalt();
   }
 
-  virtual PlatformTspiFilterManager::FilterResponse filter(simCore::Coordinate& llaCoord, const simData::PlatformPrefs& prefs, const simData::PlatformProperties& props)
+  PlatformTspiFilterManager::FilterResponse filter(simCore::Coordinate& llaCoord, const simData::PlatformPrefs& prefs, const simData::PlatformProperties& props) override
   {
     PlatformTspiFilterManager::FilterResponse modified = PlatformTspiFilterManager::POINT_UNCHANGED;
 
@@ -88,12 +89,12 @@ public:
   {
   }
 
-  virtual bool isApplicable(const simData::PlatformPrefs& prefs) const
+  bool isApplicable(const simData::PlatformPrefs& prefs) const override
   {
     return prefs.useclampyaw() || prefs.useclamppitch() || prefs.useclamproll() || prefs.clamporientationatlowvelocity();
   }
 
-  virtual PlatformTspiFilterManager::FilterResponse filter(simCore::Coordinate& llaCoord, const simData::PlatformPrefs& prefs, const simData::PlatformProperties& props)
+  PlatformTspiFilterManager::FilterResponse filter(simCore::Coordinate& llaCoord, const simData::PlatformPrefs& prefs, const simData::PlatformProperties& props) override
   {
     bool autoClamp = false;
     if (prefs.clamporientationatlowvelocity())
@@ -175,13 +176,19 @@ PlatformTspiFilterManager::FilterResponse PlatformTspiFilterManager::filter(simD
   }
 
   simCore::Coordinate ecefCoord(toCoordinate_(update));
-  simCore::Coordinate llaCoord;
-  simCore::CoordinateConverter::convertEcefToGeodetic(ecefCoord, llaCoord);
+  auto llaCoordOpt = simCore::CoordinateConverter::convertEcefToGeodetic(ecefCoord);
+
+  if (!llaCoordOpt)
+  {
+    SIM_ERROR << "Cannot filter, Platform update cannot be converted to LLA Coordinate: " << __LINE__ << std::endl;
+    assert(false); // Cannot fail unless toCoordinate_ gets changed
+    return PlatformTspiFilterManager::FilterResponse();
+  }
 
   PlatformTspiFilterManager::FilterResponse modified = PlatformTspiFilterManager::POINT_UNCHANGED;
   for (std::vector<PlatformTspiFilter*>::const_iterator it = platformFilters_.begin(); it != platformFilters_.end(); ++it)
   {
-    PlatformTspiFilterManager::FilterResponse rv = (*it)->filter(llaCoord, prefs, props);
+    PlatformTspiFilterManager::FilterResponse rv = (*it)->filter(*llaCoordOpt, prefs, props);
     if (rv == PlatformTspiFilterManager::POINT_DROPPED)
       return rv;
 
@@ -191,8 +198,13 @@ PlatformTspiFilterManager::FilterResponse PlatformTspiFilterManager::filter(simD
 
   if (modified == PlatformTspiFilterManager::POINT_CHANGED)
   {
-    simCore::CoordinateConverter::convertGeodeticToEcef(llaCoord, ecefCoord);
-    toPlatformUpdate_(ecefCoord, update);
+    const std::optional<simCore::Coordinate> ecefCoordOpt = simCore::CoordinateConverter::convertGeodeticToEcef(*llaCoordOpt);
+    if (!ecefCoordOpt)
+    {
+      assert(false); // no valid failure case
+      return PlatformTspiFilterManager::FilterResponse();
+    }
+    toPlatformUpdate_(*ecefCoordOpt, update);
   }
 
   return modified;

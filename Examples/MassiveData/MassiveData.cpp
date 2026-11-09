@@ -234,6 +234,7 @@ void simulatePlatform(const simData::ObjectId& id, simUtil::PlatformSimulatorMan
 int main(int argc, char** argv)
 {
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
 
   unsigned numPlatforms;
   double   duration;
@@ -317,7 +318,7 @@ int main(int argc, char** argv)
 
 #ifdef HAVE_IMGUI
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(app, duration));
 #endif
 

@@ -99,30 +99,30 @@ std::string Capabilities::toString_(float val) const
 
 void Capabilities::recordThirdPartyVersions_()
 {
-  caps_.push_back(std::make_pair("osgEarth Version", osgEarthGetVersion()));
-  caps_.push_back(std::make_pair("OSG Version", osgGetVersion()));
+  caps_.emplace_back("osgEarth Version", osgEarthGetVersion());
+  caps_.emplace_back("OSG Version", osgGetVersion());
 #ifdef GDAL_RELEASE_NAME
-  caps_.push_back(std::make_pair("GDAL Version", GDAL_RELEASE_NAME));
+  caps_.emplace_back("GDAL Version", GDAL_RELEASE_NAME);
 #endif
 }
 
 void Capabilities::recordGlLimits_(const osgEarth::Capabilities& caps)
 {
-  caps_.push_back(std::make_pair("Max GPU texture units", toString_(caps.getMaxGPUTextureUnits())));
-  caps_.push_back(std::make_pair("Max texture size", toString_(caps.getMaxTextureSize())));
-  caps_.push_back(std::make_pair("GLSL", toString_(caps.supportsGLSL())));
+  caps_.emplace_back("Max GPU texture units", toString_(caps.getMaxGPUTextureUnits()));
+  caps_.emplace_back("Max texture size", toString_(caps.getMaxTextureSize()));
+  caps_.emplace_back("GLSL", toString_(caps.supportsGLSL()));
   if (caps.supportsGLSL())
   {
-    caps_.push_back(std::make_pair("GLSL Version", toString_(caps.getGLSLVersion())));
+    caps_.emplace_back("GLSL Version", toString_(caps.getGLSLVersion()));
     if (!caps.supportsGLSL(3.3f))
       recordUsabilityConcern_(UNUSABLE, "GLSL version reported is under 3.30");
   }
   else
     recordUsabilityConcern_(UNUSABLE, "GLSL is not supported.");
-  caps_.push_back(std::make_pair("Depth-packed stencil", toString_(caps.supportsDepthPackedStencilBuffer())));
-  caps_.push_back(std::make_pair("Draw instanced", toString_(caps.supportsDrawInstanced())));
-  caps_.push_back(std::make_pair("NPOT textures", toString_(caps.supportsNonPowerOfTwoTextures())));
-  caps_.push_back(std::make_pair("Max fast texture size", toString_(caps.getMaxFastTextureSize())));
+  caps_.emplace_back("Depth-packed stencil", toString_(caps.supportsDepthPackedStencilBuffer()));
+  caps_.emplace_back("Draw instanced", toString_(caps.supportsDrawInstanced()));
+  caps_.emplace_back("NPOT textures", toString_(caps.supportsNonPowerOfTwoTextures()));
+  caps_.emplace_back("Max fast texture size", toString_(caps.getMaxFastTextureSize()));
 
   // Reconstruct the supported compressions string
   std::string compressionSupported;
@@ -140,20 +140,20 @@ void Capabilities::recordGlLimits_(const osgEarth::Capabilities& caps)
     compressionSupported = "no";
   else // Remove trailing space
     compressionSupported = compressionSupported.substr(0, compressionSupported.length() - 1);
-  caps_.push_back(std::make_pair("Texture compression", compressionSupported));
+  caps_.emplace_back("Texture compression", compressionSupported);
 
 }
 
 void Capabilities::recordContextInfoFromCaps_(const osgEarth::Capabilities& caps)
 {
   vendorString_ = caps.getVendor();
-  caps_.push_back(std::make_pair("Vendor", vendorString_));
+  caps_.emplace_back("Vendor", vendorString_);
   renderer_ = caps.getRenderer();
-  caps_.push_back(std::make_pair("Renderer", renderer_));
+  caps_.emplace_back("Renderer", renderer_);
   glVersionString_ = caps.getVersion();
-  caps_.push_back(std::make_pair("OpenGL Version", glVersionString_));
+  caps_.emplace_back("OpenGL Version", glVersionString_);
   glVersion_ = extractGlVersion_(caps.getVersion());
-  caps_.push_back(std::make_pair("Core Profile", toString_(caps.isCoreProfile())));
+  caps_.emplace_back("Core Profile", toString_(caps.isCoreProfile()));
 }
 
 int Capabilities::recordContextInfoFromContext_(osg::GraphicsContext& gc)
@@ -165,10 +165,10 @@ int Capabilities::recordContextInfoFromContext_(osg::GraphicsContext& gc)
   // Make sure we have an active context, else we can't initialize.
   if (!ext) // not initialized
   {
-    caps_.push_back(std::make_pair("Vendor", "Unknown"));
-    caps_.push_back(std::make_pair("Renderer", "Unknown"));
-    caps_.push_back(std::make_pair("OpenGL Version", "Unknown"));
-    caps_.push_back(std::make_pair("Core Profile", toString_(false)));
+    caps_.emplace_back("Vendor", "Unknown");
+    caps_.emplace_back("Renderer", "Unknown");
+    caps_.emplace_back("OpenGL Version", "Unknown");
+    caps_.emplace_back("Core Profile", toString_(false));
     glVersion_ = 0.0;
     recordUsabilityConcern_(Capabilities::UNUSABLE, "Unable to activate context.");
     return 1;
@@ -184,10 +184,10 @@ int Capabilities::recordContextInfoFromContext_(osg::GraphicsContext& gc)
   glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &profileMask);
   const bool isCoreProfile = (glVersion_ >= 3.2f && ((profileMask & GL_CONTEXT_CORE_PROFILE_BIT) != 0));
 
-  caps_.push_back(std::make_pair("Vendor", vendorString_));
-  caps_.push_back(std::make_pair("Renderer", renderer_));
-  caps_.push_back(std::make_pair("OpenGL Version", glVersionString_));
-  caps_.push_back(std::make_pair("Core Profile", toString_(isCoreProfile)));
+  caps_.emplace_back("Vendor", vendorString_);
+  caps_.emplace_back("Renderer", renderer_);
+  caps_.emplace_back("OpenGL Version", glVersionString_);
+  caps_.emplace_back("Core Profile", toString_(isCoreProfile));
   return 0;
 }
 
@@ -292,20 +292,15 @@ void Capabilities::checkVendorOpenGlSupport_(const std::string& vendor, const st
     const int nVidiaMajor = atoi(nvidiaMajorStr.c_str());
     const int nVidiaMinor = atoi(nvidiaMinorStr.c_str());
 
-    // SIM-18144 details issues with 571. - 573. drivers;
-    // as of 2025-06, all known drivers >= 571 have memory leak issues due to threaded optimization; revisit before SR18 to see if newer nVidia are free of issues.
-    if (nVidiaMajor >= 571)
-    {
-      recordUsabilityConcern_(USABLE_WITH_ARTIFACTS, osgEarth::Stringify() << "nVidia driver version " << nVidiaMajor << "." << nVidiaMinor << " has issues when threaded optimization is not disabled.");
-      recordUsabilityConcern_(USABLE_WITH_ARTIFACTS, "Disable threaded optimization in the NVIDIA control panel's 'Manage 3D settings pane'.");
-      return;
-    }
+    // SIM-18144 details issues with 571. - 573. drivers on Windows pertaining to memory leakage when threaded optimization is enabled.
+    // SIM-20106 details why capabilities warnings were removed.
+    // see simVis/Utils.cpp for FilteringOsgNotifyDecorator console message decorator that still warns users about the issue.
 
-    // testing indicates that 304.125 and most drivers > 340 work; SIM-18144 details issues with 571. - 573. drivers
-    // as of 2025-06, all known drivers >= 571 have memory leak issues; revisit before SR18 to see if newer nVidia are free of issues.
-    const bool usable = (nVidiaMajor == 304 && nVidiaMinor >= 125) || (nVidiaMajor >= 340 && nVidiaMajor < 571);
+    // testing indicates that 304.125 and most drivers > 340 work
+    const bool usable = (nVidiaMajor == 304 && nVidiaMinor >= 125) || (nVidiaMajor >= 340);
     if (usable)
       return;
+
     // testing indicates that: nvidia 331 drivers were not usable, most drivers <= 340 had issues
     const bool unusable = (nVidiaMajor == 331);
     recordUsabilityConcern_((unusable ? UNUSABLE : USABLE_WITH_ARTIFACTS), osgEarth::Stringify() << "nVidia driver version " << nVidiaMajor << "." << nVidiaMinor);
@@ -330,7 +325,7 @@ void Capabilities::checkCpuCount_()
     return; // unknown number of CPU
 
   const std::string cpuStr = std::to_string(numCpu);
-  caps_.push_back(std::make_pair("CPU Count", cpuStr));
+  caps_.emplace_back("CPU Count", cpuStr);
   if (numCpu < MINIMUM_CPU_COUNT)
     recordUsabilityConcern_(USABLE_WITH_ARTIFACTS, "Low CPU count (" + cpuStr + "); possible performance issues with larger track loads or large terrain data.");
 }
@@ -343,7 +338,7 @@ void Capabilities::checkRam_()
 
   const auto& ram = *ramResult.stats;
   const std::string& totalRamStr = simCore::buildString("", ram.totalGb(), 0, 1, " GB");
-  caps_.push_back({ "Total RAM", totalRamStr });
+  caps_.emplace_back( "Total RAM", totalRamStr );
   if (ram.totalGb() < MINIMUM_RAM_GB)
     recordUsabilityConcern_(USABLE_WITH_ARTIFACTS, "Low Total RAM (" + totalRamStr + "); possible performance issues with larger track loads or large terrain data.");
 }

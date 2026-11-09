@@ -96,7 +96,7 @@ namespace
 
   struct ViewControls : public osgGA::GUIEventHandler
   {
-    bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa)
+    bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override
     {
       if (ea.getEventType() == osgGA::GUIEventAdapter::KEYDOWN)
       {
@@ -234,6 +234,7 @@ namespace
 int main(int argc, char** argv)
 {
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
 
   // Construct a map - this one uses all local data and was bathymetry

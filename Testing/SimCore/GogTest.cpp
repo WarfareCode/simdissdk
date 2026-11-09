@@ -159,55 +159,23 @@ int testGeneralSyntax()
 int testBaseOptionalFieldsNotSet(const simCore::GOG::GogShape* shape)
 {
   int rv = 0;
-  std::string name;
-  rv += SDK_ASSERT(shape->getName(name) != 0);
-  bool draw = false;
-  rv += SDK_ASSERT(shape->getIsDrawn(draw) != 0);
-  rv += SDK_ASSERT(draw);
-  bool depthBuffer = true;
-  rv += SDK_ASSERT(shape->getIsDepthBufferActive(depthBuffer) != 0);
-  rv += SDK_ASSERT(!depthBuffer);
-  double altOffset = 10.;
-  rv += SDK_ASSERT(shape->getAltitudeOffset(altOffset) != 0);
-  rv += SDK_ASSERT(altOffset == 0.);
-  simCore::GOG::AltitudeMode mode = simCore::GOG::AltitudeMode::CLAMP_TO_GROUND;
-  rv += SDK_ASSERT(shape->getAltitudeMode(mode) != 0);
-  rv += SDK_ASSERT(mode == simCore::GOG::AltitudeMode::NONE);
-  simCore::Vec3 refPos(25., 25., 25.);
-  rv += SDK_ASSERT(shape->getReferencePosition(refPos) != 0);
-  rv += SDK_ASSERT(refPos == simCore::Vec3());
-  simCore::Vec3 scalar(10., 10., 10.);
-  rv += SDK_ASSERT(shape->getScale(scalar) != 0);
-  rv += SDK_ASSERT(scalar == simCore::Vec3(1., 1., 1.));
-  bool followYaw = true;
-  rv += SDK_ASSERT(shape->getIsFollowingYaw(followYaw) != 0);
-  rv += SDK_ASSERT(!followYaw);
-  bool followPitch = true;
-  rv += SDK_ASSERT(shape->getIsFollowingPitch(followPitch) != 0);
-  rv += SDK_ASSERT(!followPitch);
-  bool followRoll = true;
-  rv += SDK_ASSERT(shape->getIsFollowingRoll(followRoll) != 0);
-  rv += SDK_ASSERT(!followRoll);
-  double yawOffset = 10.;
-  rv += SDK_ASSERT(shape->getYawOffset(yawOffset) != 0);
-  rv += SDK_ASSERT(yawOffset == 0.);
-  double pitchOffset = 10.;
-  rv += SDK_ASSERT(shape->getPitchOffset(pitchOffset) != 0);
-  rv += SDK_ASSERT(pitchOffset == 0.);
-  double rollOffset = 10.;
-  rv += SDK_ASSERT(shape->getPitchOffset(rollOffset) != 0);
-  rv += SDK_ASSERT(rollOffset == 0.);
-  double extrudeHeight = 10.;
-  rv += SDK_ASSERT(shape->getExtrudeHeight(extrudeHeight) != 0);
-  rv += SDK_ASSERT(extrudeHeight == 0.);
-  std::string vdatum = "?";
-  rv += SDK_ASSERT(shape->getVerticalDatum(vdatum) != 0);
-  rv += SDK_ASSERT(vdatum == "wgs84");
-  simCore::TimeStamp stamp;
-  rv += SDK_ASSERT(shape->getStartTime(stamp) != 0);
-  rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
-  rv += SDK_ASSERT(shape->getEndTime(stamp) != 0);
-  rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
+  rv += SDK_ASSERT(!shape->getName().has_value());
+  rv += SDK_ASSERT(!shape->getIsDrawn().has_value());
+  rv += SDK_ASSERT(!shape->getIsDepthBufferActive().has_value());
+  rv += SDK_ASSERT(!shape->getAltitudeOffset().has_value());
+  rv += SDK_ASSERT(!shape->getAltitudeMode().has_value());
+  rv += SDK_ASSERT(!shape->getReferencePosition().has_value());
+  rv += SDK_ASSERT(!shape->getScale().has_value());
+  rv += SDK_ASSERT(!shape->getIsFollowingYaw().has_value());
+  rv += SDK_ASSERT(!shape->getIsFollowingPitch().has_value());
+  rv += SDK_ASSERT(!shape->getIsFollowingRoll().has_value());
+  rv += SDK_ASSERT(!shape->getYawOffset().has_value());
+  rv += SDK_ASSERT(!shape->getPitchOffset().has_value());
+  rv += SDK_ASSERT(!shape->getPitchOffset().has_value());
+  rv += SDK_ASSERT(!shape->getExtrudeHeight().has_value());
+  rv += SDK_ASSERT(!shape->getVerticalDatum().has_value());
+  rv += SDK_ASSERT(!shape->getStartTime().has_value());
+  rv += SDK_ASSERT(!shape->getEndTime().has_value());
   return rv;
 
 }
@@ -216,9 +184,7 @@ int testBaseOptionalFieldsNotSet(const simCore::GOG::GogShape* shape)
 int testOutlinedOptionalFieldNotSet(const simCore::GOG::OutlinedShape* shape)
 {
   int rv = testBaseOptionalFieldsNotSet(shape);
-  bool outlined = false;
-  rv += SDK_ASSERT(shape->getIsOutlined(outlined) != 0);
-  rv += SDK_ASSERT(outlined);
+  rv += SDK_ASSERT(!shape->getIsOutlined().has_value());
   return rv;
 }
 
@@ -226,21 +192,11 @@ int testOutlinedOptionalFieldNotSet(const simCore::GOG::OutlinedShape* shape)
 int testFillableOptionalFieldsNotSet(const simCore::GOG::FillableShape* shape)
 {
   int rv = testOutlinedOptionalFieldNotSet(shape);
-  int lineWidth = 0;
-  rv += SDK_ASSERT(shape->getLineWidth(lineWidth) != 0);
-  rv += SDK_ASSERT(lineWidth == 1);
-  simCore::GOG::LineStyle style = simCore::GOG::LineStyle::DASHED;
-  rv += SDK_ASSERT(shape->getLineStyle(style) != 0);
-  rv += SDK_ASSERT(style == simCore::GOG::LineStyle::SOLID);
-  simCore::GOG::Color color(0, 255, 255, 0);
-  rv += SDK_ASSERT(shape->getLineColor(color) != 0);
-  rv += SDK_ASSERT(color == simCore::GOG::Color());
-  bool filled = true;
-  rv += SDK_ASSERT(shape->getIsFilled(filled) != 0);
-  rv += SDK_ASSERT(!filled);
-  simCore::GOG::Color fillColor(0, 255, 255, 0);
-  rv += SDK_ASSERT(shape->getFillColor(fillColor) != 0);
-  rv += SDK_ASSERT(fillColor == simCore::GOG::Color());
+  rv += SDK_ASSERT(!shape->getLineWidth().has_value());
+  rv += SDK_ASSERT(!shape->getLineStyle().has_value());
+  rv += SDK_ASSERT(!shape->getLineColor().has_value());
+  rv += SDK_ASSERT(!shape->getIsFilled().has_value());
+  rv += SDK_ASSERT(!shape->getFillColor().has_value());
   return rv;
 }
 
@@ -248,12 +204,9 @@ int testFillableOptionalFieldsNotSet(const simCore::GOG::FillableShape* shape)
 auto testCircularShapeMinimalFieldsFunc = [](const simCore::GOG::CircularShape* shape, const std::vector<simCore::Vec3>& positions) -> int
 {
   int rv = testFillableOptionalFieldsNotSet(shape);
-  simCore::Vec3 center;
-  rv += SDK_ASSERT(shape->getCenterPosition(center) == 0);
-  rv += SDK_ASSERT(comparePositions(center, positions.front()));
-  double radius = 0.;
+  rv += SDK_ASSERT(comparePositions(shape->getCenterPosition().value_or(simCore::Vec3()), positions.front()));
   // verify radius wasn't set
-  rv += SDK_ASSERT(shape->getRadius(radius) == 1);
+  rv += SDK_ASSERT(!shape->getRadius().has_value());
 
   return rv;
 };
@@ -323,7 +276,7 @@ auto testPointBasedShapeMinimalFieldsFunc = [](const simCore::GOG::PointBasedSha
 
   // verify that tessellation has not been set
   simCore::GOG::TessellationStyle style = simCore::GOG::TessellationStyle::NONE;
-  rv += SDK_ASSERT(shape->getTessellation(style) != 0);
+  rv += SDK_ASSERT(!shape->getTessellation().has_value());
   rv += SDK_ASSERT(style == simCore::GOG::TessellationStyle::NONE);
   return rv;
 };
@@ -336,12 +289,8 @@ auto testPointsShapeMinimalFieldsFunc = [](const simCore::GOG::Points* shape, co
   rv += SDK_ASSERT(positions.size() == positionsOut.size());
   rv += SDK_ASSERT(comparePositionVectors(positions, positionsOut));
 
-  int pointSize = 0;
-  rv += SDK_ASSERT(shape->getPointSize(pointSize) != 0);
-  rv += SDK_ASSERT(pointSize == 1);
-  simCore::GOG::Color color(0, 255, 255, 0);
-  rv += SDK_ASSERT(shape->getColor(color) != 0);
-  rv += SDK_ASSERT(color == simCore::GOG::Color());
+  rv += SDK_ASSERT(!shape->getPointSize().has_value());
+  rv += SDK_ASSERT(!shape->getColor().has_value());
 
   return rv;
 };
@@ -357,9 +306,7 @@ auto testLatLonAltBoxMinimalFieldsFunc = [](const simCore::GOG::LatLonAltBox* sh
   rv += SDK_ASSERT(simCore::areEqual(shape->east(), positions[0].lon()));
   rv += SDK_ASSERT(simCore::areEqual(shape->west(), positions[1].lon()));
   rv += SDK_ASSERT(shape->altitude() == positions[0].alt());
-  double height = 10.;
-  rv += SDK_ASSERT(shape->getHeight(height) != 0);
-  rv += SDK_ASSERT(height == 0.);
+  rv += SDK_ASSERT(!shape->getHeight().has_value());
   return rv;
 };
 
@@ -410,7 +357,7 @@ int testMinimalShapes()
 
   // test circle
   std::vector<simCore::Vec3> centerPoint;
-  centerPoint.push_back(simCore::Vec3(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, 0.));
+  centerPoint.emplace_back(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, 0.);
   rv += testShapePositionsFunction<simCore::GOG::Circle>("start\n circle\n centerlla 25.1 58.2 0.\n end\n", testCircularShapeMinimalFieldsFunc, centerPoint);
   // test sphere
   rv += testShapePositionsFunction<simCore::GOG::Sphere>("start\n sphere\n centerlla 25.1 58.2 0.\n end\n", testCircularShapeMinimalFieldsFunc, centerPoint);
@@ -429,27 +376,27 @@ int testMinimalShapes()
 
   // test orbit
   std::vector<simCore::Vec3> orbitCtrs;
-  orbitCtrs.push_back(simCore::Vec3(24.4 * simCore::DEG2RAD, 43.2 * simCore::DEG2RAD, 0.));
-  orbitCtrs.push_back(simCore::Vec3(24.1 * simCore::DEG2RAD, 43.5 * simCore::DEG2RAD, 0.));
+  orbitCtrs.emplace_back(24.4 * simCore::DEG2RAD, 43.2 * simCore::DEG2RAD, 0.);
+  orbitCtrs.emplace_back(24.1 * simCore::DEG2RAD, 43.5 * simCore::DEG2RAD, 0.);
   rv += testShapePositionsFunction<simCore::GOG::Orbit>("start\n orbit\n centerlla 24.4 43.2 0.0\n centerll2 24.1 43.5\n end\n", testOrbitShapeMinimalFieldsFunc, orbitCtrs);
 
   // test line
   std::vector<simCore::Vec3> linePoints;
-  linePoints.push_back(simCore::Vec3(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, 0.));
-  linePoints.push_back(simCore::Vec3(26.2 * simCore::DEG2RAD, 58.3 * simCore::DEG2RAD, 0.));
+  linePoints.emplace_back(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, 0.);
+  linePoints.emplace_back(26.2 * simCore::DEG2RAD, 58.3 * simCore::DEG2RAD, 0.);
   rv += testShapePositionsFunction<simCore::GOG::Line>("start\n line\n lla 25.1 58.2 0.\n lla 26.2 58.3 0.\n end\n", testPointBasedShapeMinimalFieldsFunc, linePoints);
   // test linesegs
   rv += testShapePositionsFunction<simCore::GOG::LineSegs>("start\n linesegs\n lla 25.1 58.2 0.\n lla 26.2 58.3 0.\n end\n", testPointBasedShapeMinimalFieldsFunc, linePoints);
   // test polygon
-  linePoints.push_back(simCore::Vec3(26.2 * simCore::DEG2RAD, 57.9 * simCore::DEG2RAD, 0.));
+  linePoints.emplace_back(26.2 * simCore::DEG2RAD, 57.9 * simCore::DEG2RAD, 0.);
   rv += testShapePositionsFunction<simCore::GOG::Polygon>("start\n poly\n lla 25.1 58.2 0.\n lla 26.2 58.3 0.\n lla 26.2 57.9 0.\n end\n", testPointBasedShapeMinimalFieldsFunc, linePoints);
   // test points
   rv += testShapePositionsFunction<simCore::GOG::Points>("start\n points\n lla 25.1 58.2 0.\n lla 26.2 58.3 0.\n lla 26.2 57.9 0.\n end\n", testPointsShapeMinimalFieldsFunc, linePoints);
 
   // test lla box
   std::vector<simCore::Vec3> llabPoints;
-  llabPoints.push_back(simCore::Vec3(25.1 * simCore::DEG2RAD, 55.6 * simCore::DEG2RAD, 100.));
-  llabPoints.push_back(simCore::Vec3(25.3 * simCore::DEG2RAD, 55.4 * simCore::DEG2RAD, 100.));
+  llabPoints.emplace_back(25.1 * simCore::DEG2RAD, 55.6 * simCore::DEG2RAD, 100.);
+  llabPoints.emplace_back(25.3 * simCore::DEG2RAD, 55.4 * simCore::DEG2RAD, 100.);
   rv += testShapePositionsFunction<simCore::GOG::LatLonAltBox>("start\n latlonaltbox 25.1 25.3 55.4 55.6 100.\naltitudeunits m\n end\n", testLatLonAltBoxMinimalFieldsFunc, llabPoints);
 
   // test image overlay
@@ -459,7 +406,7 @@ int testMinimalShapes()
 
   // test circle
   std::vector<simCore::Vec3> xyzPoint;
-  xyzPoint.push_back(simCore::Vec3(15.2, 20., 10.));
+  xyzPoint.emplace_back(15.2, 20., 10.);
   rv += testShapePositionsFunction<simCore::GOG::Circle>("start\n circle\n centerxyz 15.2 20. 10.\n rangeunits m\n altitudeunits m\n end\n", testCircularShapeMinimalFieldsFunc, xyzPoint);
   // test sphere
   rv += testShapePositionsFunction<simCore::GOG::Sphere>("start\n sphere\n centerxyz 15.2 20. 10.\n rangeunits m\n altitudeunits m\n end\n", testCircularShapeMinimalFieldsFunc, xyzPoint);
@@ -478,19 +425,19 @@ int testMinimalShapes()
 
   // test orbit
   std::vector<simCore::Vec3> orbitXyzCtrs;
-  orbitXyzCtrs.push_back(simCore::Vec3(24.4, 43.2, 0.));
-  orbitXyzCtrs.push_back(simCore::Vec3(24.1, 43.5, 0.));
+  orbitXyzCtrs.emplace_back(24.4, 43.2, 0.);
+  orbitXyzCtrs.emplace_back(24.1, 43.5, 0.);
   rv += testShapePositionsFunction<simCore::GOG::Orbit>("start\n orbit\n centerxyz 24.4 43.2 0.0\n centerxy2 24.1 43.5\n rangeunits m\n altitudeunits m\n end\n", testOrbitShapeMinimalFieldsFunc, orbitXyzCtrs);
 
   // test line
   std::vector<simCore::Vec3> lineXyzPoints;
-  lineXyzPoints.push_back(simCore::Vec3(10., 10., 10.));
-  lineXyzPoints.push_back(simCore::Vec3(100.0, -500., 10.));
+  lineXyzPoints.emplace_back(10., 10., 10.);
+  lineXyzPoints.emplace_back(100.0, -500., 10.);
   rv += testShapePositionsFunction<simCore::GOG::Line>("start\n line\n xyz 10. 10. 10.\n xyz 100. -500. 10.\n  rangeunits m\n altitudeunits m\n end\n", testPointBasedShapeMinimalFieldsFunc, lineXyzPoints);
   // test linesegs
   rv += testShapePositionsFunction<simCore::GOG::LineSegs>("start\n linesegs\n xyz 10. 10. 10.\n xyz 100. -500. 10.\n  rangeunits m\n altitudeunits m\n end\n", testPointBasedShapeMinimalFieldsFunc, lineXyzPoints);
   // test polygon
-  lineXyzPoints.push_back(simCore::Vec3(-500., 50., 0.));
+  lineXyzPoints.emplace_back(-500., 50., 0.);
   rv += testShapePositionsFunction<simCore::GOG::Polygon>("start\n poly\n xyz 10. 10. 10.\n xyz 100. -500. 10.\n xyz -500. 50. 0.\n  rangeunits m\n altitudeunits m\n end\n", testPointBasedShapeMinimalFieldsFunc, lineXyzPoints);
   // test points
   rv += testShapePositionsFunction<simCore::GOG::Points>("start\n points\n xyz 10. 10. 10.\n xyz 100. -500. 10.\n xyz -500. 50. 0.\n  rangeunits m\n altitudeunits m\n end\n", testPointsShapeMinimalFieldsFunc, lineXyzPoints);
@@ -521,24 +468,12 @@ bool canFollow(simCore::GOG::ShapeType type, bool relative)
 auto testFollowFunc = [](const simCore::GOG::GogShape* shape) -> int
 {
   int rv = 0;
-  bool followYaw = false;
-  rv += SDK_ASSERT(shape->getIsFollowingYaw(followYaw) == 0);
-  rv += SDK_ASSERT(followYaw);
-  bool followPitch = false;
-  rv += SDK_ASSERT(shape->getIsFollowingPitch(followPitch) == 0);
-  rv += SDK_ASSERT(followPitch);
-  bool followRoll = false;
-  rv += SDK_ASSERT(shape->getIsFollowingRoll(followRoll) == 0);
-  rv += SDK_ASSERT(followRoll);
-  double yawOffset = 0.;
-  rv += SDK_ASSERT(shape->getYawOffset(yawOffset) == 0);
-  rv += SDK_ASSERT(simCore::areEqual(yawOffset * simCore::RAD2DEG, 45.));
-  double pitchOffset = 0.;
-  rv += SDK_ASSERT(shape->getPitchOffset(pitchOffset) == 0);
-  rv += SDK_ASSERT(simCore::areEqual(pitchOffset * simCore::RAD2DEG, 10.));
-  double rollOffset = 0.;
-  rv += SDK_ASSERT(shape->getRollOffset(rollOffset) == 0);
-  rv += SDK_ASSERT(simCore::areEqual(rollOffset * simCore::RAD2DEG, 5.));
+  rv += SDK_ASSERT(shape->getIsFollowingYaw().value_or(false));
+  rv += SDK_ASSERT(shape->getIsFollowingPitch().value_or(false));
+  rv += SDK_ASSERT(shape->getIsFollowingRoll().value_or(false));
+  rv += SDK_ASSERT(simCore::areEqual(shape->getYawOffset().value_or(0.) * simCore::RAD2DEG, 45.));
+  rv += SDK_ASSERT(simCore::areEqual(shape->getPitchOffset().value_or(0.) * simCore::RAD2DEG, 10.));
+  rv += SDK_ASSERT(simCore::areEqual(shape->getRollOffset().value_or(0.) * simCore::RAD2DEG, 5.));
   return rv;
 };
 
@@ -546,39 +481,22 @@ auto testFollowFunc = [](const simCore::GOG::GogShape* shape) -> int
 int testBaseOptionalFields(const simCore::GOG::GogShape* shape)
 {
   int rv = 0;
-  std::string name;
-  rv += SDK_ASSERT(shape->getName(name) == 0);
-  rv += SDK_ASSERT(name == "my favorite shape");
-  bool draw = true;
-  rv += SDK_ASSERT(shape->getIsDrawn(draw) == 0);
-  rv += SDK_ASSERT(!draw);
-  bool depthBuffer = false;
-  rv += SDK_ASSERT(shape->getIsDepthBufferActive(depthBuffer) == 0);
-  rv += SDK_ASSERT(depthBuffer);
-  double altOffset = 0.;
-  rv += SDK_ASSERT(shape->getAltitudeOffset(altOffset) == 0);
-  rv += SDK_ASSERT(altOffset == 120.);
-  simCore::GOG::AltitudeMode mode = simCore::GOG::AltitudeMode::NONE;
-  rv += SDK_ASSERT(shape->getAltitudeMode(mode) == 0);
-  rv += SDK_ASSERT(mode == simCore::GOG::AltitudeMode::RELATIVE_TO_GROUND);
-  simCore::Vec3 scale;
-  rv += SDK_ASSERT(shape->getScale(scale) == 0);
-  rv += SDK_ASSERT(scale == simCore::Vec3(2., 1.3, 0.5));
-  std::string vdatum;
-  rv += SDK_ASSERT(shape->getVerticalDatum(vdatum) == 0);
-  rv += SDK_ASSERT(vdatum == "egm1984");
-  simCore::TimeStamp stamp;
-  rv += SDK_ASSERT(shape->getStartTime(stamp) == 0);
-  rv += SDK_ASSERT(stamp == simCore::TimeStamp(1970, 0));
-  rv += SDK_ASSERT(shape->getEndTime(stamp) == 0);
-  rv += SDK_ASSERT(stamp == simCore::TimeStamp(1970, 3600));
+  rv += SDK_ASSERT(shape->getName().value_or("") == "my favorite shape");
+  rv += SDK_ASSERT(!shape->getIsDrawn().value_or(true));
+  rv += SDK_ASSERT(shape->getIsDepthBufferActive().value_or(false));
+  rv += SDK_ASSERT(shape->getAltitudeOffset().value_or(0.) == 120.);
+  rv += SDK_ASSERT(shape->getAltitudeMode().value_or(simCore::GOG::AltitudeMode::NONE) == simCore::GOG::AltitudeMode::RELATIVE_TO_GROUND);
+  rv += SDK_ASSERT(shape->getScale().value_or(simCore::Vec3()) == simCore::Vec3(2., 1.3, 0.5));
+  rv += SDK_ASSERT(shape->getVerticalDatum().value_or("") == "egm1984");
+  rv += SDK_ASSERT(shape->getStartTime().value_or(simCore::INFINITE_TIME_STAMP) == simCore::TimeStamp(1970, 0));
+  rv += SDK_ASSERT(shape->getEndTime().value_or(simCore::INFINITE_TIME_STAMP) == simCore::TimeStamp(1970, 3600));
 
   // test reference point if relative
   if (shape->isRelative())
   {
-    simCore::Vec3 refLla;
-    rv += SDK_ASSERT(shape->getReferencePosition(refLla) == 0);
-    rv += SDK_ASSERT(refLla == simCore::Vec3(24.5 * simCore::DEG2RAD, 55.6 * simCore::DEG2RAD, 10.));
+    std::optional<simCore::Vec3> refLla = shape->getReferencePosition();
+    rv += SDK_ASSERT(shape->getReferencePosition().has_value());
+    rv += SDK_ASSERT(refLla.value_or(simCore::Vec3()) == simCore::Vec3(24.5 * simCore::DEG2RAD, 55.6 * simCore::DEG2RAD, 10.));
   }
 
   // only certain shapes can follow
@@ -594,9 +512,7 @@ int testOutlinedField(const simCore::GOG::OutlinedShape* shape)
 {
   int rv = testBaseOptionalFields(shape);
 
-  bool outlined = false;
-  rv += SDK_ASSERT(shape->getIsOutlined(outlined) == 0);
-  rv += SDK_ASSERT(outlined);
+  rv += SDK_ASSERT(shape->getIsOutlined().value_or(false));
 
   return rv;
 }
@@ -606,25 +522,11 @@ auto testFillableShapeOptionalFieldsFunc = [](const simCore::GOG::FillableShape*
 {
   int rv = testOutlinedField(shape);
 
-  int lineWidth = 0;
-  rv += SDK_ASSERT(shape->getLineWidth(lineWidth) == 0);
-  rv += SDK_ASSERT(lineWidth == 4);
-
-  simCore::GOG::LineStyle style = simCore::GOG::LineStyle::SOLID;
-  rv += SDK_ASSERT(shape->getLineStyle(style) == 0);
-  rv += SDK_ASSERT(style == simCore::GOG::LineStyle::DASHED);
-
-  simCore::GOG::Color lineColor;
-  rv += SDK_ASSERT(shape->getLineColor(lineColor) == 0);
-  rv += SDK_ASSERT(lineColor == simCore::GOG::Color(0, 255, 0, 255));
-
-  bool filled = false;
-  rv += SDK_ASSERT(shape->getIsFilled(filled) == 0);
-  rv += SDK_ASSERT(filled);
-
-  simCore::GOG::Color fillColor;
-  rv += SDK_ASSERT(shape->getFillColor(fillColor) == 0);
-  rv += SDK_ASSERT(fillColor == simCore::GOG::Color(255, 255, 0, 255));
+  rv += SDK_ASSERT(shape->getLineWidth().value_or(0) == 4);
+  rv += SDK_ASSERT(shape->getLineStyle().value_or(simCore::GOG::LineStyle::SOLID) == simCore::GOG::LineStyle::DASHED);
+  rv += SDK_ASSERT(shape->getLineColor().value_or(simCore::GOG::Color()) == simCore::GOG::Color(0, 255, 0, 255));
+  rv += SDK_ASSERT(shape->getIsFilled().value_or(false));
+  rv += SDK_ASSERT(shape->getFillColor().value_or(simCore::GOG::Color()) == simCore::GOG::Color(255, 255, 0, 255));
 
   return rv;
 };
@@ -633,9 +535,7 @@ auto testFillableShapeOptionalFieldsFunc = [](const simCore::GOG::FillableShape*
 auto testCircularShapeOptionalFieldsFunc = [](const simCore::GOG::CircularShape* shape) -> int
 {
   int rv = testFillableShapeOptionalFieldsFunc(shape);
-  double radius = 0.;
-  rv += SDK_ASSERT(shape->getRadius(radius) == 0);
-  rv += SDK_ASSERT(radius == 1000.);
+  rv += SDK_ASSERT(shape->getRadius().value_or(shape->originalUnits().rangeUnits().convertTo(simCore::Units::METERS, 1000.)) == 1000.);
   return rv;
 };
 
@@ -643,9 +543,7 @@ auto testCircularShapeOptionalFieldsFunc = [](const simCore::GOG::CircularShape*
 auto testPointBasedShapeOptionalFieldsFunc = [](const simCore::GOG::PointBasedShape* shape) -> int
 {
   int rv = testFillableShapeOptionalFieldsFunc(shape);
-  simCore::GOG::TessellationStyle style = simCore::GOG::TessellationStyle::NONE;
-  rv += SDK_ASSERT(shape->getTessellation(style) == 0);
-  rv += SDK_ASSERT(style == simCore::GOG::TessellationStyle::GREAT_CIRCLE);
+  rv += SDK_ASSERT(shape->getTessellation().value_or(simCore::GOG::TessellationStyle::NONE) == simCore::GOG::TessellationStyle::GREAT_CIRCLE);
   return rv;
 };
 
@@ -654,12 +552,8 @@ auto testPointsOptionalFieldsFunc = [](const simCore::GOG::Points* shape) -> int
 {
   int rv = testOutlinedField(shape);
 
-  int pointSize = 0;
-  rv += SDK_ASSERT(shape->getPointSize(pointSize) == 0);
-  rv += SDK_ASSERT(pointSize == 5);
-  simCore::GOG::Color color;
-  rv += SDK_ASSERT(shape->getColor(color) == 0);
-  rv += SDK_ASSERT(color == simCore::GOG::Color(192, 0, 192, 255));
+  rv += SDK_ASSERT(shape->getPointSize().value_or(0) == 5);
+  rv += SDK_ASSERT(shape->getColor().value_or(simCore::GOG::Color()) == simCore::GOG::Color(192, 0, 192, 255));
 
   return rv;
 };
@@ -847,6 +741,38 @@ int testIncompleteShapes()
   rv += SDK_ASSERT(shapes.size() == 0);
   shapes.clear();
 
+  // test ellipsoid if only major axis defined
+  {
+    std::stringstream ellipsoidMajorAxis;
+    ellipsoidMajorAxis << "start\n ellipsoid\n centerll 1 2\n majoraxis 5464\n rangeunits m\n end\n";
+    parser.parse(ellipsoidMajorAxis, "", shapes);
+    rv += SDK_ASSERT(shapes.size() == 1);
+    auto ellipsoidShape = dynamic_cast<simCore::GOG::Ellipsoid*>(shapes.front().get());
+    double majorAxis = 0.;
+    double minorAxis = 0.;
+    rv += SDK_ASSERT(ellipsoidShape->getMajorAxis(majorAxis) == 0);
+    rv += SDK_ASSERT(ellipsoidShape->getMinorAxis(minorAxis) == 1);
+    rv += SDK_ASSERT(majorAxis == 5464.);
+    rv += SDK_ASSERT(minorAxis == 1000.);
+    shapes.clear();
+  }
+
+  // test ellipsoid if only minor axis defined
+  {
+    std::stringstream ellipsoidMinorAxis;
+    ellipsoidMinorAxis << "start\n ellipsoid\n centerll 1 2\n minoraxis 5464\n rangeunits m\n end\n";
+    parser.parse(ellipsoidMinorAxis, "", shapes);
+    rv += SDK_ASSERT(shapes.size() == 1);
+    auto ellipsoidShape = dynamic_cast<simCore::GOG::Ellipsoid*>(shapes.front().get());
+    double majorAxis = 0.;
+    double minorAxis = 0.;
+    rv += SDK_ASSERT(ellipsoidShape->getMajorAxis(majorAxis) == 1);
+    rv += SDK_ASSERT(ellipsoidShape->getMinorAxis(minorAxis) == 0);
+    rv += SDK_ASSERT(majorAxis == 1000.);
+    rv += SDK_ASSERT(minorAxis == 5464.);
+    shapes.clear();
+  }
+
   return rv;
 }
 
@@ -858,9 +784,9 @@ auto testAnnotationCenterFunc = [](const simCore::GOG::Annotation* shape, const 
   assert(!positions.empty());
   if (!positions.empty())
   {
-    simCore::Vec3 position;
-    rv += SDK_ASSERT(shape->getPosition(position) == 0);
-    rv += SDK_ASSERT(comparePositions(position, positions[0]));
+    rv += SDK_ASSERT(shape->getPosition().has_value());
+    if (shape->getPosition().has_value())
+      rv += SDK_ASSERT(comparePositions(shape->getPosition().value(), positions[0]));
   }
   return rv;
 };
@@ -884,30 +810,17 @@ int testAnnotation()
     if (anno)
     {
       rv += SDK_ASSERT(anno->text() == "label 1");
-      simCore::Vec3 position;
-      rv += SDK_ASSERT(anno->getPosition(position) == 0);
-      rv += SDK_ASSERT(comparePositions(position, simCore::Vec3(24.5 * simCore::DEG2RAD, 54.6 * simCore::DEG2RAD, 0.)));
+      rv += SDK_ASSERT(anno->getPosition().has_value());
+      if (anno->getPosition().has_value())
+        rv += SDK_ASSERT(comparePositions(anno->getPosition().value(), simCore::Vec3(24.5 * simCore::DEG2RAD, 54.6 * simCore::DEG2RAD, 0.)));
       // make sure optional fields were not set
-      std::string fontName;
-      rv += SDK_ASSERT(anno->getFontName(fontName) != 0);
-      int textSize = 0;
-      rv += SDK_ASSERT(anno->getTextSize(textSize) != 0);
-      rv += SDK_ASSERT(textSize == 15);
-      simCore::GOG::Color textColor(0,255,255,0);
-      rv += SDK_ASSERT(anno->getTextColor(textColor) != 0);
-      rv += SDK_ASSERT(textColor == simCore::GOG::Color());
-      simCore::GOG::Color outlineColor(0,255,255,0);
-      rv += SDK_ASSERT(anno->getOutlineColor(outlineColor) != 0);
-      rv += SDK_ASSERT(outlineColor == simCore::GOG::Color(0,0,0,255));
-      simCore::GOG::OutlineThickness thickness = simCore::GOG::OutlineThickness::THICK;
-      rv += SDK_ASSERT(anno->getOutlineThickness(thickness) != 0);
-      rv += SDK_ASSERT(thickness == simCore::GOG::OutlineThickness::THIN);
-      std::string iconFile = "someFile";
-      rv += SDK_ASSERT(anno->getImageFile(iconFile) != 0);
-      rv += SDK_ASSERT(iconFile.empty());
-      double priority = 0.;
-      rv += SDK_ASSERT(anno->getPriority(priority) != 0);
-      rv += SDK_ASSERT(priority == -1.);
+      rv += SDK_ASSERT(!anno->getFontName().has_value());
+      rv += SDK_ASSERT(!anno->getTextSize().has_value());
+      rv += SDK_ASSERT(!anno->getTextColor().has_value());
+      rv += SDK_ASSERT(!anno->getOutlineColor().has_value());
+      rv += SDK_ASSERT(!anno->getOutlineThickness().has_value());
+      rv += SDK_ASSERT(!anno->getImageFile().has_value());
+      rv += SDK_ASSERT(!anno->getPriority().has_value());
     }
   }
   shapes.clear();
@@ -923,31 +836,18 @@ int testAnnotation()
     rv += SDK_ASSERT(anno != nullptr);
     if (anno)
     {
-      simCore::Vec3 position;
-      rv += SDK_ASSERT(anno->getPosition(position) == 0);
-      rv += SDK_ASSERT(comparePositions(position, simCore::Vec3(24.5 * simCore::DEG2RAD, 54.6 * simCore::DEG2RAD, 0.)));
+      rv += SDK_ASSERT(anno->getPosition().has_value());
+      if (anno->getPosition().has_value())
+        rv += SDK_ASSERT(comparePositions(anno->getPosition().value(), simCore::Vec3(24.5 * simCore::DEG2RAD, 54.6 * simCore::DEG2RAD, 0.)));
       rv += SDK_ASSERT(anno->text() == "label 1");
-      std::string fontName;
-      rv += SDK_ASSERT(anno->getFontName(fontName) == 0);
-      rv += SDK_ASSERT(fontName.find("georgia.ttf") != std::string::npos);
-      int textSize = 0;
-      rv += SDK_ASSERT(anno->getTextSize(textSize) == 0);
-      rv += SDK_ASSERT(textSize == 24);
-      simCore::GOG::Color textColor;
-      rv += SDK_ASSERT(anno->getTextColor(textColor) == 0);
-      rv += SDK_ASSERT(textColor == simCore::GOG::Color(255, 160, 255, 160));
-      simCore::GOG::Color outlineColor;
-      rv += SDK_ASSERT(anno->getOutlineColor(outlineColor) == 0);
-      rv += SDK_ASSERT(outlineColor == simCore::GOG::Color(0, 0, 255, 255));
-      simCore::GOG::OutlineThickness thickness = simCore::GOG::OutlineThickness::NONE;
-      rv += SDK_ASSERT(anno->getOutlineThickness(thickness) == 0);
-      rv += SDK_ASSERT(thickness == simCore::GOG::OutlineThickness::THIN);
-      std::string iconFile;
-      rv += SDK_ASSERT(anno->getImageFile(iconFile) == 0);
-      rv += SDK_ASSERT(iconFile == "icon.png");
-      double priority = 0.;
-      rv += SDK_ASSERT(anno->getPriority(priority) == 0);
-      rv += SDK_ASSERT(priority == 10.);
+      rv += SDK_ASSERT(anno->getFontName().has_value());
+      rv += SDK_ASSERT(anno->getFontName().value_or("").find("georgia.ttf") != std::string::npos);
+      rv += SDK_ASSERT(anno->getTextSize().value_or(0) == 24);
+      rv += SDK_ASSERT(anno->getTextColor().value_or(simCore::GOG::Color()) == simCore::GOG::Color(255, 160, 255, 160));
+      rv += SDK_ASSERT(anno->getOutlineColor().value_or(simCore::GOG::Color()) == simCore::GOG::Color(0, 0, 255, 255));
+      rv += SDK_ASSERT(anno->getOutlineThickness().value_or(simCore::GOG::OutlineThickness::NONE) == simCore::GOG::OutlineThickness::THIN);
+      rv += SDK_ASSERT(anno->getImageFile().value_or("") == "icon.png");
+      rv += SDK_ASSERT(anno->getPriority().value_or(0.) == 10.);
     }
   }
   shapes.clear();
@@ -962,43 +862,33 @@ int testAnnotation()
   {
     int textId = 0;
     std::vector<simCore::Vec3> positions;
-    positions.push_back(simCore::Vec3(24.5 * simCore::DEG2RAD, 54.6 * simCore::DEG2RAD, 0.));
-    positions.push_back(simCore::Vec3(24.7 * simCore::DEG2RAD, 54.3 * simCore::DEG2RAD, 0.));
-    positions.push_back(simCore::Vec3(23.4* simCore::DEG2RAD, 55.4 * simCore::DEG2RAD, 0.));
+    positions.emplace_back(24.5 * simCore::DEG2RAD, 54.6 * simCore::DEG2RAD, 0.);
+    positions.emplace_back(24.7 * simCore::DEG2RAD, 54.3 * simCore::DEG2RAD, 0.);
+    positions.emplace_back(23.4* simCore::DEG2RAD, 55.4 * simCore::DEG2RAD, 0.);
 
     // check that all 3 annotations have the same attributes, since they should all match the first annotation fields found
-    for (simCore::GOG::GogShapePtr gogPtr : shapes)
+    for (const simCore::GOG::GogShapePtr& gogPtr : shapes)
     {
       simCore::GOG::Annotation* anno = dynamic_cast<simCore::GOG::Annotation*>(gogPtr.get());
       rv += SDK_ASSERT(anno != nullptr);
       if (anno)
       {
-        simCore::Vec3 position;
-        rv += SDK_ASSERT(anno->getPosition(position) == 0);
-        rv += SDK_ASSERT(comparePositions(position, positions[textId]));
+        rv += SDK_ASSERT(anno->getPosition().has_value());
+        if (anno->getPosition().has_value())
+          rv += SDK_ASSERT(comparePositions(anno->getPosition().value(), positions[textId]));
+
         std::ostringstream os;
         os << "label " << textId++;
         rv += SDK_ASSERT(anno->text() == os.str());
         rv += SDK_ASSERT(!anno->isRelative());
 
-        std::string fontName;
-        rv += SDK_ASSERT(anno->getFontName(fontName) == 0);
-        rv += SDK_ASSERT(fontName.find("georgia.ttf") != std::string::npos);
-        int textSize = 0;
-        rv += SDK_ASSERT(anno->getTextSize(textSize) == 0);
-        rv += SDK_ASSERT(textSize == 24);
-        simCore::GOG::Color textColor;
-        rv += SDK_ASSERT(anno->getTextColor(textColor) == 0);
-        rv += SDK_ASSERT(textColor == simCore::GOG::Color(255, 160, 255, 160));
-        simCore::GOG::Color outlineColor;
-        rv += SDK_ASSERT(anno->getOutlineColor(outlineColor) == 0);
-        rv += SDK_ASSERT(outlineColor == simCore::GOG::Color(0, 0, 255, 255));
-        simCore::GOG::OutlineThickness thickness = simCore::GOG::OutlineThickness::NONE;
-        rv += SDK_ASSERT(anno->getOutlineThickness(thickness) == 0);
-        rv += SDK_ASSERT(thickness == simCore::GOG::OutlineThickness::THIN);
-        double priority = 0.;
-        rv += SDK_ASSERT(anno->getPriority(priority) == 0);
-        rv += SDK_ASSERT(priority == 10.);
+        rv += SDK_ASSERT(anno->getFontName().has_value());
+        rv += SDK_ASSERT(anno->getFontName().value_or("").find("georgia.ttf") != std::string::npos);
+        rv += SDK_ASSERT(anno->getTextSize().value_or(0) == 24);
+        rv += SDK_ASSERT(anno->getTextColor().value_or(simCore::GOG::Color()) == simCore::GOG::Color(255, 160, 255, 160));
+        rv += SDK_ASSERT(anno->getOutlineColor().value_or(simCore::GOG::Color()) == simCore::GOG::Color(0, 0, 255, 255));
+        rv += SDK_ASSERT(anno->getOutlineThickness().value_or(simCore::GOG::OutlineThickness::NONE) == simCore::GOG::OutlineThickness::THIN);
+        rv += SDK_ASSERT(anno->getPriority().value_or(0.) == 10.);
       }
     }
   }
@@ -1013,7 +903,7 @@ int testAnnotation()
   if (!shapes.empty())
   {
     int textId = 0;
-    for (simCore::GOG::GogShapePtr gogPtr : shapes)
+    for (const simCore::GOG::GogShapePtr& gogPtr : shapes)
     {
       simCore::GOG::Annotation* anno = dynamic_cast<simCore::GOG::Annotation*>(gogPtr.get());
       rv += SDK_ASSERT(anno != nullptr);
@@ -1038,19 +928,19 @@ int testAnnotation()
 
   // test annotation position parsing, which supports multiple options (centerlla, centerll, lla, ll, centerxyz, centerxy, xyz, xy)
   std::vector<simCore::Vec3> annoAbsoluteCtr;
-  annoAbsoluteCtr.push_back(simCore::Vec3(24.4 * simCore::DEG2RAD, 43.2 * simCore::DEG2RAD, 250.));
+  annoAbsoluteCtr.emplace_back(24.4 * simCore::DEG2RAD, 43.2 * simCore::DEG2RAD, 250.);
   rv += testShapePositionsFunction<simCore::GOG::Annotation>("start\n annotation label 1\n centerlla 24.4 43.2 250.\n altitudeunits m\n  end\n", testAnnotationCenterFunc, annoAbsoluteCtr);
   rv += testShapePositionsFunction<simCore::GOG::Annotation>("start\n annotation label 1\n lla 24.4 43.2 250.\n altitudeunits m\n  end\n", testAnnotationCenterFunc, annoAbsoluteCtr);
   annoAbsoluteCtr.clear();
-  annoAbsoluteCtr.push_back(simCore::Vec3(24.4 * simCore::DEG2RAD, 43.2 * simCore::DEG2RAD, 0.));
+  annoAbsoluteCtr.emplace_back(24.4 * simCore::DEG2RAD, 43.2 * simCore::DEG2RAD, 0.);
   rv += testShapePositionsFunction<simCore::GOG::Annotation>("start\n annotation label 1\n centerll 24.4 43.2\n altitudeunits m\n  end\n", testAnnotationCenterFunc, annoAbsoluteCtr);
   rv += testShapePositionsFunction<simCore::GOG::Annotation>("start\n annotation label 1\n ll 24.4 43.2\n altitudeunits m\n  end\n", testAnnotationCenterFunc, annoAbsoluteCtr);
   std::vector<simCore::Vec3> annoRelCtr;
-  annoRelCtr.push_back(simCore::Vec3(20., 35., 10.));
+  annoRelCtr.emplace_back(20., 35., 10.);
   rv += testShapePositionsFunction<simCore::GOG::Annotation>("start\n annotation label 1\n centerxyz 20. 35. 10.\n rangeunits m\n altitudeunits m\n end\n", testAnnotationCenterFunc, annoRelCtr);
   rv += testShapePositionsFunction<simCore::GOG::Annotation>("start\n annotation label 1\n xyz 20. 35. 10.\n rangeunits m\n altitudeunits m\n end\n", testAnnotationCenterFunc, annoRelCtr);
   annoRelCtr.clear();
-  annoRelCtr.push_back(simCore::Vec3(20., 35., 0.));
+  annoRelCtr.emplace_back(20., 35., 0.);
   rv += testShapePositionsFunction<simCore::GOG::Annotation>("start\n annotation label 1\n centerxy 20. 35.\n rangeunits m\n altitudeunits m\n end\n", testAnnotationCenterFunc, annoRelCtr);
   rv += testShapePositionsFunction<simCore::GOG::Annotation>("start\n annotation label 1\n xy 20. 35.\n rangeunits m\n altitudeunits m\n end\n", testAnnotationCenterFunc, annoRelCtr);
 
@@ -1074,9 +964,7 @@ int testAnnotation()
     nameAnnotation.setPosition(simCore::Vec3());
 
     // name should be the same as text if no name was set
-    std::string name;
-    rv += SDK_ASSERT(nameAnnotation.getName(name) == 0);
-    rv += SDK_ASSERT(name == "Text");
+    rv += SDK_ASSERT(nameAnnotation.getName().value_or("") == "Text");
 
     std::stringstream os;
     nameAnnotation.serializeToStream(os);
@@ -1086,9 +974,8 @@ int testAnnotation()
     rv += SDK_ASSERT(serialized.find("3d name") == std::string::npos);
 
     nameAnnotation.setName("Name");
-    nameAnnotation.getName(name);
     // now that name is set, verify it is returned
-    rv += SDK_ASSERT(name == "Name");
+    rv += SDK_ASSERT(nameAnnotation.getName() == "Name");
     nameAnnotation.serializeToStream(os);
     serialized = os.str();
     // verify text is serialized out correctly when name is set
@@ -1137,9 +1024,7 @@ auto testCylinderHeightFunc = [](const simCore::GOG::Cylinder* shape) -> int
 auto testCircularRadiusFunc = [](const simCore::GOG::CircularShape* shape) -> int
 {
   int rv = 0;
-  double radius = 0.;
-  rv += SDK_ASSERT(shape->getRadius(radius) == 0);
-  rv += SDK_ASSERT(simCore::areEqual(radius, 2000.));
+  rv += SDK_ASSERT(simCore::areEqual(shape->getRadius().value_or(shape->originalUnits().rangeUnits().convertTo(simCore::Units::METERS, 1000.)), 2000.));
   return rv;
 };
 
@@ -1170,18 +1055,14 @@ int testUnits()
     rv += SDK_ASSERT(circle != nullptr);
     if (circle)
     {
-      simCore::Vec3 center;
-      rv += SDK_ASSERT(circle->getCenterPosition(center) == 0);
       simCore::Units altMeters(simCore::Units::METERS);
       simCore::Units altFeet(simCore::Units::FEET);
       // verify output in meters matches input in feet
-      rv += SDK_ASSERT(comparePositions(center, simCore::Vec3(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, altFeet.convertTo(altMeters, 12.))));
+      rv += SDK_ASSERT(comparePositions(circle->getCenterPosition().value_or(simCore::Vec3()), simCore::Vec3(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, altFeet.convertTo(altMeters, 12.))));
 
-      double radius = 0.;
       // verify output in meters matches input in feet
-      rv += SDK_ASSERT(circle->getRadius(radius) == 0);
       simCore::Units altYards(simCore::Units::YARDS);
-      rv += SDK_ASSERT(simCore::areEqual(radius, altYards.convertTo(altMeters, 100.)));
+      rv += SDK_ASSERT(simCore::areEqual(circle->getRadius().value_or(circle->originalUnits().rangeUnits().convertTo(simCore::Units::METERS, 1000.)), altYards.convertTo(altMeters, 100.)));
     }
   }
   shapes.clear();
@@ -1197,15 +1078,11 @@ int testUnits()
     rv += SDK_ASSERT(circle != nullptr);
     if (circle)
     {
-      simCore::Vec3 center;
-      rv += SDK_ASSERT(circle->getCenterPosition(center) == 0);
       // verify output in meters matches input in meters
-      rv += SDK_ASSERT(comparePositions(center, simCore::Vec3(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, 10.)));
+      rv += SDK_ASSERT(comparePositions(circle->getCenterPosition().value_or(simCore::Vec3()), simCore::Vec3(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, 10.)));
 
-      double radius = 0.;
       // verify radius is 10 km
-      rv += SDK_ASSERT(circle->getRadius(radius) == 0);
-      rv += SDK_ASSERT(simCore::areEqual(radius, 10000.));
+      rv += SDK_ASSERT(simCore::areEqual(circle->getRadius().value_or(circle->originalUnits().rangeUnits().convertTo(simCore::Units::METERS, 1000.)), 10000.));
     }
   }
   shapes.clear();
@@ -1226,8 +1103,8 @@ int testUnits()
       std::vector<simCore::Vec3> input;
       simCore::Units altMeters(simCore::Units::METERS);
       simCore::Units altFeet(simCore::Units::FEET);
-      input.push_back(simCore::Vec3(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, altFeet.convertTo(altMeters, 20.)));
-      input.push_back(simCore::Vec3(26.2 * simCore::DEG2RAD, 58.3 * simCore::DEG2RAD, altFeet.convertTo(altMeters, 12.)));
+      input.emplace_back(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, altFeet.convertTo(altMeters, 20.));
+      input.emplace_back(26.2 * simCore::DEG2RAD, 58.3 * simCore::DEG2RAD, altFeet.convertTo(altMeters, 12.));
       rv += SDK_ASSERT(comparePositionVectors(input, positions));
     }
   }
@@ -1249,8 +1126,8 @@ int testUnits()
       std::vector<simCore::Vec3> input;
       simCore::Units altMeters(simCore::Units::METERS);
       simCore::Units altKf(simCore::Units::KILOFEET);
-      input.push_back(simCore::Vec3(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, altKf.convertTo(altMeters, 1.4)));
-      input.push_back(simCore::Vec3(26.2 * simCore::DEG2RAD, 58.3 * simCore::DEG2RAD, altKf.convertTo(altMeters, 2.)));
+      input.emplace_back(25.1 * simCore::DEG2RAD, 58.2 * simCore::DEG2RAD, altKf.convertTo(altMeters, 1.4));
+      input.emplace_back(26.2 * simCore::DEG2RAD, 58.3 * simCore::DEG2RAD, altKf.convertTo(altMeters, 2.));
       rv += SDK_ASSERT(comparePositionVectors(input, positions));
     }
   }
@@ -1368,33 +1245,21 @@ int testUnits()
 auto testExtrudeFunc = [](const simCore::GOG::GogShape* shape) -> int
 {
   int rv = 0;
-  simCore::GOG::AltitudeMode mode = simCore::GOG::AltitudeMode::NONE;
-  rv += SDK_ASSERT(shape->getAltitudeMode(mode) == 0);
-  rv += SDK_ASSERT(mode == simCore::GOG::AltitudeMode::EXTRUDE);
-  double extrudeHeight = 0.;
-  rv += SDK_ASSERT(shape->getExtrudeHeight(extrudeHeight) == 0);
-  rv += SDK_ASSERT(extrudeHeight == 250.);
+  rv += SDK_ASSERT(shape->getAltitudeMode().value_or(simCore::GOG::AltitudeMode::NONE) == simCore::GOG::AltitudeMode::EXTRUDE);
+  rv += SDK_ASSERT(shape->getExtrudeHeight().value_or(0.) == 250.);
   return rv;
 };
 
 // test that altitude mode is clamp to ground
 auto testClampFunc = [](const simCore::GOG::GogShape* shape) -> int
 {
-  int rv = 0;
-  simCore::GOG::AltitudeMode mode = simCore::GOG::AltitudeMode::NONE;
-  rv += SDK_ASSERT(shape->getAltitudeMode(mode) == 0);
-  rv += SDK_ASSERT(mode == simCore::GOG::AltitudeMode::CLAMP_TO_GROUND);
-  return rv;
+  return SDK_ASSERT(shape->getAltitudeMode().value_or(simCore::GOG::AltitudeMode::NONE) == simCore::GOG::AltitudeMode::CLAMP_TO_GROUND);
 };
 
 // test that altitude mode is not set
 auto testAltModeUnsetFunc = [](const simCore::GOG::GogShape* shape) -> int
 {
-  int rv = 0;
-  simCore::GOG::AltitudeMode mode = simCore::GOG::AltitudeMode::EXTRUDE;
-  rv += SDK_ASSERT(shape->getAltitudeMode(mode) != 0);
-  rv += SDK_ASSERT(mode == simCore::GOG::AltitudeMode::NONE);
-  return rv;
+  return SDK_ASSERT(!shape->getAltitudeMode().has_value());
 };
 // test that all the altitude mode options work
 int testAltitudeModes()
@@ -1432,8 +1297,7 @@ int testFollow()
 auto testCircularNoCenterFunc = [](const simCore::GOG::CircularShape* shape) -> int
 {
   int rv = 0;
-  simCore::Vec3 center;
-  rv += SDK_ASSERT(shape->getCenterPosition(center) != 0);
+  rv += SDK_ASSERT(!shape->getCenterPosition().has_value());
   return rv;
 };
 
@@ -1441,8 +1305,7 @@ auto testCircularNoCenterFunc = [](const simCore::GOG::CircularShape* shape) -> 
 auto testAnnotationNoPositionFunc = [](const simCore::GOG::Annotation* shape) -> int
 {
   int rv = 0;
-  simCore::Vec3 pos;
-  rv += SDK_ASSERT(shape->getPosition(pos) != 0);
+  rv += SDK_ASSERT(!shape->getPosition().has_value());
   return rv;
 };
 
@@ -1467,9 +1330,7 @@ int testCenteredDefault()
 auto testCircularRadiusDefaultFunc = [](const simCore::GOG::CircularShape* shape) -> int
 {
   int rv = 0;
-  double radius = 0.;
-  rv += SDK_ASSERT(shape->getRadius(radius) != 0);
-  rv += SDK_ASSERT(simCore::areEqual(radius, 914.4));
+  rv += SDK_ASSERT(simCore::areEqual(shape->getRadius().value_or(shape->originalUnits().rangeUnits().convertTo(simCore::Units::METERS, 1000.)), 914.4));
   return rv;
 };
 
@@ -1533,7 +1394,7 @@ int testSerializeShape(const std::string& gog, const std::vector<std::string>& s
     shapes.front()->serializeToStream(os);
     std::string serialized = os.str();
     // verify all the expected items are present in the serialized shape
-    for (std::string item : serializedItems)
+    for (const std::string& item : serializedItems)
     {
       rv += SDK_ASSERT(serialized.find(item) != std::string::npos);
       if (serialized.find(item) == std::string::npos)
@@ -1568,25 +1429,25 @@ int testSerialization()
 
   // serialized items that match those in BASE_FIELDS
   std::vector<std::string> baseItems;
-  baseItems.push_back("altitudeunits m\n");
-  baseItems.push_back("off\n");
-  baseItems.push_back("depthbuffer true\n");
-  baseItems.push_back("3d offsetalt 120\n");
-  baseItems.push_back("altitudemode relativetoground\n");
-  baseItems.push_back("scale 2 1.3 0.5\n");
-  baseItems.push_back("verticaldatum egm1984\n");
-  baseItems.push_back("starttime \"001 1970 00:00:00.00000\"");
-  baseItems.push_back("endtime \"001 1970 01:00:00.00000\"");
-  baseItems.push_back("start\n");
-  baseItems.push_back("end\n");
-  baseItems.push_back("3d name my favorite shape\n");
+  baseItems.emplace_back("altitudeunits m\n");
+  baseItems.emplace_back("off\n");
+  baseItems.emplace_back("depthbuffer true\n");
+  baseItems.emplace_back("3d offsetalt 120\n");
+  baseItems.emplace_back("altitudemode relativetoground\n");
+  baseItems.emplace_back("scale 2 1.3 0.5\n");
+  baseItems.emplace_back("verticaldatum egm1984\n");
+  baseItems.emplace_back("starttime \"001 1970 00:00:00.00000\"");
+  baseItems.emplace_back("endtime \"001 1970 01:00:00.00000\"");
+  baseItems.emplace_back("start\n");
+  baseItems.emplace_back("end\n");
+  baseItems.emplace_back("3d name my favorite shape\n");
 
   // follow items are in a separate list, since not all shapes support follow
   std::vector<std::string> baseFollowItems;
-  baseFollowItems.push_back("3d follow cpr\n");
-  baseFollowItems.push_back("3d offsetcourse 45\n");
-  baseFollowItems.push_back("3d offsetpitch 10\n");
-  baseFollowItems.push_back("3d offsetroll 5\n");
+  baseFollowItems.emplace_back("3d follow cpr\n");
+  baseFollowItems.emplace_back("3d offsetcourse 45\n");
+  baseFollowItems.emplace_back("3d offsetpitch 10\n");
+  baseFollowItems.emplace_back("3d offsetroll 5\n");
 
   // serialized item in OUTLINE_FIELD
   std::string outlineItem ="outline true";
@@ -1594,50 +1455,50 @@ int testSerialization()
   // serialized items that match those in FILLABLE_FIELDS
   std::vector<std::string> fillableItems;
   fillableItems.push_back(outlineItem);
-  fillableItems.push_back("linewidth 4\n");
-  fillableItems.push_back("linecolor hex 0xff00ff00\n");
-  fillableItems.push_back("linestyle dashed\n");
-  fillableItems.push_back("filled");
-  fillableItems.push_back("fillcolor hex 0xff00ffff");
+  fillableItems.emplace_back("linewidth 4\n");
+  fillableItems.emplace_back("linecolor hex 0xff00ff00\n");
+  fillableItems.emplace_back("linestyle dashed\n");
+  fillableItems.emplace_back("filled");
+  fillableItems.emplace_back("fillcolor hex 0xff00ffff");
 
   // serialized items that match those in CIRCULAR_FIELDS; all circular shapes support follow
   std::vector<std::string> circularItems;
   circularItems.insert(circularItems.end(), baseItems.begin(), baseItems.end());
   circularItems.insert(circularItems.end(), baseFollowItems.begin(), baseFollowItems.end());
   circularItems.insert(circularItems.end(), fillableItems.begin(), fillableItems.end());
-  circularItems.push_back("radius 1000\n");
-  circularItems.push_back("rangeunits m\n");
+  circularItems.emplace_back("radius 1000\n");
+  circularItems.emplace_back("rangeunits m\n");
 
   // serialized items that match those in ELLIPTICAL_FIELDS
   std::vector<std::string> ellipticalItems = circularItems;
-  ellipticalItems.push_back("anglestart 10\n");
-  ellipticalItems.push_back("angledeg 45\n");
-  ellipticalItems.push_back("majoraxis 100\n");
-  ellipticalItems.push_back("minoraxis 250\n");
+  ellipticalItems.emplace_back("anglestart 10\n");
+  ellipticalItems.emplace_back("angledeg 45\n");
+  ellipticalItems.emplace_back("majoraxis 100\n");
+  ellipticalItems.emplace_back("minoraxis 250\n");
 
   // serialized items that match those in POINTBASED_FIELDS; note that point based shapes will not always support follow
   std::vector<std::string> pointBasedItems;
   pointBasedItems.insert(pointBasedItems.end(), baseItems.begin(), baseItems.end());
   pointBasedItems.insert(pointBasedItems.end(), fillableItems.begin(), fillableItems.end());
-  pointBasedItems.push_back("tessellate true\n");
-  pointBasedItems.push_back("lineprojection greatcircle\n");
+  pointBasedItems.emplace_back("tessellate true\n");
+  pointBasedItems.emplace_back("lineprojection greatcircle\n");
 
   // serialized items that match those in POINTS_FIELDS
   std::vector<std::string> pointItems = baseItems;
   pointItems.push_back(outlineItem);
-  pointItems.push_back("pointsize 5\n");
-  pointItems.push_back("linecolor hex 0xffc000c0\n");
+  pointItems.emplace_back("pointsize 5\n");
+  pointItems.emplace_back("linecolor hex 0xffc000c0\n");
 
   // serialized items that match those in ANNOTATION_FIELDS + BASE_FIELDS
   std::vector<std::string> annotationItems = baseItems;
-  annotationItems.push_back("annotation my favorite shape\n");
-  annotationItems.push_back("fontname georgia.ttf\n");
-  annotationItems.push_back("fontsize 24\n");
-  annotationItems.push_back("linecolor hex 0x0affa0ff\n");
-  annotationItems.push_back("textoutlinethickness thin\n");
-  annotationItems.push_back("textoutlinecolor hex 0xffff0000\n");
-  annotationItems.push_back("imagefile icon.png\n");
-  annotationItems.push_back("priority 10\n");
+  annotationItems.emplace_back("annotation my favorite shape\n");
+  annotationItems.emplace_back("fontname georgia.ttf\n");
+  annotationItems.emplace_back("fontsize 24\n");
+  annotationItems.emplace_back("linecolor hex 0x0affa0ff\n");
+  annotationItems.emplace_back("textoutlinethickness thin\n");
+  annotationItems.emplace_back("textoutlinecolor hex 0xffff0000\n");
+  annotationItems.emplace_back("imagefile icon.png\n");
+  annotationItems.emplace_back("priority 10\n");
 
 
   // define common center point for centered items
@@ -1646,117 +1507,117 @@ int testSerialization()
   // test basic serialization for absolute shapes
   {
     std::vector<std::string> circleItems = circularItems;
-    circleItems.push_back("circle\n");
+    circleItems.emplace_back("circle\n");
     circleItems.push_back(centerLla);
     rv += testSerializeShape<simCore::GOG::Circle>("start\n circle\n " + centerLla + CIRCULAR_FIELDS + " end\n", circleItems);
   }
   {
     std::vector<std::string> arcItems = ellipticalItems;
-    arcItems.push_back("arc\n");
+    arcItems.emplace_back("arc\n");
     arcItems.push_back(centerLla);
-    arcItems.push_back("innerradius 50\n");
+    arcItems.emplace_back("innerradius 50\n");
     rv += testSerializeShape<simCore::GOG::Arc>("start\n arc\n " + centerLla + ARC_FIELDS + " end\n", arcItems);
   }
   {
     std::vector<std::string> ellipseItems = ellipticalItems;
-    ellipseItems.push_back("ellipse\n");
+    ellipseItems.emplace_back("ellipse\n");
     ellipseItems.push_back(centerLla);
     rv += testSerializeShape<simCore::GOG::Ellipse>("start\n ellipse\n " + centerLla + ELLIPTICAL_FIELDS + " end\n", ellipseItems);
   }
   {
     std::vector<std::string> cylinderItems = ellipticalItems;
-    cylinderItems.push_back("cylinder\n");
+    cylinderItems.emplace_back("cylinder\n");
     cylinderItems.push_back(centerLla);
-    cylinderItems.push_back("height 1800");
+    cylinderItems.emplace_back("height 1800");
     rv += testSerializeShape<simCore::GOG::Cylinder>("start\n cylinder\n height 1800\n" + centerLla + ELLIPTICAL_FIELDS + "end\n", cylinderItems);
   }
   {
     std::vector<std::string> sphereItems = circularItems;
-    sphereItems.push_back("sphere\n");
+    sphereItems.emplace_back("sphere\n");
     sphereItems.push_back(centerLla);
     rv += testSerializeShape<simCore::GOG::Sphere>("start\n sphere\n" + centerLla + CIRCULAR_FIELDS + "end\n", sphereItems);
   }
   {
     std::vector<std::string> hemisphereItems = circularItems;
-    hemisphereItems.push_back("hemisphere\n");
+    hemisphereItems.emplace_back("hemisphere\n");
     hemisphereItems.push_back(centerLla);
     rv += testSerializeShape<simCore::GOG::Hemisphere>("start\n hemisphere\n" + centerLla + CIRCULAR_FIELDS + "end\n", hemisphereItems);
   }
   {
     std::vector<std::string> coneItems = circularItems;
-    coneItems.push_back("cone\n");
+    coneItems.emplace_back("cone\n");
     coneItems.push_back(centerLla);
-    coneItems.push_back("height 1800");
+    coneItems.emplace_back("height 1800");
     rv += testSerializeShape<simCore::GOG::Cone>("start\n cone\n height 1800\n" + centerLla + CIRCULAR_FIELDS + "end\n", coneItems);
   }
   {
     std::vector<std::string> orbitItems = circularItems;
-    orbitItems.push_back("orbit\n");
+    orbitItems.emplace_back("orbit\n");
     orbitItems.push_back(centerLla);
-    orbitItems.push_back("centerll2 25.6 159.7\n");
+    orbitItems.emplace_back("centerll2 25.6 159.7\n");
     rv += testSerializeShape<simCore::GOG::Orbit>("start\n orbit\n centerll2 25.6 159.7\n" + centerLla + CIRCULAR_FIELDS + "end\n", orbitItems);
   }
   {
     std::vector<std::string> ellipsoidItems = circularItems;
-    ellipsoidItems.push_back("ellipsoid\n");
+    ellipsoidItems.emplace_back("ellipsoid\n");
     ellipsoidItems.push_back(centerLla);
-    ellipsoidItems.push_back("height 1800");
-    ellipsoidItems.push_back("majoraxis 2000");
-    ellipsoidItems.push_back("minoraxis 1500");
+    ellipsoidItems.emplace_back("height 1800");
+    ellipsoidItems.emplace_back("majoraxis 2000");
+    ellipsoidItems.emplace_back("minoraxis 1500");
     rv += testSerializeShape<simCore::GOG::Ellipsoid>("start\n ellipsoid\n height 1800\n majoraxis 2000\n minoraxis 1500\n" + centerLla + CIRCULAR_FIELDS + "end\n", ellipsoidItems);
   }
 
   // use for testing shapes with multiple points
   std::string positionsStr = "lla 24.5 158.1 10\n lla 24.6 158.2 10\n lla 24.7 158.3 10\n lla 24.8 158.4 10\n";
   std::vector<std::string> positions;
-  positions.push_back("lla 24.5 158.1 10\n");
-  positions.push_back("lla 24.6 158.2 10\n");
-  positions.push_back("lla 24.7 158.3 10\n");
-  positions.push_back("lla 24.8 158.4 10\n");
+  positions.emplace_back("lla 24.5 158.1 10\n");
+  positions.emplace_back("lla 24.6 158.2 10\n");
+  positions.emplace_back("lla 24.7 158.3 10\n");
+  positions.emplace_back("lla 24.8 158.4 10\n");
 
   {
     std::vector<std::string> pointItemsAbs = pointItems;
-    pointItemsAbs.push_back("points\n");
+    pointItemsAbs.emplace_back("points\n");
     pointItemsAbs.insert(pointItemsAbs.end(), positions.begin(), positions.end());
     rv += testSerializeShape<simCore::GOG::Points>("start\n points\n" + positionsStr + POINTS_FIELDS + "end\n", pointItemsAbs);
   }
   {
     std::vector<std::string> lineItems = pointBasedItems;
-    lineItems.push_back("line\n");
+    lineItems.emplace_back("line\n");
     lineItems.insert(lineItems.end(), positions.begin(), positions.end());
     rv += testSerializeShape<simCore::GOG::Line>("start\n line\n" + positionsStr + POINTBASED_FIELDS + "end\n", lineItems);
   }
   {
     std::vector<std::string> lineSegItems = pointBasedItems;
-    lineSegItems.push_back("linesegs\n");
+    lineSegItems.emplace_back("linesegs\n");
     lineSegItems.insert(lineSegItems.end(), positions.begin(), positions.end());
     rv += testSerializeShape<simCore::GOG::LineSegs>("start\n linesegs\n" + positionsStr + POINTBASED_FIELDS + "end\n", lineSegItems);
   }
   {
     std::vector<std::string> polyItems = pointBasedItems;
-    polyItems.push_back("polygon\n");
+    polyItems.emplace_back("polygon\n");
     polyItems.insert(polyItems.end(), positions.begin(), positions.end());
     rv += testSerializeShape<simCore::GOG::Polygon>("start\n poly\n" + positionsStr + POINTBASED_FIELDS + "end\n", polyItems);
   }
   {
     std::vector<std::string> annotationAbsItems = annotationItems;
-    annotationAbsItems.push_back("lla 24.5 54.6 0\n");
+    annotationAbsItems.emplace_back("lla 24.5 54.6 0\n");
     // note the difference in input vs output position format
     rv += testSerializeShape<simCore::GOG::Annotation>("start\n annotation my favorite shape\n centerll 24.5 54.6\n" + ANNOTATION_FIELDS + BASE_FIELDS + "end\n", annotationAbsItems);
   }
   {
     std::vector<std::string> llabItems = baseItems;
     llabItems.insert(llabItems.end(), fillableItems.begin(), fillableItems.end());
-    llabItems.push_back("latlonaltbox 25.1 25.2 130.1 130.2 1000 1000\n");
+    llabItems.emplace_back("latlonaltbox 25.1 25.2 130.1 130.2 1000 1000\n");
     rv += testSerializeShape<simCore::GOG::LatLonAltBox>("start\n latlonaltbox 25.1 25.2 130.1 130.2 1000 1000\n" + FILLABLE_FIELDS + "end\n", llabItems);
   }
   {
     std::vector<std::string> imageOverlayItems = baseItems;
-    imageOverlayItems.push_back("imageoverlay 25.1 25.3 55.4 55.6 0\n");
-    imageOverlayItems.push_back("imagefile image.png\n");
+    imageOverlayItems.emplace_back("imageoverlay 25.1 25.3 55.4 55.6 0\n");
+    imageOverlayItems.emplace_back("imagefile image.png\n");
     rv += testSerializeShape<simCore::GOG::ImageOverlay>("start\n imageoverlay 25.1 25.3 55.4 55.6 0\n imagefile image.png\n" + BASE_FIELDS + "end\n", imageOverlayItems);
     // Note that 1.0 writes as "1" in text output
-    imageOverlayItems.push_back("opacity 1\n");
+    imageOverlayItems.emplace_back("opacity 1\n");
     // Tests the opacity keyword
     rv += testSerializeShape<simCore::GOG::ImageOverlay>("start\n imageoverlay 25.1 25.3 55.4 55.6 0\n imagefile image.png\n" + BASE_FIELDS + "opacity 1.0\nend\n", imageOverlayItems);
     // Tests clamping on opacity
@@ -1771,114 +1632,114 @@ int testSerialization()
   // define common center xyz for centered items
   const std::string centerXyz = "centerxyz 100 1000 10\n";
   // add the ref item for the relative shapes
-  circularItems.push_back("ref 24.5 55.6 10\n");
-  ellipticalItems.push_back("ref 24.5 55.6 10\n");
+  circularItems.emplace_back("ref 24.5 55.6 10\n");
+  ellipticalItems.emplace_back("ref 24.5 55.6 10\n");
 
   // test basic serialization for relative shapes
   {
     std::vector<std::string> circleItems = circularItems;
-    circleItems.push_back("circle\n");
+    circleItems.emplace_back("circle\n");
     circleItems.push_back(centerXyz);
     rv += testSerializeShape<simCore::GOG::Circle>("start\n circle\n " + centerXyz + CIRCULAR_FIELDS + " end\n", circleItems);
   }
   {
     std::vector<std::string> arcItems = ellipticalItems;
-    arcItems.push_back("arc\n");
+    arcItems.emplace_back("arc\n");
     arcItems.push_back(centerXyz);
     rv += testSerializeShape<simCore::GOG::Arc>("start\n arc\n " + centerXyz + ELLIPTICAL_FIELDS + " end\n", arcItems);
   }
   {
     std::vector<std::string> ellipseItems = ellipticalItems;
-    ellipseItems.push_back("ellipse\n");
+    ellipseItems.emplace_back("ellipse\n");
     ellipseItems.push_back(centerXyz);
     rv += testSerializeShape<simCore::GOG::Ellipse>("start\n ellipse\n " + centerXyz + ELLIPTICAL_FIELDS + " end\n", ellipseItems);
   }
   {
     std::vector<std::string> cylinderItems = ellipticalItems;
-    cylinderItems.push_back("cylinder\n");
+    cylinderItems.emplace_back("cylinder\n");
     cylinderItems.push_back(centerXyz);
-    cylinderItems.push_back("height 1800");
+    cylinderItems.emplace_back("height 1800");
     rv += testSerializeShape<simCore::GOG::Cylinder>("start\n cylinder\n height 1800\n" + centerXyz + ELLIPTICAL_FIELDS + "end\n", cylinderItems);
   }
   {
     std::vector<std::string> sphereItems = circularItems;
-    sphereItems.push_back("sphere\n");
+    sphereItems.emplace_back("sphere\n");
     sphereItems.push_back(centerXyz);
     rv += testSerializeShape<simCore::GOG::Sphere>("start\n sphere\n" + centerXyz + CIRCULAR_FIELDS + "end\n", sphereItems);
   }
   {
     std::vector<std::string> hemisphereItems = circularItems;
-    hemisphereItems.push_back("hemisphere\n");
+    hemisphereItems.emplace_back("hemisphere\n");
     hemisphereItems.push_back(centerXyz);
     rv += testSerializeShape<simCore::GOG::Hemisphere>("start\n hemisphere\n" + centerXyz + CIRCULAR_FIELDS + "end\n", hemisphereItems);
   }
   {
     std::vector<std::string> coneItems = circularItems;
-    coneItems.push_back("cone\n");
+    coneItems.emplace_back("cone\n");
     coneItems.push_back(centerXyz);
-    coneItems.push_back("height 1800");
+    coneItems.emplace_back("height 1800");
     rv += testSerializeShape<simCore::GOG::Cone>("start\n cone\n height 1800\n" + centerXyz + CIRCULAR_FIELDS + "end\n", coneItems);
   }
   {
     std::vector<std::string> orbitItems = circularItems;
-    orbitItems.push_back("orbit\n");
+    orbitItems.emplace_back("orbit\n");
     orbitItems.push_back(centerXyz);
-    orbitItems.push_back("centerxy2 2000 150\n");
+    orbitItems.emplace_back("centerxy2 2000 150\n");
     rv += testSerializeShape<simCore::GOG::Orbit>("start\n orbit\n centerxy2 2000 150\n" + centerXyz + CIRCULAR_FIELDS + "end\n", orbitItems);
   }
   {
     std::vector<std::string> ellipsoidItems = circularItems;
-    ellipsoidItems.push_back("ellipsoid\n");
+    ellipsoidItems.emplace_back("ellipsoid\n");
     ellipsoidItems.push_back(centerXyz);
-    ellipsoidItems.push_back("height 1800");
-    ellipsoidItems.push_back("majoraxis 2000");
-    ellipsoidItems.push_back("minoraxis 1500");
+    ellipsoidItems.emplace_back("height 1800");
+    ellipsoidItems.emplace_back("majoraxis 2000");
+    ellipsoidItems.emplace_back("minoraxis 1500");
     rv += testSerializeShape<simCore::GOG::Ellipsoid>("start\n ellipsoid\n height 1800\n majoraxis 2000\n minoraxis 1500\n" + centerXyz + CIRCULAR_FIELDS + "end\n", ellipsoidItems);
   }
 
   // use for testing shapes with multiple points
   positionsStr = "xyz 100 150 10\n xyz -100 150 10\n xyz 150 200 10\n xyz -150 340 10\n";
   positions.clear();
-  positions.push_back("xyz 100 150 10\n");
-  positions.push_back("xyz -100 150 10\n");
-  positions.push_back("xyz 150 200 10\n");
-  positions.push_back("xyz -150 340 10\n");
+  positions.emplace_back("xyz 100 150 10\n");
+  positions.emplace_back("xyz -100 150 10\n");
+  positions.emplace_back("xyz 150 200 10\n");
+  positions.emplace_back("xyz -150 340 10\n");
 
   // add follow items which are valid for relative shapes
   pointBasedItems.insert(pointBasedItems.end(), baseFollowItems.begin(), baseFollowItems.end());
   pointItems.insert(pointItems.end(), baseFollowItems.begin(), baseFollowItems.end());
   // add the ref item for the relative shapes
-  pointBasedItems.push_back("ref 24.5 55.6 10\n");
-  pointItems.push_back("ref 24.5 55.6 10\n");
-  annotationItems.push_back("ref 24.5 55.6 10\n");
+  pointBasedItems.emplace_back("ref 24.5 55.6 10\n");
+  pointItems.emplace_back("ref 24.5 55.6 10\n");
+  annotationItems.emplace_back("ref 24.5 55.6 10\n");
 
   {
     std::vector<std::string> pointItemsAbs = pointItems;
-    pointItemsAbs.push_back("points\n");
+    pointItemsAbs.emplace_back("points\n");
     pointItemsAbs.insert(pointItemsAbs.end(), positions.begin(), positions.end());
     rv += testSerializeShape<simCore::GOG::Points>("start\n points\n" + positionsStr + POINTS_FIELDS + "end\n", pointItemsAbs);
   }
   {
     std::vector<std::string> lineItems = pointBasedItems;
-    lineItems.push_back("line\n");
+    lineItems.emplace_back("line\n");
     lineItems.insert(lineItems.end(), positions.begin(), positions.end());
     rv += testSerializeShape<simCore::GOG::Line>("start\n line\n" + positionsStr + POINTBASED_FIELDS + "end\n", lineItems);
   }
   {
     std::vector<std::string> lineSegItems = pointBasedItems;
-    lineSegItems.push_back("linesegs\n");
+    lineSegItems.emplace_back("linesegs\n");
     lineSegItems.insert(lineSegItems.end(), positions.begin(), positions.end());
     rv += testSerializeShape<simCore::GOG::LineSegs>("start\n linesegs\n" + positionsStr + POINTBASED_FIELDS + "end\n", lineSegItems);
   }
   {
     std::vector<std::string> polyItems = pointBasedItems;
-    polyItems.push_back("polygon\n");
+    polyItems.emplace_back("polygon\n");
     polyItems.insert(polyItems.end(), positions.begin(), positions.end());
     rv += testSerializeShape<simCore::GOG::Polygon>("start\n poly\n" + positionsStr + POINTBASED_FIELDS + "end\n", polyItems);
   }
   {
     std::vector<std::string> annotationRelItems = annotationItems;
-    annotationRelItems.push_back("xyz 150 250 0\n");
+    annotationRelItems.emplace_back("xyz 150 250 0\n");
     // note the difference in input vs output position format
     rv += testSerializeShape<simCore::GOG::Annotation>("start\n annotation my favorite shape\n centerxy 150 250\n" + ANNOTATION_FIELDS + BASE_FIELDS + "end\n", annotationRelItems);
   }
@@ -1889,97 +1750,97 @@ int testSerialization()
 
   // test radius/diameter
   std::vector<std::string> radiusItems;
-  radiusItems.push_back("start\n");
-  radiusItems.push_back("end\n");
-  radiusItems.push_back("circle\n");
-  radiusItems.push_back("radius 2500\n");
+  radiusItems.emplace_back("start\n");
+  radiusItems.emplace_back("end\n");
+  radiusItems.emplace_back("circle\n");
+  radiusItems.emplace_back("radius 2500\n");
   rv += testSerializeShape<simCore::GOG::Circle>("start\ncircle\nradius 2500\nend\n", radiusItems);
   rv += testSerializeShape<simCore::GOG::Circle>("start\ncircle\ndiameter 5000\nend\n", radiusItems);
 
   // test orient, rotate, 3d follow
   {
     std::vector<std::string> followItems = baseFollowItems;
-    followItems.push_back("start\n");
-    followItems.push_back("end\n");
-    followItems.push_back("arc\n");
-    followItems.push_back("centerxyz 0 0 0");
+    followItems.emplace_back("start\n");
+    followItems.emplace_back("end\n");
+    followItems.emplace_back("arc\n");
+    followItems.emplace_back("centerxyz 0 0 0");
     rv += testSerializeShape<simCore::GOG::Arc>("start\narc\ncenterxy 0 0\n orient 45 10 5\n end\n", followItems);
     rv += testSerializeShape<simCore::GOG::Arc>("start\narc\ncenterxy 0 0\n rotate\n 3d offsetcourse 45\n 3d offsetpitch 10\n 3d offsetroll 5\n end\n", followItems);
     rv += testSerializeShape<simCore::GOG::Arc>("start\narc\ncenterxy 0 0\n 3d follow cpr\n 3d offsetcourse 45\n 3d offsetpitch 10\n 3d offsetroll 5\n end\n", followItems);
   }
   // test specific follow components
   std::vector<std::string> arcShapeItems;
-  arcShapeItems.push_back("start\n");
-  arcShapeItems.push_back("end\n");
-  arcShapeItems.push_back("arc\n");
-  arcShapeItems.push_back("centerlla 24.1 134.5 0");
+  arcShapeItems.emplace_back("start\n");
+  arcShapeItems.emplace_back("end\n");
+  arcShapeItems.emplace_back("arc\n");
+  arcShapeItems.emplace_back("centerlla 24.1 134.5 0");
   {
     std::vector<std::string> followItems = arcShapeItems;
-    followItems.push_back("3d follow c\n");
-    followItems.push_back("3d offsetcourse 45\n");
+    followItems.emplace_back("3d follow c\n");
+    followItems.emplace_back("3d offsetcourse 45\n");
     rv += testSerializeShape<simCore::GOG::Arc>("start\narc\ncenterll 24.1 134.5\n orient 45\n end\n", followItems);
   }
   {
     std::vector<std::string> followItems = arcShapeItems;
-    followItems.push_back("3d follow cp\n");
-    followItems.push_back("3d offsetcourse 45\n");
-    followItems.push_back("3d offsetpitch 10\n");
+    followItems.emplace_back("3d follow cp\n");
+    followItems.emplace_back("3d offsetcourse 45\n");
+    followItems.emplace_back("3d offsetpitch 10\n");
     rv += testSerializeShape<simCore::GOG::Arc>("start\narc\ncenterll 24.1 134.5\n orient 45 10\n end\n", followItems);
   }
   {
     std::vector<std::string> followItems = arcShapeItems;
-    followItems.push_back("3d follow c\n");
-    followItems.push_back("3d offsetcourse 45\n");
+    followItems.emplace_back("3d follow c\n");
+    followItems.emplace_back("3d offsetcourse 45\n");
     rv += testSerializeShape<simCore::GOG::Arc>("start\narc\ncenterll 24.1 134.5\n 3d follow c\n 3d offsetcourse 45\n end\n", followItems);
   }
   {
     std::vector<std::string> followItems = arcShapeItems;
-    followItems.push_back("3d follow p\n");
-    followItems.push_back("3d offsetpitch 10\n");
+    followItems.emplace_back("3d follow p\n");
+    followItems.emplace_back("3d offsetpitch 10\n");
     rv += testSerializeShape<simCore::GOG::Arc>("start\narc\ncenterll 24.1 134.5\n 3d follow p\n 3d offsetpitch 10\n end\n", followItems);
   }
   {
     std::vector<std::string> followItems = arcShapeItems;
-    followItems.push_back("3d follow p\n");
-    followItems.push_back("3d offsetroll 5\n");
+    followItems.emplace_back("3d follow p\n");
+    followItems.emplace_back("3d offsetroll 5\n");
     rv += testSerializeShape<simCore::GOG::Arc>("start\narc\ncenterll 24.1 134.5\n 3d follow p\n 3d offsetroll 5\n end\n", followItems);
   }
 
   // test semimajoraxis/majoraxis, semiminoraxis/minoraxis
   {
     std::vector<std::string> ellipseItems;
-    ellipseItems.push_back("start\n");
-    ellipseItems.push_back("end\n");
-    ellipseItems.push_back("ellipse\n");
-    ellipseItems.push_back("majoraxis 350\n");
-    ellipseItems.push_back("minoraxis 220\n");
+    ellipseItems.emplace_back("start\n");
+    ellipseItems.emplace_back("end\n");
+    ellipseItems.emplace_back("ellipse\n");
+    ellipseItems.emplace_back("majoraxis 350\n");
+    ellipseItems.emplace_back("minoraxis 220\n");
     rv += testSerializeShape<simCore::GOG::Ellipse>("start\n ellipse\n majoraxis 350\n minoraxis 220\n end\n", ellipseItems);
     rv += testSerializeShape<simCore::GOG::Ellipse>("start\n ellipse\n semimajoraxis 175\n semiminoraxis 110\n end\n", ellipseItems);
   }
 
   // test altitude modes
   std::vector<std::string> simpleCircleItems;
-  simpleCircleItems.push_back("start\n");
-  simpleCircleItems.push_back("end\n");
-  simpleCircleItems.push_back("circle\n");
+  simpleCircleItems.emplace_back("start\n");
+  simpleCircleItems.emplace_back("end\n");
+  simpleCircleItems.emplace_back("circle\n");
   {
     std::vector<std::string> altModeItems = simpleCircleItems;
-    altModeItems.push_back("altitudemode clamptoground\n");
+    altModeItems.emplace_back("altitudemode clamptoground\n");
     rv += testSerializeShape<simCore::GOG::Circle>("start\n circle\n altitudemode clamptoground\n end\n", altModeItems);
   }
   {
     std::vector<std::string> altModeItems = simpleCircleItems;
-    altModeItems.push_back("altitudemode relativetoground\n");
+    altModeItems.emplace_back("altitudemode relativetoground\n");
     rv += testSerializeShape<simCore::GOG::Circle>("start\n circle\n altitudemode relativetoground\n end\n", altModeItems);
   }
   {
     std::vector<std::string> altModeItems = simpleCircleItems;
-    altModeItems.push_back("extrude true\n");
+    altModeItems.emplace_back("extrude true\n");
     rv += testSerializeShape<simCore::GOG::Circle>("start\n circle\n altitudemode extrude\n end\n", altModeItems);
   }
   {
     std::vector<std::string> altModeItems = simpleCircleItems;
-    altModeItems.push_back("extrude true\n");
+    altModeItems.emplace_back("extrude true\n");
     rv += testSerializeShape<simCore::GOG::Circle>("start\n circle\n extrude true\n end\n", altModeItems);
   }
 
@@ -1991,55 +1852,53 @@ int testColors()
   int rv = 0;
 
   std::vector<std::string> colorStringsInput;
-  colorStringsInput.push_back("linecolor hex 0\n"); // test 0
-  colorStringsInput.push_back("linecolor color2\n"); // test custom defined color
-  colorStringsInput.push_back("linecolor blue\n"); // test defined color
-  colorStringsInput.push_back("linecolor hex 01ff0aff\n"); // test different hex format
-  colorStringsInput.push_back("linecolor invalidColorString\n"); // test invalid color, should default to red
-  colorStringsInput.push_back("linecolor blahblah 0x00ff00ff\n"); // test that for 3 tokens, 2nd is ignored and 3rd is the color value
-  colorStringsInput.push_back("linecolor whatever 148f320c\n"); // test that for 3 tokens, 2nd is ignored and 3rd is the color value for hex without leading '0x'
-  colorStringsInput.push_back("linecolor white 2576980479\n"); // test unsigned int instead of hex format (note more than 8 digits, can't be hex)
+  colorStringsInput.emplace_back("linecolor hex 0\n"); // test 0
+  colorStringsInput.emplace_back("linecolor color2\n"); // test custom defined color
+  colorStringsInput.emplace_back("linecolor blue\n"); // test defined color
+  colorStringsInput.emplace_back("linecolor hex 01ff0aff\n"); // test different hex format
+  colorStringsInput.emplace_back("linecolor invalidColorString\n"); // test invalid color, should default to red
+  colorStringsInput.emplace_back("linecolor blahblah 0x00ff00ff\n"); // test that for 3 tokens, 2nd is ignored and 3rd is the color value
+  colorStringsInput.emplace_back("linecolor whatever 148f320c\n"); // test that for 3 tokens, 2nd is ignored and 3rd is the color value for hex without leading '0x'
+  colorStringsInput.emplace_back("linecolor white 2576980479\n"); // test unsigned int instead of hex format (note more than 8 digits, can't be hex)
 
   std::vector<std::string> colorStringsOutput;
-  colorStringsOutput.push_back("linecolor hex 0x00000000\n");
-  colorStringsOutput.push_back("linecolor hex 0x0000ac02\n");
-  colorStringsOutput.push_back("linecolor hex 0xffff0000\n");
-  colorStringsOutput.push_back("linecolor hex 0x01ff0aff\n");
-  colorStringsOutput.push_back("linecolor hex 0xff0000ff\n");
-  colorStringsOutput.push_back("linecolor hex 0x00ff00ff\n");
-  colorStringsOutput.push_back("linecolor hex 0x148f320c\n");
-  colorStringsOutput.push_back("linecolor hex 0x999999ff\n");
+  colorStringsOutput.emplace_back("linecolor hex 0x00000000\n");
+  colorStringsOutput.emplace_back("linecolor hex 0x0000ac02\n");
+  colorStringsOutput.emplace_back("linecolor hex 0xffff0000\n");
+  colorStringsOutput.emplace_back("linecolor hex 0x01ff0aff\n");
+  colorStringsOutput.emplace_back("linecolor hex 0xff0000ff\n");
+  colorStringsOutput.emplace_back("linecolor hex 0x00ff00ff\n");
+  colorStringsOutput.emplace_back("linecolor hex 0x148f320c\n");
+  colorStringsOutput.emplace_back("linecolor hex 0x999999ff\n");
 
   simCore::GOG::Parser parser;
   // set a custom defined color
   parser.addOverwriteColor("color2", "0000ac02");
   std::vector<simCore::GOG::GogShapePtr> shapes;
   std::stringstream gogStr;
-  for (std::string colorStr : colorStringsInput)
+  for (const std::string& colorStr : colorStringsInput)
     gogStr << "start\n circle\n" << colorStr << "end\n";
   parser.parse(gogStr, "", shapes);
   rv += SDK_ASSERT(shapes.size() == colorStringsInput.size());
 
   std::vector<simCore::GOG::Color> colors;
-  colors.push_back(simCore::GOG::Color(0, 0, 0, 0));
-  colors.push_back(simCore::GOG::Color(2, 172, 0, 0));
-  colors.push_back(simCore::GOG::Color(0, 0, 255, 255));
-  colors.push_back(simCore::GOG::Color(255, 10, 255, 1));
-  colors.push_back(simCore::GOG::Color(255, 0, 0, 255));
-  colors.push_back(simCore::GOG::Color(255, 0, 255, 0));
-  colors.push_back(simCore::GOG::Color(12, 50, 143, 20));
-  colors.push_back(simCore::GOG::Color(255, 153, 153, 153));
+  colors.emplace_back(0, 0, 0, 0);
+  colors.emplace_back(2, 172, 0, 0);
+  colors.emplace_back(0, 0, 255, 255);
+  colors.emplace_back(255, 10, 255, 1);
+  colors.emplace_back(255, 0, 0, 255);
+  colors.emplace_back(255, 0, 255, 0);
+  colors.emplace_back(12, 50, 143, 20);
+  colors.emplace_back(255, 153, 153, 153);
 
   int i = 0;
-  for (simCore::GOG::GogShapePtr shape : shapes)
+  for (const simCore::GOG::GogShapePtr& shape : shapes)
   {
     simCore::GOG::Circle* circle = dynamic_cast<simCore::GOG::Circle*>(shape.get());
     rv += SDK_ASSERT(circle != nullptr);
     if (circle != nullptr)
     {
-      simCore::GOG::Color color;
-      circle->getLineColor(color);
-      rv += SDK_ASSERT(color == colors[i]);
+      rv += SDK_ASSERT(circle->getLineColor().value_or(simCore::GOG::Color()) == colors[i]);
       std::stringstream os;
       circle->serializeToStream(os);
       std::string serialized = os.str();
@@ -2056,15 +1915,9 @@ int testColors()
 auto testBooleansFunc = [](const simCore::GOG::FillableShape* shape) -> int
 {
   int rv = 0;
-  bool filled;
-  rv += SDK_ASSERT(shape->getIsFilled(filled) == 0);
-  rv += SDK_ASSERT(filled);
-  bool outlined;
-  rv += SDK_ASSERT(shape->getIsOutlined(outlined) == 0);
-  rv += SDK_ASSERT(!outlined);
-  simCore::GOG::AltitudeMode mode = simCore::GOG::AltitudeMode::NONE;
-  rv += SDK_ASSERT(shape->getAltitudeMode(mode) == 0);
-  rv += SDK_ASSERT(mode == simCore::GOG::AltitudeMode::EXTRUDE);
+  rv += SDK_ASSERT(shape->getIsFilled().value_or(false));
+  rv += SDK_ASSERT(!shape->getIsOutlined().value_or(true));
+  rv += SDK_ASSERT(shape->getAltitudeMode().value_or(simCore::GOG::AltitudeMode::NONE) == simCore::GOG::AltitudeMode::EXTRUDE);
   return rv;
 };
 
@@ -2095,18 +1948,14 @@ auto testPointSizeFunc = [](const simCore::GOG::Points* shape) -> int
 auto testLineWidthFunc = [](const simCore::GOG::FillableShape* shape) -> int
 {
   int rv = 0;
-  int lineWidth = 0;
-  rv += SDK_ASSERT(shape->getLineWidth(lineWidth) == 0);
-  rv += SDK_ASSERT(lineWidth == 3);
+  rv += SDK_ASSERT(shape->getLineWidth().value_or(0) == 3);
   return rv;
 };
 
 auto testTextSizeFunc = [](const simCore::GOG::Annotation* shape) -> int
 {
   int rv = 0;
-  int textSize = 0;
-  rv += SDK_ASSERT(shape->getTextSize(textSize) == 0);
-  rv += SDK_ASSERT(textSize == 3);
+  rv += SDK_ASSERT(shape->getTextSize().value_or(0) == 3);
   return rv;
 };
 
@@ -2124,27 +1973,21 @@ int testDoublesToInts()
 auto testLineWidthThinFunc = [](const simCore::GOG::FillableShape* shape) -> int
 {
   int rv = 0;
-  int lineWidth = 0;
-  rv += SDK_ASSERT(shape->getLineWidth(lineWidth)== 0);
-  rv += SDK_ASSERT(lineWidth == 1);
+  rv += SDK_ASSERT(shape->getLineWidth().value_or(0) == 1);
   return rv;
 };
 
 auto testLineWidthMediumFunc = [](const simCore::GOG::FillableShape* shape) -> int
 {
   int rv = 0;
-  int lineWidth = 0;
-  rv += SDK_ASSERT(shape->getLineWidth(lineWidth) == 0);
-  rv += SDK_ASSERT(lineWidth == 2);
+  rv += SDK_ASSERT(shape->getLineWidth().value_or(0) == 2);
   return rv;
 };
 
 auto testLineWidthThickFunc = [](const simCore::GOG::FillableShape* shape) -> int
 {
   int rv = 0;
-  int lineWidth = 0;
-  rv += SDK_ASSERT(shape->getLineWidth(lineWidth) == 0);
-  rv += SDK_ASSERT(lineWidth == 4);
+  rv += SDK_ASSERT(shape->getLineWidth().value_or(0) == 4);
   return rv;
 };
 
@@ -2163,7 +2006,6 @@ int testTimeStrings()
   int rv = 0;
   simCore::GOG::Parser parser;
   std::vector<simCore::GOG::GogShapePtr> shapes;
-  simCore::TimeStamp stamp;
 
   // Test neither start nor end
   std::stringstream noTime;
@@ -2173,10 +2015,8 @@ int testTimeStrings()
   if (!shapes.empty())
   {
     const auto& shape = shapes.front();
-    rv += SDK_ASSERT(shape->getStartTime(stamp) != 0);
-    rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
-    rv += SDK_ASSERT(shape->getEndTime(stamp) != 0);
-    rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
+    rv += SDK_ASSERT(!shape->getStartTime().has_value());
+    rv += SDK_ASSERT(!shape->getEndTime().has_value());
   }
   shapes.clear();
 
@@ -2188,10 +2028,8 @@ int testTimeStrings()
   if (!shapes.empty())
   {
     const auto& shape = shapes.front();
-    rv += SDK_ASSERT(shape->getStartTime(stamp) == 0);
-    rv += SDK_ASSERT(stamp == simCore::TimeStamp(1970, 0));
-    rv += SDK_ASSERT(shape->getEndTime(stamp) != 0);
-    rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
+    rv += SDK_ASSERT(shape->getStartTime().value_or(simCore::INFINITE_TIME_STAMP) == simCore::TimeStamp(1970, 0));
+    rv += SDK_ASSERT(!shape->getEndTime().has_value());
   }
   shapes.clear();
 
@@ -2203,10 +2041,8 @@ int testTimeStrings()
   if (!shapes.empty())
   {
     const auto& shape = shapes.front();
-    rv += SDK_ASSERT(shape->getStartTime(stamp) != 0);
-    rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
-    rv += SDK_ASSERT(shape->getEndTime(stamp) == 0);
-    rv += SDK_ASSERT(stamp == simCore::TimeStamp(1970, 0));
+    rv += SDK_ASSERT(!shape->getStartTime().has_value());
+    rv += SDK_ASSERT(shape->getEndTime().value_or(simCore::INFINITE_TIME_STAMP) == simCore::TimeStamp(1970, 0));
   }
   shapes.clear();
 
@@ -2218,10 +2054,8 @@ int testTimeStrings()
   if (!shapes.empty())
   {
     const auto& shape = shapes.front();
-    rv += SDK_ASSERT(shape->getStartTime(stamp) == 0);
-    rv += SDK_ASSERT(stamp == simCore::TimeStamp(1970, 0));
-    rv += SDK_ASSERT(shape->getEndTime(stamp) == 0);
-    rv += SDK_ASSERT(stamp == simCore::TimeStamp(1970, 3600));
+    rv += SDK_ASSERT(shape->getStartTime().value_or(simCore::INFINITE_TIME_STAMP) == simCore::TimeStamp(1970, 0));
+    rv += SDK_ASSERT(shape->getEndTime().value_or(simCore::INFINITE_TIME_STAMP) == simCore::TimeStamp(1970, 3600));
   }
   shapes.clear();
 
@@ -2233,10 +2067,8 @@ int testTimeStrings()
   if (!shapes.empty())
   {
     const auto& shape = shapes.front();
-    rv += SDK_ASSERT(shape->getStartTime(stamp) != 0);
-    rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
-    rv += SDK_ASSERT(shape->getEndTime(stamp) != 0);
-    rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
+    rv += SDK_ASSERT(!shape->getStartTime().has_value());
+    rv += SDK_ASSERT(!shape->getEndTime().has_value());
   }
   shapes.clear();
 
@@ -2248,10 +2080,8 @@ int testTimeStrings()
   if (!shapes.empty())
   {
     const auto& shape = shapes.front();
-    rv += SDK_ASSERT(shape->getStartTime(stamp) != 0);
-    rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
-    rv += SDK_ASSERT(shape->getEndTime(stamp) != 0);
-    rv += SDK_ASSERT(stamp == simCore::INFINITE_TIME_STAMP);
+    rv += SDK_ASSERT(!shape->getStartTime().has_value());
+    rv += SDK_ASSERT(!shape->getEndTime().has_value());
   }
   shapes.clear();
 
@@ -2265,28 +2095,22 @@ int testReferencePositionField()
   simCore::GOG::Line line(false);
   simCore::Vec3 refPoint(1, 2, 3);
   line.setReferencePosition(refPoint);
-  simCore::Vec3 setRefPoint;
   // ref position should not be set when shape is absolute
-  rv += SDK_ASSERT(line.getReferencePosition(setRefPoint) != 0);
-  rv += SDK_ASSERT(setRefPoint != refPoint);
+  rv += SDK_ASSERT(!line.getReferencePosition().has_value());
   line.setRelative(true);
   line.setReferencePosition(refPoint);
   // ref position should now be set successfully since shape is relative
-  rv += SDK_ASSERT(line.getReferencePosition(setRefPoint) == 0);
-  rv += SDK_ASSERT(setRefPoint == refPoint);
+  rv += SDK_ASSERT(line.getReferencePosition().value_or(simCore::Vec3()) == refPoint);
   line.clearReferencePosition();
   // clearing ref position should work, even when relative
-  rv += SDK_ASSERT(line.getReferencePosition(setRefPoint) != 0);
-  rv += SDK_ASSERT(setRefPoint != refPoint);
+  rv += SDK_ASSERT(!line.getReferencePosition().has_value());
 
   line.setReferencePosition(refPoint);
   // verify ref position set successfully again
-  rv += SDK_ASSERT(line.getReferencePosition(setRefPoint) == 0);
-  rv += SDK_ASSERT(setRefPoint == refPoint);
+  rv += SDK_ASSERT(line.getReferencePosition().value_or(simCore::Vec3()) == refPoint);
   line.setRelative(false);
   // ref position should be cleared when shape was set to absolute
-  rv += SDK_ASSERT(line.getReferencePosition(setRefPoint) != 0);
-  rv += SDK_ASSERT(setRefPoint != refPoint);
+  rv += SDK_ASSERT(!line.getReferencePosition().has_value());
 
   return rv;
 }
@@ -2307,17 +2131,12 @@ int testShapeRotation(const std::string& shapeString, bool canRotate)
   // nothing more to test if shape can't apply rotation
   if (!canRotate)
     return rv;
-  double yawOffset = 0.;
-  // check shape has yaw offset
-  rv += SDK_ASSERT(shapes.front()->getYawOffset(yawOffset) == 0);
-  // check that yaw offset is correct
-  rv += SDK_ASSERT(simCore::areEqual(yawOffset * simCore::RAD2DEG, 45.));
+  // check that yaw offset is correct. if shape doesn't have yaw offset, zero will cause failure
+  rv += SDK_ASSERT(simCore::areEqual(shapes.front()->getYawOffset().value_or(0.) * simCore::RAD2DEG, 45.));
 
   shapes.front()->setYawOffset(M_PI);
-  shapes.front()->getYawOffset(yawOffset);
-
   // check that updated yaw offset is correct
-  rv += SDK_ASSERT(simCore::areEqual(yawOffset * simCore::RAD2DEG, 180.));
+  rv += SDK_ASSERT(simCore::areEqual(shapes.front()->getYawOffset().value_or(0.) * simCore::RAD2DEG, 180.));
 
   return rv;
 }
@@ -2383,6 +2202,138 @@ int testOrient()
   return rv;
 }
 
+int testScaleField()
+{
+  int rv = 0;
+
+  // Test programmatic API setter/getter
+  simCore::GOG::Circle circle(false);
+  simCore::Vec3 testScale(5.0, 0.5, 2.0);
+  circle.setScale(testScale);
+  rv += SDK_ASSERT(circle.getScale().value_or(simCore::Vec3()) == testScale);
+
+  // Helper lambda to parse and evaluate string inputs
+  auto parseAndCheckScale = [](const std::string& scaleStr, bool getScaleSuccess, const simCore::Vec3& expectedVal) -> int
+    {
+      int localRv = 0;
+      simCore::GOG::Parser parser;
+      std::vector<simCore::GOG::GogShapePtr> shapes;
+      std::stringstream ss;
+
+      ss << "start\n circle\n centerlla 0 0 0\n " << scaleStr << " end\n";
+      parser.parse(ss, "", shapes);
+
+      // Invalid scale should never impact shape creation
+      localRv += SDK_ASSERT(shapes.size() == 1);
+      if (!shapes.empty())
+      {
+        std::optional<simCore::Vec3> parsedScaleOptional = shapes.front()->getScale();
+        simCore::Vec3 parsedScale = parsedScaleOptional.value_or(simCore::Vec3(1., 1., 1.));
+        localRv += SDK_ASSERT(shapes.front()->getScale().has_value() == getScaleSuccess);
+        localRv += SDK_ASSERT(simCore::areEqual(parsedScale.x(), expectedVal.x()));
+        localRv += SDK_ASSERT(simCore::areEqual(parsedScale.y(), expectedVal.y()));
+        localRv += SDK_ASSERT(simCore::areEqual(parsedScale.z(), expectedVal.z()));
+      }
+      return localRv;
+    };
+
+  const simCore::Vec3 noScale(1., 1., 1.);
+
+  std::cout << ">>> Expecting 4 errors about scale parsing, all in a row:\n";
+  // Test 0 arguments - expecting error printout, no scale set (i.e. default 1,1,1)
+  rv += parseAndCheckScale("scale\n", false, noScale);
+  // Test 1 argument - expecting error printout, no scale set (i.e. default 1,1,1)
+  rv += parseAndCheckScale("scale 5.0\n", false, noScale);
+  // Test 2 arguments - expecting error printout, no scale set (i.e. default 1,1,1)
+  rv += parseAndCheckScale("scale 5.0 2.0\n", false, noScale);
+  // Test 4 arguments - expecting error printout, but first 3 values saved as scale
+  rv += parseAndCheckScale("scale 5.0 2.0 3.0 9.9\n", true, simCore::Vec3(5.0, 2.0, 3.0));
+  std::cout << "<<< End of expected errors.\n";
+
+  // Test 3 arguments (Expect explicit X, Y, Z)
+  rv += parseAndCheckScale("scale 5.0 2.0 3.0\n", true, simCore::Vec3(5.0, 2.0, 3.0));
+  // Test zero scale handling - expecting it to be blindly accepted
+  rv += parseAndCheckScale("scale 0.0 0.0 0.0\n", true, simCore::Vec3(0.0, 0.0, 0.0));
+
+  return rv;
+}
+
+int testEditModeField()
+{
+  int rv = 0;
+
+  // Test Programmatic API (Setter/Getter)
+  simCore::GOG::Circle circle(false);
+  rv += SDK_ASSERT(!circle.getEditMode().has_value());
+  circle.setEditMode(simCore::GOG::EditMode::GLOBAL);
+  rv += SDK_ASSERT(circle.getEditMode().has_value());
+  rv += SDK_ASSERT(circle.getEditMode().value() == simCore::GOG::EditMode::GLOBAL);
+  circle.setEditMode(simCore::GOG::EditMode::LOCKED);
+  rv += SDK_ASSERT(circle.getEditMode().value() == simCore::GOG::EditMode::LOCKED);
+
+  // Helper lambda to parse and evaluate string inputs and serialization
+  auto parseAndCheckEditMode = [](const std::string& editStr, std::optional<simCore::GOG::EditMode> expectedMode, const std::string& expectedSerialized) -> int
+    {
+      int localRv = 0;
+      simCore::GOG::Parser parser;
+      std::vector<simCore::GOG::GogShapePtr> shapes;
+      std::stringstream ss;
+
+      ss << "start\n circle\n centerlla 0 0 0\n " << editStr << " end\n";
+      parser.parse(ss, "", shapes);
+
+      localRv += SDK_ASSERT(shapes.size() == 1);
+      if (!shapes.empty())
+      {
+        auto shape = shapes.front();
+        auto parsedMode = shape->getEditMode();
+
+        // Verify parsed state matches expected state
+        localRv += SDK_ASSERT(parsedMode.has_value() == expectedMode.has_value());
+        if (parsedMode.has_value() && expectedMode.has_value())
+        {
+          localRv += SDK_ASSERT(parsedMode.value() == expectedMode.value());
+        }
+
+        // Verify serialization
+        std::stringstream outStream;
+        shape->serializeToStream(outStream);
+        std::string serialized = outStream.str();
+
+        if (expectedSerialized.empty())
+        {
+          // If it wasn't set, it shouldn't serialize out
+          localRv += SDK_ASSERT(serialized.find("3d edit") == std::string::npos);
+        }
+        else
+        {
+          // Verify it serializes back out to the correct canonical keyword
+          localRv += SDK_ASSERT(serialized.find(expectedSerialized) != std::string::npos);
+        }
+      }
+      return localRv;
+    };
+
+  // "GLOBAL" Parsing and Serialization
+  rv += parseAndCheckEditMode("3d edit on\n", simCore::GOG::EditMode::GLOBAL, "3d edit on\n");
+  rv += parseAndCheckEditMode("3d edit true\n", simCore::GOG::EditMode::GLOBAL, "3d edit on\n"); // Assuming stringIsTrueToken captures "true"
+  // "EXPLICIT_ONLY" Parsing and Serialization
+  rv += parseAndCheckEditMode("3d edit off\n", simCore::GOG::EditMode::EXPLICIT_ONLY, "3d edit off\n");
+  rv += parseAndCheckEditMode("3d edit false\n", simCore::GOG::EditMode::EXPLICIT_ONLY, "3d edit off\n");
+  // "LOCKED" Parsing and Serialization
+  rv += parseAndCheckEditMode("3d edit never\n", simCore::GOG::EditMode::LOCKED, "3d edit never\n");
+
+  // Test Default Fallbacks
+  // Keyword present but no arg (parser defaults to "on")
+  rv += parseAndCheckEditMode("3d edit\n", simCore::GOG::EditMode::GLOBAL, "3d edit on\n");
+  // Keyword present but unrecognized arg (parser defaults to EXPLICIT_ONLY)
+  rv += parseAndCheckEditMode("3d edit unknown\n", simCore::GOG::EditMode::EXPLICIT_ONLY, "3d edit off\n");
+
+  // Keyword omitted entirely (optional should be empty, no serialization)
+  rv += parseAndCheckEditMode("", std::nullopt, "");
+  return rv;
+}
+
 }
 
 int GogTest(int argc, char* argv[])
@@ -2408,7 +2359,8 @@ int GogTest(int argc, char* argv[])
   rv += testTimeStrings();
   rv += testReferencePositionField();
   rv += testOrient();
+  rv += testScaleField();
+  rv += testEditModeField();
 
   return rv;
 }
-

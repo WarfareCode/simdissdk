@@ -25,6 +25,7 @@
 
 #include "osgEarth/MapNode"
 #include "osgEarth/MapNodeObserver"
+#include "osgEarth/TerrainResources"
 #include "simVis/Projector.h"
 #include "simCore/Common/Common.h"
 #include "simData/ObjectId.h"
@@ -60,33 +61,24 @@ public:
   */
   void clear();
 
-  /** Texture image unit used by projectors */
-  static const int getTextureImageUnit();
-
-  /// Texture image unit for shadow map raster
-  static const int getShadowMapImageUnit();
-
-  /// Set the base (starting) texture image unit for projector textures.
-  static void setBaseTextureImageUnit(int unit);
-
 public: // MapNodeObserver
 
   /** Gets the map node */
-  virtual osgEarth::MapNode* getMapNode() override { return mapNode_.get(); }
+  osgEarth::MapNode* getMapNode() override { return mapNode_.get(); }
 
   /** Sets the map node */
-  virtual void setMapNode(osgEarth::MapNode* mapNode) override;
+  void setMapNode(osgEarth::MapNode* mapNode) override;
 
 public: // osg::Node
 
   /** Override in order to limit node traversals to cull visitor only */
-  void traverse(osg::NodeVisitor& nv);
+  void traverse(osg::NodeVisitor& nv) override;
 
   /** Return the proper library name */
-  virtual const char* libraryName() const { return "simVis"; }
+  const char* libraryName() const override { return "simVis"; }
 
   /** Return the class name */
-  virtual const char* className() const { return "ProjectorManager"; }
+  const char* className() const override { return "ProjectorManager"; }
 
 protected:
   /// osg::Referenced-derived; destructor body needs to be in the .cpp
@@ -103,20 +95,34 @@ private:
   /// Vector for holding projector nodes created by the scenario
   std::vector< osg::ref_ptr<ProjectorNode> > projectors_;
 
-  /// Map for associating projector node Ids to projector state sets
-  typedef std::map<simData::ObjectId, osg::ref_ptr<osg::Group> > GroupMap;
-  GroupMap groupMap_;
-
   /// REX Layer for a projector (REX engine only)
   class ProjectorLayer : public osgEarth::Layer
   {
   public:
-    ProjectorLayer(simData::ObjectId id);
+    explicit ProjectorLayer(ProjectorNode* proj);
     /// Return owner entity id
     simData::ObjectId id() const;
+    /// Release texture units when this layer leaves its map.
+    void removedFromMap(const osgEarth::Map* map) override;
+  protected:
+#if OSGEARTH_SOVERSION >= 101
+    /// Reserve texture units from the terrain engine before rendering this layer.
+    void prepareForRendering(osgEarth::TerrainEngine* engine) override;
+#else
+    /// Reserve texture units from the terrain engine before rendering this layer.
+    void setTerrainResources(osgEarth::TerrainResources* resources) override;
+#endif
   private:
+    /// Bind projector textures to units that do not conflict with the terrain engine.
+    void reserveTextureUnits_(osgEarth::TerrainResources* resources);
+    /// Remove texture bindings and release any reservations from the previous map.
+    void releaseTextureUnits_();
     /// Owner entity id
     simData::ObjectId id_;
+    osg::ref_ptr<osg::Texture2D> texture_;
+    osg::ref_ptr<osg::Texture2D> shadowMap_;
+    osgEarth::TextureImageUnitReservation textureUnit_;
+    osgEarth::TextureImageUnitReservation shadowMapUnit_;
   };
 
   /// Vector of projectorLayers that have been added to the mapNode
@@ -132,9 +138,6 @@ private:
 
   /// A flag to mark when projector layers need to be moved to ensure visibility
   bool needReorderProjectorLayers_;
-
-  /// Base (starting) texture image unit for projector textures
-  static int baseTextureImageUnit_;
 };
 }
 

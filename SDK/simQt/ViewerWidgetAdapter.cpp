@@ -27,11 +27,15 @@
 #include <QDragLeaveEvent>
 #include <QDragMoveEvent>
 #include <QDropEvent>
+#include <QEvent>
+#include <QMouseEvent>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
 #include <QTimer>
 #include <QVBoxLayout>
 #include "osg/DisplaySettings"
+#include "osgGA/EventQueue"
+#include "osgViewer/GraphicsWindow"
 #include "osgViewer/Viewer"
 #include "osgEarth/Registry"
 #include "osgEarth/Version"
@@ -77,13 +81,13 @@ public:
 
 protected:
   // From osgQOpenGLWindow:
-  virtual void resizeGL(int logicalWidth, int logicalHeight) override
+  void resizeGL(int logicalWidth, int logicalHeight) override
   {
     osgQOpenGLWindow::resizeGL(logicalWidth, logicalHeight);
     if (notifyResize_) [[likely]]
       notifyResize_(logicalWidth, logicalHeight, devicePixelRatio());
   }
-  virtual void paintGL() override
+  void paintGL() override
   {
     if (notifyPrePaint_) [[likely]]
       notifyPrePaint_();
@@ -130,14 +134,66 @@ public:
   }
 
 protected:
+  /** From osgQOpenGLWidget: Starts drag tracking and clears prior drag suppression. */
+  void mousePressEvent(QMouseEvent* event) override
+  {
+    dragActive_ = true;
+    suppressDrag_ = false;
+    osgQOpenGLWidget::mousePressEvent(event);
+  }
+
+  /** From osgQOpenGLWidget: Suppresses outside drag movement and re-anchors OSG on re-entry. */
+  void mouseMoveEvent(QMouseEvent* event) override
+  {
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+    const QPoint localPosition = event->pos();
+#else
+    const QPoint localPosition = event->position().toPoint();
+#endif
+
+    const bool inBounds = rect().contains(localPosition);
+    if (suppressDrag_)
+    {
+      // Re-entered while still dragging: reset OSG's stored mouse position
+      // without creating movement, then resume on the next in-map move.
+      if (inBounds && event->buttons() != Qt::NoButton && reanchorMouse_(localPosition) == 0)
+        suppressDrag_ = false;
+      return;
+    }
+
+    if (event->buttons() != Qt::NoButton && !inBounds)
+    {
+      suppressDrag_ = true;
+      return;
+    }
+
+    osgQOpenGLWidget::mouseMoveEvent(event);
+  }
+
+  /** From osgQOpenGLWidget: Clears drag tracking when the mouse button is released. */
+  void mouseReleaseEvent(QMouseEvent* event) override
+  {
+    dragActive_ = false;
+    suppressDrag_ = false;
+    osgQOpenGLWidget::mouseReleaseEvent(event);
+  }
+
+  /** From QWidget: Suppresses an active drag after the cursor leaves the GL widget. */
+  void leaveEvent(QEvent* event) override
+  {
+    if (dragActive_)
+      suppressDrag_ = true;
+    osgQOpenGLWidget::leaveEvent(event);
+  }
+
   // From osgQOpenGLWidget:
-  virtual void resizeGL(int logicalWidth, int logicalHeight) override
+  void resizeGL(int logicalWidth, int logicalHeight) override
   {
     osgQOpenGLWidget::resizeGL(logicalWidth, logicalHeight);
     if (notifyResize_) [[likely]]
       notifyResize_(logicalWidth, logicalHeight, this->devicePixelRatio());
   }
-  virtual void paintGL() override
+  void paintGL() override
   {
     if (notifyPrePaint_) [[likely]]
       notifyPrePaint_();
@@ -147,6 +203,26 @@ protected:
   }
 
 private:
+  /**
+   * Re-anchors OSG's stored mouse position without creating a movement event.
+   * @return 0 if the mouse was re-anchored; nonzero if OSG input is unavailable.
+   */
+  int reanchorMouse_(const QPoint& localPosition) const
+  {
+    osgViewer::GraphicsWindow* graphicsWindow = getGraphicsWindow();
+    if (graphicsWindow == nullptr || graphicsWindow->getEventQueue() == nullptr)
+      return 1;
+
+    const double dpr = devicePixelRatio();
+    const float x = static_cast<float>(localPosition.x() * dpr);
+    const float y = static_cast<float>(height() * dpr - localPosition.y() * dpr - 1.0);
+    graphicsWindow->getEventQueue()->mouseWarped(x, y);
+    return 0;
+  }
+
+  bool dragActive_ = false;
+  bool suppressDrag_ = false;
+
   osg::ref_ptr<osgViewer::Viewer> viewer_;
   std::function<void(int, int, double)> notifyResize_;
   std::function<void()> notifyPrePaint_;
@@ -216,7 +292,7 @@ public:
 
 protected:
   // From QObject:
-  virtual bool eventFilter(QObject* watched, QEvent* event) override
+  bool eventFilter(QObject* watched, QEvent* event) override
   {
     if (lambda_)
     {
@@ -286,31 +362,31 @@ public:
   virtual ~GlWindowPlatform();
   SDK_DISABLE_COPY_MOVE(GlWindowPlatform);
 
-  virtual QWidget* widget() const override;
-  virtual QOpenGLWidget* glWidget() const override;
-  virtual QOpenGLWindow* glWindow() const override;
-  virtual QOpenGLContext* qtGraphicsContext() const override;
-  virtual QSurfaceFormat format() const override;
-  virtual void setFormat(const QSurfaceFormat& format) override;
-  virtual void makeCurrent() override;
-  virtual void doneCurrent() override;
-  virtual bool isValid() const override;
-  virtual void create() override;
+  QWidget* widget() const override;
+  QOpenGLWidget* glWidget() const override;
+  QOpenGLWindow* glWindow() const override;
+  QOpenGLContext* qtGraphicsContext() const override;
+  QSurfaceFormat format() const override;
+  void setFormat(const QSurfaceFormat& format) override;
+  void makeCurrent() override;
+  void doneCurrent() override;
+  bool isValid() const override;
+  void create() override;
 
-  virtual osg::GraphicsContext* getGraphicsContext() const override;
-  virtual osgViewer::GraphicsWindow* getGraphicsWindow() const override;
-  virtual osgViewer::ViewerBase* getOsgViewer() const override;
-  virtual void setOsgViewer(osgViewer::ViewerBase* viewer) override;
-  virtual void setRenderFunction(const std::function<void(double simulationTime)>& renderFunc) override;
-  virtual void setTimerInterval(int intervalMs) override;
-  virtual void installEventFilter(QObject* filter) override;
+  osg::GraphicsContext* getGraphicsContext() const override;
+  osgViewer::GraphicsWindow* getGraphicsWindow() const override;
+  osgViewer::ViewerBase* getOsgViewer() const override;
+  void setOsgViewer(osgViewer::ViewerBase* viewer) override;
+  void setRenderFunction(const std::function<void(double simulationTime)>& renderFunc) override;
+  void setTimerInterval(int intervalMs) override;
+  void installEventFilter(QObject* filter) override;
 
-  virtual void setResizeSignal(const std::function<void(int, int, double)>& resize) override;
-  virtual void setPrePaintSignal(const std::function<void()>& prePaint) override;
-  virtual void setPostPaintSignal(const std::function<void()>& postPaint) override;
-  virtual void connectToFrameSwappedSignal(const std::function<void()>& frameSwapped) override;
-  virtual void connectToInitializedSignal(const std::function<void()>& initialized) override;
-  virtual void connectToAboutToRenderFirstFrameSignal(const std::function<void()>& aboutToRenderFirstFrame) override;
+  void setResizeSignal(const std::function<void(int, int, double)>& resize) override;
+  void setPrePaintSignal(const std::function<void()>& prePaint) override;
+  void setPostPaintSignal(const std::function<void()>& postPaint) override;
+  void connectToFrameSwappedSignal(const std::function<void()>& frameSwapped) override;
+  void connectToInitializedSignal(const std::function<void()>& initialized) override;
+  void connectToAboutToRenderFirstFrameSignal(const std::function<void()>& aboutToRenderFirstFrame) override;
 
 private:
   SignalingGlWindow* glWindow_ = nullptr;
@@ -326,31 +402,31 @@ public:
   virtual ~GlWidgetPlatform() override;
   SDK_DISABLE_COPY_MOVE(GlWidgetPlatform);
 
-  virtual QWidget* widget() const override;
-  virtual QOpenGLWidget* glWidget() const override;
-  virtual QOpenGLWindow* glWindow() const override;
-  virtual QOpenGLContext* qtGraphicsContext() const override;
-  virtual QSurfaceFormat format() const override;
-  virtual void setFormat(const QSurfaceFormat& format) override;
-  virtual void makeCurrent() override;
-  virtual void doneCurrent() override;
-  virtual bool isValid() const override;
-  virtual void create() override;
+  QWidget* widget() const override;
+  QOpenGLWidget* glWidget() const override;
+  QOpenGLWindow* glWindow() const override;
+  QOpenGLContext* qtGraphicsContext() const override;
+  QSurfaceFormat format() const override;
+  void setFormat(const QSurfaceFormat& format) override;
+  void makeCurrent() override;
+  void doneCurrent() override;
+  bool isValid() const override;
+  void create() override;
 
-  virtual osg::GraphicsContext* getGraphicsContext() const override;
-  virtual osgViewer::GraphicsWindow* getGraphicsWindow() const override;
-  virtual osgViewer::ViewerBase* getOsgViewer() const override;
-  virtual void setOsgViewer(osgViewer::ViewerBase* viewer) override;
-  virtual void setRenderFunction(const std::function<void(double simulationTime)>& renderFunc) override;
-  virtual void setTimerInterval(int intervalMs) override;
-  virtual void installEventFilter(QObject* filter) override;
+  osg::GraphicsContext* getGraphicsContext() const override;
+  osgViewer::GraphicsWindow* getGraphicsWindow() const override;
+  osgViewer::ViewerBase* getOsgViewer() const override;
+  void setOsgViewer(osgViewer::ViewerBase* viewer) override;
+  void setRenderFunction(const std::function<void(double simulationTime)>& renderFunc) override;
+  void setTimerInterval(int intervalMs) override;
+  void installEventFilter(QObject* filter) override;
 
-  virtual void setResizeSignal(const std::function<void(int, int, double)>& resize) override;
-  virtual void setPrePaintSignal(const std::function<void()>& prePaint) override;
-  virtual void setPostPaintSignal(const std::function<void()>& postPaint) override;
-  virtual void connectToFrameSwappedSignal(const std::function<void()>& frameSwapped) override;
-  virtual void connectToInitializedSignal(const std::function<void()>& initialized) override;
-  virtual void connectToAboutToRenderFirstFrameSignal(const std::function<void()>& aboutToRenderFirstFrame) override;
+  void setResizeSignal(const std::function<void(int, int, double)>& resize) override;
+  void setPrePaintSignal(const std::function<void()>& prePaint) override;
+  void setPostPaintSignal(const std::function<void()>& postPaint) override;
+  void connectToFrameSwappedSignal(const std::function<void()>& frameSwapped) override;
+  void connectToInitializedSignal(const std::function<void()>& initialized) override;
+  void connectToAboutToRenderFirstFrameSignal(const std::function<void()>& aboutToRenderFirstFrame) override;
 
 private:
   SignalingGlWidget* adaptedWidget_ = nullptr;
@@ -368,7 +444,14 @@ GlWindowPlatform::GlWindowPlatform(QWidget* parent)
 
 GlWindowPlatform::~GlWindowPlatform()
 {
-  delete glWindow_;
+  if (glWindow_)
+  {
+    // QWidget::createWindowContainer() transfers ownership of the QWindow to
+    // the returned QWidget container. Deleting the container also deletes the
+    // embedded osgQOpenGLWindow and its OSGRenderer.
+    delete glWindow_->asWidget();
+    glWindow_ = nullptr;
+  }
 }
 
 QWidget* GlWindowPlatform::widget() const
@@ -681,7 +764,8 @@ std::unique_ptr<GlPlatformInterface> createGlPlatform(GlImplementation glImpl, Q
 ///////////////////////////////////////////////////////////////////////
 
 ViewerWidgetAdapter::ViewerWidgetAdapter(GlImplementation glImpl, QWidget* parent)
-  : QWidget(parent)
+  : QWidget(parent),
+  glImplementation_(glImpl)
 {
   simVis::applyMesaGlVersionOverride();
 #if OSGEARTH_SOVERSION >= 180
@@ -689,7 +773,21 @@ ViewerWidgetAdapter::ViewerWidgetAdapter(GlImplementation glImpl, QWidget* paren
   osgEarth::Registry::instance()->setDevicePixelRatioFunction([this](auto* unused) { return devicePixelRatio(); });
 #endif
 
-  glPlatform_ = createGlPlatform(glImpl, this);
+  QVBoxLayout* layout = new QVBoxLayout(this);
+  layout->setContentsMargins(0, 0, 0, 0);
+  setLayout(layout);
+  setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+  setFocusPolicy(Qt::StrongFocus);
+  createGlPlatform_();
+  initializeSurfaceFormat_();
+  installGlPlatformEventFilters_();
+}
+
+void ViewerWidgetAdapter::createGlPlatform_()
+{
+  // Cannot call this with a glPlatform still defined
+  assert(!glPlatform_);
+  glPlatform_ = createGlPlatform(glImplementation_, this);
 
   glPlatform_->setResizeSignal([this](int logicalWidth, int logicalHeight, double pixelScale) { Q_EMIT glResized(logicalWidth, logicalHeight, pixelScale); });
   glPlatform_->setPrePaintSignal([this]() { Q_EMIT aboutToPaintGl(); });
@@ -698,46 +796,115 @@ ViewerWidgetAdapter::ViewerWidgetAdapter(GlImplementation glImpl, QWidget* paren
   glPlatform_->connectToInitializedSignal([this]() { postGlInitialize_(); });
   glPlatform_->connectToAboutToRenderFirstFrameSignal([this]() { Q_EMIT aboutToRenderFirstFrame(); });
 
-  initializeSurfaceFormat_();
+  auto* layout = qobject_cast<QVBoxLayout*>(this->layout());
+  // Layout must be set, and is set in constructor
+  assert(layout != nullptr);
+  if (layout == nullptr)
+    return;
 
-  QVBoxLayout* layout = new QVBoxLayout(this);
-  layout->setContentsMargins(0, 0, 0, 0);
   QWidget* windowOrWidgetContainer = glPlatform_->widget();
   layout->addWidget(windowOrWidgetContainer);
-  setLayout(layout);
-  setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  setFocusPolicy(Qt::StrongFocus);
   // The widget also needs strong focus for OSG key processing to work
   windowOrWidgetContainer->setFocusPolicy(Qt::StrongFocus);
+}
 
-  // Intercept drag and drop events for the window, try to process as our own
-  if (glImpl == GlImplementation::Window)
+void ViewerWidgetAdapter::destroyGlPlatform_()
+{
+  if (!glPlatform_)
+    return;
+
+  QWidget* windowOrWidgetContainer = glPlatform_->widget();
+  auto* layout = qobject_cast<QVBoxLayout*>(this->layout());
+  assert(layout != nullptr); // Set in constructor, must be valid
+  if (layout != nullptr)
+    layout->removeWidget(windowOrWidgetContainer);
+
+  // Both GlWidgetPlatform and GlWindowPlatform now own and destroy their
+  // complete inner widget/window platform through their destructors.
+  glPlatform_.reset();
+}
+
+void ViewerWidgetAdapter::recreateGlPlatform_()
+{
+  destroyGlPlatform_();
+  createGlPlatform_();
+  restoreGlPlatformConfiguration_();
+  installGlPlatformEventFilters_();
+
+  QWidget* windowOrWidgetContainer = glPlatform_->widget();
+  // The outer adapter is normally visible when this runs after a dock-state
+  // transition. Explicitly show and update the new child in that case.
+  if (isVisible())
   {
-    const auto& evtFilter = [windowOrWidgetContainer, this](QEvent* evt) -> bool {
-      auto clonedEvent = cloneDragDropEvent_(evt);
-      if (clonedEvent)
-        QCoreApplication::postEvent(this, clonedEvent.release());
-      return true;
-      };
-    glPlatform_->installEventFilter(new simQt::DragDropEventFilter(evtFilter, this));
-    windowOrWidgetContainer->setAcceptDrops(true);
+    windowOrWidgetContainer->show();
+    windowOrWidgetContainer->update();
   }
+}
 
-  // Fix auto-repeat
-  glPlatform_->installEventFilter(new simQt::AutoRepeatFilter(this));
+void ViewerWidgetAdapter::requestGlPlatformRecreation()
+{
+  if (glPlatformRecreationQueued_)
+    return;
+
+  // Prevent multiple successive recreation requests from creating a bad state
+  glPlatformRecreationQueued_ = true;
+  QTimer::singleShot(0, this, [this]() {
+    glPlatformRecreationQueued_ = false;
+    recreateGlPlatform_();
+    });
+}
+
+void ViewerWidgetAdapter::restoreGlPlatformConfiguration_()
+{
+  // Must be called with a valid GL Platform (set in constructor / createGlPlatform_()).
+  // Failure here means a failure in ordering of helper function calls.
+  assert(glPlatform_);
+
+  if (requestedFormat_.has_value())
+    glPlatform_->setFormat(*requestedFormat_);
+  if (viewer_.valid())
+    glPlatform_->setOsgViewer(viewer_.get());
+  glPlatform_->setTimerInterval(timerIntervalMs_);
+  glPlatform_->setRenderFunction(renderFunction_);
+}
+
+void ViewerWidgetAdapter::installGlPlatformEventFilters_()
+{
+  // Must be called with a valid GL Platform (set in constructor / createGlPlatform_()).
+  // Failure here means a failure in ordering of helper function calls.
+  assert(glPlatform_);
+  QWidget* windowOrWidgetContainer = glPlatform_->widget();
+
+  // The filters are owned by the current inner OpenGL platform widget. If a future
+  // platform replacement removes that widget, the filters are destroyed with
+  // it rather than remaining attached to a stale platform.
+  glPlatform_->installEventFilter(new simQt::AutoRepeatFilter(windowOrWidgetContainer));
 
   // Intercept multi-touch events and queue them into OSG
-  auto* multiTouchEventFilter = new simQt::MultiTouchEventFilter(this);
+  auto* multiTouchEventFilter = new simQt::MultiTouchEventFilter(windowOrWidgetContainer);
   glPlatform_->installEventFilter(multiTouchEventFilter);
 
-  // Set up the graphics window on initialization
+  // Set up the graphics window multi-touch event filter for touch events
   if (getGraphicsWindow())
     multiTouchEventFilter->setGraphicsWindow(getGraphicsWindow());
   else
   {
     glPlatform_->connectToInitializedSignal([multiTouchEventFilter, this]() {
       multiTouchEventFilter->setGraphicsWindow(getGraphicsWindow());
-    });
+      });
+  }
+
+  // Intercept drag and drop events for the window, try to process as our own
+  if (glImplementation_ == GlImplementation::Window)
+  {
+    const auto& evtFilter = [this](QEvent* evt) -> bool {
+      auto clonedEvent = cloneDragDropEvent_(evt);
+      if (clonedEvent)
+        QCoreApplication::postEvent(this, clonedEvent.release());
+      return true;
+      };
+    glPlatform_->installEventFilter(new simQt::DragDropEventFilter(evtFilter, windowOrWidgetContainer));
+    windowOrWidgetContainer->setAcceptDrops(true);
   }
 }
 
@@ -756,17 +923,20 @@ osgViewer::ViewerBase* ViewerWidgetAdapter::getViewer() const
 
 void ViewerWidgetAdapter::setViewer(osgViewer::ViewerBase* viewer)
 {
-  glPlatform_->setOsgViewer(viewer);
+  viewer_ = viewer;
+  glPlatform_->setOsgViewer(viewer_.get());
 }
 
 void ViewerWidgetAdapter::setRenderFunction(const std::function<void(double simulationTime)>& renderFunc)
 {
-  glPlatform_->setRenderFunction(renderFunc);
+  renderFunction_ = renderFunc;
+  glPlatform_->setRenderFunction(renderFunction_);
 }
 
 void ViewerWidgetAdapter::setTimerInterval(int intervalMs)
 {
-  glPlatform_->setTimerInterval(intervalMs);
+  timerIntervalMs_ = intervalMs;
+  glPlatform_->setTimerInterval(timerIntervalMs_);
 }
 
 osg::GraphicsContext* ViewerWidgetAdapter::getGraphicsContext() const
@@ -796,7 +966,8 @@ QSurfaceFormat ViewerWidgetAdapter::format() const
 
 void ViewerWidgetAdapter::setFormat(const QSurfaceFormat& format)
 {
-  glPlatform_->setFormat(format);
+  requestedFormat_ = format;
+  glPlatform_->setFormat(*requestedFormat_);
 }
 
 QOpenGLContext* ViewerWidgetAdapter::qtGraphicsContext() const
@@ -841,6 +1012,8 @@ void ViewerWidgetAdapter::initializeSurfaceFormat_()
   surfaceFormat.setVersion(3, 3);
   surfaceFormat.setProfile(QSurfaceFormat::CoreProfile);
 #endif
+  // Need to specify depth, else Linux in particular might give a bad surface
+  surfaceFormat.setDepthBufferSize(24);
   surfaceFormat.setSwapInterval(1); // vsync
   surfaceFormat.setRenderableType(QSurfaceFormat::OpenGL);
   surfaceFormat = simQt::Gl3FormatGuesser::getSurfaceFormat(surfaceFormat);

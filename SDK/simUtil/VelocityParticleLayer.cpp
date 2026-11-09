@@ -27,6 +27,7 @@
 #include "osgEarth/VirtualProgram"
 #include "simNotify/Notify.h"
 #include "simCore/String/Utils.h"
+#include "simVis/DevicePixelRatioUtils.h"
 #include "simVis/GradientShader.h"
 #include "simUtil/Shaders.h"
 #include "simUtil/VelocityParticleLayer.h"
@@ -285,7 +286,7 @@ public:
     {
     }
 
-    virtual bool run(osg::Object* object, osg::Object* data)
+    bool run(osg::Object* object, osg::Object* data) override
     {
       if (velocityTextureNode_.valid())
         velocityTextureNode_->swap();
@@ -375,14 +376,14 @@ public:
 
   float getPointSize() const
   {
-    float value;
-    pointsNode_->getOrCreateStateSet()->getUniform("pointSize")->get(value);
-    return value;
+    float logicalValue = 1.0f;
+    pointsNode_->getOrCreateStateSet()->getUniform("pointSize")->get(logicalValue);
+    return logicalValue;
   }
 
-  void setPointSize(float value)
+  void setPointSize(float logicalValue)
   {
-    pointsNode_->getOrCreateStateSet()->getUniform("pointSize")->set(value);
+    pointsNode_->getOrCreateStateSet()->getUniform("pointSize")->set(logicalValue);
   }
 
   float getParticleAltitude() const
@@ -759,10 +760,10 @@ float VelocityParticleLayer::getPointSize() const
   return *_options->pointSize();
 }
 
-void VelocityParticleLayer::setPointSize(float value)
+void VelocityParticleLayer::setPointSize(float logicalSize)
 {
-  _options->pointSize() = value;
-  VPL_SET_NODE(setPointSize, value);
+  _options->pointSize() = logicalSize;
+  VPL_SET_NODE(setPointSize, logicalSize);
 }
 
 float VelocityParticleLayer::getDropChance() const
@@ -826,7 +827,7 @@ osgEarth::Status VelocityParticleLayer::openImplementation()
 
 #if OSGEARTH_SOVERSION >= 142
   osgEarth::DataExtentList allExtents;
-  allExtents.push_back(osgEarth::DataExtent(geoExtent, 0, 0));
+  allExtents.emplace_back(geoExtent, 0, 0);
   setDataExtents(allExtents);
 #else
   dataExtents().clear();

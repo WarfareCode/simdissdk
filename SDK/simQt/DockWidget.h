@@ -60,7 +60,6 @@ class SDKQT_EXPORT DockWidget : public QDockWidget
 {
   Q_OBJECT;
   // Features that can be set in Qt Designer
-  Q_FLAGS(ExtraFeatures);
   Q_PROPERTY(bool dockable READ isDockable WRITE setDockable);
   Q_PROPERTY(bool searchEnabled READ searchEnabled WRITE setSearchEnabled);
   Q_PROPERTY(bool escapeClosesWidget READ escapeClosesWidget WRITE setEscapeClosesWidget);
@@ -101,6 +100,7 @@ public:
   };
   /** Create a flags enumeration */
   Q_DECLARE_FLAGS(ExtraFeatures, ExtraDockFlagHint);
+  Q_FLAG(ExtraFeatures);
 
   /**
    * Create a new Dock Widget.  The title will be non-unique, so be sure to update the title
@@ -136,13 +136,13 @@ public:
   virtual ~DockWidget();
 
   /** Override setVisible() to raise() the dock widget when needed */
-  virtual void setVisible(bool fl);
+  void setVisible(bool fl) override;
 
   /**
    * Set the widget that the dock widget will display.
-   * @param widget The widget that the dock widget will display
+   * @param newWidget The widget that the dock widget will display
    */
-  void setWidget(QWidget* widget);
+  void setWidget(QWidget* newWidget);
 
   /*
    * Set a default size for the widget, which serves as a backup if there is no size defined in settings.
@@ -257,15 +257,15 @@ protected Q_SLOTS:
 
 protected:
   /** Override closeEvent to emit the closedGui signal */
-  virtual void closeEvent(QCloseEvent* evt);
+  void closeEvent(QCloseEvent* evt) override;
   /** Override resizeEvent to update the title bar when maximized */
-  virtual void resizeEvent(QResizeEvent* evt);
+  void resizeEvent(QResizeEvent* evt) override;
   /** Override resizeEvent to update the title bar when maximized windows move */
-  virtual void moveEvent(QMoveEvent* evt);
+  void moveEvent(QMoveEvent* evt) override;
   /** Override keyPressEvent() to handle 'escape' key */
-  virtual void keyPressEvent(QKeyEvent* evt);
+  void keyPressEvent(QKeyEvent* evt) override;
   /** Override show event to focus the window */
-  virtual void showEvent(QShowEvent* evt);
+  void showEvent(QShowEvent* evt) override;
 
   /** Restores the dock widget, placing it in a good position if restoration fails; uses mainWindow_ */
   void restoreFloating_(const QByteArray& geometryBytes);
@@ -417,10 +417,13 @@ private:
   /** Flags true when widget is dockable */
   bool isDockable_ = true;
 
+  /** Flags true when overriding Tool WindowType to Window WindowType */
+  bool overrideQtWindowTypeTool_ = false;
+
   /** Global flag that can be used to turn off all docking at once. */
   simQt::BoundBooleanSetting* disableAllDocking_;
 
-  /** Setting to update border thickess */
+  /** Setting to update border thickness */
   simQt::BoundIntegerSetting* borderThickness_ = nullptr;
 
   /** Event filter for tab bar when widget is tabbed */

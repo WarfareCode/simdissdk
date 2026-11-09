@@ -46,14 +46,10 @@ class SDKQT_EXPORT FileSelectorWidget : public QWidget
   Q_PROPERTY(QString label READ label WRITE setLabel);
   /** Sets/gets the Save/Load in Qt Designer */
   Q_PROPERTY(FileOption typeOfOperation READ fileOptions WRITE setFileOptions);
-  /** Enum for either save or load in Qt Designer */
-  Q_ENUMS(FileOption);
   /** Sets/gets the title for file browser in Qt Designer */
   Q_PROPERTY(QString titleForFileBrowser READ browserTitle WRITE setBrowserTitle);
   /** Sets/gets the filter options in Qt Designer */
   Q_PROPERTY(FilterOptions filterForFileBrowser READ filterOption WRITE setFilterOption);
-  /** Enum for filter options in Qt Designer */
-  Q_ENUMS(FilterOptions);
   /** Sets/gets the custom filter in Qt Designer */
   Q_PROPERTY(QString customFileFilter READ customFileFilter WRITE setCustomFileFilter);
   /** Sets/gets the default file name in Qt Designer */
@@ -82,6 +78,8 @@ public:
     /** Save dialog is presented; user prompted to overwrite on selecting existing file */
     FileSave = 0x1
   };
+  /** Enum for either save or load in Qt Designer */
+  Q_ENUM(FileOption);
 
   /// Options for file extension filtering.
   enum FilterOptions
@@ -120,8 +118,16 @@ public:
     XML_FILE_PATTERNS,
     CUSTOM_USERDEFINED_FILTER
     };
+  /** Enum for filter options in Qt Designer */
+  Q_ENUM(FilterOptions);
 
-  /** Sets the registry key for saving/loading files; defaults to SETTINGS/file */
+  /**
+   * Sets the registry key for saving/loading files; defaults to "file".
+   * All FileSelectorWidgets with the same registry key will open to the
+   * same location, and changing one will change the others.
+   * To prevent these keys from showing in the SIMDIS Settings dialog,
+   * "Private/" is prepended during operation.
+   */
   void setRegistryKey(const QString& regKey);
   /** Retrieves current registry key setting */
   QString registryKey() const;
@@ -219,8 +225,8 @@ private:
   void setFilename_(const QString& filename, bool canEmitFileSelected);
 
   Ui_FileSelectorWidget* ui_ = nullptr;
-  /** location for saving state information */
-  QString registryKey_;
+  /** Settings key for saving state information. Note that we don't need to prepend "Private/" because simQt::FileDialog handles it during processing */
+  QString registryKey_ = "file";
   /** Default path string for the registry key (possibly empty) */
   QString defaultPath_;
   /** The optional label to the left */
@@ -228,15 +234,15 @@ private:
   /** True means the label is included */
   bool includeLabel_ = false;
   /** The Optional text to the left of the text field for the file name */
-  QString label_;
+  QString label_ = QObject::tr("File");
   /** The title for the file browser */
-  QString browserTitle_;
+  QString browserTitle_ = QObject::tr("Load Data File");
   /** Load or Save  */
   FileSelectorWidget::FileOption flags_ = FileLoad;
   /** The file extension */
   FileSelectorWidget::FilterOptions filterOption_ = SIMDIS_ASI_FILE_PATTERNS;
   /** Custom filter to use if filterOption_ is set to CUSTOM_USERDEFINED_FILTER */
-  QString customFileFilter_;
+  QString customFileFilter_ = QObject::tr("All Files (*)");
   /** Indicates if icon is placed before the text widgets */
   bool iconBeforeText_ = false;
   /** The valid state of the control as dictated by a caller */
@@ -248,7 +254,7 @@ private:
   QString filename_;
 
   /** Re-implement eventFilter() */
-  virtual bool eventFilter(QObject* obj, QEvent* evt);
+  bool eventFilter(QObject* obj, QEvent* evt) override;
 
   /** Converts the filter option enum to a readable text */
   QString filterOptions2QString_(FileSelectorWidget::FilterOptions option) const;

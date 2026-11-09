@@ -23,12 +23,12 @@
 #include <limits>
 #include "osg/Image"
 #include "osgDB/FileUtils"
-
-#include "simVis/View.h"
-#include "simVis/Utils.h"
-#include "simVis/Registry.h"
 #include "simCore/String/Tokenizer.h"
 #include "simCore/Calc/Math.h"
+#include "simVis/DevicePixelRatioUtils.h"
+#include "simVis/Registry.h"
+#include "simVis/Utils.h"
+#include "simVis/View.h"
 #include "simUtil/HudManager.h"
 
 namespace simUtil {
@@ -159,9 +159,12 @@ void HudTextAdapter::update_()
       addDrawable(osgText.get());
 
       osgText->setFont(simVis::Registry::instance()->getOrCreateFont(requestedFont_));
+
       // Set a minimum font size so that large text doesn't invoke magnification filtering
-      if (requestedFontSize_ > 32)
-        osgText->setFontResolution(static_cast<unsigned int>(requestedFontSize_), static_cast<unsigned int>(requestedFontSize_));
+      const double dpr = simVis::DevicePixelRatioUtils::getDpr();
+      unsigned int res = static_cast<unsigned int>(simCore::sdkMax(32.0, requestedFontSize_ * dpr));
+      osgText->setFontResolution(res, res);
+
       osgText->setCharacterSize(simVis::osgFontSize(requestedFontSize_));
       osgText->setPosition(osg::Vec3(0.0f, 0.0f, 0.0f));
       osgText->setColor(color_);
@@ -198,9 +201,11 @@ void HudTextAdapter::update_()
       if (requestedFontSize_ != currentFontSize_)
       {
         osgText->setCharacterSize(simVis::osgFontSize(requestedFontSize_));
+
         // Set a minimum font size so that large text doesn't invoke magnification filtering
-        if (requestedFontSize_ > 32)
-          osgText->setFontResolution(static_cast<unsigned int>(requestedFontSize_), static_cast<unsigned int>(requestedFontSize_));
+        const double dpr = simVis::DevicePixelRatioUtils::getDpr();
+        unsigned int res = static_cast<unsigned int>(simCore::sdkMax(32.0, requestedFontSize_ * dpr));
+        osgText->setFontResolution(res, res);
       }
 
       // Update the color of the text
@@ -476,13 +481,11 @@ class HudManager::ResizeHandler : public osgGA::GUIEventHandler
 public:
   /** Constructor */
   explicit ResizeHandler(HudManager* manager)
-   : manager_(manager),
-     width_(0),
-     height_(0)
+   : manager_(manager)
   { }
 
   /** Checks for resize events */
-  bool virtual handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa, osg::Object*, osg::NodeVisitor*)
+  bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa, osg::Object*, osg::NodeVisitor*) override
   {
     if (manager_ == nullptr)
       return false;
@@ -495,8 +498,10 @@ public:
       const osg::Viewport* viewport = (camera) ? camera->getViewport() : nullptr;
       if (viewport)
       {
-        int width = static_cast<int>(viewport->width());
-        int height = static_cast<int>(viewport->height());
+        // Convert physical viewport resize events to logical bounds
+        int width = static_cast<int>(simVis::DevicePixelRatioUtils::toLogical(viewport->width()));
+        int height = static_cast<int>(simVis::DevicePixelRatioUtils::toLogical(viewport->height()));
+
         if (width != width_ || height != height_)
         {
           width_  = width;
@@ -509,17 +514,17 @@ public:
   }
 
   /** Return the proper library name */
-  virtual const char* libraryName() const { return "simUtil"; }
+  const char* libraryName() const override { return "simUtil"; }
 
   /** Return the class name */
-  virtual const char* className() const { return "HudManager::ResizeHandler"; }
+  const char* className() const override { return "HudManager::ResizeHandler"; }
 
 protected:
   virtual ~ResizeHandler() {}
 private:
-  HudManager* manager_;
-  int width_;
-  int height_;
+  HudManager* manager_ = nullptr;
+  int width_ = 0;
+  int height_ = 0;
 };
 
 //-------------------------------------------------------------------------------------------------------
@@ -537,8 +542,9 @@ HudManager::HudManager(osgViewer::View* view, osg::Group* parentNode)
   }
 
   const osg::Viewport* vp = view->getCamera()->getViewport();
-  windowWidth_ = static_cast<int>(vp->width());
-  windowHeight_ = static_cast<int>(vp->height());
+  // Convert physical viewport bounds to logical window size
+  windowWidth_ = static_cast<int>(simVis::DevicePixelRatioUtils::toLogical(vp->width()));
+  windowHeight_ = static_cast<int>(simVis::DevicePixelRatioUtils::toLogical(vp->height()));
 
   handler_ = new ResizeHandler(this);
   if (view_.valid())
@@ -560,7 +566,7 @@ HudText* HudManager::createText(const std::string& text, double x, double y, boo
   HudText* hudText = new HudRowText(windowWidth_, windowHeight_);
   hudText->update(text, x, y, percentage, percentage, hAlign, vAlign, color, font, fontSize);
 
-  textVector_.push_back(hudText);
+  textVector_.emplace_back(hudText);
   group_->addChild(hudText);
   return hudText;
 }
@@ -571,7 +577,7 @@ HudText* HudManager::createText(const std::string& text, double x, double y, boo
 {
   HudText* hudText = new HudRowText(windowWidth_, windowHeight_);
   hudText->update(text, x, y, percentageX, percentageY, hAlign, vAlign, color, font, fontSize);
-  textVector_.push_back(hudText);
+  textVector_.emplace_back(hudText);
   group_->addChild(hudText);
   return hudText;
 }
@@ -585,7 +591,7 @@ HudColumnText* HudManager::createColumnText(const std::string& text, double x, d
   // HudColumnText currently only implements ALIGN_LEFT
   hudText->update(text, x, y, percentage, percentage, simUtil::ALIGN_LEFT, vAlign, color, font, fontSize);
 
-  textVector_.push_back(hudColumnText);
+  textVector_.emplace_back(hudColumnText);
   group_->addChild(hudColumnText);
   return hudColumnText;
 }
@@ -596,7 +602,7 @@ HudImage* HudManager::createImage(osg::Image* image, double x, double y, double 
 {
   HudImage* hudImage = new HudImage(windowWidth_, windowHeight_);
   hudImage->update(image, x, y, w, h, percentageX, percentageY, percentageW, percentageH, hAlign, vAlign);
-  imageVector_.push_back(hudImage);
+  imageVector_.emplace_back(hudImage);
   group_->addChild(hudImage);
   return hudImage;
 }

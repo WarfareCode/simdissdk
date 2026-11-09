@@ -28,80 +28,28 @@
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
 #include "simVis/GOG/LoaderUtils.h"
-#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 
 using namespace osgEarth;
 
 namespace simVis { namespace GOG {
 
-GogNodeInterface* Ellipse::deserialize(const ParsedShape& parsedShape,
-                     simVis::GOG::ParserData& p,
-                     const GOGNodeType&       nodeType,
-                     const GOGContext&        context,
-                     const GogMetaData&       metaData,
-                     MapNode*                 mapNode)
-{
-  Distance majorRadius, minorRadius;
-
-  if (parsedShape.hasValue(GOG_MAJORAXIS))
-    majorRadius = Distance(p.units_.rangeUnits_.convertTo(simCore::Units::METERS,
-      0.5 * parsedShape.doubleValue(GOG_MAJORAXIS, 10.0)), Units::METERS);
-
-  if (parsedShape.hasValue(GOG_MINORAXIS))
-    minorRadius = Distance(p.units_.rangeUnits_.convertTo(simCore::Units::METERS,
-      0.5 * parsedShape.doubleValue(GOG_MINORAXIS, 5.0)), Units::METERS);
-
-  if (parsedShape.hasValue(GOG_RADIUS))
-  {
-    majorRadius = Distance(p.units_.rangeUnits_.convertTo(simCore::Units::METERS,
-      parsedShape.doubleValue(GOG_RADIUS, 10.0)), Units::METERS);
-    minorRadius = majorRadius;
-  }
-
-  const Angle rotation(0., Units::DEGREES); // Rotation handled by parameters in GOG_ORIENT
-  osgEarth::GeometryFactory gf;
-  Geometry* shape = gf.createEllipse(osg::Vec3d(0, 0, 0), minorRadius, majorRadius, rotation);
-
-  osgEarth::LocalGeometryNode* node = nullptr;
-
-  if (nodeType == GOGNODE_GEOGRAPHIC)
-  {
-    // Try to prevent terrain z-fighting.
-    if (p.geometryRequiresClipping())
-      Utils::configureStyleForClipping(p.style_);
-
-    node = new osgEarth::LocalGeometryNode(shape, p.style_);
-    node->setMapNode(mapNode);
-  }
-  else
-    node = new HostedLocalGeometryNode(shape, p.style_);
-  node->setName("GOG Ellipse Position");
-
-  Utils::applyLocalGeometryOffsets(*node, p, nodeType);
-
-  GogNodeInterface* rv = new LocalGeometryNodeInterface(node, metaData);
-  rv->applyToStyle(parsedShape, p.units_);
-
-  return rv;
-}
-
 GogNodeInterface* Ellipse::createEllipse(const simCore::GOG::Ellipse& ellipse, bool attached, const simCore::Vec3& refPoint, osgEarth::MapNode* mapNode)
 {
   Distance majorRadius, minorRadius;
 
-  double majorAxis = 0.;
-  if (ellipse.getMajorAxis(majorAxis) == 0)
-    majorRadius = Distance(0.5 * majorAxis, Units::METERS);
+  const std::optional<double> majorAxis = ellipse.getMajorAxis();
+  if (majorAxis.has_value())
+    majorRadius = Distance(0.5 * majorAxis.value(), Units::METERS);
 
-  double minorAxis = 0.;
-  if (ellipse.getMinorAxis(minorAxis) == 0)
-    minorRadius = Distance(0.5 * minorAxis, Units::METERS);
+  const std::optional<double> minorAxis = ellipse.getMinorAxis();
+  if (minorAxis.has_value())
+    minorRadius = Distance(0.5 * minorAxis.value(), Units::METERS);
 
-  double radius = 0.;
-  if (ellipse.getRadius(radius) == 0)
+  const std::optional<double> radius = ellipse.getRadius();
+  if (radius.has_value())
   {
-    majorRadius = Distance(radius, Units::METERS);
+    majorRadius = Distance(radius.value(), Units::METERS);
     minorRadius = majorRadius;
   }
 
@@ -126,11 +74,13 @@ GogNodeInterface* Ellipse::createEllipse(const simCore::GOG::Ellipse& ellipse, b
   node->setName("GOG Ellipse Position");
 
   // use the ref point as the center if no center defined by the shape
-  simCore::Vec3 center;
-  if (ellipse.getCenterPosition(center) != 0 && !attached)
+  std::optional<simCore::Vec3> center = ellipse.getCenterPosition();
+  if (!center.has_value() && !attached)
     center = refPoint;
+  else if (!center.has_value())
+    center = simCore::Vec3();
 
-  LoaderUtils::setShapePositionOffsets(*node, ellipse, center, refPoint, attached, false);
+  LoaderUtils::setShapePositionOffsets(*node, ellipse, *center, refPoint, attached, false);
   GogMetaData metaData;
   return new LocalGeometryNodeInterface(node, metaData);
 }

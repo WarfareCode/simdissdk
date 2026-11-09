@@ -40,6 +40,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include "simNotify/Notify.h"
+#include "simCore/String/Utils.h"
 #include "simQt/SearchLineEdit.h"
 #include "simQt/BoundSettings.h"
 #include "simQt/QtFormatting.h"
@@ -158,7 +159,7 @@ public:
 
 protected:
   /** Overridden from QFrame */
-  virtual void mouseDoubleClickEvent(QMouseEvent* evt)
+  void mouseDoubleClickEvent(QMouseEvent* evt) override
   {
     // If it's docked we let Qt deal with the message (i.e. it will undock via Qt mechanisms).
     // If it's floating, we intercept and remap to maximize or restore as appropriate
@@ -196,7 +197,7 @@ public:
 
 protected:
   /** Overridden from QLabel */
-  virtual void mouseDoubleClickEvent(QMouseEvent* evt)
+  void mouseDoubleClickEvent(QMouseEvent* evt) override
   {
     // If upper left corner is double clicked, close window
     dockWidget_.closeWindow_();
@@ -226,7 +227,7 @@ public:
       tabBar_->installEventFilter(this);
   }
 
-  bool eventFilter(QObject* object, QEvent* event)
+  bool eventFilter(QObject* object, QEvent* event) override
   {
     if (object != tabBar_ || !tabBar_)
       return false;
@@ -309,8 +310,10 @@ public:
       // Construct a drag enter event from the drag move and pass it to our dock widget
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
       QDragEnterEvent simulatedEvent(dragEvt->pos(), dragEvt->possibleActions(), dragEvt->mimeData(), dragEvt->mouseButtons(), dragEvt->keyboardModifiers());
-#else
+#elif QT_VERSION < QT_VERSION_CHECK(6, 12, 0)
       QDragEnterEvent simulatedEvent(dragEvt->position().toPoint(), dragEvt->possibleActions(), dragEvt->mimeData(), dragEvt->buttons(), dragEvt->modifiers());
+#else
+      QDragEnterEvent simulatedEvent(dragEvt->position(), dragEvt->possibleActions(), dragEvt->mimeData(), dragEvt->buttons(), dragEvt->modifiers());
 #endif
       simulatedEvent.ignore();
       dockWidget_.dragEnterEvent(&simulatedEvent);
@@ -409,7 +412,7 @@ public:
   }
 
 protected:
-  virtual void paintEvent(QPaintEvent* evt) override
+  void paintEvent(QPaintEvent* evt) override
   {
     QFrame::paintEvent(evt);
 
@@ -535,6 +538,13 @@ void DockWidget::init_()
     mainWindow_->setAnimated(false);
 #endif
 
+#ifndef WIN32
+  // SIM-19156: WSL Wayland impl doesn't support Qt::WindowType::Tool, used by floating DockWidget;
+  // this envvar allows users running under WSL to override the WindowType to Qt::Window instead.
+  const std::string& overrideWindowTypeTool = simCore::getEnvVar("SIMDIS_NO_QT-WINDOWTYPE-TOOL");
+  overrideQtWindowTypeTool_ = (overrideWindowTypeTool != "");
+#endif
+
   // SIM-17647: the event filter cannot be a child of the tab bar, must persist for the life of the widget
   // This is because after unloading plug-ins, the QTabBar might still reference the event filter after it has been destroyed
   tabDragFilter_ = new TabDragDropEventFilter(*this);
@@ -599,7 +609,6 @@ void DockWidget::init_()
   closeAction_->setToolTip(formatTooltip(tr("Close"), tr("Close the window")));
   closeAction_->setIcon(QIcon(":/simQt/images/Close.png"));
   connect(closeAction_, SIGNAL(triggered()), this, SLOT(closeWindow_()));
-  closeAction_->setShortcuts(QKeySequence::Close);
 
   // Create the monochrome icons for doing focus
   const QSize titleBarIconSize(8, 8);
@@ -811,6 +820,26 @@ void DockWidget::updateTitleBar_()
     painter.drawPath(path);
     painter.end();
     setMask(mask);
+
+#ifndef WIN32
+    if (overrideQtWindowTypeTool_ && windowType() == Qt::Tool)
+    {
+      // SIM-19156: WSL Wayland impl doesn't support Qt::WindowType::Tool, used by floating DockWidget
+      // QDockWidgetPrivate::setWindowState forces Qt::Tool on floating QDockWidget
+      // QDockWidget::setTitleBarWidget, QDockWidget::setFeatures and QDockWidget::setFloating all call QDockWidgetPrivate::setWindowState
+      // It is believed that updateTitleBar_ is called in every calling sequence after any of these calls;
+      // the intent here is to always override the WindowType to Qt::Window instead.
+
+      // windows flag changes don't always apply if window is shown, so hide, set flags, show.
+      hide();
+      // When running with this change, dockwidgets can go behind mainwindow,
+      // but each dockwidget is a window and has an icon in the OS application dock;
+      // and can be pulled to front via the OS application dock
+      // in typical linux, this will make the application dock too busy.
+      setWindowFlags((windowFlags() & ~Qt::Tool) | Qt::Window);
+      show();
+    }
+#endif
   }
   else
   {
@@ -896,6 +925,13 @@ void DockWidget::restore_()
     // Grab the geometry before we float, so we don't float into a maximized state
     normalGeometry_ = geometry();
     setFloating(true);
+  }
+  else if (normalGeometry_.height() == 30 && normalGeometry_.width() == 100)
+  {
+    // 100x30 is an init value, not usable. should only occur for startup with main view in maximized or full-screen.
+    // use current max/fs geometry to guide restore to smaller floating window on same screen
+    const auto& center = geometry().center();
+    normalGeometry_.setRect(center.x() - 200, center.y() - 200, 400, 400);
   }
 
   // We already have a saved decent geometry, restore to it
@@ -1062,7 +1098,7 @@ void DockWidget::setDefaultSize(const QSize& defaultSize)
   defaultSize_ = defaultSize;
 }
 
-void DockWidget::setWidget(QWidget* widget)
+void DockWidget::setWidget(QWidget* newWidget)
 {
   // Deal with settings -- restore the is-dockable setting
   if (!objectName().isEmpty())
@@ -1078,10 +1114,16 @@ void DockWidget::setWidget(QWidget* widget)
     }
   }
 
-  QDockWidget::setWidget(widget);
-  if (widget == nullptr)
+  // Starting with Qt6 QDockWidget::setWidget no longer immediately deletes the previous widget.
+  // Manually delete the previous widget to force synchronous behavior.  See SIM-19383 for details.
+  QWidget* previousWidget = widget();
+  QDockWidget::setWidget(newWidget);
+  delete previousWidget;
+
+  if (newWidget == nullptr)
     return;
-  setWindowIcon(widget->windowIcon());
+
+  setWindowIcon(newWidget->windowIcon());
 
   // Save the geometry now so that we have some valid value at initialization
   normalGeometry_ = geometry();
@@ -1174,6 +1216,9 @@ void DockWidget::restoreDefaultLayout()
 
 void DockWidget::verifyDockState_(bool floating)
 {
+  // only set shortcut when floating; if multiple dockwidgets are docked the shortcut event is ambigious since they all share focus
+  closeAction_->setShortcuts(floating ? QKeySequence::Close : QKeySequence::UnknownKey);
+
   // there are cases where Qt will dock this widget despite the allowedAreas, e.g. restoreState or double clicking on title bar
   if (!floating && allowedAreas() == Qt::NoDockWidgetArea)
     setFloating(true);
@@ -1517,7 +1562,6 @@ void DockWidget::restoreFloating_(const QByteArray& geometryBytes)
       setFloatingGeometry_(geometryBytes);
     return;
   }
-
   // If ignoring settings, bypass main window. Otherwise give main window first opportunity to restore the position
   if (extraFeatures_.testFlag(DockWidgetIgnoreSettings) || !mainWindow_->restoreDockWidget(this))
   {
@@ -1534,10 +1578,13 @@ void DockWidget::restoreFloating_(const QByteArray& geometryBytes)
   else
   {
 #ifndef WIN32
+    // SIM-7125
+    // this is still required with RHEL8 & Qt 6.10, but not desirable for the overrideQtWindowTypeTool_ use-case
     // On some versions of Gnome, this flag gets set and causes problems where
     // the dock widget, when undocked, will always be in front of other modal
     // always-on-top windows like the file dialog
-    setWindowFlags(windowFlags() & ~(Qt::X11BypassWindowManagerHint));
+    if (!overrideQtWindowTypeTool_)
+      setWindowFlags(windowFlags() & ~(Qt::X11BypassWindowManagerHint));
 #endif
   }
 }

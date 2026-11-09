@@ -66,7 +66,7 @@ public:
     OE_OPTION(float, dieSpeed);
     /** Factor multiplied against the particles to slow down movement. */
     OE_OPTION(float, speedFactor);
-    /** Size of the particle on screen */
+    /** Size of the particle on screen in logical pixels */
     OE_OPTION(float, pointSize);
     /** Likelihood that particle will spontaneously drop, outside its typical life reduction from dieSpeed. */
     OE_OPTION(float, dropChance);
@@ -85,7 +85,7 @@ public:
     OE_OPTION(simVis::GradientShader, gradient);
 
     /** Create the Config from this options structure. */
-    virtual osgEarth::Config getConfig() const override;
+    osgEarth::Config getConfig() const override;
 
   private:
     /** Called by constructors to initialize options */
@@ -106,7 +106,7 @@ public:
   float getSpeedFactor() const;
   void setSpeedFactor(float value);
   float getPointSize() const;
-  void setPointSize(float value);
+  void setPointSize(float logicalValue);
   float getDropChance() const;
   void setDropChance(float value);
   float getParticleAltitude() const;
@@ -154,16 +154,16 @@ public:
   void setTexelToVelocityFragment(const std::string& glslFragment);
 
   // From ImageLayer:
-  virtual osgEarth::Status openImplementation() override;
+  osgEarth::Status openImplementation() override;
 
   // From Layer:
-  virtual osg::Node* getNode() const override;
+  osg::Node* getNode() const override;
 
 protected:
   virtual ~VelocityParticleLayer();
 
   // From ImageLayer:
-  virtual void init() override;
+  void init() override;
 
 private:
   /** Helper function to cast node_; due to ref_ptr issues, can't store node_ as a VelocityTextureNode */

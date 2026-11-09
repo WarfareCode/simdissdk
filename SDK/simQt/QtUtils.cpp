@@ -21,6 +21,8 @@
  *
  */
 #include <QApplication>
+#include <QDialog>
+#include <QHeaderView>
 #include <QMainWindow>
 #include <QScreen>
 #ifdef WIN32
@@ -28,7 +30,11 @@
 #include <QStyleHints>
 #endif
 #endif
+#include <QTabBar>
+#include <QTabWidget>
+#include <QTreeView>
 #include <QWidget>
+#include "simQt/OverrideShortcut.h"
 #include "simQt/QtUtils.h"
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 10, 0)
@@ -108,17 +114,172 @@ bool QtUtils::isDarkTheme()
   return windowColor.lightness() < 80;
 }
 
+bool QtUtils::hasAccentColorProblems()
+{
+#ifndef WIN32
+  return false; // No known issues on linux
+#endif
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
+  return false; // No known issues in Qt5
+#endif
+
+  // Qt (at least in 6.10) has very poor coloration in the Windows theme. It grabs the
+  // accent color for highlights. Accent should mainly be used for Window titles and accents,
+  // but Qt uses it in many more places. This code detects problems with the color by
+  // comparing the lightness of the highlight (i.e. accent) vs the light/dark mode values.
+  // This attempts to avoid problems with light on light and dark on dark.
+
+  QPalette palette = QApplication::palette();
+  QColor highlightColor = palette.color(QPalette::Highlight);
+
+  if (simQt::QtUtils::isDarkTheme())
+    return (highlightColor.lightness() > LIGHTNESS_HIGH_THRESHOLD);
+  else
+    return (highlightColor.lightness() < LIGHTNESS_LOW_THRESHOLD);
+}
+
 QWidget* QtUtils::getMainWindowParent(QWidget* widget)
 {
   if (!widget)
     return widget;
 
+  // SIM-19177: When docking a QDockWidget that has spawned other dialogs, having them parented to the QDockWidget
+  // causes odd behavior resulting in them being hidden behind the MainWindow and not closing when the application is exited.
+  // However, if a modal dialog creates another dialog and the latter is parented to the MainWindow, then it becomes unusable
+  // and is hidden behind the "parent" modal dialog.
+  // These behavioral issues seem to stem from bugs in Qt6, so we're working around them and keeping our eye on it.
   for (QWidget* rv = dynamic_cast<QWidget*>(widget->parent()); rv != nullptr; rv = dynamic_cast<QWidget*>(rv->parent()))
   {
+    if (auto dialog = dynamic_cast<QDialog*>(rv); dialog != nullptr && dialog->isModal())
+      return rv;
     if (dynamic_cast<QMainWindow*>(rv) != nullptr)
       return rv;
   }
   return widget;
+}
+
+void QtUtils::addTabShortcuts(QTabWidget& tabs, QWidget& parentScope)
+{
+  // create a temporary QPointer, that can record when the tabs get destroyed
+  QPointer<QTabWidget> tabWidget = &tabs;
+
+  // Numbered Tabs (Ctrl + 1..9)
+  for (int i = 0; i < 9; ++i)
+  {
+    const QKeySequence seq(Qt::CTRL | (Qt::Key_1 + i));
+    OverrideShortcut* numShortcut = new OverrideShortcut(seq, &parentScope);
+    QObject::connect(numShortcut, &OverrideShortcut::activated, &tabs, [tabWidget, i]() {
+      if (tabWidget && i < tabWidget->count()) {
+        tabWidget->setCurrentIndex(i);
+      }
+      });
+  }
+
+  // Next Tab (Ctrl + PageDown, Ctrl + Tab)
+  const std::vector<QKeySequence> nextKeys = {
+    QKeySequence(Qt::CTRL | Qt::Key_PageDown),
+    QKeySequence(Qt::CTRL | Qt::Key_Tab)
+  };
+  OverrideShortcut* nextShortcut = new OverrideShortcut(nextKeys, &parentScope);
+  QObject::connect(nextShortcut, &OverrideShortcut::activated, &tabs, [tabWidget]() {
+    if (tabWidget && tabWidget->count() > 0)
+    {
+      const int nextIdx = (tabWidget->currentIndex() + 1) % tabWidget->count();
+      tabWidget->setCurrentIndex(nextIdx);
+    }
+    });
+
+  // Prev Tab (Ctrl + PageUp, Ctrl + Shift + Tab, Ctrl + Backtab)
+  std::vector<QKeySequence> prevKeys = {
+    QKeySequence(Qt::CTRL | Qt::Key_PageUp),
+    QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Tab),
+    QKeySequence(Qt::CTRL | Qt::Key_Backtab)
+  };
+  OverrideShortcut* prevShortcut = new OverrideShortcut(prevKeys, &parentScope);
+  QObject::connect(prevShortcut, &OverrideShortcut::activated, &tabs, [tabWidget]() {
+    if (tabWidget && tabWidget->count() > 0)
+    {
+      const int count = tabWidget->count();
+      const int prevIdx = (tabWidget->currentIndex() - 1 + count) % count;
+      tabWidget->setCurrentIndex(prevIdx);
+    }
+    });
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+
+void TreeViewUtils::resetColumnOrder(QHeaderView& header)
+{
+  // Move every visual index to match its logical index
+  const int numItems = header.count();
+  for (int k = 0; k < numItems; ++k)
+  {
+    const int visIndex = header.visualIndex(k);
+    if (visIndex != k)
+      header.moveSection(visIndex, k);
+  }
+}
+
+void TreeViewUtils::addTreeHeaderColumnActions(QHeaderView& header)
+{
+  // Resize all to contents
+  QAction* resizeAllColumns = new QAction(QObject::tr("Size All Columns to Fit"), &header);
+  QObject::connect(resizeAllColumns, &QAction::triggered, &header, [&header]() { header.resizeSections(QHeaderView::ResizeToContents); });
+
+  // Reset column order
+  QAction* resetColumnOrderAction = nullptr;
+  if (header.sectionsMovable())
+  {
+    resetColumnOrderAction = new QAction(QObject::tr("Reset Column Order"), &header);
+    // Initialize the enabled/disabled state of order action
+    resetColumnOrderAction->setDisabled(true);
+    for (int k = 0; k < header.count(); ++k)
+    {
+      if (header.visualIndex(k) != k)
+      {
+        resetColumnOrderAction->setEnabled(true);
+        break;
+      }
+    }
+
+    QObject::connect(resetColumnOrderAction, &QAction::triggered, &header, [&header, resetColumnOrderAction]() {
+      TreeViewUtils::resetColumnOrder(header);
+      resetColumnOrderAction->setEnabled(false);
+      });
+    QObject::connect(&header, &QHeaderView::sectionMoved, resetColumnOrderAction, [resetColumnOrderAction]() { resetColumnOrderAction->setEnabled(true); });
+  }
+
+  // Add right-click menu items to the event tree's header
+  header.setContextMenuPolicy(Qt::ActionsContextMenu);
+  header.addAction(resizeAllColumns);
+  if (resetColumnOrderAction)
+    header.addAction(resetColumnOrderAction);
+}
+
+void TreeViewUtils::addToggleVisibilityActions(QTreeView& treeView)
+{
+  QHeaderView* header = treeView.header();
+  QAbstractItemModel* dataModel = treeView.model();
+  if (!header || !dataModel)
+    return;
+
+  const int numColumns = header->count();
+  if (numColumns == 0)
+    return;
+
+  // Add a separator
+  QAction* separator = new QAction(&treeView);
+  separator->setSeparator(true);
+  header->addAction(separator);
+
+  for (int k = 0; k < numColumns; ++k)
+  {
+    QAction* hideColumnAction = new QAction(dataModel->headerData(k, Qt::Horizontal, Qt::DisplayRole).toString(), &treeView);
+    hideColumnAction->setCheckable(true);
+    hideColumnAction->setChecked(!treeView.isColumnHidden(k));
+    QObject::connect(hideColumnAction, &QAction::triggered, &treeView, [k, &treeView](bool isChecked) { treeView.setColumnHidden(k, !isChecked); });
+    header->addAction(hideColumnAction);
+  }
 }
 
 }

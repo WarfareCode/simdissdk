@@ -214,6 +214,7 @@ private:
 int main(int argc, char** argv)
 {
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   osg::ArgumentParser arguments(&argc, argv);
   if (arguments.read("--multisample"))
     osg::DisplaySettings::instance()->setNumMultiSamples(4);
@@ -244,7 +245,7 @@ int main(int argc, char** argv)
 
 #ifdef HAVE_IMGUI
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(dataStore, platformId));
 #endif
 

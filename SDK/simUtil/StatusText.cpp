@@ -22,8 +22,9 @@
  */
 #include <cassert>
 #include "simCore/String/TextReplacer.h"
-#include "simUtil/HudManager.h"
+#include "simVis/DevicePixelRatioUtils.h"
 #include "simVis/View.h"
+#include "simUtil/HudManager.h"
 #include "simUtil/StatusText.h"
 
 namespace simUtil
@@ -97,7 +98,7 @@ public:
   {
   }
   /** Handles frame updates and returns false so other handlers can process as well */
-  bool handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa)
+  bool handle(const osgGA::GUIEventAdapter &ea, osgGA::GUIActionAdapter &aa) override
   {
     if (!parent_.valid())
       return false;
@@ -109,8 +110,9 @@ public:
       const osg::Viewport* viewport = (camera) ? camera->getViewport() : nullptr;
       if (viewport)
       {
-        const int widthPx = static_cast<int>(viewport->width());
-        const int heightPx = static_cast<int>(viewport->height());
+        // Convert physical viewport resize events to logical bounds
+        const int widthPx = static_cast<int>(simVis::DevicePixelRatioUtils::toLogical(viewport->width()));
+        const int heightPx = static_cast<int>(simVis::DevicePixelRatioUtils::toLogical(viewport->height()));
         if (widthPx != widthPx_ || heightPx != heightPx_)
         {
           widthPx_ = widthPx;
@@ -122,9 +124,9 @@ public:
     return false;
   }
   /** Return the proper library name */
-  virtual const char* libraryName() const { return "simUtil"; }
+  const char* libraryName() const override { return "simUtil"; }
   /** Return the class name */
-  virtual const char* className() const { return "StatusText::FrameEventHandler"; }
+  const char* className() const override { return "StatusText::FrameEventHandler"; }
 
 protected:
   /** Protect osg::Referenced-derived destructor */
@@ -145,8 +147,9 @@ StatusText::StatusText(simVis::View* view, simCore::TextReplacerPtr textReplacer
     position_(pos)
 {
   const osg::Viewport* vp = view->getCamera()->getViewport();
-  windowWidthPx_ = static_cast<int>(vp->width());
-  windowHeightPx_ = static_cast<int>(vp->height());
+  // Convert physical viewport bounds to logical window size
+  windowWidthPx_ = static_cast<int>(simVis::DevicePixelRatioUtils::toLogical(vp->width()));
+  windowHeightPx_ = static_cast<int>(simVis::DevicePixelRatioUtils::toLogical(vp->height()));
   frameEventHandler_ = new FrameEventHandler(this);
 }
 

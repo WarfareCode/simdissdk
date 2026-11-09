@@ -33,6 +33,10 @@
 namespace simData
 {
 
+ReflectionValue::ReflectionValue()
+{
+}
+
 ReflectionValue::ReflectionValue(bool value)
   : data_(value)
 {
@@ -1173,6 +1177,8 @@ std::unique_ptr<Reflection> Reflection::makeCommonPreferences()
   rv->SIMDATA_REFLECTION_ADD_SUBFIELD_LIST(localGrid, localgrid, CommonPrefs, grid);
   rv->SIMDATA_REFLECTION_ADD_FIELD(includeInLegend, includeinlegend, CommonPrefs, getBoolean, ReflectionDataType::Boolean);
   rv->SIMDATA_REFLECTION_ADD_VECTOR_FIELD(acceptProjectorIds, acceptprojectorids, CommonPrefs, getIds, ReflectionDataType::IdVector);
+  std::shared_ptr<EnumerationText> legendBinEnum = EnumerationText::makeLegendBinName();
+  rv->SIMDATA_REFLECTION_ADD_ENUM(legendBin, legendbin, CommonPrefs, LegendBin, legendBinEnum);
 
   return rv;
 }
@@ -1470,7 +1476,7 @@ std::unique_ptr<Reflection> Reflection::makePlatformPreferences()
   rv->SIMDATA_REFLECTION_ADD_FIELD(rcsDetail, rcsdetail, PlatformPrefs, getDouble, ReflectionDataType::Double);
   rv->SIMDATA_REFLECTION_ADD_FIELD(drawCircleHilight, drawcirclehilight, PlatformPrefs, getBoolean, ReflectionDataType::Boolean);
   rv->SIMDATA_REFLECTION_ADD_FIELD(circleHilightColor, circlehilightcolor, PlatformPrefs, getUint32, ReflectionDataType::Uint32);
-  std::shared_ptr<EnumerationText> circleHilightEnum = EnumerationText::makeCircleHilightShapeName();
+  std::shared_ptr<EnumerationText> circleHilightEnum = EnumerationText::makeCircleHighlightShapeName();
   rv->SIMDATA_REFLECTION_ADD_ENUM(circleHilightShape, circlehilightshape, PlatformPrefs, CircleHilightShape , circleHilightEnum);
   rv->SIMDATA_REFLECTION_ADD_FIELD(circleHilightSize, circlehilightsize, PlatformPrefs, getDouble, ReflectionDataType::Double);
   rv->SIMDATA_REFLECTION_ADD_FIELD(hilightFollowYaw, hilightfollowyaw, PlatformPrefs, getBoolean, ReflectionDataType::Boolean);
@@ -1677,7 +1683,7 @@ Reflection::TagStack Reflection::getPreferencesTagStack(const std::string& path,
     // Might be asking for FieldList
     for (const auto& [key, tagStack] : tags)
     {
-      if (key.substr(0, path.size()) == path)
+      if (key.starts_with(path))
       {
         auto rv = tagStack;
         rv.pop_back();

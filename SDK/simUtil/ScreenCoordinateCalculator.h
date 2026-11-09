@@ -42,11 +42,11 @@ namespace simUtil
 
 /**
  * Represents a coordinate in screen space.
- * A coordinate in screen space has an X and a Y that is in pixels.  The Z coordinate is
- * inversely relative to the near clipping plane.  A coordinate "behind" the viewer has
+ * A coordinate in screen space has an X and a Y that is in physical pixels. The Z coordinate is
+ * inversely relative to the near clipping plane. A coordinate "behind" the viewer has
  * a Z value greater than 1, and a coordinate in front of the viewer has a Z value less than 1.
- * A coordinate may also be known to be off-screen, i.e. outside the extents of the viewport.
- * Origin is (0,0) in lower-left corner.  X increases positively to the right, Y positive up.
+ * A coordinate may also be known to be off-screen, i.e. outside the extents of the physical viewport.
+ * Origin is (0,0) in lower-left corner. X increases positively to the right, Y positive up.
  *
  * ScreenCoordinate is typically instantiated as a return value from ScreenCoordinateCalculator.
  */
@@ -54,19 +54,19 @@ class SDKUTIL_EXPORT ScreenCoordinate
 {
 public:
   /**
-   * Constructs a new screen coordinate.  Includes flag to indicates whether pixel is inside or outside view.
+   * Constructs a new screen coordinate. Includes flag to indicates whether pixel is inside or outside view.
    * @param position Screen coordinate vector, with origin at lower-left corner of screen, X increasing right
-   *   and Y increasing up.  Z is a unitless coordinate with 1 at near clipping plane, values greater than 1
-   *   behind the near plane (behind viewer), and values less than 1 in front of the viewer.
+   *   and Y increasing up in physical pixels. Z is a unitless coordinate with 1 at near clipping plane, 
+   *   values greater than 1 behind the near plane (behind viewer), and values less than 1 in front of the viewer.
    * @param outOfViewport Indicates that the coordinate is outside the View used to generate the coordinate.
-   *   It is entirely possible for a coordinate to be in front of the camera, but outside the view's viewport.
+   *   It is entirely possible for a coordinate to be in front of the camera, but outside the view's physical viewport.
    * @param overHorizon Indicates that the coordinate is over the visible horizon and is occluded by the earth.
    */
   ScreenCoordinate(const osg::Vec3& position, bool outOfViewport, bool overHorizon);
 
-  /** X and Y position in pixels of the coordinate */
+  /** X and Y position in physical pixels of the coordinate */
   osg::Vec2 position() const;
-  /** X and Y position in pixels of coordinate, and Z value (unitless) representing relative depth */
+  /** X and Y position in physical pixels of coordinate, and Z value (unitless) representing relative depth */
   osg::Vec3 positionV3() const;
   /** Returns true if the position is behind the viewer / camera */
   bool isBehindCamera() const;
@@ -81,12 +81,12 @@ public:
 
 private:
   osg::Vec3 position_;
-  bool isOffScreen_;
-  bool isOverHorizon_;
+  bool isOffScreen_ = false;
+  bool isOverHorizon_ = false;
 };
 
 /**
- * Responsible for calculating screen coordinates from a given view.
+ * Responsible for calculating physical screen coordinates from a given view.
  * Provides a cache for simVis::View to-screen matrix to optimize queries on multiple
  * platforms within the same view under the same frame.
  * Example usage:
@@ -102,15 +102,16 @@ class SDKUTIL_EXPORT ScreenCoordinateCalculator
 public:
   ScreenCoordinateCalculator();
   virtual ~ScreenCoordinateCalculator();
+  SDK_DISABLE_COPY_MOVE(ScreenCoordinateCalculator);
 
   /** Update the internal projection matrix based on the view.  Call whenever view, projection, or window matrix changes */
   void updateMatrix(const simVis::View& view);
 
-  /** Retrieves a coordinate for a given entity, using the matrix from the most recent call to updateMatrix() */
+  /** Retrieves a physical screen coordinate for a given entity, using the matrix from the most recent call to updateMatrix() */
   ScreenCoordinate calculate(const simVis::EntityNode& entity);
-  /** Retrieves a screen coordinate for a given LLA coordinate */
+  /** Retrieves a physical screen coordinate for a given LLA coordinate */
   ScreenCoordinate calculateLla(const simCore::Vec3& lla);
-  /** Retrieves a screen coordinate for a given ECEF coordinate */
+  /** Retrieves a physical screen coordinate for a given ECEF coordinate */
   ScreenCoordinate calculateEcef(const simCore::Vec3& ecef);
 
 private:
@@ -122,7 +123,7 @@ private:
   /// Combined View matrix * projection matrix * window matrix
   osg::Matrix viewProjectionWindow_;
   /// Flags true when the VPW is dirty.  Used to avoid unnecessary recalculations
-  bool dirtyMatrix_;
+  bool dirtyMatrix_ = true;
   /// Pointer to the viewport for the current view
   osg::observer_ptr<const simVis::View> view_;
   /// Horizon calculator

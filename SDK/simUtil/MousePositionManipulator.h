@@ -54,7 +54,7 @@ public:
   class Listener
   {
   public:
-    virtual ~Listener(){}
+    virtual ~Listener()= default;
     /// Called whenever the mouse moves and is at the passed in lat/lon (degrees) and alt (meters). Notification also happens in the FRAME event, for pending elevation queries.
     virtual void mouseOverLatLon(double lat, double lon, double alt) = 0;
   };
@@ -65,13 +65,13 @@ public:
   virtual ~MousePositionManipulator();
 
   /** Mouse button released, returns non-zero on handled */
-  virtual int release(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
+  int release(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
   /** Mouse being moved, returns non-zero on handled */
-  virtual int move(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
+  int move(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
   /** Mouse being dragged, returns non-zero on handled */
-  virtual int drag(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
+  int drag(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
   /** Frame event, returns non-zero on handled */
-  virtual int frame(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa);
+  int frame(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
 
   /// Sets the map node
   void setMapNode(osgEarth::MapNode* mapNode);
@@ -79,14 +79,15 @@ public:
   /// Returns the last LLA point in degrees and absolute altitude in meters that the mouse moved to
   osgEarth::GeoPoint lastLLA() const;
   /**
-  * Fills in the last cached x and y mouse coordinates. units are screen coordinates or 0.0 if the mouse has not yet entered the screen
-  * 0,0 is the lower left corner
-  */
+   * Fills in the last cached x and y mouse coordinates. Units are physical screen pixels,
+   * or 0.0 if the mouse has not yet entered the screen. To convert to UI-safe logical
+   * pixels, divide by simVis::DevicePixelRatioUtils::getDpr(). 0,0 is the lower left corner.
+   */
   void getLastXY(float& lastX, float& lastY) const;
 
-  /// Returns an LLA point in degrees and absolute altitude in meters based on the mouse x,y point passed in or -DBL_MAX if the point is off the globe
+  /// Returns an LLA point in degrees and absolute altitude in meters based on the physical mouse x,y point passed in or -DBL_MAX if the point is off the globe
   osgEarth::GeoPoint getLLA(float mx, float my, bool queryElevation) const;
-  /// Returns an LLA point in degrees and absolute altitude in meters based on the cached lastMouseX_,lastMouseY_ point or -DBL_MAX if the point is off the globe
+  /// Returns an LLA point in degrees and absolute altitude in meters based on the cached physical lastMouseX_,lastMouseY_ point or -DBL_MAX if the point is off the globe
   osgEarth::GeoPoint getLLA(bool queryElevation) const;
   /// Adds a listener for mouse over lat long events
   void addListener(Listener* listener, bool queryElevation);

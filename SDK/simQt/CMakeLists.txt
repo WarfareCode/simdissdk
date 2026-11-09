@@ -33,12 +33,14 @@ set(SIMQT_HEADERS_TO_MOC
     ${SIMQT_INC}DirectorySelectorWidget.h
     ${SIMQT_INC}DndTreeView.h
     ${SIMQT_INC}DockWidget.h
+    ${SIMQT_INC}NotificationBanner.h
     ${SIMQT_INC}FileDescriptorReplacement.h
     ${SIMQT_INC}FileSelectorWidget.h
     ${SIMQT_INC}FontWidget.h
     ${SIMQT_INC}GanttChartView.h
     ${SIMQT_INC}KeySequenceEdit.h
     ${SIMQT_INC}MruList.h
+    ${SIMQT_INC}OverrideShortcut.h
     ${SIMQT_INC}PersistentFileLogger.h
     ${SIMQT_INC}SearchLineEdit.h
     ${SIMQT_INC}SegmentedSpinBox.h
@@ -183,15 +185,17 @@ set(SIMQT_SOURCES
     ${SIMQT_SRC}DirectorySelectorWidget.cpp
     ${SIMQT_SRC}DndTreeView.cpp
     ${SIMQT_SRC}DockWidget.cpp
+    ${SIMQT_SRC}NotificationBanner.cpp
     ${SIMQT_SRC}FileDescriptorReplacement.cpp
     ${SIMQT_SRC}FileDialog.cpp
     ${SIMQT_SRC}FileSelectorWidget.cpp
     ${SIMQT_SRC}FileUtilities.cpp
     ${SIMQT_SRC}FontWidget.cpp
     ${SIMQT_SRC}GanttChartView.cpp
-    ${SIMQT_INC}KeySequenceEdit.cpp
+    ${SIMQT_SRC}KeySequenceEdit.cpp
     ${SIMQT_SRC}MonospaceItemDelegate.cpp
     ${SIMQT_SRC}MruList.cpp
+    ${SIMQT_SRC}OverrideShortcut.cpp
     ${SIMQT_SRC}PersistentFileLogger.cpp
     ${SIMQT_SRC}QtUtils.cpp
     ${SIMQT_SRC}ResourceInitializer.cpp
@@ -386,6 +390,9 @@ if(TARGET simVis)
 endif()
 if(Qt${SIMQT_QT_VERSION}OpenGL_FOUND)
     target_link_libraries(simQt PUBLIC Qt::OpenGL)
+    if(TARGET OpenGL::GL)
+        target_link_libraries(simQt PUBLIC OpenGL::GL)
+    endif()
 endif()
 
 # Link against OpenGL if OSGQT is found to support simQt::ViewWidget

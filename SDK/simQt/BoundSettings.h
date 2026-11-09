@@ -148,7 +148,7 @@ Q_SIGNALS:
 
 private:
   /** Called by observer to update the value */
-  virtual void updateValue_(const QVariant& newValue);
+  void updateValue_(const QVariant& newValue) override;
   /** Cache of the settings value */
   bool value_ = false;
 };
@@ -170,13 +170,10 @@ public:
    * Helper routine to bind a QComboBox to a BoundIntegerSetting, optionally replacing its
    * items with the enumerated values listed in simQt::Settings (only if ENUMERATION value).
    *
-   * This method binds the integer value to the index of the combo box, and therefore is only
-   * suitable for use in cases where the combo box items are strictly increasing from 0 with
-   * no gaps between values.
+   * This method binds the integer value to the data value of the combo box.
    * @param comboBox Combo box to bind to
    * @param populateToolTip If true, replace the existing tool tip on the widget with the value from Settings MetaData
    * @param populateItems If true, replace the existing values in the combo box with items from the Settings MetaData.
-   *   Note that this feature is limited only to ENUMERATION metadata with strictly increasing values from 0 to numItems.
    */
   void bindTo(QComboBox* comboBox, bool populateToolTip=true, bool populateItems=true);
 
@@ -206,7 +203,7 @@ Q_SIGNALS:
 
 private:
   /** Called by observer to update the value */
-  virtual void updateValue_(const QVariant& newValue);
+  void updateValue_(const QVariant& newValue) override;
   /** Populates a combo box with enumerated values */
   int populateCombo_(const Settings::MetaData& metaData, QComboBox* comboBox) const;
   /** Cache of the settings value */
@@ -244,7 +241,7 @@ Q_SIGNALS:
 
 private:
   /** Called by observer to update the value */
-  virtual void updateValue_(const QVariant& newValue);
+  void updateValue_(const QVariant& newValue) override;
   /** Cache of the settings value */
   double value_ = 0.0;
 };
@@ -279,7 +276,7 @@ Q_SIGNALS:
 
 private:
   /** Called by observer to update the value */
-  virtual void updateValue_(const QVariant& newValue);
+  void updateValue_(const QVariant& newValue) override;
   /** Convenience method to convert QVariant to QColor (there is no toColor()) */
   QColor toColor_(const QVariant& value) const;
   /** Convenience method to convert from QColor to QVariant */
@@ -325,7 +322,7 @@ Q_SIGNALS:
 
 private:
   /** Called by observer to update the value */
-  virtual void updateValue_(const QVariant& newValue);
+  void updateValue_(const QVariant& newValue) override;
   /** Cache of the settings value */
   QString value_;
 };
@@ -353,7 +350,7 @@ Q_SIGNALS:
 
 private:
   /** Called by observer to update the value */
-  virtual void updateValue_(const QVariant& newValue);
+  void updateValue_(const QVariant& newValue) override;
   /** Cache of the settings value */
   QStringList value_;
 };
@@ -383,7 +380,7 @@ Q_SIGNALS:
 
 private:
   /** Called by observer to update the value */
-  virtual void updateValue_(const QVariant& newValue);
+  void updateValue_(const QVariant& newValue) override;
   /** Cache of the settings value */
   QMap<QString, QVariant> value_;
 };

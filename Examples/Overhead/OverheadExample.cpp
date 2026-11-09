@@ -118,7 +118,7 @@ public:
   double lon() const { return lastLon_; }
   double elev() const { return lastElev_; }
 
-  virtual void mouseOverLatLon(double lat, double lon, double elev)
+  void mouseOverLatLon(double lat, double lon, double elev) override
   {
     lastLat_ = lat;
     lastLon_ = lon;
@@ -347,6 +347,7 @@ simData::ObjectId createPlatform(simData::DataStore& dataStore, simUtil::Platfor
 int main(int argc, char** argv)
 {
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
 
   std::string earthFile;
@@ -476,7 +477,7 @@ int main(int argc, char** argv)
   // Adjusted projection matrix is incorrect in ortho mode
   gui->setAutoAdjustProjectionMatrix(false);
 
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(viewer.get(), createInsetsHandler.get(), latLonElevListener.get(), dataStore, centeredPlat, showElevation));
 #endif
 

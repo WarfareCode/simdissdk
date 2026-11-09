@@ -28,7 +28,6 @@
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
 #include "simVis/GOG/LoaderUtils.h"
-#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 #include "simNotify/Notify.h"
 
@@ -36,44 +35,11 @@ using namespace osgEarth;
 
 namespace simVis { namespace GOG {
 
-GogNodeInterface* Circle::deserialize(const ParsedShape& parsedShape,
-                    simVis::GOG::ParserData& p,
-                    const GOGNodeType&       nodeType,
-                    const GOGContext&        context,
-                    const GogMetaData&       metaData,
-                    MapNode*                 mapNode)
-{
-  Distance radius(p.units_.rangeUnits_.convertTo(simCore::Units::METERS, parsedShape.doubleValue(GOG_RADIUS, 1000.)), Units::METERS);
-
-  osgEarth::GeometryFactory gf;
-  Geometry* shape = gf.createCircle(osg::Vec3d(0, 0, 0), radius);
-
-  osgEarth::LocalGeometryNode* node = nullptr;
-
-  if (nodeType == GOGNODE_GEOGRAPHIC)
-  {
-    // Try to prevent terrain z-fighting.
-    if (p.geometryRequiresClipping())
-      Utils::configureStyleForClipping(p.style_);
-
-    node = new osgEarth::LocalGeometryNode(shape, p.style_);
-    node->setMapNode(mapNode);
-  }
-  else
-    node = new HostedLocalGeometryNode(shape, p.style_);
-
-  node->setName("GOG Circle Position");
-  Utils::applyLocalGeometryOffsets(*node, p, nodeType);
-  GogNodeInterface* rv = new LocalGeometryNodeInterface(node, metaData);
-  rv->applyToStyle(parsedShape, p.units_);
-
-  return rv;
-}
-
 GogNodeInterface* Circle::createCircle(const simCore::GOG::Circle& circle, bool attached, const simCore::Vec3& refPoint, osgEarth::MapNode* mapNode)
 {
-  double radiusMeters = 0.;
-  circle.getRadius(radiusMeters);
+  const double radiusMeters = circle.getRadius().value_or(
+    circle.originalUnits().rangeUnits().convertTo(
+      simCore::Units::METERS, 1000.));
   Distance radius(radiusMeters, Units::METERS);
 
   osgEarth::GeometryFactory gf;
@@ -96,11 +62,13 @@ GogNodeInterface* Circle::createCircle(const simCore::GOG::Circle& circle, bool 
   node->setName("GOG Circle Position");
 
   // use the ref point as the center if no center defined by the shape
-  simCore::Vec3 center;
-  if (circle.getCenterPosition(center) != 0 && !attached)
+  std::optional<simCore::Vec3> center = circle.getCenterPosition();
+  if (!center.has_value() && !attached)
     center = refPoint;
+  else if (!center.has_value())
+    center = simCore::Vec3();
 
-  LoaderUtils::setShapePositionOffsets(*node, circle, center, refPoint, attached, false);
+  LoaderUtils::setShapePositionOffsets(*node, circle, *center, refPoint, attached, false);
   GogMetaData metaData;
   return new LocalGeometryNodeInterface(node, metaData);
 }

@@ -226,7 +226,7 @@ public:
   }
 
   // From GUIEventHandler:
-  virtual bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override
+  bool handle(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override
   {
     if (ea.getEventType() == osgGA::GUIEventAdapter::KEYDOWN)
     {
@@ -263,7 +263,7 @@ public:
   }
 
   // From KeyEventHandler:
-  virtual void execute() override
+  void execute() override
   {
     lambda_();
   }
@@ -292,7 +292,7 @@ public:
   }
 
   // From KeyEventHandler:
-  virtual void execute() override
+  void execute() override
   {
     setPlatformPrefs(dataStore_, uid_, setFunc_);
   }
@@ -348,6 +348,7 @@ int main(int argc, char **argv)
 {
   // Set up the scene:
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
 
   osg::ref_ptr<osgEarth::Map> map = simExamples::createDefaultExampleMap();
@@ -380,7 +381,7 @@ int main(int argc, char **argv)
 
   // Cycle fragment effects
   ChangeEffect cycle(dataStore, platform);
-  mainView->addEventHandler(new LambdaKeyEventHandler('1', std::bind(&ChangeEffect::cycleNext, &cycle)));
+  mainView->addEventHandler(new LambdaKeyEventHandler('1', [ObjectPtr = &cycle] { ObjectPtr->cycleNext(); }));
 
   // Grow/shrink the model (use keypad or normal keys)
   const auto& scaleUp = [](simData::PlatformPrefs& prefs) {prefs.set_scale(prefs.scale() * 2.); };
@@ -392,7 +393,7 @@ int main(int argc, char **argv)
 
 #ifdef HAVE_IMGUI
   ::GUI::OsgImGuiHandler* gui = new ::GUI::OsgImGuiHandler();
-  mainView->getEventHandlers().push_front(gui);
+  mainView->getEventHandlers().emplace_front(gui);
   auto* panel = new ControlPanel(dataStore, platform);
   gui->add(panel);
 #endif

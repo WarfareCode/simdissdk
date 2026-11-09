@@ -42,8 +42,13 @@
 #include "simUtil/NullSkyModel.h"
 #include "simUtil/ExampleResources.h"
 
+// High DPI support headers:
+#ifdef _WIN32
+#include <windows.h>
+#include "osgViewer/api/Win32/GraphicsWindowWin32"
+#endif
 
-#ifdef WIN32
+#ifdef _WIN32
 const char PATH_SEP = '\\';
 #else
 const char PATH_SEP = '/';
@@ -242,10 +247,8 @@ void simExamples::configureSearchPaths()
   {
     // On Linux, add a search path for libraries relative to executable path (installDir/bin)
     osgDB::FilePathList libPaths = osgDB::getLibraryFilePathList();
-    // ../lib/amd64-linux is used by SIMDIS applications distributed by NRL
-    libPaths.push_back("../lib/amd64-linux");
     // SDK examples from an SDK build need ../lib in the libpath
-    libPaths.push_back("../lib");
+    libPaths.emplace_back("../lib");
     osgDB::setLibraryFilePathList(libPaths);
   }
 #endif
@@ -507,4 +510,49 @@ void simExamples::IdleClockCallback::operator()(osg::Node* node, osg::NodeVisito
   const double nowTime = clock_.currentTime().secondsSinceRefYear(dataStore_.referenceYear());
   dataStore_.update(nowTime);
   traverse(node, nv);
+}
+
+////////////////////////////////////////////////
+
+/** Helper that returns the device pixel ratio for a given graphics context. */
+float simExamples::getGraphicsContextDpr(const osg::GraphicsContext* gc)
+{
+#ifdef _WIN32
+  static std::optional<float> s_LastDpr;
+
+  // Convert from DPI to a device pixel ratio, assuming 96 (default screen) DPI for 1.0
+  if (auto* win = dynamic_cast<const osgViewer::GraphicsWindowWin32*>(gc))
+  {
+    const float windowValue = GetDpiForWindow(win->getHWND()) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
+    if (windowValue > 0.f)
+    {
+      s_LastDpr = windowValue;
+      return windowValue;
+    }
+  }
+
+  // Return the last determined DPR before falling back to system DPR, which is unchanging.
+  // This is done for cases where nullptr is passed in, e.g. with DevicePixelRatioUtils.
+  if (!gc && s_LastDpr.has_value())
+    return *s_LastDpr;
+
+  const float systemValue = GetDpiForSystem() / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
+  if (systemValue > 0.f)
+    return systemValue;
+#endif
+  return 1.f;
+}
+
+void simExamples::enableHighDpiSupport()
+{
+#ifdef _WIN32
+  SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+#endif
+
+#if OSGEARTH_SOVERSION >= 180
+  // configure osgEarth registry with DPR settings
+  osgEarth::Registry::instance()->setDevicePixelRatioFunction([](osg::GraphicsContext* gc) {
+      return getGraphicsContextDpr(gc);
+    });
+#endif
 }

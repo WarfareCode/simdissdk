@@ -23,6 +23,8 @@
 #ifndef SIMUTIL_HUDPOSITIONEDITOR_H
 #define SIMUTIL_HUDPOSITIONEDITOR_H
 
+#include <optional>
+#include <set>
 #include "osg/ref_ptr"
 #include "osg/observer_ptr"
 #include "osg/Camera"
@@ -77,12 +79,12 @@ public:
   std::string intersect(const osg::Vec3d& mousePx, osg::Vec3d& offsetFromAnchorPx) const;
 
   /** Override traverse() to detect screen resizes in FRAME events */
-  virtual void traverse(osg::NodeVisitor& nv);
+  void traverse(osg::NodeVisitor& nv) override;
 
   /** Return the proper library name */
-  virtual const char* libraryName() const { return "simUtil"; }
+  const char* libraryName() const override { return "simUtil"; }
   /** Return the class name */
-  virtual const char* className() const { return "HudEditorGui"; }
+  const char* className() const override { return "HudEditorGui"; }
 
 protected:
   /** Prevent double delete from ref_ptr */
@@ -90,7 +92,7 @@ protected:
 
 private:
   /** Detects resize of screen and repositions and resizes widgets as needed */
-  void handleResize_(double width, double height);
+  void handleResize_(double widthLogical, double heightLogical);
   /** Helper method to move a matrix transform to a particular translation in percentage coords */
   void movePercent_(osg::MatrixTransform* xform, const osg::Vec2d& posPct) const;
 
@@ -104,9 +106,9 @@ private:
   /** Each window pointer, sorted by name */
   std::map<std::string, osg::ref_ptr<WindowNodePx> > windows_;
 
-  /** Most recent screen width (in pixels) */
+  /** Most recent screen width (in logical pixels) */
   double widthPx_;
-  /** Most recent screen height (in pixels) */
+  /** Most recent screen height (in logical pixels) */
   double heightPx_;
 };
 
@@ -120,7 +122,7 @@ private:
 class SDKUTIL_EXPORT HudEditorRightClickCallback
 {
 public:
-  virtual ~HudEditorRightClickCallback() {}
+  virtual ~HudEditorRightClickCallback() = default;
 
   /** Called when a window named windowName is right clicked. */
   virtual void rightClicked(const std::string& windowName) = 0;
@@ -143,18 +145,18 @@ public:
   HudEditorMouse(simUtil::HudPositionManager* hud, simUtil::HudEditorGui* gui);
 
   // From MouseManipulator:
-  virtual int push(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int release(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int move(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int drag(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int doubleClick(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int scroll(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int frame(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int touchBegan(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int touchMoved(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual int touchEnded(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
-  virtual void activate() override;
-  virtual void deactivate() override;
+  int push(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int release(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int move(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int drag(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int doubleClick(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int scroll(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int frame(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int touchBegan(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int touchMoved(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  int touchEnded(const osgGA::GUIEventAdapter& ea, osgGA::GUIActionAdapter& aa) override;
+  void activate() override;
+  void deactivate() override;
 
   /** Set a pointer to the right click callback to be used by the mouse manipulator. */
   void setRightClickCallback(std::shared_ptr<simUtil::HudEditorRightClickCallback> cb);
@@ -171,6 +173,8 @@ private:
   double widthPx_;
   double heightPx_;
   std::string currentSelection_;
+
+  /** Mouse offset in logical coordinates */
   osg::Vec3d mouseOffsetPx_;
 };
 
@@ -210,13 +214,25 @@ public:
   int removeWindow(const std::string& name);
   /** Resizes a window in the HUD Position Manager */
   int setSize(const std::string& name, const osg::Vec2d& minXyPx, const osg::Vec2d& maxXyPx);
+  /** Sets the window's default alignment; @see HudPositionManager::setDefaultAlignment */
+  int setDefaultAlignment(const std::string& name, std::optional<HudWindowAlignment> alignment);
+  /** Sets the window's allowed alignments; @see HudPositionManager::setAllowedAlignments */
+  int setAllowedAlignments(const std::string& name, const std::set<HudWindowAlignment>& alignments);
 
   /** Changes a single window's position */
   int setPosition(const std::string& name, const osg::Vec2d& positionPct);
+  /** Changes a single window's alignment */
+  int setAlignment(const std::string& name, std::optional<HudWindowAlignment> alignment);
+
   /** Resets all windows to default locations */
   void resetAllPositions();
   /** Resets the position of a single window */
   int resetPosition(const std::string& name);
+
+  /** Resets the placement (position and alignment) of all windows to default */
+  void resetAllPlacements();
+  /** Resets the placement (position and alignment) of a single window */
+  int resetPlacement(const std::string& name);
 
 private:
   osg::ref_ptr<simUtil::HudPositionManager> hud_;

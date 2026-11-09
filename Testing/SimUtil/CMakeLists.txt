@@ -5,6 +5,7 @@ endif()
 project(SimUtil_UnitTests)
 
 create_test_sourcelist(SimUtilTestFiles SimUtilTests.cpp
+    HudPositionManagerTest.cpp
     IdMapperTest.cpp
     UnitTypeConverterTest.cpp
 )
@@ -16,4 +17,6 @@ set_target_properties(SimUtilTests PROPERTIES
     PROJECT_LABEL "simUtil Test"
 )
 
+add_test(NAME HudPositionManagerTest COMMAND SimUtilTests HudPositionManagerTest)
 add_test(NAME IdMapperTest COMMAND SimUtilTests IdMapperTest)
+add_test(NAME UnitTypeConverterTest COMMAND SimUtilTests UnitTypeConverterTest)

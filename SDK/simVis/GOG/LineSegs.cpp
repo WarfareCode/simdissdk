@@ -30,7 +30,6 @@
 #include "simVis/GOG/GogNodeInterface.h"
 #include "simVis/GOG/HostedLocalGeometryNode.h"
 #include "simVis/GOG/LoaderUtils.h"
-#include "simVis/GOG/ParsedShape.h"
 #include "simVis/GOG/Utils.h"
 
 #undef LC
@@ -39,64 +38,6 @@
 using namespace osgEarth;
 
 namespace simVis { namespace GOG {
-
-GogNodeInterface* LineSegs::deserialize(const ParsedShape& parsedShape,
-                      simVis::GOG::ParserData& p,
-                      const GOGNodeType&       nodeType,
-                      const GOGContext&        context,
-                      const GogMetaData&       metaData,
-                      osgEarth::MapNode*       mapNode)
-{
-  osg::ref_ptr<Geometry> temp = new LineString();
-  p.parseLineSegmentPoints(parsedShape, p.units_, temp.get(), p.geomIsLLA_);
-
-  MultiGeometry* m = new MultiGeometry();
-
-  for (unsigned int i = 0; i < temp->size();)
-  {
-    Geometry* seg = new LineString(2);
-    seg->push_back((*temp)[i++]);
-    if (i < temp->size())
-      seg->push_back((*temp)[i++]);
-    m->add(seg);
-  }
-  p.geom_ = m;
-
-  GogNodeInterface* rv = nullptr;
-  if (nodeType == GOGNODE_GEOGRAPHIC)
-  {
-    // Try to prevent terrain z-fighting.
-    if (p.geometryRequiresClipping())
-      Utils::configureStyleForClipping(p.style_);
-
-    if (p.hasAbsoluteGeometry())
-    {
-      Feature* feature = new Feature(p.geom_.get(), p.srs_.get(), p.style_);
-      FeatureNode* featureNode = new FeatureNode(feature);
-      featureNode->setMapNode(mapNode);
-      rv = new FeatureNodeInterface(featureNode, metaData);
-      featureNode->setName("GOG LineSegs");
-    }
-    else
-    {
-      LocalGeometryNode* node = new LocalGeometryNode(p.geom_.get(), p.style_);
-      node->setMapNode(mapNode);
-      Utils::applyLocalGeometryOffsets(*node, p, nodeType);
-      rv = new LocalGeometryNodeInterface(node, metaData);
-      node->setName("GOG LineSegs");
-    }
-  }
-  else
-  {
-    LocalGeometryNode* node = new HostedLocalGeometryNode(p.geom_.get(), p.style_);
-    Utils::applyLocalGeometryOffsets(*node, p, nodeType);
-    rv = new LocalGeometryNodeInterface(node, metaData);
-    node->setName("GOG LineSegs");
-  }
-  if (rv)
-    rv->applyToStyle(parsedShape, p.units_);
-  return rv;
-}
 
 GogNodeInterface* LineSegs::createLineSegs(const simCore::GOG::LineSegs& lineSegs, bool attached, const simCore::Vec3& refPoint, osgEarth::MapNode* mapNode)
 {
@@ -140,9 +81,7 @@ GogNodeInterface* LineSegs::createLineSegs(const simCore::GOG::LineSegs& lineSeg
 
     if (!lineSegs.isRelative())
     {
-      std::string vdatum;
-      lineSegs.getVerticalDatum(vdatum);
-      osgEarth::SpatialReference* srs = LoaderUtils::getSrs(vdatum);
+      osgEarth::SpatialReference* srs = LoaderUtils::getSrs(lineSegs.getVerticalDatum().value_or("wgs84"));
       Feature* feature = new Feature(multiGeom, srs, style);
       FeatureNode* featureNode = new FeatureNode(feature);
       featureNode->setMapNode(mapNode);

@@ -412,6 +412,7 @@ int main(int argc, char** argv)
     return usage(argv);
 
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   /// set up the registry so the SDK can find platform models
   simExamples::configureSearchPaths();
 
@@ -442,7 +443,7 @@ int main(int argc, char** argv)
 
 #ifdef HAVE_IMGUI
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
-  viewer->getMainView()->getEventHandlers().push_front(gui);
+  viewer->getMainView()->getEventHandlers().emplace_front(gui);
   gui->add(new ControlPanel(dataStore, platformId, gateId, viewer->getMainView(), scene->getScenario()));
 #endif
 

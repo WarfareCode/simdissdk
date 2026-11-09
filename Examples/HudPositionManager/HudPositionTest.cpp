@@ -20,6 +20,8 @@
  * disclose, or release this software.
  *
  */
+#include <set>
+#include "osgViewer/GraphicsWindow"
 #include "osgEarth/CullingUtils"
 #include "osgEarth/Version"
 #include "simNotify/Notify.h"
@@ -44,7 +46,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#include <osgViewer/api/Win32/GraphicsWindowWin32>
+#include "osgViewer/api/Win32/GraphicsWindowWin32"
 #endif
 
 // Uncomment this define to add various GridTransform test grids
@@ -64,18 +66,6 @@ static const std::string KEY_COMPASS = "Compass";
 static const std::string KEY_LEGEND = "Legend";
 
 //----------------------------------------------------------------------------
-
-/** Helper that returns the device pixel ratio for a given graphics context. */
-float getGraphicsContextDpr(const osg::GraphicsContext* gc)
-{
-#ifdef _WIN32
-  // Convert from DPI to a device pixel ratio, assuming 96 (default screen) DPI for 1.0
-  if (auto* win = dynamic_cast<const osgViewer::GraphicsWindowWin32*>(gc))
-    return GetDpiForWindow(win->getHWND()) / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
-  return GetDpiForSystem() / static_cast<float>(USER_DEFAULT_SCREEN_DPI);
-#endif
-  return 1.f;
-}
 
 /** Contains vital parts of the application */
 struct HudApp
@@ -106,7 +96,7 @@ struct ControlPanel : public simExamples::SimExamplesGui
     osgEarth::Registry::instance()->setDevicePixelRatioFunction([this](osg::GraphicsContext* gc)
       {
         if (autoDpr_)
-          app_.dpr = getGraphicsContextDpr(gc);
+          app_.dpr = simExamples::getGraphicsContextDpr(gc);
         return app_.dpr;
       });
 #endif
@@ -118,6 +108,7 @@ struct ControlPanel : public simExamples::SimExamplesGui
     addKeyFunc_(ImGuiKey_5, [this]() { moveWindowToMouse_(KEY_CLASSIFICATION_BOTTOM); });
     addKeyFunc_(ImGuiKey_6, [this]() { moveWindowToMouse_(KEY_COMPASS); });
     addKeyFunc_(ImGuiKey_7, [this]() { moveWindowToMouse_(KEY_LEGEND); });
+    addKeyFunc_(ImGuiKey_L, [this]() { cycleLegendAlignment_(); });
     addKeyFunc_(ImGuiKey_C, [this]()
       {
         // Cycle through a few different classification strings
@@ -142,7 +133,7 @@ struct ControlPanel : public simExamples::SimExamplesGui
         txn.complete(&props);
       });
     addKeyFunc_(ImGuiKey_E, [this]() { hudEditor_.setVisible(!hudEditor_.isVisible()); });
-    addKeyFunc_(ImGuiKey_R, [this]() { hudEditor_.resetAllPositions(); });
+    addKeyFunc_(ImGuiKey_R, [this]() { hudEditor_.resetAllPlacements(); });
     addKeyFunc_(ImGuiKey_W, [this]() { if (compass_.valid()) compass_->setWindVaneVisible(!compass_->isWindVaneVisible()); });
     addKeyFunc_(ImGuiKey_Z, [this]()
       {
@@ -173,8 +164,10 @@ struct ControlPanel : public simExamples::SimExamplesGui
   {
     if (!isVisible())
       return;
-    ImGui::GetIO().FontGlobalScale = app_.dpr;
-    ImGui::SetNextWindowPos(ImVec2(5 * app_.dpr, 25 * app_.dpr), ImGuiCond_Once);
+
+    bool dprChanged = false; // Track if the user touches the DPR controls
+
+    ImGui::SetNextWindowPos(ImVec2(5, 25), ImGuiCond_Once);
     ImGui::SetNextWindowBgAlpha(.6f);
     ImGui::Begin(name(), visible(), ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize);
     ImGui::Text("1 : Move 'Demo Text' to the mouse position");
@@ -186,7 +179,8 @@ struct ControlPanel : public simExamples::SimExamplesGui
     ImGui::Text("7 : Move 'Legend' to mouse position");
     ImGui::Text("c : Cycle classification string and color");
     ImGui::Text("e : Toggle HUD Editor mode");
-    ImGui::Text("r : Reset all to default positions");
+    ImGui::Text("l : Cycle Legend top alignment");
+    ImGui::Text("r : Reset all to default placements");
     ImGui::Text("W : Toggle Wind Vane on Compass");
     ImGui::Text("z : Cycle wind angle and speed values");
 
@@ -194,13 +188,15 @@ struct ControlPanel : public simExamples::SimExamplesGui
 
 #ifdef _WIN32
     // Only Windows can adjust DPR automatically at this time
-    ImGui::Checkbox("Automatic DPR", &autoDpr_);
+    if (ImGui::Checkbox("Automatic DPR", &autoDpr_))
+      dprChanged = true;
 #endif
 
     ImGui::Text("DPR: %.2f", app_.dpr);
     // Slider to adjust the DPR (Disabled when in auto mode)
     ImGui::BeginDisabled(autoDpr_);
-    ImGui::SliderFloat("Manual DPR", &app_.dpr, 0.5f, 2.0f, "%.2f");
+    if (ImGui::SliderFloat("Manual DPR", &app_.dpr, 0.5f, 2.0f, "%.2f"))
+      dprChanged = true;
     ImGui::EndDisabled();
 
     ImGui::End();
@@ -208,9 +204,25 @@ struct ControlPanel : public simExamples::SimExamplesGui
 #if OSGEARTH_SOVERSION < 180
     // The callback handles this in newer osgEarth; we must manually do it here in older osgEarth
     if (autoDpr_)
-      app_.dpr = getGraphicsContextDpr(app_.mainView->getCamera()->getGraphicsContext());
+      app_.dpr = simExamples::getGraphicsContextDpr(app_.mainView->getCamera()->getGraphicsContext());
     osgEarth::Registry::instance()->setDevicePixelRatio(app_.dpr);
 #endif
+
+    // If the DPR was synthetically modified, trick OSG into rebuilding the logical
+    // HUD matrices by injecting a synthetic window resize event using the current bounds.
+    if (dprChanged)
+    {
+      auto* gw = dynamic_cast<osgViewer::GraphicsWindow*>(app_.mainView->getCamera()->getGraphicsContext());
+      if (gw)
+      {
+        int x = 0;
+        int y = 0;
+        int width = 0;
+        int height = 0;
+        gw->getWindowRectangle(x, y, width, height);
+        gw->getEventQueue()->windowResize(x, y, width, height);
+      }
+    }
 
     handlePressedKeys_();
   }
@@ -221,6 +233,28 @@ struct ControlPanel : public simExamples::SimExamplesGui
   }
 
 private:
+  void cycleLegendAlignment_()
+  {
+    const auto currentAlignment = hudEditor_.hud()->getAlignment(KEY_LEGEND);
+    const auto alignment = currentAlignment.value_or(simUtil::HudWindowAlignment::RIGHT_TOP);
+    simUtil::HudWindowAlignment nextAlignment;
+    switch (alignment)
+    {
+    case simUtil::HudWindowAlignment::RIGHT_TOP:
+      nextAlignment = simUtil::HudWindowAlignment::CENTER_TOP;
+      break;
+    case simUtil::HudWindowAlignment::CENTER_TOP:
+      nextAlignment = simUtil::HudWindowAlignment::LEFT_TOP;
+      break;
+    default:
+      nextAlignment = simUtil::HudWindowAlignment::RIGHT_TOP;
+      break;
+    }
+
+    if (hudEditor_.setAlignment(KEY_LEGEND, nextAlignment) != 0)
+      SIM_WARN << "Unable to set Legend alignment.\n";
+  }
+
   void moveWindowToMouse_(const std::string& windowName)
   {
     auto io = ImGui::GetIO();
@@ -277,7 +311,7 @@ public:
 
 protected:
   /** Similar to GridCell::setPositionImpl_(), but do not scale contents, and positions a little different. */
-  virtual void setPositionImpl_()
+  void setPositionImpl_() override
   {
     osg::Matrix m;
     // Do not scale contents; we're already at right pixel size.
@@ -326,7 +360,7 @@ public:
 
 protected:
   /** Override to reposition the text based on the X, Y, and Height values configured. */
-  virtual void setPositionImpl_()
+  void setPositionImpl_() override
   {
     // Adjust the position of the text manually
     title_->setPosition(osg::Vec3f(x(), y() + height(), 0.f));
@@ -343,6 +377,7 @@ int main(int argc, char** argv)
 {
   simCore::checkVersionThrow();
   osg::ArgumentParser arguments(&argc, argv);
+  simExamples::enableHighDpiSupport();
   simExamples::configureSearchPaths();
 
   // initialize a SIMDIS viewer and load a planet.
@@ -350,7 +385,7 @@ int main(int argc, char** argv)
   app.viewer = new simVis::Viewer(arguments);
   app.viewer->setMap(simExamples::createDefaultExampleMap());
   app.mainView = app.viewer->getMainView();
-  app.dpr = getGraphicsContextDpr(app.mainView->getCamera()->getGraphicsContext());
+  app.dpr = simExamples::getGraphicsContextDpr(app.mainView->getCamera()->getGraphicsContext());
 
   // Create a mouse dispatcher for the HUD Editor
   simUtil::MouseDispatcher mouseDispatcher;
@@ -393,7 +428,7 @@ int main(int argc, char** argv)
 
 #ifdef HAVE_IMGUI
   GUI::OsgImGuiHandler* gui = new GUI::OsgImGuiHandler();
-  mainView->getEventHandlers().push_front(gui);
+  mainView->getEventHandlers().emplace_front(gui);
   ControlPanel* controlPanel = new ControlPanel(hudEditor, dataStore, app);
   gui->add(controlPanel);
 #endif
@@ -591,6 +626,15 @@ int main(int argc, char** argv)
     // Add the text to the HUD at 80% / 50%
     hud->addWindow(KEY_LEGEND, osg::Vec2d(0.8, 0.5), new simUtil::RepositionMatrixPxCallback(legendGrid));
     hud->setSize(KEY_LEGEND, osg::Vec2d(0.0, 0.0), osg::Vec2d(legendGrid->width(), legendGrid->height()));
+
+    // Restrict legend to only top alignments
+    const std::set<simUtil::HudWindowAlignment> legendAlignments = {
+      simUtil::HudWindowAlignment::LEFT_TOP,
+      simUtil::HudWindowAlignment::CENTER_TOP,
+      simUtil::HudWindowAlignment::RIGHT_TOP
+    };
+    hud->setAllowedAlignments(KEY_LEGEND, legendAlignments);
+    hud->setDefaultAlignment(KEY_LEGEND, simUtil::HudWindowAlignment::RIGHT_TOP);
   }
 
   // for status and debugging

@@ -24,6 +24,8 @@
 #define SIMUTIL_HUDPOSITIONMANAGER_H
 
 #include <map>
+#include <optional>
+#include <set>
 #include <string>
 #include <vector>
 #include "osg/observer_ptr"
@@ -39,6 +41,20 @@ namespace osg {
 namespace osgViewer { class ViewerBase; }
 
 namespace simUtil {
+
+/** User-selected placement alignment for a HUD window, particularly for simUtil::HudPositionManager. */
+enum class HudWindowAlignment
+{
+  LEFT_TOP = 0,
+  LEFT_CENTER,
+  LEFT_BOTTOM,
+  CENTER_TOP,
+  CENTER_CENTER,
+  CENTER_BOTTOM,
+  RIGHT_TOP,
+  RIGHT_CENTER,
+  RIGHT_BOTTOM
+};
 
 /**
  * Responsible for centralizing the management of window positioning in a HUD system.  Relies
@@ -69,9 +85,62 @@ public:
     /** Reposition the window with the given X/Y percentage positions. */
     virtual void setPosition(const std::string& name, const osg::Vec2d& positionPct) = 0;
 
+    /**
+     * Applies a logical-pixel offset to the window position.
+     *
+     * HudPositionManager calculates this offset from the selected
+     * HudWindowAlignment and the window's current bounds. The offset is
+     * applied in addition to the position supplied through setPosition().
+     * An offset of (0,0) removes any alignment correction.
+     *
+     * Implementations must override this method. Implementations that position
+     * content in logical pixels should apply the offset without treating it as
+     * a user position change.
+     *
+     * @param name Name of the HUD window receiving the offset.
+     * @param offsetPx Additional logical-pixel translation to apply.
+     */
+    virtual void setAlignmentOffsetPx(const std::string& name, const osg::Vec2d& offsetPx) = 0;
+
+    /**
+     * Notifies the window owner that its user alignment override changed.
+     *
+     * This notification is emitted only when HudPositionManager::setAlignment()
+     * changes the override. It is not emitted for default-alignment changes,
+     * bounds changes, or ordinary position changes.
+     *
+     * The default implementation is intentionally a no-op because most
+     * reposition callbacks only need the resulting pixel offset.
+     *
+     * @param name Name of the HUD window.
+     * @param alignmentOverride New user alignment override, or std::nullopt
+     *   when the override was cleared.
+     */
+    virtual void alignmentOverrideChanged(const std::string& name, std::optional<HudWindowAlignment> alignmentOverride)
+    {
+      // noop
+    }
+
+    /**
+     * Notifies the window owner that its placement was reset.
+     *
+     * This notification is emitted only by resetPlacement() and
+     * resetAllPlacements(). It occurs after the manager resets the stored
+     * position and clears any alignment override.
+     *
+     * The default implementation is intentionally a no-op because most HUD
+     * windows require no additional reset behavior.
+     *
+     * @param name Name of the HUD window whose placement was reset.
+     */
+    virtual void placementReset(const std::string& name)
+    {
+      // noop
+    }
+
   protected:
     /** osg::Referenced classes have protected destructors to avoid double delete. */
-    virtual ~RepositionCallback() {}
+    virtual ~RepositionCallback() = default;
   };
 
   /**
@@ -114,6 +183,90 @@ public:
    */
   int setPosition(const std::string& name, const osg::Vec2d& positionPct);
 
+  /**
+   * Retrieves the effective alignment for a HUD window. The effective alignment
+   * is the user override, if one is set, otherwise the widget default. A value
+   * of std::nullopt means no alignment is configured and legacy placement
+   * behavior applies.
+   * @param name Window or HUD element name to query
+   * @return Effective alignment, or nullopt if none is configured or the
+   *   window does not exist.
+   */
+  std::optional<HudWindowAlignment> getAlignment(const std::string& name) const;
+
+  /**
+   * Retrieves the effective logical-pixel alignment offset for a HUD window.
+   * This is the translation applied to the window's native origin in order to
+   * realize the effective alignment with its current bounds.
+   * @param name Window or HUD element name to query
+   * @return The logical-pixel alignment offset, or (0,0) if window does not exist.
+   */
+  osg::Vec2d getAlignmentOffsetPx(const std::string& name) const;
+
+  /**
+   * Retrieves the user alignment override for a HUD window. This does not return the
+   * default alignment when no override exists. This is primarily useful for serialization,
+   * as there are few cases where externally this value matters otherwise.
+   * @param name Window or HUD element name to query
+   * @return User alignment override, or nullopt if none is set or the window does not exist.
+   */
+  std::optional<HudWindowAlignment> getAlignmentOverride(const std::string& name) const;
+
+  /**
+   * Sets or clears the user-selected alignment override for a HUD window.
+   * Passing std::nullopt clears the override and causes the window to use its
+   * default alignment. If no default alignment is configured, this restores
+   * legacy placement behavior. As with setPosition(), alignment may be stored
+   * before the window is registered.
+   * @param name Existing HUD element name
+   * @param alignment User alignment override, or nullopt to clear the override
+   * @return 0 on success. It is not an error to pass in a name that does not yet exist.
+   */
+  int setAlignment(const std::string& name, std::optional<HudWindowAlignment> alignment);
+
+  /**
+   * Retrieves the default alignment for a HUD window.
+   * @param name Window or HUD element name to query
+   * @return Default alignment, or nullopt if none is configured or the window does not exist.
+   */
+  std::optional<HudWindowAlignment> getDefaultAlignment(const std::string& name) const;
+
+  /**
+   * Sets the default alignment for a HUD window. If no user alignment override
+   * is active, the new default takes effect immediately. As with setPosition(),
+   * default alignment may be stored before the window is registered.
+   * @param name Existing or future HUD element name
+   * @param alignment Default alignment, or nullopt for legacy behavior
+   * @return 0 on success
+   */
+  int setDefaultAlignment(const std::string& name, std::optional<HudWindowAlignment> alignment);
+
+  /**
+   * Retrieves the alignments supported by a HUD window.
+   * @param name Window or HUD element name to query
+   * @return Set of supported alignments, or an empty set if the window does not exist.
+   */
+  std::set<HudWindowAlignment> getAllowedAlignments(const std::string& name) const;
+
+  /**
+   * Sets the alignments supported by a HUD window. The set must not be empty. The new
+   * set must include any current default alignment and user alignment override.
+   * @param name Existing or future HUD element name
+   * @param alignments Supported alignment values
+   * @return 0 on success, non-zero if the set is invalid or incompatible with existing alignment state.
+   */
+  int setAllowedAlignments(const std::string& name, const std::set<HudWindowAlignment>& alignments);
+
+  /**
+   * Resets both the position and alignment override for a HUD window.
+   * @param name Name of the HUD window to reset
+   * @return 0 on success, non-zero if the window does not exist
+   */
+  int resetPlacement(const std::string& name);
+
+  /** Resets both positions and alignment overrides for all HUD windows. */
+  void resetAllPlacements();
+
   /** Resets the given window name to its default position. */
   int resetPosition(const std::string& name);
   /** Resets the position of all windows. */
@@ -150,14 +303,55 @@ private:
     void setPosition(const osg::Vec2d& positionPct);
     /** Sends the current position to the callback. */
     void emitPosition();
+    /** Returns true if the position has been explicitly initialized. */
+    bool hasPosition() const;
     /** Retrieves position in percentage */
     osg::Vec2d position() const;
+
     /** Changes the default position, in percentage */
     void setDefaultPosition(const osg::Vec2d& posPct);
     /** Retrieves the default position in percentage */
     osg::Vec2d defaultPosition() const;
 
-    /** Changes size data, which is just metadata about the window */
+    /** Changes the user alignment override. */
+    int setAlignment(std::optional<HudWindowAlignment> alignment);
+    /** Retrieves the effective alignment. */
+    std::optional<HudWindowAlignment> alignment() const;
+    /** Calculates the offset implied by the effective alignment and current bounds. */
+    osg::Vec2d alignmentOffsetPx() const;
+    /** Retrieves the user alignment override, if one exists. */
+    std::optional<HudWindowAlignment> alignmentOverride() const;
+
+    /** Changes the default alignment. */
+    int setDefaultAlignment(std::optional<HudWindowAlignment> alignment);
+    /** Retrieves the default alignment. */
+    std::optional<HudWindowAlignment> defaultAlignment() const;
+
+    /**
+     * Sets the supported alignment values. The set must not be empty and must
+     * include any current default alignment and user override.
+     */
+    int setAllowedAlignments(const std::set<HudWindowAlignment>& alignments);
+    /** Retrieves the supported alignment values. */
+    const std::set<HudWindowAlignment>& allowedAlignments() const;
+    /** Returns true if the alignment is supported by this window. */
+    bool supportsAlignment(HudWindowAlignment alignment) const;
+
+    /** Sends the current alignment-derived offset to the callback. */
+    void emitAlignmentOffset();
+
+    /**
+     * Resets both position and alignment override to their default values,
+     * then notifies the callback that placement reset is complete.
+     */
+    void resetPlacement();
+    /** Sends the placement-reset notification to the callback. */
+    void emitPlacementReset();
+
+    /**
+     * Changes visual bounds relative to the window's native anchor. If an
+     * alignment is selected, sends an updated alignment offset callback.
+     */
     void setSize(const osg::Vec2d& minXyPx, const osg::Vec2d& maxXyPx);
     /** Retrieves size data about the window */
     void getSize(osg::Vec2d& minXyPx, osg::Vec2d& maxXyPx) const;
@@ -171,6 +365,10 @@ private:
     osg::Vec2d defaultPositionPct_;
     osg::Vec2d minXyPx_;
     osg::Vec2d maxXyPx_;
+    bool hasPosition_ = false;
+    std::optional<HudWindowAlignment> defaultAlignment_;
+    std::optional<HudWindowAlignment> alignmentOverride_;
+    std::set<HudWindowAlignment> allowedAlignments_;
     osg::ref_ptr<HudPositionManager::RepositionCallback> callback_;
   };
   std::map<std::string, osg::ref_ptr<WindowData> > allWindows_;
@@ -186,7 +384,13 @@ public:
   virtual void setPositionPx(const std::string& name, const osg::Vec2d& positionPx) = 0;
 
   /** Overrides RepositionCallback to convert the percentages to pixels. */
-  virtual void setPosition(const std::string& name, const osg::Vec2d& positionPct);
+  void setPosition(const std::string& name, const osg::Vec2d& positionPct) override;
+  /**
+   * Stores an additional logical-pixel offset and reapplies the current
+   * position, if one has been supplied. The offset persists across viewport
+   * resizes and is applied by setPosition().
+   */
+  void setAlignmentOffsetPx(const std::string& name, const osg::Vec2d& offsetPx) override;
 
 protected:
   /** osg::Referenced classes have protected destructors to avoid double delete. */
@@ -194,9 +398,22 @@ protected:
 
 private:
   class ResizeCallback;
+  /** Position and alignment-offset data for a HUD window. */
+  struct SavedPositionData
+  {
+    osg::Vec2d positionPct;
+    osg::Vec2d alignmentOffsetPx;
+    bool hasPosition = false;
+  };
+
+  /** Retrieves existing saved data or creates a new record for the given window. */
+  SavedPositionData& getOrCreateSavedPosition_(const std::string& name);
+
   osg::observer_ptr<ResizeCallback> resizeCb_;
   osg::observer_ptr<osg::Node> cbAttachNode_;
-  std::map<std::string, osg::Vec2d> savedPositionsPct_;
+
+  /** Saved positioning data, keyed by HUD window name. */
+  std::map<std::string, SavedPositionData> savedPositions_;
 };
 
 /** Intended to be used by osg::MatrixTransform users that reposition based on pixel values. */
@@ -206,7 +423,7 @@ public:
   explicit RepositionMatrixPxCallback(osg::MatrixTransform* xform);
 
   /** Overrides the Reposition callback to set the matrix translate in pixels. */
-  virtual void setPositionPx(const std::string& name, const osg::Vec2d& positionPx);
+  void setPositionPx(const std::string& name, const osg::Vec2d& positionPx) override;
 
 protected:
   /** osg::Referenced classes have protected destructors to avoid double delete. */

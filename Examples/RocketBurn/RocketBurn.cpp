@@ -50,7 +50,7 @@ public:
   }
 
   /// data store has changed
-  virtual void onChange(simData::DataStore *source)
+  void onChange(simData::DataStore *source) override
   {
     rbStorage_.update(source->updateTime());
     vtStorage_.update(source->updateTime());
@@ -220,6 +220,7 @@ void addVaporTrail(simVis::VaporTrailStorage &storage, simData::ObjectId platId)
 int main(int argc, char **argv)
 {
   simCore::checkVersionThrow();
+  simExamples::enableHighDpiSupport();
   // set up the registry so the SDK can find platform models
   simExamples::configureSearchPaths();
 
